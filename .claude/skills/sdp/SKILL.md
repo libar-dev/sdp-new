@@ -74,7 +74,8 @@ The sharp edges of the format, each what the official parser does:
 - Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
   kept, so `@verifies:REQ-a#slug` links to a rule.
 - A Background cannot be tagged. After the first Rule every scenario belongs to the rule above
-  it, whatever its indentation; one before it belongs to none, which `sdp check` reports.
+  it, whatever its indentation; one before it belongs to none, which `sdp check` reports and
+  `sdp run` refuses to run.
 
 ## What holds everywhere
 
@@ -133,8 +134,8 @@ faster than grepping for a guess.
 Plain grep is still right for what tags make literal: `grep -rn '@id=DEC-0003'` is the
 declaration, `grep -rn ':DEC-0003\b'` every link to it, `grep -rn -A1 '@open'` every open question.
 
-**An answer says when it is incomplete.** If sdp could not read a file or cut a traversal short,
-it prints `incomplete:` and `note:` lines on stderr and exits with code 2; with `--json` the
+**An answer says when it is incomplete.** If sdp could not read a file, dropped a tag it could not
+read as written, or cut a traversal short, it prints `incomplete:` and `note:` lines on stderr and exits with code 2; with `--json` the
 answer is `{ complete, notes, data }` and `complete` is `false`. Do not conclude that something is
 absent from an incomplete answer — fix what the note names (`sdp check` lists it) and ask again. A
 `note:` on a complete answer is worth reading too: it is how sdp tells you a kind or relation you

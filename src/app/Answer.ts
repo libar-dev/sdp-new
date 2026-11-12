@@ -2,7 +2,8 @@
  * The envelope of every answer sdp gives: the data, whether it is complete,
  * and notes on what the reader should know before relying on it. An answer is
  * incomplete when something that could change it was not read — a spec that
- * does not parse, an annotation or a step registration that is computed — or
+ * does not parse, a tag that says nothing as written, an annotation or a step
+ * registration that is computed — or
  * not followed — a traversal stopped by a limit. So "nothing found" is never
  * said of a graph that could not be fully read.
  *

@@ -5,8 +5,8 @@
  * ordinary ones against the graph without results, commits their results,
  * then runs the gates (milestones and `@gate` examples) against a graph that
  * shows the ordinary results and no gate results. The gate of a milestone
- * that is met does not run again, and a workspace whose scenarios cannot all
- * be read does not run at all. Works on any
+ * that is met does not run again, and a workspace that cannot all be read as
+ * written, or has a scenario outside a rule, does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
  */
 import { annotate } from "sdp/annotations"
@@ -57,9 +57,15 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
   }
 })
 
-/** Fails when Gherkin does not parse or an id is declared twice, before anything runs. */
+/**
+ * Fails before anything runs when part of the specs was not read as written, or a scenario is
+ * outside a rule: a result of such a workspace would be evidence about specs sdp check rejects.
+ */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
-  const problems = unread(project).filter((diagnostic) => diagnostic.severity === "error")
+  const problems = [
+    ...unread(project).filter((diagnostic) => diagnostic.severity === "error"),
+    ...project.diagnostics.filter((diagnostic) => diagnostic.rule === "scenario-outside-rule")
+  ]
   return problems.length === 0 ? Effect.void : Effect.fail(new UnreadableSpecs({ problems: problems.map(problemLine) }))
 }
 

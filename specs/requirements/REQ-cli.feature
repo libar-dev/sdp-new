@@ -105,6 +105,8 @@ Feature: Command line
         | specs/b.feature    | 6    | gherkin-syntax        | Feature: B\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed                                             |
         | specs/copy.feature | 1    | duplicate-id          | @id=REQ-search\nFeature: Search again                                                                                              |
         | src/search.ts      | 4    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nconst id = "REQ-search"\nannotate(search, { implements: id }) |
+        | specs/b.feature    | 1    | annotation            | @uses:REQ-search,ARCH-index\nFeature: B                                                                                             |
+        | specs/b.feature    | 1    | link-syntax           | @iteration=C1\nFeature: B                                                                                                           |
 
     Scenario Outline: A result cut short by a limit is incomplete and says which, even when it is empty
       Given a chain of 14 nodes linked by "next"
@@ -818,12 +820,12 @@ Feature: Command line
       Then the exit code is 0
       And the output contains "note: specs/steps/search.steps.ts defines no steps"
 
-  Rule: run and gate start only on a workspace they can read whole
+  Rule: run and gate start only on a workspace they can read whole, with every scenario under a rule
 
-    A scenario left unread, or an id two specs claim, would make the run incomplete and its record
-    untrue.
+    A scenario left unread, a fact or a link dropped, or an id two specs claim would make the run
+    incomplete and its record untrue; a scenario outside a rule is in a spec sdp check rejects.
 
-    Scenario Outline: A file sdp cannot read, or an id two specs claim
+    Scenario Outline: A file sdp cannot read, a tag it drops, an id two specs claim, a scenario outside a rule
       Given a file "<file>" containing:
         """
         <content>
@@ -837,6 +839,8 @@ Feature: Command line
         | command          | file                      | content                                                                                     | line | rule           |
         | sdp run          | specs/broken.feature      | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed | 6    | gherkin-syntax |
         | sdp gate MS-beta | specs/search-copy.feature | @id=REQ-search\nFeature: Search again                                                       | 1    | duplicate-id   |
+        | sdp run          | specs/REQ-b.feature       | @id=REQ-b @iteration=C1\nFeature: B                                                         | 1    | link-syntax    |
+        | sdp run          | specs/REQ-b.feature       | @id=REQ-b\nFeature: B\n  Scenario: Outside\n    Then there are no error diagnostics            | 3    | scenario-outside-rule |
 
   Rule: A gate is met only when every one of its scenarios passed, run against the current graph
 

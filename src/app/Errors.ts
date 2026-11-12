@@ -50,14 +50,14 @@ export class UnknownTargets extends Schema.TaggedError<UnknownTargets>()("Unknow
   }
 }
 
-/** Problems that leave scenarios unread or their ids ambiguous, so no run could be complete or recorded truthfully. */
+/** Problems that leave specs not read as written, or a scenario outside a rule, so no run could be recorded truthfully. */
 export class UnreadableSpecs extends Schema.TaggedError<UnreadableSpecs>()("UnreadableSpecs", {
   /** One line each: `file:line [rule] message`. */
   problems: Schema.Array(Schema.String)
 }) {
   override get message() {
     return [
-      `cannot run: ${this.problems.length} problem(s) leave scenarios unread or their ids ambiguous; fix them first (sdp check)`,
+      `cannot run: ${this.problems.length} problem(s) in the specs must be fixed first (sdp check)`,
       ...this.problems.map((problem) => `  ${problem}`)
     ].join("\n")
   }

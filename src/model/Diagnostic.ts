@@ -37,10 +37,17 @@ export type RuleId = keyof typeof rules
 
 /**
  * The rules that report part of the workspace as not read — a spec that does not parse, an id
- * declared twice, an annotation that is computed. What they name is missing from the graph, so no
- * answer drawn from the graph is known to be complete while one of them is reported.
+ * declared twice, a tag or a code annotation whose fact or link is dropped. What they name is
+ * missing from the graph, so no answer drawn from the graph is known to be complete while one of
+ * them is reported.
  */
-export const unreadRules: ReadonlySet<RuleId> = new Set(["gherkin-syntax", "duplicate-id", "annotation-unreadable"])
+export const unreadRules: ReadonlySet<RuleId> = new Set([
+  "gherkin-syntax",
+  "duplicate-id",
+  "annotation",
+  "link-syntax",
+  "annotation-unreadable"
+])
 
 /** A diagnostic on one line: `file:line [rule] message`. */
 export const problemLine = (diagnostic: Diagnostic): string =>
