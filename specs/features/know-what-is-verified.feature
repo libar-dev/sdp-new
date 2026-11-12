@@ -991,7 +991,7 @@ Feature: Know what is verified
       Then node "MS-beta#the-cart-works" has attribute status = "failed"
       And node "MS-alpha#nothing-fails" has attribute status = "passed"
 
-  Rule: A run records the scenarios it executed and what they ran against, and leaves every other result as it found it
+  Rule: A run records the scenarios it executed and what they ran against, drops the results of scenarios that were gone when it started, and leaves every other result as it found it
 
     Runs overlap: agents, shells and CI jobs record into one store.
 
