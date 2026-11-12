@@ -145,7 +145,7 @@ const contextCommand = Command.make(
   })
 ).pipe(
   Command.withDescription(
-    "Markdown context bundle for one node: spec, why it is not ready, links, scenarios with the step definitions still to write, architecture, quality requirements, decisions, code"
+    "Markdown context bundle for one node: its rules with their state and reason, scenarios with the step definitions still to write, spec, links, architecture, quality requirements, decisions, code"
   )
 )
 
