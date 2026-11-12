@@ -51,6 +51,7 @@ declare module "sdp/annotations" {
     "specs-are-gherkin-files": "decision"
     "start-a-spec": "feature"
     "steps-that-hang-are-stopped": "change"
+    "typed-ids-reach-the-compiler": "change"
     "use-the-command-line": "feature"
     "VISION": "vision"
     "write-a-spec": "feature"
