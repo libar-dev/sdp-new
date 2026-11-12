@@ -28,6 +28,7 @@ declare module "sdp/annotations" {
     "IT-scale-and-compatibility": "iteration"
     "link-attributes-on-annotations": "change"
     "link-code-to-specs": "feature"
+    "link-specs": "feature"
     "MS-mvp": "milestone"
     "NFR-no-build-step": "nfr"
     "PAT-derived-index": "pattern"
@@ -42,13 +43,11 @@ declare module "sdp/annotations" {
     "REQ-decision-records": "requirement"
     "REQ-editor-support": "requirement"
     "REQ-executable-specs": "requirement"
-    "REQ-flexible-graph": "requirement"
     "REQ-history-lifecycle": "requirement"
     "REQ-lifecycle-view": "requirement"
     "REQ-maturity-criteria": "requirement"
     "REQ-mcp-server": "requirement"
     "REQ-npm-package": "requirement"
-    "REQ-progressive-specs": "requirement"
     "REQ-quality-scenarios": "requirement"
     "REQ-review-bot": "requirement"
     "REQ-shared-evidence": "requirement"
@@ -57,6 +56,7 @@ declare module "sdp/annotations" {
     "run-existing-cucumber-suites": "feature"
     "specs-are-gherkin-files": "decision"
     "VISION": "vision"
+    "write-a-spec": "feature"
   }
 }
 
