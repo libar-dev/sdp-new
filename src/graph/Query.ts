@@ -504,8 +504,9 @@ const hops = (context: Context, id: string, step: EdgeStep): Array<Hop> => {
 /**
  * The routes one edge step opens from a node. A plain step has one route per matching edge. A `+`
  * step has one per node it reaches, a shortest one, found breadth-first: a node is walked on from
- * once, and the start is reached like any other node when a cycle leads back to it. `cut` when
- * the walk stopped at `maxDepth` with nodes left to reach.
+ * once, and the start is reached when a cycle leads back to it. A two-way walk never goes back
+ * along the edge it just took, so it reaches the start only where two of its branches meet, or a
+ * second link to the start does. `cut` when the walk stopped at `maxDepth` with nodes left to reach.
  */
 const reachable = (
   context: Context,
@@ -515,12 +516,26 @@ const reachable = (
 ): { readonly routes: ReadonlyArray<ReadonlyArray<Hop>>; readonly cut: boolean } => {
   if (!step.transitive) return { routes: hops(context, from, step).map((hop) => [hop]), cut: false }
   const routes = new Map<string, ReadonlyArray<Hop>>()
+  const twoWay = step.direction === "both"
+  const onward = (route: ReadonlyArray<Hop>, hop: Hop) => !twoWay || route.length === 0 || !sameEdge(route.at(-1)!.edge, hop.edge)
+  /** The cycle through the start a two-way hop closes: back to it, or to a node of another branch and back the way that came. */
+  const closing = (route: ReadonlyArray<Hop>, hop: Hop): ReadonlyArray<Hop> | undefined => {
+    if (!twoWay) return undefined
+    const extended = [...route, hop]
+    if (hop.node === from) return extended
+    const met = routes.get(hop.node)
+    return met === undefined || sameEdge(met[0]!.edge, extended[0]!.edge) ? undefined : [...extended, ...backTo(from, met)]
+  }
+  let cycle: ReadonlyArray<Hop> | undefined
   let frontier: Array<{ readonly id: string; readonly route: ReadonlyArray<Hop> }> = [{ id: from, route: [] }]
   for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
     const next: typeof frontier = []
     for (const { id, route } of frontier) {
       for (const hop of hops(context, id, step)) {
-        if (routes.has(hop.node)) continue
+        if (!onward(route, hop)) continue
+        const closed = closing(route, hop)
+        if (closed !== undefined && (cycle === undefined || closed.length < cycle.length)) cycle = closed
+        if (closed !== undefined || routes.has(hop.node)) continue
         const extended = [...route, hop]
         routes.set(hop.node, extended)
         // The start was walked on from in the first round.
@@ -529,9 +544,18 @@ const reachable = (
     }
     frontier = next
   }
-  const cut = frontier.some(({ id }) => hops(context, id, step).some((hop) => !routes.has(hop.node)))
+  if (cycle !== undefined) routes.set(from, cycle)
+  const cut = frontier.some(({ id, route }) =>
+    hops(context, id, step).some((hop) => onward(route, hop) && (!routes.has(hop.node) || (cycle === undefined && closing(route, hop) !== undefined)))
+  )
   return { routes: [...routes.values()], cut }
 }
+
+const sameEdge = (a: PathEdge, b: PathEdge) => a.from === b.from && a.rel === b.rel && a.to === b.to
+
+/** A route walked back from its end to `start`, over the same edges. */
+const backTo = (start: string, route: ReadonlyArray<Hop>): ReadonlyArray<Hop> =>
+  route.map((hop, index) => ({ edge: hop.edge, node: index === 0 ? start : route[index - 1]!.node })).reverse()
 
 const endOf = (path: QueryPath): string => path.nodes.at(-1)!
 

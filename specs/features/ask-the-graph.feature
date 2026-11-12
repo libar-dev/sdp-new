@@ -178,6 +178,8 @@ Feature: Ask the graph
         | #ARCH-orders <-depends-on+- *            | ARCH-billing, ARCH-ledger, ARCH-orders |
         | #ARCH-orders -depends-on+-> #ARCH-orders | ARCH-orders                            |
         | #checkout -realized-by+-> #checkout      | nothing                                |
+        | #ARCH-orders -depends-on+- #ARCH-orders  | ARCH-orders                            |
+        | #checkout -realized-by+- #checkout       | nothing                                |
 
   Rule: A link can filter instead: keep the nodes that have such a neighbour, or those that have none
 
