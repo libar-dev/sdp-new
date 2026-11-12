@@ -66,7 +66,7 @@ Scenario Outline: Each rule reports its problem where it is
 
   Examples:
     | rule                | severity | file             | line | front matter                                         | body                                                                                  |
-    | front-matter        | error    | specs/REQ-a.md   | 1    | { id: REQ-a                                          |                                                                                       |
+    | front-matter        | error    | specs/REQ-a.md   | 2    | { id: REQ-a                                          |                                                                                       |
     | missing-id          | warning  | specs/REQ-a.md   | 1    | { kind: requirement }                                |                                                                                       |
     | duplicate-id        | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [{ id: I1 }, { id: I1 }] }        |                                                                                       |
     | dangling-link       | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: { depends-on: REQ-gone } }       |                                                                                       |

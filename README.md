@@ -4,7 +4,7 @@ kind: guide
 title: sdp
 iteration: I1
 links:
-  introduces: [CAP-living-specs, CAP-curated-architecture, CAP-agent-collaboration]
+  introduces: [VISION, CAP-living-specs, CAP-curated-architecture, CAP-agent-collaboration]
 ---
 
 # sdp
