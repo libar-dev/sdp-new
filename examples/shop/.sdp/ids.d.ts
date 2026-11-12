@@ -5,7 +5,6 @@ declare module "sdp/annotations" {
   interface Ids {
     "ARCH-pricing": "element"
     "DEC-0001": "decision"
-    "EXAMPLE-shop": "guide"
     "NFR-pricing-latency": "nfr"
     "REQ-cart-totals": "requirement"
     "REQ-guest-checkout": "requirement"
