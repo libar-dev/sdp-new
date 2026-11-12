@@ -146,7 +146,11 @@ const comparedWith = (project: Project, read: BaseRead) => {
     }
   }
   const { diagnostics, missing } = compareWithBase(project, read.found)
-  return { diagnostics, missing, notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`] }
+  return {
+    diagnostics,
+    missing: [...read.found.missing, ...missing],
+    notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`]
+  }
 }
 
 /**

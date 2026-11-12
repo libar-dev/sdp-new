@@ -1,7 +1,8 @@
 /**
  * The base revision `sdp check` compares live tests with, read from git: the feature files of the
- * commit where HEAD meets the base, as that commit's own configuration finds them, and that
- * configuration. Reading is IO at the edge; comparing is the checker's, and pure (`compareWithBase`).
+ * commit where HEAD meets the base, as that commit's own configuration finds them with the walk that
+ * finds the workspace's, and that configuration. Reading is IO at the edge; comparing is the
+ * checker's, and pure (`compareWithBase`).
  *
  * The base is named by `--base` or `base:` in the configuration, and is otherwise the repository's
  * default branch: origin's HEAD, else main, else master. A base that is named and cannot be read
@@ -10,12 +11,13 @@
  *
  * @sdp is ARCH-workspace
  */
-import { Context, Effect, Glob, Layer, Result, Schema, Stream } from "effect"
+import { ByteSize, Context, Effect, FileSystem, Layer, Option, Result, Schema, Stream } from "effect"
+import { systemError } from "effect/PlatformError"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import type { SourceFile } from "../graph/Build.ts"
 import type { BaseSpecs } from "../check/Check.ts"
 import { configFileNames } from "../model/Config.ts"
-import { parseConfig } from "./Workspace.ts"
+import { findFiles, parseConfig } from "./Workspace.ts"
 
 /** The base that waives the comparison: `--base none`, or `base: none` in the configuration. */
 export const noBase = "none"
@@ -30,9 +32,12 @@ export class BaseNotFound extends Schema.TaggedError<BaseNotFound>()("BaseNotFou
   }
 }
 
-/** The specs at the base, with the git command that finds it, or why there is no base to compare with. */
+/**
+ * The specs at the base, with the git command that finds it and what of the base its configuration
+ * reaches that git cannot say, or why there is no base to compare with.
+ */
 export type BaseRead =
-  | { readonly found: BaseSpecs & { readonly command: string } }
+  | { readonly found: BaseSpecs & { readonly command: string; readonly missing: ReadonlyArray<string> } }
   | { readonly none: string }
 
 export interface RevisionsReader {
@@ -116,40 +121,179 @@ export const gitRevisions = Layer.effect(
       if (commit === undefined) return yield* missing(`${command} found no commit`)
       const at = commit.slice(0, 7)
 
-      // The files of the commit under the workspace, relative to it as its globs are, each with its
-      // blob: read by blob, a file is read whatever bytes its name holds.
-      const tree = yield* inWorkspace(["ls-tree", "-r", "-z", commit])
-      if (tree?.code !== 0) return yield* missing(`git ls-tree could not list the files of ${at}`)
-      const blobs = tree.out.toString("utf8").split("\0").flatMap((entry) => {
+      // Every file of the commit, from the top of the repository, each with its blob: read by blob, a
+      // file is read whatever bytes its name holds. The workspace is the directory `prefix` names.
+      const prefix = text(yield* inWorkspace(["rev-parse", "--show-prefix"]))
+      const tree = yield* inWorkspace(["ls-tree", "-r", "-z", "--full-tree", commit])
+      if (prefix === undefined || tree?.code !== 0) return yield* missing(`git ls-tree could not list the files of ${at}`)
+      const entries = new Map(tree.out.toString("utf8").split("\0").flatMap((entry) => {
         const tab = entry.indexOf("\t")
-        const [, type, object] = entry.slice(0, Math.max(0, tab)).split(" ")
-        return tab > 0 && type === "blob" && object !== undefined ? [{ path: entry.slice(tab + 1), object }] : []
-      })
+        const [mode, , object] = entry.slice(0, Math.max(0, tab)).split(" ")
+        return tab > 0 && mode !== undefined && object !== undefined ? [[entry.slice(tab + 1), { mode, object }] as const] : []
+      }))
       const read = Effect.fnUntraced(function*(wanted: ReadonlyArray<{ readonly path: string; readonly object: string }>) {
         if (wanted.length === 0) return []
         const out = yield* inWorkspace(["cat-file", "--batch"], wanted.map(({ object }) => `${object}\n`).join(""))
         return out?.code === 0 ? batch(wanted, out.out) : undefined
       })
+      const links = yield* read([...entries].flatMap(([path, { mode, object }]) => mode === symbolicLink ? [{ path, object }] : []))
+      if (links === undefined) return yield* missing(`git cat-file could not read the symbolic links of ${at}`)
+      const committed = treeFiles(entries, new Map(links.map(({ content, path }) => [path, content])))
+      const workspace = prefix.replace(/\/$/, "")
+      // Each path of the workspace with the blob of the file it leads to at the base, if it leads to one.
+      const inCommit = (paths: ReadonlyArray<string>) =>
+        paths.map((path) => ({ path, object: committed.blob(workspace === "" ? path : `${workspace}/${path}`) }))
+      const held = (wanted: ReturnType<typeof inCommit>) =>
+        wanted.flatMap(({ object, path }) => object === undefined ? [] : [{ path, object }])
 
       // The base is read as it was configured: its features globs, its exclusions and its vocabulary.
-      const configBlob = configFileNames.flatMap((name) => blobs.filter((blob) => blob.path === name))[0]
-      const configFiles = yield* read(configBlob === undefined ? [] : [configBlob])
+      const configFile = held(inCommit(configFileNames))[0]
+      const configFiles = yield* read(configFile === undefined ? [] : [configFile])
       if (configFiles === undefined) return yield* missing(`git cat-file could not read the configuration of ${at}`)
       const parsed = yield* Effect.result(parseConfig(configFiles[0]))
       if (Result.isFailure(parsed)) return yield* missing(`the configuration of ${at} does not read: ${parsed.failure.message}`)
       const config = parsed.success
-      const features = config.features.map((pattern) => Glob.make(pattern, { dot: false }))
-      const excluded = config.exclude.map((pattern) => Glob.make(pattern, { dot: true }))
-      const specs = blobs.filter(({ path }) =>
-        features.some((glob) => Glob.match(glob, path)) && !excluded.some((glob) => Glob.match(glob, path))
+      // Its specs are those the workspace's own walk finds there: what it reaches that the commit
+      // cannot say is a part of the base that was not compared.
+      const listed = yield* Effect.result(
+        findFiles(workspace, config.features, config.exclude).pipe(Effect.provideService(FileSystem.FileSystem, committed.fileSystem))
       )
-      const files = yield* read(specs)
+      if (Result.isFailure(listed)) return yield* missing(`the files of ${at} could not be listed: ${listed.failure.message}`)
+      const specs = inCommit(listed.success)
+      const files = yield* read(held(specs))
       if (files === undefined) return yield* missing(`git cat-file could not read the specs of ${at}`)
-      return { found: { commit: at, command, files, config } }
+      const fromWorkspace = (path: string) => path.startsWith(prefix) ? path.slice(prefix.length) : path
+      const unknown = new Map([
+        ...[...committed.unknown].map(([path, what]) => [fromWorkspace(path), what] as const),
+        ...specs.filter(({ object }) => object === undefined).map(({ path }) => [path, "a link to nothing"] as const)
+      ])
+      const unread = [
+        ...[...unknown].map(([path, what]) =>
+          `not compared: ${path} at the base ${at} is ${what}, so git holds none of what the configuration finds there`
+        ),
+        ...[...committed.folded].map(([written, actual]) =>
+          `not compared: ${fromWorkspace(written)} is ${fromWorkspace(actual)} at the base ${at}: a file system that ignores case reads one for the other, and git does not`
+        )
+      ]
+      return { found: { commit: at, command, files, config, missing: unread } }
     })
     return { base }
   })
 )
+
+/** The mode `git ls-tree` gives a symbolic link, whose blob holds its target, and a submodule, whose files are another repository's. */
+const symbolicLink = "120000"
+const submodule = "160000"
+const inSubmodule = "a submodule, whose files are another repository's"
+
+/** All a file of a commit can say of itself: its type. */
+const fileInfo = (type: FileSystem.File.Type): FileSystem.File.Info => ({
+  type,
+  mtime: Option.none(),
+  atime: Option.none(),
+  birthtime: Option.none(),
+  dev: 0n,
+  ino: Option.none(),
+  mode: 0,
+  nlink: Option.none(),
+  uid: Option.none(),
+  gid: Option.none(),
+  rdev: Option.none(),
+  size: ByteSize.bytes(0),
+  blksize: Option.none(),
+  blocks: Option.none()
+})
+
+/**
+ * The files of a commit, by their path from the top of the repository, as a file system the
+ * workspace's walk (`findFiles`) can find specs in as it finds them on disk: a symbolic link leads
+ * where its target does. What a path reaches that the commit cannot say is recorded: in `unknown`,
+ * what it is — out of the repository, a submodule — and in `folded`, a name the tree has only in
+ * another case, which a file system that ignores case would read for it. `blob` is the blob of the
+ * file a path leads to, if it leads to one.
+ */
+const treeFiles = (
+  entries: ReadonlyMap<string, { readonly mode: string; readonly object: string }>,
+  targets: ReadonlyMap<string, string>
+) => {
+  const listings = new Map<string, Map<string, FileSystem.File.Type>>([["", new Map()]])
+  for (const [path, { mode }] of entries) {
+    const names = path.split("/")
+    names.forEach((name, at) => {
+      const directory = names.slice(0, at).join("/")
+      const listing = listings.get(directory) ?? listings.set(directory, new Map()).get(directory)!
+      listing.set(name, at < names.length - 1 || mode === submodule ? "Directory" : mode === symbolicLink ? "SymbolicLink" : "File")
+    })
+  }
+  const unknown = new Map<string, string>()
+  const folded = new Map<string, string>()
+  const cannotSay = (path: string, what: string) => void unknown.set(path, what)
+  /** Where `written` leads in the tree, its links followed — the last one only if `follow` — or undefined when nowhere. */
+  const resolve = (written: string, follow: boolean): string | undefined => {
+    if (/^(\/|[A-Za-z]:\/)/.test(written)) return cannotSay(written, "outside the repository")
+    const pending = written.split("/")
+    const reached: Array<string> = []
+    for (let hops = 0; pending.length > 0;) {
+      const name = pending.shift()!
+      if (name === "" || name === ".") continue
+      if (name === "..") {
+        if (reached.pop() === undefined) return cannotSay(written, "outside the repository")
+        continue
+      }
+      const listing = listings.get(reached.join("/"))
+      const type = listing?.get(name)
+      const path = [...reached, name].join("/")
+      if (type === undefined) {
+        const other = [...listing?.keys() ?? []].find((candidate) => candidate.toLowerCase() === name.toLowerCase())
+        if (other !== undefined) folded.set(path, [...reached, other].join("/"))
+        return undefined
+      }
+      if (entries.get(path)?.mode === submodule && pending.length > 0) return cannotSay(path, inSubmodule)
+      if (type === "SymbolicLink" && (follow || pending.length > 0)) {
+        const target = targets.get(path) ?? ""
+        if (++hops > 40 || /^(\/|[A-Za-z]:\/)/.test(target)) return cannotSay(written, "a link out of the repository, or in a circle")
+        pending.unshift(...target.split("/"))
+        continue
+      }
+      reached.push(name)
+    }
+    return reached.join("/")
+  }
+  const typeOf = (path: string): FileSystem.File.Type | undefined => {
+    const at = path.lastIndexOf("/")
+    return path === "" ? "Directory" : listings.get(path.slice(0, Math.max(0, at)))?.get(path.slice(at + 1))
+  }
+  const notFound = (method: string, path: string) =>
+    Effect.fail(systemError({ _tag: "NotFound", module: "FileSystem", method, pathOrDescriptor: path }))
+  const fileSystem = FileSystem.make(FileSystem.makeNoop({
+    stat: (path) => {
+      const found = resolve(path, true)
+      const type = found === undefined ? undefined : typeOf(found)
+      return type === undefined ? notFound("stat", path) : Effect.succeed(fileInfo(type))
+    },
+    readDirectoryEntries: (path) => {
+      const found = resolve(path, true)
+      if (found !== undefined && entries.get(found)?.mode === submodule) cannotSay(found, inSubmodule)
+      const listing = found === undefined ? undefined : listings.get(found)
+      return listing === undefined
+        ? notFound("readDirectoryEntries", path)
+        : Effect.succeed([...listing].map(([name, type]) => ({ name, type })))
+    },
+    readLink: (path) => {
+      const found = resolve(path, false)
+      const target = found === undefined ? undefined : targets.get(found)
+      return target === undefined
+        ? Effect.fail(systemError({ _tag: "Unknown", module: "FileSystem", method: "readLink", pathOrDescriptor: path }))
+        : Effect.succeed(target)
+    }
+  }))
+  const blob = (written: string): string | undefined => {
+    const found = resolve(written, true)
+    const entry = found === undefined ? undefined : entries.get(found)
+    return entry === undefined || entry.mode === submodule ? undefined : entry.object
+  }
+  return { fileSystem, blob, unknown, folded }
+}
 
 /**
  * The files `git cat-file --batch` wrote for the blobs asked for, in their order: a header

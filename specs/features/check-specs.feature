@@ -359,6 +359,38 @@ Feature: Check specs
         | the spec excluded           | exclude: ["specs/cart.feature"]      |
         | the features globs elsewhere | features: ["requirements/**/*.feature"] |
 
+    Scenario Outline: The specs of the base are those the workspace's own walk finds there: <case>
+      Given a file "<configuration file>" containing:
+        """
+        <configuration>
+        """
+      And a file "specs/archive/old-cart.feature" containing:
+        """
+        @id=old-cart
+        Feature: Old cart
+
+          Rule: An old cart holds what was added
+
+            Scenario: Add an old item
+              Then the cart holds 1 item
+        """
+      And the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/cart.feature && <command>
+        """
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | complete  | <complete> |
+        | data.node | <dropped>  |
+
+      Examples:
+        | case                                       | configuration file  | configuration                                    | command                 | exit code | complete | dropped          |
+        | a features glob out of the workspace       | app/sdp.config.yaml | features: ["../specs/**/*.feature"]              | sdp -C app check --json | 1         | true     | cart#add-an-item |
+        | an excluded directory                      | sdp.config.yaml     | exclude: ["specs/archive"]                       | sdp check --json        | 1         | true     | cart#add-an-item |
+        | a features glob out of the repository      | sdp.config.yaml     | features: ["specs/**/*.feature", "../*.feature"] | sdp check --json        | 1         | false    | cart#add-an-item |
+        | a features glob in another case than git's | sdp.config.yaml     | features: ["Specs/**/*.feature"]                 | sdp check --json        | 2         | false    | nothing          |
+
     Scenario: A spec whose file name holds a line break, deleted
       When I run the pipeline:
         """
@@ -373,6 +405,22 @@ Feature: Check specs
         """
       Then the exit code is 0
       When I run "sdp check --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule | example-dropped |
+        | data.node | cart#add-an-item |
+
+    Scenario: A spec that is a symbolic link to a file the globs miss, deleted
+      When I run the pipeline:
+        """
+        mkdir shared && mv specs/cart.feature shared/cart.txt && ln -s ../shared/cart.txt specs/cart.feature
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/cart.feature shared/cart.txt && sdp check --json
+        """
       Then the exit code is 1
       And the JSON output has:
         | data.rule | example-dropped |
