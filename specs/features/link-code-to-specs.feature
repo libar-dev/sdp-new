@@ -510,6 +510,8 @@ Feature: Link code to specs
         | export const pay = Effect.fn("pay")(function*(amount: number) {\n  return amount\n})           | return-type |
         | export const pay = Effect.fn("pay")(function*(amount: number): Effect.fn.Return<number> {\n  return amount\n}) | nothing     |
         | export const pay = Effect.fn("pay")(function*(amount: number) {\n  return amount\n}, Effect.withSpan("pay")) | return-type |
+        | export const pay = Effect.fn(`pay`)(function*(amount: number) {\n  return amount\n})           | return-type |
+        | export const pay = Effect.fn("card." + "pay")(function*(amount: number) {\n  return amount\n}) | return-type |
         | export const pay = 0.2                                                                         | nothing     |
         | export const pay = [1, 2].map((amount: number) => amount)                                      | nothing     |
         | export const pay: (amount: number) => number = (amount) => amount                              | nothing     |

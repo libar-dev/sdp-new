@@ -30,6 +30,9 @@ const typeOnly = new Set(["ParenthesizedExpression", "TSAsExpression", "TSSatisf
 /** The functions of Effect that make a function of a generator: `Effect.fn`, and the untraced ones. */
 const effectFunctions = new Set(["fn", "fnUntraced", "fnUntracedEager"])
 
+/** The one of them that also takes a name first, `Effect.fn("pay")(body)`. */
+const takesName: ReadonlySet<string> = new Set(["fn"])
+
 /**
  * The names a file imports Effect's module under: `import { Effect } from "effect"`, or the module
  * itself, `import * as Effect from "effect/Effect"`.
@@ -47,15 +50,18 @@ const effectNames = (program: Script["program"]): ReadonlySet<string> =>
 
 /**
  * The body Effect makes a function of, as its documentation has the arguments: `Effect.fn(body, …)`,
- * `Effect.fn("name", options?)(body, …)`, and `Effect.fn({ self }, body, …)`; the arguments after
- * the body transform what it returns. Any other call is not read.
+ * `Effect.fn(name, options?)(body, …)` whatever expression gives the name, and
+ * `Effect.fn({ self }, body, …)`; the arguments after the body transform what it returns. Only
+ * `Effect.fn` takes a name. Any other call is not read.
  */
 const effectBody = (call: Node, effect: ReadonlySet<string>): Node | undefined => {
-  const isFn = (callee: unknown): boolean =>
+  const isFn = (callee: unknown, functions: ReadonlySet<string> = effectFunctions): boolean =>
     isNode(callee) && callee.type === "MemberExpression" && !callee.computed && isNode(callee.object) &&
-    callee.object.type === "Identifier" && effect.has(callee.object.name as string) && effectFunctions.has(nameOf(callee.property as Node) ?? "")
-  const named = isNode(call.callee) && call.callee.type === "CallExpression" && isFn(call.callee.callee) &&
-    (call.callee.arguments as ReadonlyArray<Node>)[0]?.type === "Literal"
+    callee.object.type === "Identifier" && effect.has(callee.object.name as string) && functions.has(nameOf(callee.property as Node) ?? "")
+  // A name is any expression but the body and the `{ self }` that the other forms begin with.
+  const [name] = isNode(call.callee) && call.callee.type === "CallExpression" ? call.callee.arguments as ReadonlyArray<Node> : []
+  const named = isNode(call.callee) && call.callee.type === "CallExpression" && isFn(call.callee.callee, takesName) &&
+    name !== undefined && !functions.has(name.type) && name.type !== "ObjectExpression" && name.type !== "SpreadElement"
   if (!named && !isFn(call.callee)) return undefined
   const [first, second] = call.arguments as ReadonlyArray<Node>
   const body = first?.type === "ObjectExpression" ? second : first
