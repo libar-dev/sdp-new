@@ -7,7 +7,7 @@
 import { annotate } from "sdp/annotations"
 import { Effect, FileSystem, Path, Schema } from "effect"
 import { registerHooks } from "node:module"
-import { pathToFileURL } from "node:url"
+import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
@@ -48,25 +48,33 @@ export const findWorkspaceRoot = Effect.fn("findWorkspaceRoot")(function*(start:
   }
 })
 
-export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
+/** The workspace's configuration file, if it has one. */
+const readConfigFile = Effect.fnUntraced(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   if (!(yield* fs.exists(root))) return yield* new WorkspaceNotFound({ root })
   for (const name of configFileNames) {
     const file = path.join(root, name)
-    if (!(yield* fs.exists(file))) continue
-    const text = yield* fs.readFileString(file)
-    const raw = yield* Effect.try({
-      try: () => name.endsWith(".json") ? JSON.parse(text) : parseYaml(text) ?? {},
-      catch: (e) => new ConfigError({ file: name, message: e instanceof Error ? e.message : String(e) })
-    })
-    // Unknown keys are errors: a misspelled `spec:` must not silently fall back to the defaults.
-    const decoded = yield* Schema.decodeUnknownEffect(ConfigFile)(raw, { onExcessProperty: "error" }).pipe(
-      Effect.mapError((e) => new ConfigError({ file: name, message: e.message }))
-    )
-    return resolveConfig(decoded)
+    if (yield* fs.exists(file)) return { path: name, content: yield* fs.readFileString(file) } satisfies SourceFile
   }
-  return resolveConfig(undefined)
+  return undefined
+})
+
+const parseConfig = Effect.fnUntraced(function*(file: SourceFile | undefined) {
+  if (!file) return resolveConfig(undefined)
+  const raw = yield* Effect.try({
+    try: () => file.path.endsWith(".json") ? JSON.parse(file.content) : parseYaml(file.content) ?? {},
+    catch: (e) => new ConfigError({ file: file.path, message: e instanceof Error ? e.message : String(e) })
+  })
+  // Unknown keys are errors: a misspelled `spec:` must not silently fall back to the defaults.
+  const decoded = yield* Schema.decodeUnknownEffect(ConfigFile)(raw, { onExcessProperty: "error" }).pipe(
+    Effect.mapError((e) => new ConfigError({ file: file.path, message: e.message }))
+  )
+  return resolveConfig(decoded)
+})
+
+export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
+  return yield* parseConfig(yield* readConfigFile(root))
 })
 
 /** Expand globs relative to `root`, de-duplicated and sorted for stable output. */
@@ -113,23 +121,37 @@ export const writeResults = Effect.fn("writeResults")(function*(root: string, co
   yield* fs.writeFileString(file, `${JSON.stringify(results, null, 2)}\n`)
 })
 
-/** Reads config, specs, feature files, code, stored results and id declarations from a workspace and builds its project. */
-export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
+/**
+ * Reads config, specs, feature files, code, step definitions, stored results and id declarations
+ * from a workspace and builds its project. `imports` names the workspace files the step
+ * definitions import (from `loadSteps`); without it, those the last run recorded count.
+ */
+export const loadProject = Effect.fn("loadProject")(function*(root: string, options: {
+  readonly withResults?: boolean
+  readonly imports?: ReadonlyArray<string> | undefined
+} = {}) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  const config = yield* loadConfig(root)
-  const [specPaths, featurePaths, codePaths] = yield* Effect.all([
+  const configFile = yield* readConfigFile(root)
+  const config = yield* parseConfig(configFile)
+  const [specPaths, featurePaths, codePaths, stepPaths] = yield* Effect.all([
     findFiles(root, config.specs, config.exclude),
     findFiles(root, config.features, config.exclude),
-    findFiles(root, config.code, config.exclude)
+    findFiles(root, config.code, config.exclude),
+    findFiles(root, config.steps, config.exclude)
   ], { concurrency: "unbounded" })
   const specFiles = yield* readAll(root, specPaths)
   const featureFiles = yield* readAll(root, featurePaths)
   const codeFiles = yield* readAll(root, codePaths)
   const results = options.withResults === false ? undefined : yield* readResults(root, config)
+  const imports = options.imports ?? results?.imports ?? []
+  // Code files are read already; an import that is gone no longer counts.
+  const code = new Set(codePaths)
+  const imported = yield* Effect.filter(imports, (file) => fs.exists(path.join(root, file)))
+  const stepFiles = yield* readAll(root, [...new Set([...stepPaths, ...imported])].filter((file) => !code.has(file)))
   const typesFile = path.join(root, config.types)
   const types = (yield* fs.exists(typesFile)) ? yield* fs.readFileString(typesFile) : undefined
-  return buildProject({ root, config, specFiles, featureFiles, codeFiles, results, types }) satisfies Project
+  return buildProject({ root, config, specFiles, featureFiles, codeFiles, results, types, configFile, stepFiles, imports }) satisfies Project
 })
 annotate(loadProject, { is: "ARCH-workspace", "instance-of": "PAT-pipes-and-filters" })
 
@@ -140,6 +162,9 @@ const sdpExports: Readonly<Record<string, string>> = {
 }
 const sdpSources = new URL("../", import.meta.url).href
 let hooked = false
+/** Module URL → the local files it imports, as resolved since the hooks were registered (kept across loads). */
+const importGraph = new Map<string, Set<string>>()
+const withoutQuery = (url: string) => url.replace(/[?#].*$/, "")
 
 /**
  * Step modules `import { defineSteps } from "sdp"`: that always resolves to the sdp that runs them,
@@ -157,6 +182,11 @@ const hookImports = () => {
       const own = sdpExports[specifier]
       if (own !== undefined) return { url: own, shortCircuit: true }
       const resolved = nextResolve(specifier, context)
+      // What step modules import is part of what scenarios run against: record the local edges.
+      if (context.parentURL?.startsWith("file:") && resolved.url.startsWith("file:") && !resolved.url.includes("/node_modules/")) {
+        const parent = withoutQuery(context.parentURL)
+        importGraph.set(parent, (importGraph.get(parent) ?? new Set()).add(withoutQuery(resolved.url)))
+      }
       const load = context.parentURL?.startsWith("file:") ? new URL(context.parentURL).searchParams.get("sdp-load") : null
       if (load === null || !resolved.url.startsWith("file:") || resolved.url.includes("/node_modules/") || resolved.url.startsWith(sdpSources)) {
         return resolved
@@ -176,6 +206,8 @@ export interface LoadedSteps {
   readonly modules: ReadonlyArray<StepModule<any>>
   /** Files that export no step module (`export default defineSteps(…)`), so define nothing. */
   readonly empty: ReadonlyArray<string>
+  /** Workspace files the step definition files import, directly or not, relative to the root. */
+  readonly imports: ReadonlyArray<string>
 }
 
 /**
@@ -200,7 +232,29 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     if (found.length === 0) empty.push(file)
     modules.push(...found)
   }
-  return { files, modules, empty } satisfies LoadedSteps
+  return { files, modules, empty, imports: files.length > 0 ? yield* importedBy(root, files) : [] } satisfies LoadedSteps
+})
+
+/** The workspace files the given modules import, directly or through other workspace files. */
+const importedBy = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  // Node resolves modules to their real paths.
+  const real = yield* fs.realPath(root)
+  const seen = new Set(files.map((file) => pathToFileURL(path.join(real, file)).href))
+  const queue = [...seen]
+  for (const url of queue) {
+    for (const next of importGraph.get(url) ?? []) {
+      if (seen.has(next)) continue
+      seen.add(next)
+      queue.push(next)
+    }
+  }
+  const own = new Set(files)
+  return [...seen]
+    .map((url) => path.relative(real, fileURLToPath(url)))
+    .filter((file) => !own.has(file) && !file.startsWith("..") && !path.isAbsolute(file))
+    .sort()
 })
 
 /** The first line of what went wrong; Node appends the code frame and a stack nobody needs here. */

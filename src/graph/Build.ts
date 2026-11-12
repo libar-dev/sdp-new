@@ -5,14 +5,15 @@
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
+import { createHash } from "node:crypto"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
 import { type Annotation, codeNodeId, ignoredAnnotations, scanAnnotations } from "../parse/Annotations.ts"
 import { scanTypedAnnotations } from "../parse/TypedAnnotations.ts"
-import type { Scenario } from "../parse/Gherkin.ts"
+import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import { parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
-import { type RunResults, type StepStatus, type Verification, verificationOf } from "../run/Results.ts"
+import { type RunResults, type ScenarioResult, type StepStatus, type Verification, verificationOf } from "../run/Results.ts"
 
 export interface SourceFile {
   readonly path: string
@@ -28,6 +29,24 @@ export interface ProjectInput {
   readonly results?: RunResults | undefined
   /** The id declarations currently on disk at `config.types`, if any (to tell when they are stale). */
   readonly types?: string | undefined
+  /** The configuration file, if there is one: scenarios run against it. */
+  readonly configFile?: SourceFile | undefined
+  /** Step definition files and the workspace files they import (`imports`): scenarios run against them. */
+  readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
+  /** Workspace files the step definitions import besides the step files. */
+  readonly imports?: ReadonlyArray<string> | undefined
+}
+
+/** Fingerprints of the workspace as it is now, to compare with what each stored result recorded. */
+export interface WorkspaceEvidence {
+  /** The configuration file, the code files and the step definitions with what they import. */
+  readonly sources: string
+  /** The spec and feature files. */
+  readonly specs: string
+  /** The statuses of the ordinary (non-gate) scenarios, as the graph shows them. */
+  readonly results: string
+  /** Workspace files the step definitions import besides the step files. */
+  readonly imports: ReadonlyArray<string>
 }
 
 export interface Project {
@@ -41,6 +60,7 @@ export interface Project {
   readonly diagnostics: ReadonlyArray<Diagnostic>
   readonly results: RunResults | undefined
   readonly types: string | undefined
+  readonly evidence: WorkspaceEvidence
 }
 
 /** Attribute keys whose values are never turned into implicit links. */
@@ -106,14 +126,34 @@ export const buildProject = (input: ProjectInput): Project => {
     nodes.set(node.id, node)
   }
 
+  // Results count only while what they ran against is unchanged. Gates may read the ordinary
+  // results, so those are settled first — ordinary scenarios run first and record no results —
+  // and fingerprinted for the gates.
+  const fingerprints = {
+    sources: fingerprint([...(input.configFile ? [input.configFile] : []), ...input.codeFiles, ...(input.stepFiles ?? [])]),
+    specs: fingerprint([...input.specFiles, ...input.featureFiles])
+  }
+  const settle = (scenario: Scenario, results: string) => {
+    const result = input.results?.scenarios[scenario.id]
+    const stale = result ? staleness(result, scenario, { ...fingerprints, results }) : undefined
+    return { result, stale, status: result && !stale ? result.status : undefined }
+  }
+  const ordinary = specs.flatMap((spec) => spec.scenarios.filter((scenario) => !isGate(scenario, spec)))
+  const evidence: WorkspaceEvidence = {
+    ...fingerprints,
+    results: digest(ordinary.map((scenario) => {
+      const { stale, status } = settle(scenario, "")
+      return `${scenario.id}=${status ?? (stale ? "stale" : "unrun")}`
+    })),
+    imports: input.imports ?? []
+  }
+
   const specById = new Map<string, Spec>()
   for (const spec of specs) {
     if (!specById.has(spec.id)) specById.set(spec.id, spec)
     const statuses: Array<StepStatus | undefined> = []
     for (const scenario of spec.scenarios) {
-      const result = input.results?.scenarios[scenario.id]
-      const stale = result !== undefined && result.hash !== scenario.hash
-      const status = result && !stale ? result.status : undefined
+      const { result, stale, status } = settle(scenario, evidence.results)
       statuses.push(status)
       declare({
         id: scenario.id,
@@ -127,6 +167,7 @@ export const buildProject = (input: ProjectInput): Project => {
           steps: scenario.steps.length,
           examples: scenario.pickles.length > 1 ? scenario.pickles.length : undefined,
           status: status ?? (stale ? "stale" : "unrun"),
+          staleBecause: stale,
           lastRun: result?.runAt,
           hash: scenario.hash
         }),
@@ -262,7 +303,8 @@ export const buildProject = (input: ProjectInput): Project => {
     graph: new Graph(nodes.values(), edges),
     diagnostics: sortDiagnostics(diagnostics),
     results: input.results,
-    types: input.types
+    types: input.types,
+    evidence
   }
 }
 annotate(buildProject, { is: "ARCH-graph-builder", "instance-of": ["PAT-derived-index", "PAT-pipes-and-filters"] })
@@ -273,9 +315,44 @@ export const inactiveStatuses: ReadonlySet<string> = new Set(["superseded", "rej
 export const isActive = (spec: { readonly attrs: Readonly<Record<string, unknown>> }): boolean =>
   !inactiveStatuses.has(String(spec.attrs.status ?? ""))
 
-/** Gate scenarios run after all others: those of milestones and those tagged `@gate`. */
-export const isGate = (scenario: Scenario, spec: Spec): boolean =>
-  spec.kind === "milestone" || scenario.pickles.some((pickle) => pickle.tags.includes("@gate"))
+/**
+ * Gate scenarios run after all others: those of milestones and those tagged `@gate` — in a run that
+ * selects some examples, those of the selected examples.
+ */
+export const isGate = (scenario: Scenario, spec: Spec, pickles: ReadonlyArray<Pickle> = scenario.pickles): boolean =>
+  spec.kind === "milestone" || pickles.some((pickle) => pickle.tags.includes("@gate"))
+
+/** Why a stored result no longer counts as evidence: what changed since it ran. */
+export type Staleness = "scenario-changed" | "code-changed" | "specs-changed" | "results-changed"
+
+/** Compares what a result recorded with the workspace now; `undefined` while the result still counts. */
+export const staleness = (
+  result: ScenarioResult,
+  scenario: Scenario,
+  now: Omit<WorkspaceEvidence, "imports">
+): Staleness | undefined =>
+  result.hash !== scenario.hash
+    ? "scenario-changed"
+    : result.evidence.sources !== now.sources
+    ? "code-changed"
+    : result.evidence.specs !== undefined && result.evidence.specs !== now.specs
+    ? "specs-changed"
+    : result.evidence.results !== undefined && result.evidence.results !== now.results
+    ? "results-changed"
+    : undefined
+
+/** How many stored results are stale, by reason, measured against the project's sources. */
+export const staleCounts = (project: Project, results: RunResults | undefined = project.results): Readonly<Record<string, number>> => {
+  const counts: Record<string, number> = {}
+  for (const spec of project.specs) {
+    for (const scenario of spec.scenarios) {
+      const result = results?.scenarios[scenario.id]
+      const stale = result ? staleness(result, scenario, project.evidence) : undefined
+      if (stale) counts[stale] = (counts[stale] ?? 0) + 1
+    }
+  }
+  return counts
+}
 
 /**
  * Where a spec is in delivery: its declared authoring maturity until automation
@@ -296,3 +373,15 @@ const compact = (record: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined))
 
 const fmt = (source: SourceRef | undefined) => source ? `${source.file}:${source.line}` : "?"
+
+const digest = (parts: ReadonlyArray<string>): string => {
+  const hash = createHash("sha1")
+  for (const part of parts) hash.update(part).update("\0")
+  return hash.digest("hex").slice(0, 12)
+}
+
+/** Content fingerprint of a set of files, whatever order they come in; a file listed twice counts once. */
+const fingerprint = (files: ReadonlyArray<SourceFile>): string => {
+  const byPath = new Map(files.map((file) => [file.path, file.content]))
+  return digest([...byPath.keys()].sort().flatMap((path) => [path, byPath.get(path)!]))
+}

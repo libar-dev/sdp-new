@@ -16,18 +16,30 @@ import type { StepContext, StepModule } from "./Steps.ts"
 export interface RunOptions {
   readonly project: Project
   readonly modules: ReadonlyArray<StepModule<any>>
-  readonly filter?: ((scenario: Scenario, spec: Spec) => boolean) | undefined
+  /**
+   * The examples of a scenario to run: `undefined` leaves the scenario out, an empty list runs one
+   * that has none. The default runs every example of every scenario.
+   */
+  readonly select?: ((scenario: Scenario, spec: Spec) => ReadonlyArray<Pickle> | undefined) | undefined
+  /** These are gates, run after the ordinary scenarios: a gate that reads the graph depends on their results. */
+  readonly gates?: boolean | undefined
   readonly timeout?: Duration.Input | undefined
   readonly concurrency?: number | undefined
   /** Called after each scenario, e.g. for progress output. */
   readonly onScenario?: ((result: ScenarioResult) => Effect.Effect<void>) | undefined
 }
 
+interface Selected {
+  readonly spec: Spec
+  readonly scenario: Scenario
+  readonly pickles: ReadonlyArray<Pickle>
+}
+
 /** Executes the selected scenarios against the step modules and returns their results; undefined steps are not failures. */
 export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOptions): Effect.fn.Return<RunResults> {
   const matcher = makeMatcher(options.modules)
   const timeout = options.timeout ?? "30 seconds"
-  const root = options.project.root
+  const { evidence, root } = options.project
   // Inside the workspace relative to its root; anywhere else (sdp's built-in steps) absolute.
   const where = (location: string) => {
     if (!isAbsolute(location)) return location
@@ -35,7 +47,8 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
     return inside === "" || inside.startsWith("..") || isAbsolute(inside) ? location : inside
   }
 
-  const runPickle = Effect.fnUntraced(function*(spec: Spec, scenario: Scenario, pickle: Pickle) {
+  /** Runs one example; `reads.graph` records whether a step used the project, i.e. read the graph. */
+  const runPickle = Effect.fnUntraced(function*(spec: Spec, scenario: Scenario, pickle: Pickle, reads: { graph: boolean }) {
     // One world per scenario per world factory: modules built on the same factory share state.
     const worlds = new Map<() => unknown, unknown>()
     const steps: Array<StepResult> = []
@@ -65,18 +78,36 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
         continue
       }
       const { args, definition: matched, module } = matches[0]!
-      if (!worlds.has(module.world)) worlds.set(module.world, module.world())
-      const context: StepContext<unknown, ReadonlyArray<unknown>> = {
-        world: worlds.get(module.world),
-        args: args.map((arg) => arg.getValue(null)),
-        doc: step.docString,
-        table: step.dataTable,
-        project: options.project,
-        scenario: { id: scenario.id, name: pickle.name, specId: spec.id, tags: pickle.tags }
-      }
+      // Aborted when the step times out or the run is interrupted, so Promise handlers can stop their work.
+      const controller = new AbortController()
+      // The world is made as part of the step: a factory that throws fails the step that needs it.
+      const execute = Effect.gen(function*() {
+        if (!worlds.has(module.world)) {
+          worlds.set(
+            module.world,
+            yield* Effect.try({
+              try: () => module.world(),
+              catch: (error) => new Error(`could not create the world of ${where(module.name)}: ${message(error)}`)
+            })
+          )
+        }
+        const context: StepContext<unknown, ReadonlyArray<unknown>> = {
+          world: worlds.get(module.world),
+          args: args.map((arg) => arg.getValue(null)),
+          doc: step.docString,
+          table: step.dataTable,
+          get project() {
+            reads.graph = true
+            return options.project
+          },
+          scenario: { id: scenario.id, name: pickle.name, specId: spec.id, tags: pickle.tags },
+          signal: controller.signal
+        }
+        return yield* toEffect(matched.handler(context))
+      })
       const started = performance.now()
       const exit = yield* Effect.exit(
-        Effect.suspend(() => toEffect(matched.handler(context))).pipe(Effect.timeout(timeout))
+        execute.pipe(Effect.onInterrupt(() => Effect.sync(() => controller.abort())), Effect.timeout(timeout))
       )
       const durationMs = Math.round(performance.now() - started)
       const definition = where(matched.location)
@@ -102,14 +133,26 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
     } satisfies PickleResult
   })
 
+  const select = options.select ?? ((scenario: Scenario) => scenario.pickles)
   const selected = options.project.specs.flatMap((spec) =>
-    spec.scenarios.filter((scenario) => options.filter?.(scenario, spec) ?? true).map((scenario) => ({ spec, scenario }))
+    spec.scenarios.flatMap((scenario): ReadonlyArray<Selected> => {
+      const pickles = select(scenario, spec)
+      return pickles ? [{ spec, scenario, pickles }] : []
+    })
   )
   const runAt = DateTime.formatIso(yield* DateTime.now)
-  const runOne = Effect.fnUntraced(function*({ scenario, spec }: { readonly spec: Spec; readonly scenario: Scenario }) {
+  const runOne = Effect.fnUntraced(function*({ pickles: chosen, scenario, spec }: Selected) {
     const started = performance.now()
+    const reads = { graph: false }
     const pickles: Array<PickleResult> = []
-    for (const pickle of scenario.pickles) pickles.push(yield* runPickle(spec, scenario, pickle))
+    for (const pickle of scenario.pickles) {
+      // An example the run did not select is recorded, but as not run: the scenario cannot pass without it.
+      pickles.push(
+        chosen.includes(pickle)
+          ? yield* runPickle(spec, scenario, pickle, reads)
+          : { name: pickle.name, status: "skipped", ...(pickle.exampleLine ? { exampleLine: pickle.exampleLine } : {}), steps: [] }
+      )
+    }
     return {
       id: scenario.id,
       spec: spec.id,
@@ -118,6 +161,12 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
       line: scenario.line,
       status: pickles.length === 0 ? "undefined" : worstStatus(pickles.map((p) => p.status)),
       hash: scenario.hash,
+      // What this result is evidence about: it stops counting as soon as any of it changes.
+      evidence: {
+        sources: evidence.sources,
+        ...(reads.graph ? { specs: evidence.specs } : {}),
+        ...(reads.graph && options.gates ? { results: evidence.results } : {})
+      },
       runAt,
       durationMs: Math.round(performance.now() - started),
       pickles
@@ -126,7 +175,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
 
   // Scenarios run concurrently when asked to, except `@serial` ones (timings, shared resources),
   // which run alone afterwards. Results are reported in order whatever finishes first.
-  const isSerial = ({ scenario }: { readonly scenario: Scenario }) => scenario.pickles.some((p) => p.tags.includes("@serial"))
+  const isSerial = ({ pickles }: Selected) => pickles.some((p) => p.tags.includes("@serial"))
   const concurrent = selected.filter((item) => !isSerial(item))
   const serial = selected.filter(isSerial)
   const done = new Map<number, ScenarioResult>()
@@ -146,7 +195,12 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
   const rest = yield* Effect.forEach(serial, (item, index) => Effect.tap(runOne(item), (result) => report(concurrent.length + index, result)))
   const byId = new Map([...first, ...rest].map((r) => [r.id, r]))
   const results = selected.map(({ scenario }) => byId.get(scenario.id)!)
-  return { version: 1, runAt, scenarios: Object.fromEntries(results.map((r) => [r.id, r])) } satisfies RunResults
+  return {
+    version: 2,
+    runAt,
+    imports: evidence.imports,
+    scenarios: Object.fromEntries(results.map((r) => [r.id, r]))
+  } satisfies RunResults
 })
 annotate(runScenarios, { is: "ARCH-runner" })
 
@@ -156,7 +210,7 @@ export const mergeResults = (previous: RunResults | undefined, next: RunResults,
   const scenarios: Record<string, ScenarioResult> = {}
   for (const [id, result] of Object.entries(previous?.scenarios ?? {})) if (live.has(id)) scenarios[id] = result
   Object.assign(scenarios, next.scenarios)
-  return { version: 1, runAt: next.runAt, scenarios }
+  return { version: 2, runAt: next.runAt, imports: next.imports, scenarios }
 }
 
 export const summarize = (results: ReadonlyArray<ScenarioResult>): Readonly<Record<StepStatus, number>> => {
@@ -170,6 +224,8 @@ const toEffect = (outcome: unknown): Effect.Effect<unknown, unknown> => {
   if (Predicate.isPromiseLike(outcome)) return Effect.tryPromise({ try: () => Promise.resolve(outcome), catch: (e) => e })
   return Effect.void
 }
+
+const message = (error: unknown): string => error instanceof Error ? error.message : String(error)
 
 const describe = (error: unknown, cause: Cause.Cause<unknown>): string => {
   if (Predicate.isTagged(error, "TimeoutError")) return "step timed out"

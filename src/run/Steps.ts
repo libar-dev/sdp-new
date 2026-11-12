@@ -44,9 +44,14 @@ export interface StepContext<W, A extends ReadonlyArray<unknown>> {
   readonly doc: string | undefined
   /** The step's data table argument, as rows of cells, if any. */
   readonly table: ReadonlyArray<ReadonlyArray<string>> | undefined
-  /** The project the scenarios belong to — what built-in graph steps assert against. */
+  /**
+   * The project the scenarios belong to — what built-in graph steps assert against. A step that
+   * reads it depends on the specs: its result goes stale when a spec or feature file changes.
+   */
   readonly project: Project
   readonly scenario: ScenarioInfo
+  /** Aborted when the step times out or the run is interrupted: pass it on (fetch, child processes, timers) to stop the work. */
+  readonly signal: AbortSignal
 }
 
 export type StepOutcome = void | PromiseLike<unknown> | Effect.Effect<unknown, unknown, never>

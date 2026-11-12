@@ -28,6 +28,7 @@ example, verified by scenarios that run the real CLI as a process in a temporary
 | `check` | there is at least one error diagnostic |
 | `run` | an ordinary scenario failed or is ambiguous; an unmet milestone gate does **not** count |
 | `gate` | the milestone's gate scenarios are not all met |
+| `run`, `gate` | a spec cannot be read — Gherkin or front matter that does not parse, an id declared twice; nothing runs then |
 | `q`, `show`, `context`, `new` | the query is invalid, the id is unknown, the id already exists, or `--maturity` is not on the ladder |
 | every command | the workspace cannot be read: no such directory, an invalid configuration, a step definition module that does not load |
 
@@ -360,7 +361,8 @@ Scenario: types writes the ids annotate() accepts, and check knows when they are
 
 One screen: node and edge counts, kinds, relations, spec stages, decisions, the results of
 ordinary scenarios and, separately, of gate scenarios (which may be unmet without anything being
-broken), how many elements are marked significant, and diagnostics by severity.
+broken), stale results by what changed since they ran ([[REQ-executable-specs]]), how many
+elements are marked significant, and diagnostics by severity.
 
 ```sh
 sdp status --json | jq .scenarios
@@ -565,13 +567,17 @@ Scenario: check --json prints the diagnostics as JSON
 
 Executes scenarios — all, or those of the given spec ids, scenario ids, files or directories (paths
 relative to the current directory) — and records the results in `.sdp/results.json`. `--tags`
-filters with a Cucumber tag expression, `--verbose` shows passed steps, `--concurrency <n>` runs up
-to `n` scenarios at once (`@serial` ones alone; [[REQ-executable-specs]]). A step that did not pass
-is shown with the `file:line` of its definition. `--snippets` ends the output with one step
-definition module for every undefined step, ready to save as a `.steps.ts` file. A step file that
-exports no step module is reported as a warning. Milestone gates run last, against the fresh
+selects examples with a Cucumber tag expression, `--verbose` shows passed steps, `--concurrency <n>`
+runs up to `n` scenarios at once (`@serial` ones alone; [[REQ-executable-specs]]). A step that did
+not pass is shown with the `file:line` of its definition. `--snippets` ends the output with one
+step definition module for every undefined step, ready to save as a `.steps.ts` file. A step file
+that exports no step module is reported as a warning. Milestone gates run last, against the fresh
 results; an unmet gate is reported but does not fail the run, because a later milestone is expected
-to be unmet.
+to be unmet. The run ends with how many earlier results it did not refresh are stale, and why.
+
+Specs that cannot be read stop `run` and `gate` before anything executes or is recorded: Gherkin
+or front matter that does not parse, or an id declared twice. Each such error is one line,
+`file:line [rule] message`; `sdp check` explains them.
 
 ```sh
 sdp run REQ-search --snippets
@@ -632,6 +638,50 @@ Scenario: A step file that defines nothing is reported
   When I run "sdp run"
   Then the exit code is 0
   And the output contains "warning: specs/steps/search.steps.ts defines no steps"
+
+Scenario: --tags runs only the examples it selects and names those it left out
+  Given a file "specs/REQ-sort.md" containing:
+    """
+    ---
+    id: REQ-sort
+    ---
+    # Sort
+
+    ```gherkin
+    Scenario Outline: Sort by <order>
+      When a shopper sorts by <order>
+
+      @fast
+      Examples:
+        | order |
+        | name  |
+
+      @slow
+      Examples:
+        | order      |
+        | popularity |
+    ```
+    """
+  When I run "sdp run REQ-sort --tags @fast"
+  Then the exit code is 0
+  And the output line with "example Sort by popularity" contains "not selected"
+  And the output contains "1 example(s) not selected are skipped"
+
+Scenario Outline: Specs that cannot be read stop run and gate before anything runs
+  Given a file "<file>" containing:
+    """
+    <content>
+    """
+  When I run "<command>"
+  Then the exit code is 1
+  And the output contains "<file>:<line> [<rule>]"
+  And the file ".sdp/results.json" does not exist
+
+  Examples:
+    | command          | file                 | content                                                                                     | line | rule           |
+    | sdp run          | specs/broken.feature | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed | 6    | gherkin-syntax |
+    | sdp gate MS-beta | specs/REQ-c.md       | ---\nid: [REQ-c\n---\n# C                                                                   | 2    | front-matter   |
+    | sdp run          | specs/search-copy.md | ---\nid: REQ-search\n---\n# Search again                                                    | 1    | duplicate-id   |
 ~~~
 
 ### `sdp gate <milestone>`

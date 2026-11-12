@@ -40,6 +40,9 @@ interface Received {
 interface Log {
   readonly received: Array<Received>
   readonly timeline: Array<{ readonly scenario: string; readonly start: number; readonly end: number }>
+  /** Expressions whose handler waits for its signal, and those whose handler saw it abort. */
+  readonly waiting: Array<string>
+  readonly aborted: Array<string>
 }
 
 type Behaviour = (
@@ -65,6 +68,15 @@ const behaviours: Record<string, Behaviour> = {
   "returns a rejected Promise": (_, expression) => Promise.reject(failure(expression)),
   "wraps a failing Promise in Effect.tryPromise": (_, expression) => Effect.tryPromise(() => Promise.reject(failure(expression))),
   "takes a second": () => Effect.sleep("1 second"),
+  // Never settles on its own: only an aborted signal ends it.
+  "waits for its signal": ({ signal }, expression, log) =>
+    new Promise<void>((resolve) => {
+      log.waiting.push(expression)
+      signal.addEventListener("abort", () => {
+        log.aborted.push(expression)
+        resolve()
+      }, { once: true })
+    }),
   "records its arguments": ({ args, doc, table }, _, log) => void log.received.push({ args, doc, table }),
   "takes a moment": ({ scenario }, _, log) =>
     Effect.gen(function*() {
@@ -81,14 +93,19 @@ behaviours.passes = behaviours["returns nothing"]!
 behaviours.fails = behaviours["throws an error"]!
 behaviours.pends = behaviours["returns pending()"]!
 
+/** The world a scripted module names to get a factory that throws. */
+const throwingWorld = "throwing"
+
 /** One step module per module name; modules naming the same world share one world factory. */
 const scriptedSteps = (
   definitions: ReadonlyArray<Scripted>,
-  log: Log = { received: [], timeline: [] }
+  log: Log = { received: [], timeline: [], waiting: [], aborted: [] }
 ): ReadonlyArray<StepModule<Record<string, number>>> => {
   const factories = new Map<string, () => Record<string, number>>()
   const factory = (name: string) => {
-    if (!factories.has(name)) factories.set(name, () => ({}))
+    if (!factories.has(name)) {
+      factories.set(name, name === throwingWorld ? () => { throw new Error("deliberate failure in the world factory") } : () => ({}))
+    }
     return factories.get(name)!
   }
   const byModule = Map.groupBy(definitions, (d) => d.module)
@@ -106,7 +123,7 @@ interface Execution extends Log {
 }
 
 const execution = (world: World): Execution =>
-  (world.scratch.execution ??= { placements: [], received: [], timeline: [], tools: [] }) as Execution
+  (world.scratch.execution ??= { placements: [], received: [], timeline: [], waiting: [], aborted: [], tools: [] }) as Execution
 
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))
@@ -129,11 +146,15 @@ const runInMemory = (world: World, timeout?: Duration.Input) =>
     yield* reload(world)
   })
 
-/** What `sdp run [targets]` does — selection, ordinary scenarios, then gates — on the in-memory workspace. */
-const runWorkspaceInMemory = (world: World, targets: ReadonlyArray<string> = [], concurrency = 1) =>
+/** What `sdp run [targets] [--tags]` does — selection, ordinary scenarios, then gates — on the in-memory workspace. */
+const runWorkspaceInMemory = (
+  world: World,
+  options: { readonly targets?: ReadonlyArray<string>; readonly tags?: string; readonly concurrency?: number } = {}
+) =>
   Effect.gen(function*() {
     const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world))]
-    const run = yield* runWorkspace(memoryRoot, { modules, selection: { targets }, concurrency })
+    const { concurrency, ...selection } = options
+    const run = yield* runWorkspace(memoryRoot, { modules, selection, concurrency })
     world.run = run.results
     world.scratch.gateResults = run.gates
     yield* reload(world)
@@ -167,6 +188,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("a step definition {string} that {}", ({ args: [expression, behaviour], world }) =>
     define(world, { expression, behaviour, module: "steps", world: "steps" }))
 
+  Given("a step definition {string} whose world factory throws", ({ args: [expression], world }) =>
+    define(world, { expression, behaviour: "passes", module: "cart", world: throwingWorld }))
+
+  Given("the step definition {string} now {}", ({ args: [expression, behaviour], world }) => {
+    const index = world.definitions.findIndex((d) => d.expression === expression)
+    assert.ok(index >= 0, `no step definition "${expression}" yet`)
+    assert.ok(behaviours[behaviour], `unknown behaviour "${behaviour}"; use one of: ${Object.keys(behaviours).join(", ")}`)
+    world.definitions[index] = { expression, behaviour }
+  })
+
   Given("the step definitions:", ({ table, world }) => {
     const [header, ...rows] = table ?? []
     const column = (name: string) => {
@@ -182,9 +213,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the workspace is run", ({ world }) => runWorkspaceInMemory(world))
 
-  When("the workspace is run for {string}", ({ args: [targets], world }) => runWorkspaceInMemory(world, targets.split(/\s+/)))
+  When("the workspace is run for {string}", ({ args: [targets], world }) => runWorkspaceInMemory(world, { targets: targets.split(/\s+/) }))
 
-  When("the workspace is run with concurrency {int}", ({ args: [concurrency], world }) => runWorkspaceInMemory(world, [], concurrency))
+  When("the workspace is run with concurrency {int}", ({ args: [concurrency], world }) => runWorkspaceInMemory(world, { concurrency }))
+
+  When("the workspace is run with tags {string}", ({ args: [tags], world }) => runWorkspaceInMemory(world, { tags }))
+
+  When(
+    "the workspace is run with concurrency {int} and tags {string}",
+    ({ args: [concurrency, tags], world }) => runWorkspaceInMemory(world, { concurrency, tags })
+  )
 
   Then("the scenarios {string} and {string} overlapped", ({ args: [a, b], world }) => {
     const [first, second] = [interval(world, a), interval(world, b)]
@@ -199,6 +237,18 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the scenarios are run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, Duration.millis(ms)))
 
+  // The run is interrupted once the handler is waiting, however long it took to get there.
+  When("the scenarios are run and interrupted while {string} runs", ({ args: [expression], world }) =>
+    Effect.raceFirst(
+      runInMemory(world),
+      Effect.gen(function*() {
+        while (!execution(world).waiting.includes(expression)) yield* Effect.sleep("5 millis")
+      })
+    ))
+
+  Then("the handler of {string} saw its signal abort", ({ args: [expression], world }) => {
+    assert.ok(execution(world).aborted.includes(expression), `the signal of "${expression}" did not abort`)
+  })
 
   Then("scenario {string} has status {string}", ({ args: [id, status], world }) => {
     assert.ok(world.run, "run the scenarios first")
@@ -216,6 +266,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the step {string} reports {string}", ({ args: [text, message], world }) => {
     for (const step of stepsWithText(world, text)) assert.ok(step.error?.includes(message), `"${text}" reported ${JSON.stringify(step.error)}`)
+  })
+
+  Then("the step {string} did not run", ({ args: [text], world }) => {
+    assert.ok(world.run, "run the scenarios first")
+    const ran = Object.values(world.run.scenarios).flatMap((s) => s.pickles.flatMap((p) => p.steps)).filter((s) => s.text === text)
+    assert.equal(ran.length, 0, `"${text}" ran: ${ran.map((s) => s.status).join(", ")}`)
   })
 
   Then("the step {string} suggests the definition {string}", ({ args: [text, suggestion], world }) => {
