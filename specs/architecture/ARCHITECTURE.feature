@@ -28,3 +28,9 @@ Feature: Architecture overview
 
   @open
   Rule: Which element is `src/model/Results.ts`, the results a run records as data?
+
+  @open
+  Rule: Is `src/run/Builtin.ts`, the built-in steps, part of the runner? An agent anchored it there so that the runner's uses links hold.
+
+  @open
+  Rule: May the spec parser depend on the vocabulary? An agent declared the link when the parser began to read which keys link.

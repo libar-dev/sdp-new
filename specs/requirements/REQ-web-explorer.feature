@@ -20,3 +20,6 @@ Feature: Interactive graph explorer
 
   @open
   Rule: Is the code behind an element shown always, or only on demand?
+
+  @open
+  Rule: Would a run exported as Cucumber Messages and rendered by an existing HTML reporter serve this reader before an explorer is built?

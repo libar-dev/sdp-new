@@ -132,3 +132,6 @@ Feature: sdp, shown by running it
     Scenario: The Markdown files of this repository, the example's included
       When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
       Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"
+
+  @open
+  Rule: Does a Markdown file where specs live make every answer incomplete, as a spec that cannot be read does, or is the warning from sdp check enough?

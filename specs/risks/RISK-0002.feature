@@ -10,3 +10,6 @@ Feature: Step definitions sprawl
 
   **Watch for:** step modules that grow faster than the specs, and families of steps that say one
   thing in several ways.
+
+  @open
+  Rule: Would matching a step only against definitions of its keyword, or step libraries scoped to some specs, hold sprawl back enough to plan?

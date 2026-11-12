@@ -31,3 +31,19 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
 - Two attributes are this repository's own: `@quality=` names the quality attribute of an `NFR-`,
   and `@planned=after-the-fact` an iteration written down after its work.
 - One word for one thing: a word this repository replaced does not come back.
+
+How the work is done here, on whichever machine and with whichever agent:
+
+- Design and writing are done by Claude models; GPT models review. Work reaches `main` only after
+  a review by the other model family, and when the owner says so.
+- A design question from the owner opens the solution space: answer it with advice and a worked
+  example that runs, name the calls that are the owner's, and do not narrow it to the nearest edit
+  of what exists.
+- Nothing needed to continue lives in an agent's memory or outside this repository. A call that
+  waits on the owner is an `@open` rule on the spec it concerns (`sdp q 'rule[tags~open]'`), the
+  next work is a draft planned into an iteration (`sdp q 'requirement|nfr[maturity<ready]'`,
+  `sdp lifecycle`), and a reason is a decision (`sdp q decision`).
+- What is in the architecture, what code is anchored to it and how an element is described are the
+  architect's: propose them, do not write them. Recording a milestone as met is the owner's act.
+- The reviews, advisory reports and design brief behind the redesign of November 2026 are on the
+  branch `archive/redesign-2026-11`. sdp reads nothing there.

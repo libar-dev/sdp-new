@@ -286,3 +286,6 @@ Feature: Graph builder
         | ARCH-queue            | missing     |                            |
         | ARCH-worker           | missing     |                            |
         | REQ-sink              | missing     |                            |
+
+  @open
+  Rule: Only a code annotation can still give a link attributes (`@sdp uses X via=events`): are they worth the merging of declarations and link-conflict that exist for them?

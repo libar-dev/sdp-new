@@ -13,15 +13,10 @@ Feature: Hooks and parameter types for existing Cucumber suites
 
   Rule: A suite's feature files are read as they are
 
-  Rule: A step matches the definition and gets the arguments it gets under Cucumber, custom parameter types included
-
-  @open
-  Rule: How is a parameter type declared so that sdp still reads step definitions without running them?
-
-  @open
-  Rule: A compatibility module that accepts Cucumber-JS imports, or a documented migration only?
-
   Rule: Before and After hooks run around each scenario as under Cucumber, and a hook that fails fails its scenario
+
+    sdp's own suite waits for it: a scenario whose last step runs a command is not held to stating
+    its outcome, because nothing runs after a scenario's last step.
 
   @open
   Rule: Hooks as part of `defineSteps`, next to the world factory, or as separate registrations?
@@ -32,6 +27,17 @@ Feature: Hooks and parameter types for existing Cucumber suites
   @open
   Rule: Tagged hooks (`Before({ tags: "@db" }, …)`), as Cucumber has them?
 
+  Rule: A step matches the definition and gets the arguments it gets under Cucumber, custom parameter types included
+
+  @open
+  Rule: How is a parameter type declared so that sdp still reads step definitions without running them?
+
+  @open
+  Rule: A compatibility module that accepts Cucumber-JS imports, or a documented migration only?
+
   Rule: A scenario's outcome means what it means under Cucumber
 
-    So a suite keeps the reporters it has.
+    So a suite keeps the reporters it has: sdp's step statuses are already those of Cucumber
+    Messages, and a run exported as Messages is one any of them renders.
+
+  Rule: A suite written with another language's keywords, as its language header says, is read the same

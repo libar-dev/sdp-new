@@ -52,7 +52,9 @@ Feature: Guest checkout
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
   scenario belongs to a rule. A rule without an example yet is a to-do that `ready` refuses.
 - **An open question is a Rule or a Scenario tagged `@open`**, its name the question. Answering
-  it means renaming it into the rule that was chosen and deleting the tag.
+  it means renaming it into the rule that was chosen and deleting the tag. What is undecided or
+  waits on someone is written this way, on the spec it concerns, never kept in a chat or an
+  agent's memory: `sdp q 'rule[tags~open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too.
 
 The sharp edges of the format, each what the official parser does:
