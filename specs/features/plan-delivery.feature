@@ -101,7 +101,7 @@ Feature: Plan delivery
       Then the output contains 'sdp new stage "Elaboration"'
       And the output contains 'sdp new sprint "<title>"'
 
-  Rule: The timeline is the iterations in the order they end, each under its phase, and one without a last day has no place on it
+  Rule: The timeline is the iterations in the order they end, each under its phase; one without a last day has no place on it, and check says so
 
     A milestone is dated by the end of what it closes, and milestones are met in the order of their
     dates: so an iteration inside a longer one comes before it, and one needs no first day to have
@@ -136,20 +136,25 @@ Feature: Plan delivery
         | tags                                                                    | Feature   |
         | @id=IT-prototype @phase:PH-elaboration @end=2026-02-13                  | Prototype |
         | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-30 | Baseline  |
-        | @id=IT-hardening @phase:PH-elaboration @start=2026-03-02                | Hardening |
+        | @id=IT-hardening @phase:PH-elaboration                                  | Hardening |
         | @id=MS-hardened @closes:IT-hardening                                    | Hardened  |
       When the lifecycle is computed
       Then the iterations are:
         | id           | phase          |
         | IT-scope     | PH-inception   |
         | IT-prototype | PH-elaboration |
-        | IT-baseline  | PH-elaboration |
         | IT-hardening | PH-elaboration |
+        | IT-baseline  | PH-elaboration |
       And the milestones are:
         | id              | iterations   | planned    | next |
         | MS-objectives   | IT-scope     | 2026-01-30 | yes  |
         | MS-architecture | IT-prototype | 2026-02-13 |      |
         | MS-hardened     |              |            |      |
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | at                             | message                                                                                |
+        | plan-date | specs/IT-baseline.feature:1    | IT-baseline: end is "2026-02-30", which is not a date, so the timeline leaves it out   |
+        | plan-date | specs/IT-hardening.feature:1   | IT-hardening: start is not written and end is not written, so the timeline leaves it out |
 
   Rule: A milestone closes a phase or an iteration, and ends every iteration since the milestone before it
 
