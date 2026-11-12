@@ -113,6 +113,7 @@ Feature: sdp, shown by running it
         ARCH-pricing (element)
         Prices, VAT rates and rounding: every monetary figure flows through here
         ARCH-pricing <-is- code:src/pricing.ts
+        cart-totals#the-total-of-a-thousand-line-cart-takes-under-2-ms-on-average, through cart-totals
         integer-cents, through cart-totals  Money is integer cents, rounded once
         """
       And the output does not contain "src/cart.ts"
