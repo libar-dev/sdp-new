@@ -807,6 +807,24 @@ Feature: Know what is verified
       And node "cart#add-an-item" has attribute staleBecause = "inputs-changed"
       And node "cart" has attribute stage = "unrun"
 
+    Scenario: A file of evidence.inputs, named by an absolute glob, changes
+      Given a file "fixtures/lamps.json" containing:
+        """
+        []
+        """
+      When I run "sh -c 'echo evidence: { inputs: [$PWD/fixtures/**] } > sdp.config.yaml'"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
+      Given a file "fixtures/lamps.json" containing:
+        """
+        [{ "name": "Ada" }]
+        """
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
+
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
       Then the exit code is 1

@@ -120,7 +120,7 @@ export const findFiles = Effect.fn("findFiles")(function*(
   // A glob matches directories too (`fixtures/**` is `fixtures` and all below it). A path whose
   // type cannot be told is kept, so that reading it says what is wrong with it.
   const isFile = (file: string) =>
-    fs.stat(path.join(root, file)).pipe(Effect.map((info) => info.type !== "Directory"), Effect.orElseSucceed(() => true))
+    fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type !== "Directory"), Effect.orElseSucceed(() => true))
   return (yield* Effect.filter([...found], isFile, { concurrency: 32 })).sort()
 })
 
