@@ -188,116 +188,9 @@ Feature: Know what is verified
 
   Rule: A result counts only while what it ran against is unchanged
 
-    After that it is stale: kept, but not counted, with the kind of change that made it so. Any
-    change to the code makes every result stale: knowing which scenarios reached it would take
-    tracing, and still miss what a step reads through a service. Nor is anything sdp was not told of
-    watched: a service the steps call, the clock, a file `evidence.inputs` does not name.
+    After that it is stale: kept, but not counted, with the kind of change that made it so.
 
-    Scenario: Editing a scenario makes its last result stale
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      When the workspace is run
-      And a file "specs/cart.feature" containing:
-        """
-        @id=cart @maturity=ready
-        Feature: Cart
-
-          Shoppers collect items before paying.
-
-          Rule: A cart holds what was added
-
-            Scenario: Add an item
-              Given an empty cart
-              When I add two lamps
-              Then the cart holds 2 items
-        """
-      Then node "cart#add-an-item" has attribute status = "stale"
-      And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
-      And node "cart" has attribute verification = "unrun"
-      And node "cart" has attribute stage = "ready"
-
-    Scenario Outline: A tag is part of the scenario, wherever it is inherited from
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      When the workspace is run
-      And a file "specs/cart.feature" containing:
-        """
-        @id=cart @maturity=ready <on the feature>
-        Feature: Cart
-
-          Shoppers collect items before paying.
-
-          <on the rule>
-          Rule: A cart holds what was added
-
-            <on the scenario>
-            Scenario: Add an item
-              Given an empty cart
-              When I add a lamp
-              Then the cart holds 1 item
-        """
-      Then node "cart#add-an-item" has attribute status = "stale"
-      And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
-
-      Examples:
-        | on the feature | on the rule | on the scenario |
-        | @slow          |             |                 |
-        |                | @slow       |                 |
-        |                |             | @slow           |
-
-    Scenario Outline: Each kind of source that changed gives its own reason
-      Given a file "sdp.config.yaml" containing:
-        """
-        evidence:
-          inputs: ["fixtures/**"]
-        """
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      When the workspace is run
-      And a file "<file>" containing:
-        """
-        <content>
-        """
-      Then node "cart#add-an-item" has attribute status = "stale"
-      And node "cart#add-an-item" has attribute staleBecause = "<reason>"
-      And node "cart" has attribute stage = "ready"
-
-      Examples:
-        | file                      | content                    | reason            |
-        | src/cart.ts               | export const lamps = 1     | code-changed      |
-        | sdp.config.yaml           | results: .sdp/results.json | code-changed      |
-        | specs/steps/cart.steps.ts | export const phrases = []  | code-changed      |
-        | package-lock.json         | { "lockfileVersion": 3 }   | toolchain-changed |
-        | npm-shrinkwrap.json       | { "lockfileVersion": 3 }   | toolchain-changed |
-        | pnpm-lock.yaml            | lockfileVersion: "9.0"     | toolchain-changed |
-        | yarn.lock                 | # yarn lockfile v1         | toolchain-changed |
-        | bun.lock                  | { "lockfileVersion": 1 }   | toolchain-changed |
-        | fixtures/lamps.json       | [{ "name": "Ada" }]        | inputs-changed    |
-
-    Scenario: A scenario that reads the graph also goes stale when a spec changes
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      And a file "specs/catalogue.feature" containing:
-        """
-        @id=catalogue
-        Feature: Catalogue
-          Rule: The catalogue knows the cart
-            Scenario: The cart is specified
-              Then the query "#cart" returns 1 result
-        """
-      When the workspace is run
-      And these specs:
-        | tags         | Feature  |
-        | @id=wishlist | Wishlist |
-      Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
-      And node "catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
-      And node "cart#add-an-item" has attribute status = "passed"
-
-    Scenario: Changing what step definitions import leaves their results stale, and a gate on them unmet
+    Scenario: Once the code a result ran against changed, a gate on it is unmet, and sdp says why
       Given a file "specs/MS-beta.feature" containing:
         """
         @id=MS-beta
@@ -340,215 +233,44 @@ Feature: Know what is verified
       And the output contains 'cart.stage is "ready", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
-    Scenario: A file a handler imports only while it runs is part of what the result ran against
-      Given a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
+  Rule: Editing a scenario, a tag it inherits included, makes its result stale; planning or rewording its spec does not
 
-        export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
-          Given("an empty cart", () => {})
-          When("I add a lamp", async ({ world }) => {
-            const { lamps } = await import("./lamps.ts")
-            world.items += lamps
-          })
-          Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
-            if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
-          })
-        })
-        """
-      And a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 1
-        """
-      When I run "sdp run --json"
-      Then the JSON output has:
-        | data.summary.passed | 1 |
-      When I run "sdp status --json"
-      Then the JSON output has:
-        | data.stale | {} |
-      Given a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 2
-        """
-      When I run "sdp status --json"
-      Then the JSON output has:
-        | data.stale.code-changed | 1 |
+    A scenario's hash covers what a step handler can observe, and nothing else, and a result counts
+    only while its hash holds: planning a spec, raising its maturity, naming the decision a rule
+    rests on or rewording a reason leaves it valid, unless the scenario reads the graph.
 
-    Scenario: A file the step definitions no longer import no longer counts
-      Given a file "specs/steps/cart.steps.ts" containing:
+    Scenario Outline: Its steps, or a tag on the scenario, its rule or its feature, are edited
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      When the workspace is run
+      And a file "specs/cart.feature" containing:
         """
-        import { defineSteps } from "sdp/steps"
-        import { lamps } from "./lamps.ts"
+        @id=cart @maturity=ready <on the feature>
+        Feature: Cart
 
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
-            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
-          })
-        })
-        """
-      And a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 1
-        """
-      When I run "sdp run"
-      Then the output contains "1 scenario(s): 1 passed"
-      And the file ".sdp/results.json" contains '"specs/steps/lamps.ts"'
-      Given a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
+          Shoppers collect items before paying.
 
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", () => {})
-        })
-        """
-      When I run "sdp run"
-      Then the output contains "1 scenario(s): 1 passed"
-      And the file ".sdp/results.json" does not contain "lamps.ts"
-      Given a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 2
-        """
-      When I run "sdp status --json"
-      Then the exit code is 0
-      And the JSON output has:
-        | data.stale | {} |
+          <on the rule>
+          Rule: A cart holds what was added
 
-    Scenario: Each result is compared with the files its own run imported
-      Given a file "specs/wishlist.feature" containing:
+            <on the scenario>
+            Scenario: Add an item
+              Given an empty cart
+              When I add <added>
+              Then the cart holds <held>
         """
-        @id=wishlist
-        Feature: Wishlist
-          Rule: A wishlist keeps what a shopper wants for later
-            Scenario: Keep a lamp
-              Given a lamp to keep
-        """
-      And a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
+      And node "cart" has attribute verification = "unrun"
+      And node "cart" has attribute stage = "ready"
 
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", () => {})
-          Step("a lamp to keep", async () => {
-            await import("./lamps.ts")
-          })
-        })
-        """
-      And a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 1
-        """
-      When I run "sdp run cart --json"
-      Then the JSON output has:
-        | data.summary.passed | 1 |
-      When I run "sdp run wishlist --json"
-      Then the JSON output has:
-        | data.summary.passed | 1  |
-        | data.stale          | {} |
-      Given a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 2
-        """
-      When I run "sdp q scenario[status=stale] --ids"
-      Then the output lines are "wishlist#keep-a-lamp"
-
-    Scenario: A process that imported the step modules refuses to record a run once they changed
-      Given a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
-        import { lamps } from "./lamps.ts"
-
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
-            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
-          })
-        })
-        """
-      And a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 1
-        """
-      When this process runs the workspace through the API
-      Then the output contains "1 scenario(s): 1 passed"
-      Given a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 2
-        """
-      When this process runs the workspace through the API
-      Then the output contains "specs/steps/lamps.ts changed after this process imported it"
-      And the output contains "Run again in a new process"
-      When I run "sdp q scenario[status=stale] --ids"
-      Then the output lines are "cart#add-an-item"
-      When I run "sdp run"
-      Then the exit code is 1
-      And the output contains "the cart holds 2"
-
-    Scenario: A process that imported a module refuses to record a run once the module is deleted
-      Given a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
-        import { lamps } from "./lamps.ts"
-
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
-            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
-          })
-        })
-        """
-      And a file "specs/steps/lamps.ts" containing:
-        """
-        export const lamps = 1
-        """
-      When this process runs the workspace through the API
-      Then the output contains "1 scenario(s): 1 passed"
-      When I run "rm specs/steps/lamps.ts"
-      Then the exit code is 0
-      When this process runs the workspace through the API
-      Then the output contains "specs/steps/lamps.ts changed after this process imported it"
-      When I run "sdp q feature[stage=verified] --ids"
-      Then the output lines are ""
-
-    Scenario: A declared environment variable is part of the evidence, and only its digest is stored
-      Given a file "sdp.config.yaml" containing:
-        """
-        evidence:
-          env: [SHOP_REGION]
-        """
-      And a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
-
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", () => {
-            if (process.env.SHOP_REGION !== "atlantis") throw new Error("no lamps here")
-          })
-        })
-        """
-      When I run "SHOP_REGION=atlantis sdp run"
-      Then the output contains "1 scenario(s): 1 passed"
-      And the file ".sdp/results.json" does not contain "atlantis"
-      When I run "SHOP_REGION=atlantis sdp status --json"
-      Then the JSON output has:
-        | data.stale | {} |
-      When I run "SHOP_REGION=lemuria sdp status --json"
-      Then the JSON output has:
-        | data.stale.inputs-changed | 1 |
-
-  Rule: A scenario's hash covers what a step handler can observe, and nothing else
-
-    A result counts only while its hash holds, so planning a spec, raising its maturity, naming the
-    decision a rule rests on or rewording a reason leaves it valid.
+      Examples:
+        | added     | held    | on the feature | on the rule | on the scenario |
+        | two lamps | 2 items |                |             |                 |
+        | a lamp    | 1 item  | @slow          |             |                 |
+        | a lamp    | 1 item  |                | @slow       |                 |
+        | a lamp    | 1 item  |                |             | @slow           |
 
     Scenario Outline: Which edits change a scenario's hash
       Given a file "specs/pay.feature" containing:
@@ -586,6 +308,294 @@ Feature: Know what is verified
         | Feature: Pay                    | Feature: Payment         | stays the same |
         | Shoppers pay.                   | Shoppers pay by card.    | stays the same |
         | No goods leave without one.     | Nothing ships unpaid.    | stays the same |
+
+
+  Rule: Any change to the code, the step definitions or the configuration makes every result stale
+
+    Knowing which scenarios reached a change would take tracing, and still miss what a step reads
+    through a service.
+
+    Scenario Outline: A code file, the configuration or a step definition file changes
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      When the workspace is run
+      And a file "<file>" containing:
+        """
+        <content>
+        """
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "code-changed"
+      And node "cart" has attribute stage = "ready"
+
+      Examples:
+        | file                      | content                    |
+        | src/cart.ts               | export const lamps = 1     |
+        | sdp.config.yaml           | results: .sdp/results.json |
+        | specs/steps/cart.steps.ts | export const phrases = []  |
+
+  Rule: A file a handler imports only while it runs is part of what its result ran against
+
+    What step modules import is part of what scenarios run against, so every local import is
+    recorded with the source that was loaded, also one a handler makes while it runs.
+
+    Scenario: A handler imports a file while it runs
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
+          Given("an empty cart", () => {})
+          When("I add a lamp", async ({ world }) => {
+            const { lamps } = await import("./lamps.ts")
+            world.items += lamps
+          })
+          Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
+            if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "sdp run --json"
+      Then the JSON output has:
+        | data.summary.passed | 1 |
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale | {} |
+      Given a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale.code-changed | 1 |
+
+  Rule: Each result is compared with the files its own run imported
+
+    So a file no step definition imports any more stops counting, and a partial run that reaches a
+    new file leaves the results of earlier runs standing.
+
+    Background:
+      Given a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+
+    Scenario: A file the step definitions no longer import no longer counts
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      When I run "sdp run"
+      Then the output contains "1 scenario(s): 1 passed"
+      And the file ".sdp/results.json" contains '"specs/steps/lamps.ts"'
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      When I run "sdp run"
+      Then the output contains "1 scenario(s): 1 passed"
+      And the file ".sdp/results.json" does not contain "lamps.ts"
+      Given a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp status --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.stale | {} |
+
+    Scenario: A file only a later, partial run imported concerns only that run's results
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp
+              Given a lamp to keep
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+          Step("a lamp to keep", async () => {
+            await import("./lamps.ts")
+          })
+        })
+        """
+      When I run "sdp run cart --json"
+      Then the JSON output has:
+        | data.summary.passed | 1 |
+      When I run "sdp run wishlist --json"
+      Then the JSON output has:
+        | data.summary.passed | 1  |
+        | data.stale          | {} |
+      Given a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "wishlist#keep-a-lamp"
+
+  Rule: A long-lived process records no run once a module it imported changed or was deleted
+
+    Node.js keeps a module for the life of a process: the changed code did not run, and a result
+    would certify code that never ran. A module that is gone is as changed as one whose content
+    differs.
+
+    Background:
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+
+    Scenario: A module the process imported changed
+      When this process runs the workspace through the API
+      Then the output contains "1 scenario(s): 1 passed"
+      Given a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When this process runs the workspace through the API
+      Then the output contains "specs/steps/lamps.ts changed after this process imported it"
+      And the output contains "Run again in a new process"
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "the cart holds 2"
+
+    Scenario: A module the process imported was deleted
+      When this process runs the workspace through the API
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "rm specs/steps/lamps.ts"
+      Then the exit code is 0
+      When this process runs the workspace through the API
+      Then the output contains "specs/steps/lamps.ts changed after this process imported it"
+      When I run "sdp q feature[stage=verified] --ids"
+      Then the output lines are ""
+
+  Rule: A result goes stale when a lockfile at the workspace root changes
+
+    A lockfile pins the packages the code and the steps run with.
+
+    Scenario Outline: Each lockfile a package manager writes
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      When the workspace is run
+      And a file "<file>" containing:
+        """
+        <content>
+        """
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "toolchain-changed"
+      And node "cart" has attribute stage = "ready"
+
+      Examples:
+        | file                | content                  |
+        | package-lock.json   | { "lockfileVersion": 3 } |
+        | npm-shrinkwrap.json | { "lockfileVersion": 3 } |
+        | pnpm-lock.yaml      | lockfileVersion: "9.0"   |
+        | yarn.lock           | # yarn lockfile v1       |
+        | bun.lock            | { "lockfileVersion": 1 } |
+
+  Rule: A result goes stale when an input the workspace declares changes: a file of `evidence.inputs`, a variable of `evidence.env`
+
+    What the steps read besides the code — fixtures, data, the environment — counts only where the
+    workspace declares it. Nothing sdp was not told of is watched: a service the steps call, the
+    clock, a file `evidence.inputs` does not name.
+
+    Background:
+      Given a file "sdp.config.yaml" containing:
+        """
+        evidence:
+          inputs: ["fixtures/**"]
+          env: [SHOP_REGION]
+        """
+
+    Scenario: A file of evidence.inputs changes
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      When the workspace is run
+      And a file "fixtures/lamps.json" containing:
+        """
+        [{ "name": "Ada" }]
+        """
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "inputs-changed"
+      And node "cart" has attribute stage = "ready"
+
+    Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
+      When I run "SHOP_REGION=atlantis sdp run"
+      Then the output contains "1 scenario(s): 1 undefined"
+      And the file ".sdp/results.json" does not contain "atlantis"
+      When I run "SHOP_REGION=atlantis sdp status --json"
+      Then the JSON output has:
+        | data.stale | {} |
+      When I run "SHOP_REGION=lemuria sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
+
+  Rule: A scenario that reads the graph goes stale when any spec changes; one that does not keeps its result
+
+    What a step that reads the graph sees is built from every spec and the id declarations.
+
+    Scenario: Another spec is added
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a file "specs/catalogue.feature" containing:
+        """
+        @id=catalogue
+        Feature: Catalogue
+          Rule: The catalogue knows the cart
+            Scenario: The cart is specified
+              Then the query "#cart" returns 1 result
+        """
+      When the workspace is run
+      And these specs:
+        | tags         | Feature  |
+        | @id=wishlist | Wishlist |
+      Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
+      And node "catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
+      And node "cart#add-an-item" has attribute status = "passed"
 
   Rule: No scenario reads the layer of evidence it belongs to
 
