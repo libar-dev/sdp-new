@@ -81,20 +81,26 @@ Feature: Write a spec
         | @id=search                           |                | search                        | feature | search         |
         | @id=true @kind=false                 | Product search | true                          | false   | Product search |
 
-    Scenario: A second Feature in a file is text of the description above it, and an error
+    Scenario Outline: A second Feature in a file is text of the description above it, and an error
       Given a file "specs/pay.feature" containing:
         """
+        # language: <language>
         @id=pay
-        Feature: Pay
+        <feature>: Pay
 
           Shoppers pay.
 
-        Feature: Refund
+        <feature>: Refund
         """
       When "specs/pay.feature" is parsed
       Then sdp reports:
-        | rule           | severity | line | message                                                       |
-        | gherkin-syntax | error    | 6    | "Feature: Refund" is read as text of the description above it |
+        | rule           | severity | line | message                                                         |
+        | gherkin-syntax | error    | 7    | "<feature>: Refund" is read as text of the description above it |
+
+      Examples:
+        | language | feature        |
+        | en       | Feature        |
+        | fr       | Fonctionnalité |
 
     Scenario: A Feature line inside a doc string is content
       Given a file "specs/docs.feature" containing:
@@ -511,17 +517,24 @@ Feature: Write a spec
 
             Scenario: A declined card is retried
               Given a card declined twice
+
+          Rule: Отклонённая карта повторяется
+
+            Scenario: Повтор
+              Given a declined card
         """
       When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                             | line |
-        | pay#a-declined-card-is-retried | 4    |
+        | id                                | line |
+        | pay#a-declined-card-is-retried    | 4    |
+        | pay#отклонённая-карта-повторяется | 18   |
       And the parsed spec has scenarios:
         | id                               | line |
         | pay#retry                        | 6    |
         | pay#retry-2                      | 9    |
         | pay#scenario-3                   | 12   |
         | pay#a-declined-card-is-retried-2 | 15   |
+        | pay#повтор                       | 20   |
       And sdp reports nothing
 
     Scenario: A long name is cut after the last whole word within 64 characters

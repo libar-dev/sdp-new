@@ -11,7 +11,7 @@ import { Predicate } from "effect"
 import { description, workOn } from "../arch/Architecture.ts"
 import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
 import { attribute, hasKind, isDriver, isPlanKind, made } from "../model/Vocabulary.ts"
-import type { Rule, Scenario } from "../parse/Gherkin.ts"
+import { keywordLine, type Rule, type Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
@@ -202,22 +202,24 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   return out.join("\n")
 }
 
-const blockStart = /^\s*(@|(Scenario|Scenario Outline|Scenario Template|Example|Background|Rule):)/
-
 /**
  * The spec as written, without what the contract shows: its tag lines and name, and each rule's
- * tags, name and reason. What is left is its intent, its backgrounds and its examples.
+ * tags, name and reason. What is left is its intent, its backgrounds and its examples. Its keywords
+ * are those of the language it is written in.
  */
 const specification = (spec: Spec): string => {
   const lines = spec.body.split(/\r?\n/)
   const shown = new Set<number>()
-  const feature = lines.findIndex((line) => /^\s*Feature:/.test(line))
+  const block = keywordLine(spec.language, ["scenario", "scenarioOutline", "background", "rule"])
+  const blockStart = (line: string) => line.trimStart().startsWith("@") || block.test(line)
+  const featureLine = keywordLine(spec.language, ["feature"])
+  const feature = lines.findIndex((line) => featureLine.test(line))
   for (let index = 0; index <= feature; index++) shown.add(index)
   for (const rule of spec.rules) {
     let first = rule.line - 1
     while (first > 0 && lines[first - 1]!.trimStart().startsWith("@")) first--
     let end = rule.line
-    while (end < lines.length && !blockStart.test(lines[end]!)) end++
+    while (end < lines.length && !blockStart(lines[end]!)) end++
     for (let index = first; index < end; index++) shown.add(index)
   }
   const kept = lines.filter((line, index) => !shown.has(index) && !(line.trim() === "" && lines[index - 1]?.trim() === ""))

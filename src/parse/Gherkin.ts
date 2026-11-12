@@ -6,7 +6,7 @@
  *
  * @sdp is ARCH-spec-parser
  */
-import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
+import { AstBuilder, compile, dialects, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"
 import { IdGenerator } from "@cucumber/messages"
 import { Result } from "effect"
@@ -93,6 +93,8 @@ export interface Paragraph {
 export interface FeatureHead extends Annotations {
   readonly name: string
   readonly description: ReadonlyArray<Paragraph>
+  /** The dialect its keywords are written in: `en`, unless the file's `# language:` names another. */
+  readonly language: string
 }
 
 export interface GherkinError {
@@ -122,7 +124,15 @@ export interface FeatureFile {
   readonly read: (specId: string, tags: ReadonlyArray<string>) => GherkinResult
 }
 
-const featureLine = /^\s*Feature:/
+/** The keywords that open a block of a Gherkin file. */
+export type Block = "feature" | "rule" | "background" | "scenario" | "scenarioOutline" | "examples"
+
+/** A line that opens one of `blocks` in the dialect of `language`: `Feature:`, or `Fonctionnalité:` in a French file. */
+export const keywordLine = (language: string, blocks: ReadonlyArray<Block>): RegExp => {
+  const dialect = dialects[language] ?? dialects.en!
+  const words = blocks.flatMap((block) => dialect[block]).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  return new RegExp(`^\\s*(?:${words.join("|")}):`)
+}
 
 /** Which keys link, so that one written with `=` is a slip: `@iteration=IT-beta` plans nothing. */
 export type LinkKeys = (key: string) => boolean
@@ -138,6 +148,7 @@ export const parseFeatureFile = (content: string, links: LinkKeys): Result.Resul
     feature: feature && {
       name: feature.name,
       description: paragraphs(placeDescription(lines, feature).lines),
+      language: feature.language,
       ...readTags(feature.tags, "Feature", links)
     },
     read: (specId, tags) =>
@@ -351,6 +362,7 @@ const readFeature = (
     })
   }
   // Gherkin reads a second Feature as text of the description above it, and nothing of it as a spec.
+  const featureLine = keywordLine(feature.language, ["feature"])
   for (const { line, text } of placed.flatMap((description) => description.lines).filter((placed) => featureLine.test(placed.text))) {
     problems.push({
       rule: "gherkin-syntax",
@@ -370,7 +382,7 @@ const readFeature = (
 
   // A rule is named by what it says, so two alike are one id twice: the graph reports it. A
   // scenario's name says its case, and a case named like another or like a rule is numbered.
-  const ruleIds = new Map(writtenRules.map((rule, index) => [rule, `${specId}#${slugify(rule.name) || `rule-${index + 1}`}`]))
+  const ruleIds = new Map(writtenRules.map((rule, index) => [rule, `${specId}#${nameSlug(rule.name) || `rule-${index + 1}`}`]))
   const usedIds = new Set<string>(ruleIds.values())
   const unique = (slug: string) => {
     let id = `${specId}#${slug}`
@@ -403,7 +415,7 @@ const readFeature = (
       })
     }))
     return {
-      id: unique(slugify(scenario.name) || `scenario-${index + 1}`),
+      id: unique(nameSlug(scenario.name) || `scenario-${index + 1}`),
       specId,
       name: scenario.name,
       keyword: scenario.keyword,
@@ -425,10 +437,12 @@ const readFeature = (
  * no tag line is above its Feature.
  */
 export const withTag = (content: string, tag: string): string | undefined => {
+  const parsed = parseDocument(content, IdGenerator.incrementing())
+  const [first] = Result.isSuccess(parsed) ? parsed.success.feature?.tags ?? [] : []
+  if (first === undefined) return undefined
   const lines = content.split("\n")
-  const index = lines.findIndex((line) => line.trimStart().startsWith("@") || featureLine.test(line))
-  const line = lines[index]
-  if (line === undefined || featureLine.test(line)) return undefined
+  const index = first.location.line - 1
+  const line = lines[index]!
   const end = /\s+#/.exec(line)?.index ?? line.trimEnd().length
   lines[index] = `${line.slice(0, end)} ${tag}${line.slice(end)}`
   return lines.join("\n")
@@ -449,11 +463,25 @@ const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : 
  * Lower-case ASCII words joined by `-`; accents are dropped first, so "für Gäste" → "fur-gaste". At
  * most 64 characters, cut after the last whole word that fits, so an id never ends in half a word.
  */
-export const slugify = (text: string): string => {
-  const slug = text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+export const slugify = (text: string): string =>
+  shortened(text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""))
+
+/**
+ * The slug of a rule's or a scenario's name: its words in any script, lower-case and joined by `-`,
+ * a Latin letter without its accents, so "für Gäste" → "fur-gaste" and "Корзина пуста" →
+ * "корзина-пуста". Only a name without a letter or a digit has none.
+ */
+const nameSlug = (text: string): string =>
+  shortened(
+    text.normalize("NFKD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").normalize("NFC").toLowerCase()
+      .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-").replace(/^-+|-+$/g, "")
+  )
+
+/** A slug of at most 64 characters, cut after the last whole word that fits, so an id never ends in half a word. */
+const shortened = (slug: string): string => {
   if (slug.length <= 64) return slug
   const cut = slug.lastIndexOf("-", 64)
-  return cut > 0 ? slug.slice(0, cut) : slug.slice(0, 64)
+  return cut > 0 ? slug.slice(0, cut) : [...slug].slice(0, 64).join("")
 }
 
 /** Everything a step handler can observe of a scenario: each example's name, tags (inherited ones too) and steps with their arguments. */

@@ -36,6 +36,8 @@ export interface Spec {
   readonly description: ReadonlyArray<Paragraph>
   /** The file as written. */
   readonly body: string
+  /** The dialect its keywords are written in: `en`, unless its `# language:` names another. */
+  readonly language: string
   /** The line of each attribute's tag. */
   readonly attrLines: Readonly<Record<string, number>>
 }
@@ -97,6 +99,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       summary: feature.description[0]?.text ?? "",
       description: feature.description,
       body: content,
+      language: feature.language,
       attrLines
     },
     diagnostics
