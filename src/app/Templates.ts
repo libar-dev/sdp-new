@@ -23,7 +23,6 @@ const directoryFor: Record<string, string> = {
   nfr: "specs/quality",
   capability: "specs/capabilities",
   decision: "specs/decisions",
-  element: "specs/architecture",
   pattern: "specs/architecture",
   milestone: "specs/delivery",
   plan: "specs/delivery",
@@ -85,15 +84,16 @@ export const newId = (kind: string, title: string, config: Config, existing: Rea
 
 export interface NewSpec {
   readonly id: string
-  readonly file: string
-  readonly content: string
+  /** The file to write, and what it holds; an element has none, for its code declares it. */
+  readonly file: { readonly path: string; readonly content: string } | undefined
   /** What the author writes next, one instruction per line: the template leaves none in the file. */
   readonly next: ReadonlyArray<string>
 }
 
 /**
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
- * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea.
+ * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
+ * `sdp new element` no file: only the id its code declares, and how.
  * Fails, with the reason, when a change names no feature it changes, or when the content would not
  * read back with its id, kind and title.
  */
@@ -132,6 +132,8 @@ export const newSpec = (options: {
       `a ${kind} names the ${feature} it changes, and ${found}: sdp new ${kind} "<title>" --changes <id>, where sdp q ${feature} --ids lists the ids`
     )
   }
+  const next = guidance({ kind, id, maturity, config, changes })
+  if (template === "element") return Result.succeed({ id, file: undefined, next })
   const endKey = vocabulary.attributes.end
   const undated = template === "iteration"
     ? graph.ofKind(vocabulary.kinds.iteration).find((node) => attribute(node, endKey) !== undefined && dayOf(node, endKey) === undefined)
@@ -151,7 +153,7 @@ export const newSpec = (options: {
       `refusing to write ${file}: it would not read back with id ${JSON.stringify(id)}, kind ${JSON.stringify(kind)} and title ${JSON.stringify(title)}`
     )
   }
-  return Result.succeed({ id, file, content, next: guidance({ kind, id, maturity, config, changes }) })
+  return Result.succeed({ id, file: { path: file, content }, next })
 }
 
 /** The levels whose criteria are built in: a template grows with them. */
@@ -202,7 +204,6 @@ const specTemplate = (options: {
   switch (templateOf(kind, vocabulary)) {
     case "decision":
       return feature(identity, `  ${decisionPlaceholder}`)
-    case "element":
     case "pattern":
     case "risk":
     case "plan":
@@ -318,9 +319,9 @@ const guidance = (options: {
       ]
     case "element":
       return [
-        "say under the title what it is responsible for and why that is architecture",
-        `anchor it next to the declaration that is it: annotate(Thing, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
-        "link what shaped it: @instance-of:PAT-…, and @decided-by:<decision> on a rule that rests on a decision"
+        `no file is written: an element is declared where its code is, by annotate(<declaration>, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
+        "the doc comment of that code is its description: say there what it is for",
+        `sdp arch shows it, with its code and the elements that code imports; a feature it realizes links it with \`@realized-by:${id}\``
       ]
     case "pattern":
       return [

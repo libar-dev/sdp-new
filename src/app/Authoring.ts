@@ -65,8 +65,9 @@ const unusable = (input: CreateInput): string | undefined =>
     : undefined
 
 /**
- * `sdp new`: a spec from a template. Refuses input it cannot make a file of, a change that names no
- * feature, an id or a file that exists, and a spec that would not read back.
+ * `sdp new`: a spec from a template, or for an element only its id, since its code declares it.
+ * Refuses input it cannot make a file of, a change that names no feature, an id or a file that
+ * exists, and a spec that would not read back.
  */
 export const create = Effect.fn("create")(function*(root: string, input: CreateInput) {
   const reason = unusable(input)
@@ -91,14 +92,15 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
   if (existing && existing.kind !== made.kinds.missing) {
     return yield* new Refused({ reason: `id ${created.id} already exists at ${formatSource(existing.source)}` })
   }
-  const target = path.resolve(root, created.file)
+  if (created.file === undefined) return { id: created.id, file: undefined, next: created.next, unread: undefined }
+  const target = path.resolve(root, created.file.path)
   yield* fs.makeDirectory(path.dirname(target), { recursive: true })
   // Compared as real paths: an absolute directory may reach the workspace through a symbolic link.
   const relative = path.relative(yield* fs.realPath(root), path.join(yield* fs.realPath(path.dirname(target)), path.basename(target)))
   const inside = !relative.startsWith("..") && !path.isAbsolute(relative)
   const file = inside ? relative : target
   if (yield* fs.exists(target)) return yield* new Refused({ reason: `${file} already exists` })
-  yield* fs.writeFileString(target, created.content)
+  yield* fs.writeFileString(target, created.file.content)
   // Found again the way every command finds specs: what the features globs do not match is in no graph.
   const { exclude, features } = project.config
   const unread = !inside

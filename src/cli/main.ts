@@ -321,7 +321,7 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a feature at maturity idea). Any other kind gets the generic template`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a feature at maturity idea; element: no file, for its code declares it). Any other kind gets the generic template`
       )
     ),
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it")),
@@ -346,13 +346,13 @@ const newCommand = Command.make(
       dir: Option.getOrUndefined(dir),
       changes: Option.getOrUndefined(changes)
     })
-    yield* Console.log(`${created.id}\t${created.file}`)
+    yield* Console.log(created.file === undefined ? created.id : `${created.id}\t${created.file}`)
     for (const line of created.next) yield* Console.error(Text.c.dim(`next: ${line}`))
     if (created.unread !== undefined) yield* Console.error(Text.c.yellow(`note: ${created.unread}`))
   })
 ).pipe(
   Command.withDescription(
-    `Create a feature, change, decision, element, plan, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
+    `Create a feature, change, decision, plan, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
   ),
   Command.withExamples([
     { command: "sdp new feature 'Saved carts' --maturity draft", description: "A feature still to build, with who needs it and why to write" },

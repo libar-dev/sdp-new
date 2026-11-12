@@ -75,7 +75,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
           graph: project.graph
         })
         if (Result.isFailure(created)) assert.fail(created.failure)
-        setFile(world, created.success.file, created.success.content)
+        const { file } = created.success
+        assert.ok(file, `sdp new ${cell("kind")} writes no file`)
+        setFile(world, file.path, file.content)
       }
     }))
 

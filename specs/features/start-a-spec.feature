@@ -43,12 +43,11 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind        | title       | options | file                                   | tags                                             | next                                                                                 |
-        | requirement | Saved carts |         | specs/requirements/saved-carts.feature | @id=saved-carts @kind=requirement @maturity=idea | write the idea in a sentence under the title                                         |
-        | element     | Orders      |         | specs/architecture/ARCH-orders.feature | @id=ARCH-orders                                  | anchor it next to the declaration that is it: annotate(Thing, { is: "ARCH-orders" }) |
-        | pattern     | Outbox      |         | specs/architecture/PAT-outbox.feature  | @id=PAT-outbox                                   | elements that apply it link `@instance-of:PAT-outbox`                                |
-        | risk        | Outage      |         | specs/risks/outage.feature             | @id=outage @kind=risk                            | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…                        |
-        | phase       | Hardening   |         | specs/delivery/PH-hardening.feature    | @id=PH-hardening                                 | say under the title what this phase takes on, and why in this order                  |
+        | kind    | title     | options | file                                  | tags                                    | next                                                                |
+        | gizmo   | Sprocket  |         | specs/gizmo/sprocket.feature          | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
+        | pattern | Outbox    |         | specs/architecture/PAT-outbox.feature | @id=PAT-outbox                          | elements that apply it link `@instance-of:PAT-outbox`               |
+        | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk                   | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
+        | phase   | Hardening |         | specs/delivery/PH-hardening.feature   | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -65,6 +64,23 @@ Feature: Start a spec
         next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains
         next: a rule that rests on it is written on the spec it constrains, tagged `@decided-by:use-postgres`
         """
+
+  Rule: An element is declared where its code is, so new writes no file for one, and the answer says how its code declares it
+
+    The code anchored to an element is the element, and that code's doc comment says what it is
+    for: a file of its own would be prose that nothing keeps true.
+
+    Scenario: An element
+      When I run "sdp new element Orders"
+      Then the exit code is 0
+      And the output lines are "ARCH-orders"
+      And the output contains:
+        """
+        next: no file is written: an element is declared where its code is, by annotate(<declaration>, { is: "ARCH-orders" }) from "sdp/annotations" (sdp types makes the id typed), or an `@sdp is ARCH-orders` comment in other languages
+        next: the doc comment of that code is its description: say there what it is for
+        next: sdp arch shows it, with its code and the elements that code imports; a feature it realizes links it with `@realized-by:ARCH-orders`
+        """
+      And the file "specs/architecture/ARCH-orders.feature" does not exist
 
   Rule: A new feature and a change to one are work still to come: they start in specs/incoming, and the answer says how each is written
 
@@ -135,15 +151,15 @@ Feature: Start a spec
       And the file "<file>" contains "@id=<id>"
 
       Examples:
-        | arguments                                               | id                   | file                                            |
-        | element 'Kasse für Gäste'                               | ARCH-kasse-fur-gaste | specs/architecture/ARCH-kasse-fur-gaste.feature |
-        | element 'Корзина'                                       | ARCH-0001            | specs/architecture/ARCH-0001.feature            |
-        | idea 'Gift wrapping'                                    | gift-wrapping        | specs/incoming/gift-wrapping.feature            |
-        | feature 'Корзина'                                       | feature-0001         | specs/incoming/feature-0001.feature             |
-        | decision 'Ödeme yöntemi'                                | odeme-yontemi        | specs/decisions/odeme-yontemi.feature           |
-        | milestone 'Go-live'                                     | MS-go-live           | specs/delivery/MS-go-live.feature               |
-        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers             | specs/payments/vouchers.feature                 |
-        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards           | specs/payments/gift-cards.feature               |
+        | arguments                                               | id                 | file                                      |
+        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/delivery/MS-kasse-fur-gaste.feature |
+        | milestone 'Корзина'                                     | MS-0001            | specs/delivery/MS-0001.feature            |
+        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/incoming/gift-wrapping.feature      |
+        | feature 'Корзина'                                       | feature-0001       | specs/incoming/feature-0001.feature       |
+        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature     |
+        | milestone 'Go-live'                                     | MS-go-live         | specs/delivery/MS-go-live.feature         |
+        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature           |
+        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature         |
 
     Scenario: A title that leaves no ASCII letter or digit to slug is numbered after the highest number its kind has
       Given these specs:
@@ -151,9 +167,9 @@ Feature: Start a spec
         | @id=ARCH-0007     | Корзина  |
         | @id=ARCH-checkout | Checkout |
       When I run "sdp new element 'Платёж'"
-      Then the output lines are "ARCH-0008\tspecs/architecture/ARCH-0008.feature"
+      Then the output lines are "ARCH-0008"
       When I run "sdp new element 'Платёж 2'"
-      Then the output lines are "ARCH-2\tspecs/architecture/ARCH-2.feature"
+      Then the output lines are "ARCH-2"
 
     Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so
       Given a file "shop/sdp.config.yaml" containing:
@@ -171,27 +187,26 @@ Feature: Start a spec
 
     Scenario: Every template, at its first maturity level and above it
       Given specs created from the sdp new templates:
-        | kind        | title         | maturity  | changes       |
-        | requirement | Wishlist      | idea      |               |
-        | idea        | Gift wrapping |           |               |
-        | change      | Gift messages |           | gift-wrapping |
-        | element     | Orders        |           |               |
-        | pattern     | Outbox        |           |               |
-        | phase       | Elaboration   |           |               |
-        | milestone   | Launch        |           |               |
-        | risk        | Outage        |           |               |
-        | feature     | Gift cards    | draft     |               |
-        | feature     | Returns       | specified |               |
-        | nfr         | Availability  | ready     |               |
-        | decision    | Use Postgres  |           |               |
+        | kind      | title         | maturity  | changes       |
+        | gizmo     | Sprocket      | idea      |               |
+        | idea      | Gift wrapping |           |               |
+        | change    | Gift messages |           | gift-wrapping |
+        | pattern   | Outbox        |           |               |
+        | phase     | Elaboration   |           |               |
+        | milestone | Launch        |           |               |
+        | risk      | Outage        |           |               |
+        | feature   | Gift cards    | draft     |               |
+        | feature   | Returns       | specified |               |
+        | feature   | Wishlist      | ready     |               |
+        | decision  | Use Postgres  |           |               |
       When the workspace is checked
       Then sdp reports:
-        | rule                 | node             | line |
-        | maturity-criteria    | availability | 1    |
+        | rule                 | node         | line |
         | maturity-criteria    | gift-cards   | 1    |
         | maturity-criteria    | returns      | 1    |
+        | maturity-criteria    | wishlist     | 1    |
         | template-placeholder | returns      | 4    |
-        | template-placeholder | availability | 4    |
+        | template-placeholder | wishlist     | 4    |
         | template-placeholder | use-postgres | 4    |
 
     Scenario: From specified on, the file has a rule with a scenario to fill in
@@ -257,10 +272,10 @@ Feature: Start a spec
 
     Scenario: An id that only a dangling link names is free: creating it resolves the link
       Given these specs:
-        | tags                                 | Feature |
-        | @id=filters @realized-by:ARCH-facets | Filters |
-      When I run "sdp new element Facets"
-      Then the output contains "ARCH-facets\tspecs/architecture/ARCH-facets.feature"
+        | tags                           | Feature |
+        | @id=filters @depends-on:facets | Filters |
+      When I run "sdp new feature Facets"
+      Then the output contains "facets\tspecs/incoming/facets.feature"
       When I run "sdp check"
       Then the exit code is 0
 
