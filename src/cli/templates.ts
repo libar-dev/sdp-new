@@ -301,6 +301,7 @@ export const configTemplate = [
   `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,
   `#   relations: { plan: [${defaults.vocabulary.relations.plan.join(", ")}] }    # relations that plan a node into an iteration`,
   "#   disciplines: {}            # merged with the RUP disciplines, e.g. { operations: [runbook] }",
+  "#   words: { relations: [] }   # words of your own that nothing uses yet, so a rule can assert there are none: kinds, relations, attributes",
   ""
 ].join("\n")
 

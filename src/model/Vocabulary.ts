@@ -75,6 +75,11 @@ export interface Vocabulary {
   readonly disciplines: ReadonlyMap<string, Words>
   /** Front matter keys that link besides `links:`, the plan and phase relations and `activity`. */
   readonly links: Words
+  /**
+   * Words of the workspace's own that nothing in its graph has yet. An assertion names only words
+   * sdp knows — or a typo would pass — so a rule that there is none of something declares its word here.
+   */
+  readonly words: { readonly kinds: Words; readonly relations: Words; readonly attributes: Words }
 }
 
 /** What an empty configuration means. */
@@ -121,7 +126,8 @@ export const defaultVocabulary: Vocabulary = {
     ["test", []],
     ["deployment", ["release", "environment", "deployment"]]
   ]),
-  links: []
+  links: [],
+  words: { kinds: [], relations: [], attributes: [] }
 }
 
 /** Words sdp makes itself. They are not configurable, and authors cannot write them. */
@@ -185,11 +191,11 @@ export const isDerived = (kind: string, key: string): boolean =>
   (made.attributes as ReadonlyArray<string>).includes(key) ||
   (kind === made.kinds.scenario && (made.scenarioAttributes as ReadonlyArray<string>).includes(key))
 
-/** Every word the profile names, by what it is: for the typo notes of queries and the guard of DEC-0002. */
+/** Every word the profile names, by what it is: for the unknown words of queries and the guard of DEC-0002. */
 export const vocabularyWords = (vocabulary: Vocabulary) => ({
-  kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat()])],
-  relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary)])],
-  attributes: [...new Set(Object.values(vocabulary.attributes))],
+  kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat(), ...vocabulary.words.kinds])],
+  relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary), ...vocabulary.words.relations])],
+  attributes: [...new Set([...Object.values(vocabulary.attributes), ...vocabulary.words.attributes])],
   /** Attribute values the profile names: the statuses and the qualities. Maturity levels compare only along the ladder. */
   values: [...new Set([...Object.values(vocabulary.statuses).flat(), ...vocabulary.qualities])],
   disciplines: [...vocabulary.disciplines.keys()]

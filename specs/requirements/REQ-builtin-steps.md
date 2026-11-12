@@ -32,11 +32,24 @@ as everything else, and need no code.
 
 Queries are SDPQ path patterns ([[REQ-graph-query]]). A failing step says what it expected and
 lists up to ten offending nodes with their `file:line`; a malformed query fails the step with the
-parser's message. A typo must not make a negative assertion pass by matching nothing, so a query
-naming a kind or relation that nothing in the project uses fails the step — kinds sdp creates itself
-and kinds named in the configuration count as known — and so do an unknown severity or rule. For the
-same reason a query whose evaluation was cut short by a limit ([[ARCH-query-engine]]) fails the
-step whatever it asserts, naming the limit: what lies beyond it could prove the assertion wrong.
+parser's message.
+
+An assertion must not pass for the wrong reason, and "there is none" is the easiest thing to prove
+by accident. So a step fails, whatever it asserts, when its query
+
+- names a word the workspace does not know — an id no node has, a kind or a relation that nothing
+  in the graph uses and the vocabulary does not name, an attribute that no node its selector could
+  match carries. The message names the closest known word, because the cause is almost always a
+  typo. A rule about something the workspace does not have yet declares its word under
+  `vocabulary.words` ([[REQ-configuration]]); then "there is none" is a statement, not an accident;
+- was cut short by a limit ([[ARCH-query-engine]]): what lies beyond it could prove the assertion
+  wrong. The message names the limit.
+
+`sdp q` and the MCP tool run the same query without complaint and print the same observations as
+notes ([[REQ-cli]]): exploring is not asserting. Known everywhere are `id`, `kind`, `title`,
+`source`, `maturity` and `status`, the attributes sdp derives, the words of the vocabulary profile
+and the kinds with an id prefix. An unknown severity or rule fails its step the same way.
+
 The steps assert against the graph their scenario sees ([[REQ-executable-specs]], *Layers*): an
 ordinary scenario sees no results, a gate the results of the ordinary scenarios. A step that reads
 a result-derived attribute — `stage`, `verification`, `staleBecause`, `lastRun`, or a scenario's
@@ -123,7 +136,7 @@ Scenario Outline: A built-in step that fails says why
     | the query "requirement" returns no results                  | REQ-search (requirement) specs/REQ-search.md:1   |
     | the query "element" returns at least 2 results              | returned 1 result(s), expected at least 2        |
     | the query "requirement\|element" returns at most 1 result   | returned 2 result(s), expected at most 1         |
-    | every node matching "element" also matches "*[owner]"       | ARCH-index (element) docs/ARCH-index.md:1        |
+    | every node matching "element" also matches "*[maturity]"    | ARCH-index (element) docs/ARCH-index.md:1        |
     | there are no warning diagnostics                            | [decision-status] DEC-0001                       |
     | there are no diagnostics for rule "decision-status"         | DEC-0001: decision status should be one of       |
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |
@@ -131,10 +144,37 @@ Scenario Outline: A built-in step that fails says why
     | the node "REQ-search" has stage "verified"                  | a scenario that asserts on delivery state is a gate |
     | the query "requirement[verification=passing]" returns 1 result | a scenario that asserts on delivery state is a gate |
     | the query "requirement[" returns no results                 | invalid query                                    |
-    | the query "requirment" returns no results                   | names kind requirment, which no node has         |
-    | the query "* -realised-by-> *" returns no results           | names relation realised-by, which no edge has    |
+    | the query "requirment" returns no results                   | no kind requirment; closest: requirement         |
+    | the query "* -realised-by-> *" returns no results           | no relation realised-by; closest: realized-by    |
+    | the query "#REQ-serach[maturity=ready]" returns no results  | no node has the id REQ-serach; closest: REQ-search |
+    | the query "requirement[maturty=ready]" returns no results   | requirement has no attribute maturty; closest: maturity |
+    | the query "#REQ-search -realized-by-> *[ownr]" returns no results | * has no attribute ownr                    |
+    | every node matching "#REQ-serach" also matches "requirement[maturity=ready]" | no node has the id REQ-serach   |
     | there are no eror diagnostics                               | unknown severity "eror"                          |
     | there are no diagnostics for rule "decision-stats"          | unknown rule "decision-stats"                    |
+
+Scenario Outline: A word the vocabulary declares can be asserted absent
+  Given a file "sdp.config.yaml" containing:
+    """
+    vocabulary:
+      words: { kinds: [incident], relations: [leaks-to], attributes: [exposure] }
+    """
+  And a file "specs/guard.feature" containing:
+    """
+    Feature: Guard
+      Scenario: Guard
+        Then <step>
+    """
+  When the scenarios are run
+  Then the step '<step>' has status "<status>"
+
+  Examples:
+    | step                                                       | status |
+    | the query "* -leaks-to-> *" returns no results             | passed |
+    | the query "incident[!owner]" returns no results            | failed |
+    | the query "incident" returns no results                    | passed |
+    | the query "requirement[exposure=high]" returns no results  | passed |
+    | the query "* -leaks-into-> *" returns no results           | failed |
 
 Scenario Outline: A query cut short by a limit proves nothing, so the step fails
   Given a chain of 14 nodes linked by "next"

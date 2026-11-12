@@ -42,7 +42,12 @@ const VocabularyFile = Schema.Struct({
   })),
   maturity: Schema.optional(Words),
   disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
-  links: Schema.optional(Words)
+  links: Schema.optional(Words),
+  words: Schema.optional(Schema.Struct({
+    kinds: Schema.optional(Words),
+    relations: Schema.optional(Words),
+    attributes: Schema.optional(Words)
+  }))
 })
 type VocabularyFile = typeof VocabularyFile.Type
 
@@ -132,7 +137,8 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
     statuses: { ...d.statuses, ...file.statuses },
     maturity: file.maturity ?? d.maturity,
     disciplines: new Map([...d.disciplines, ...Object.entries(file.disciplines ?? {})]),
-    links: file.links ?? d.links
+    links: file.links ?? d.links,
+    words: { ...d.words, ...file.words }
   }
 }
 

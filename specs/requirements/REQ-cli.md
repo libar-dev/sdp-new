@@ -416,9 +416,10 @@ Scenario: status counts gate scenarios apart from the others
 ### `sdp query <pattern>`, `sdp q`
 
 Answers a path pattern with the matching nodes: a table by default, `--ids` for one id per line,
-`--paths` for whole paths, `--json`. `sdp q --help` prints the syntax. When nothing matches because
-the pattern names a kind or relation no node or edge has — usually a typo — a note on stderr says
-so and lists those in use. When a limit cut the search short ([[REQ-graph-query]]), stderr says
+`--paths` for whole paths, `--json`. `sdp q --help` prints the syntax. When the pattern names a
+word the workspace does not know — an id, a kind, a relation, an attribute; usually a typo — a
+note on stderr says so and names the closest word it does know ([[REQ-builtin-steps]] lists what
+counts as known). When a limit cut the search short ([[REQ-graph-query]]), stderr says
 which, even if nothing was found: the answer may be incomplete.
 
 ```sh
@@ -453,11 +454,12 @@ Scenario: An invalid query is an error
   Then the exit code is 1
   And the output contains "query error"
 
-Scenario: An empty result names the kinds and relations in use when the pattern uses others
-  When I run "sdp q 'requirement -implemented-by-> element'"
+Scenario: A word the workspace does not know is noted, with the closest one it does
+  When I run "sdp q 'requirement -realised-by-> element[titel]'"
   Then the exit code is 0
   And the output contains "0 node(s)"
-  And the output contains "no relation implemented-by; relations in use: decided-by, iteration, phase, realized-by, verifies"
+  And the output contains "note: no relation realised-by; closest: realized-by"
+  And the output contains "note: element has no attribute titel; closest: title"
 
 Scenario: A result cut short by a limit says which, even when it is empty
   Given a file "docs/chain.md" containing:

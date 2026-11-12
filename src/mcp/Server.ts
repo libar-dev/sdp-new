@@ -13,7 +13,7 @@ import { check } from "../check/Check.ts"
 import { relationVocabulary } from "../cli/templates.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
-import { formatPath, queryProject, querySyntax, unusedNamesNote } from "../graph/Query.ts"
+import { formatPath, parseQuery, queryProject, querySyntax, unknownWords } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast } from "../model/Diagnostic.ts"
@@ -130,17 +130,16 @@ const handlers = (root: string) =>
           const { limits, nodes, truncated } = result.success
           // A result cut short says so first, empty or not: what lies beyond the limit is unknown.
           const cut = truncated ? `, cut short (${limits.join("; ")}): the answer may be incomplete` : ""
-          if (nodes.length === 0) {
-            const note = unusedNamesNote(project, expression)
-            return Effect.succeed([`no matches${cut}`, ...(note ? [note] : [])].join("\n"))
-          }
+          const notes = unknownWords(project, Result.getOrThrow(parseQuery(expression))).map((note) => `note: ${note}`)
+          if (nodes.length === 0) return Effect.succeed([`no matches${cut}`, ...notes].join("\n"))
           if (paths) {
             const routes = result.success.paths.map(formatPath)
-            return Effect.succeed((truncated ? [`${routes.length} path(s)${cut}`, ...routes] : routes).join("\n"))
+            return Effect.succeed([...(truncated ? [`${routes.length} path(s)${cut}`] : []), ...notes, ...routes].join("\n"))
           }
           return Effect.succeed(
             [
               `${nodes.length} node(s)${cut}`,
+              ...notes,
               ...nodes.map((n) => [n.id, n.kind, statusCell(project.config.vocabulary, n), n.title, formatSource(n.source)].join("\t"))
             ].join("\n")
           )

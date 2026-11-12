@@ -21,7 +21,7 @@ the CLI or plain grep instead; MCP is optional.
 | Tool | Arguments | Answers with |
 | --- | --- | --- |
 | `sdp_status` | — | summary counts as JSON: kinds, relations, stages, decision statuses, scenario results, nodes of an architectural kind, diagnostics |
-| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when nothing matches because the pattern names a kind or relation nothing uses, a note listing those in use; when a limit cut evaluation short ([[ARCH-query-engine]]), a first line that says so and names the limit, even if nothing matched |
+| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when the pattern names a word the workspace does not know, a note with the closest word it does; when a limit cut evaluation short ([[ARCH-query-engine]]), a first line that says so and names the limit, even if nothing matched |
 | `sdp_show` | `id` | the node as JSON with its outgoing and incoming edges |
 | `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle ([[REQ-agent-context]]) |
 | `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one ([[REQ-executable-specs]]) |
@@ -84,7 +84,7 @@ Scenario Outline: Every tool answers from the workspace
     | sdp_architecture | {}                                                    | "nodes": []                                        |
     | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
     | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
-    | sdp_query        | { "expression": "requirement -realised-by-> *" }      | no relation realised-by; relations in use: depends-on |
+    | sdp_query        | { "expression": "requirement -depend-on-> *" }        | note: no relation depend-on; closest: depends-on   |
 
 Scenario Outline: A query result cut short by a limit says so, even when it is empty
   Given a chain of 14 nodes linked by "next"

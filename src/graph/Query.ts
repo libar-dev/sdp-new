@@ -27,6 +27,7 @@ import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import {
+  activityRelation,
   defaultVocabulary,
   isMention,
   made,
@@ -588,35 +589,77 @@ export const projectQueryOptions = (project: Project): QueryOptions => ({
 export const queryProject = (project: Project, source: string): Result.Result<QueryResult, QueryError> =>
   query(project.graph, source, projectQueryOptions(project))
 
-/**
- * Kinds and relations a query names that nothing in the project uses — almost
- * always a typo, and a typo in a negative assertion would otherwise pass. The
- * kinds and relations sdp makes, and those the vocabulary names, count as known.
- */
-export const unknownNames = (project: Project, parsed: Query): { readonly kinds: ReadonlyArray<string>; readonly relations: ReadonlyArray<string> } => {
-  const { config, graph } = project
-  const words = vocabularyWords(config.vocabulary)
-  const knownKinds = new Set([...graph.kinds().keys(), ...Object.values(made.kinds), ...Object.keys(config.ids), ...words.kinds])
-  const knownRelations = new Set([...graph.relations().keys(), ...words.relations, anyRelation])
-  const selectors = [parsed.start, ...parsed.steps.map((step) => step.node)]
-  const kinds = selectors.flatMap((selector) => selector.kinds === "*" ? [] : selector.kinds).filter((kind) => !knownKinds.has(kind))
-  const relations = parsed.steps.flatMap((step) => step.edge.rels).filter((rel) => !knownRelations.has(rel))
-  return { kinds: [...new Set(kinds)], relations: [...new Set(relations)] }
-}
+/** Keys every node answers to, whatever it declares: what it is, and the two attributes sdp reads on any kind. */
+const universalKeys = ["id", "kind", "title", "source", "maturity", "status"]
 
 /**
- * Why a query that matched nothing may have: it names a kind or relation nothing in the project
- * uses, listed with those in use. Undefined when every name is in use (or the query is invalid).
+ * What a query names that the workspace does not know, one line each with the closest word it does
+ * know: an id no node has, a kind or relation it neither uses nor names in its vocabulary, an
+ * attribute that no node its selector could match carries. Almost always a typo — and a typo in
+ * an assertion that there is none of something would pass. Empty when every word is known.
  */
-export const unusedNamesNote = (project: Project, source: string): string | undefined => {
-  const parsed = parseQuery(source)
-  if (Result.isFailure(parsed)) return undefined
-  const { kinds, relations } = unknownNames(project, parsed.success)
-  const notes = [
-    kinds.length > 0 ? `no kind ${kinds.join(", ")}; kinds in use: ${[...project.graph.kinds().keys()].sort().join(", ")}` : undefined,
-    relations.length > 0
-      ? `no relation ${relations.join(", ")}; relations in use: ${[...project.graph.relations().keys()].sort().join(", ")}`
-      : undefined
-  ].filter(Predicate.isString)
-  return notes.length > 0 ? notes.join("\n") : undefined
+export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<string> => {
+  const { config, graph } = project
+  const vocabulary = config.vocabulary
+  const words = vocabularyWords(vocabulary)
+  const declared = graph.nodes().filter((node) => node.kind !== made.kinds.missing)
+  const ids = new Set(declared.map((node) => node.id))
+  const kinds = new Set([...graph.kinds().keys(), ...Object.values(made.kinds), ...Object.keys(config.ids), ...words.kinds])
+  const relations = new Set([
+    ...graph.relations().keys(),
+    ...words.relations,
+    ...words.disciplines.map((discipline) => activityRelation(vocabulary, discipline))
+  ])
+  const everywhere = new Set([...universalKeys, ...made.attributes, ...made.scenarioAttributes, ...words.attributes, ...relations])
+  const found: Array<string> = []
+  const unknown = (what: string, word: string, known: Iterable<string>) => {
+    const nearest = closest(word, known)
+    found.push(`${what} ${word}${nearest === undefined ? "" : `; closest: ${nearest}`}`)
+  }
+  for (const selector of [parsed.start, ...parsed.steps.map((step) => step.node)]) {
+    const unknownIds = (selector.ids ?? []).filter((id) => !ids.has(id))
+    const unknownKinds = selector.kinds === "*" ? [] : selector.kinds.filter((kind) => !kinds.has(kind))
+    for (const id of unknownIds) unknown("no node has the id", id, ids)
+    for (const kind of unknownKinds) unknown("no kind", kind, kinds)
+    // The attributes of an unknown id or kind are unknown for the same reason: one line is enough.
+    if (unknownIds.length + unknownKinds.length > 0) continue
+    const candidates = declared.filter((node) =>
+      selector.ids ? selector.ids.includes(node.id) : selector.kinds === "*" || selector.kinds.includes(node.kind)
+    )
+    const carried = new Set([...everywhere, ...candidates.flatMap((node) => Object.keys(node.attrs))])
+    const selected = selector.ids ? `#${selector.ids.join("|")}` : selector.kinds === "*" ? "*" : selector.kinds.join("|")
+    for (const { key } of selector.conditions) {
+      if (!carried.has(key) && !carried.has(key.split(".")[0]!)) unknown(`${selected} has no attribute`, key, carried)
+    }
+  }
+  for (const rel of parsed.steps.flatMap((step) => step.edge.rels)) {
+    if (rel !== anyRelation && !relations.has(rel)) unknown("no relation", rel, relations)
+  }
+  return [...new Set(found)]
+}
+
+/** The known word nearest to `word` by edit distance, if any is near enough to be what was meant. */
+const closest = (word: string, known: Iterable<string>): string | undefined => {
+  let best: string | undefined
+  let bestDistance = Math.max(2, Math.ceil(word.length / 2)) + 1
+  for (const candidate of [...known].sort()) {
+    const distance = editDistance(word.toLowerCase(), candidate.toLowerCase())
+    if (distance < bestDistance) {
+      best = candidate
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
+const editDistance = (a: string, b: string): number => {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current.push(Math.min(previous[j]! + 1, current[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)))
+    }
+    previous = current
+  }
+  return previous[b.length]!
 }

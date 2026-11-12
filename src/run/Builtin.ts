@@ -9,9 +9,10 @@
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { parseQuery, projectQueryOptions, type Query, runQuery, unknownNames } from "../graph/Query.ts"
+import { parseQuery, projectQueryOptions, type Query, runQuery, unknownWords } from "../graph/Query.ts"
 import { isRuleId, rules, type Severity } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
+import { attribute, made } from "../model/Vocabulary.ts"
 import { defineSteps, type StepContext } from "./Steps.ts"
 
 type Asserting = Pick<StepContext<unknown, ReadonlyArray<unknown>>, "project" | "scenario">
@@ -31,32 +32,27 @@ const gatesOnly = ({ scenario }: Asserting, attribute: string) => {
 /** The result-derived attributes a query's conditions name. */
 const resultsRead = (project: Project, query: Query): ReadonlyArray<string> =>
   [query.start, ...query.steps.map((step) => step.node)].flatMap((selector) => {
-    const onScenario = (selector.kinds !== "*" && selector.kinds.includes("scenario")) ||
-      (selector.ids ?? []).some((id) => project.graph.node(id)?.kind === "scenario")
+    const onScenario = (selector.kinds !== "*" && selector.kinds.includes(made.kinds.scenario)) ||
+      (selector.ids ?? []).some((id) => project.graph.node(id)?.kind === made.kinds.scenario)
     return selector.conditions.map((condition) => condition.key).filter((key) => isResult(key, onScenario))
   })
 
 /**
- * Runs a query, refusing names nothing uses — a typo must not make an assertion pass vacuously —
- * results cut short by a limit — what lies beyond the limit could prove the assertion wrong — and,
- * in an ordinary scenario, conditions on results it cannot see.
+ * Runs a query for an assertion, which must not pass for the wrong reason: a word the workspace
+ * does not know is a typo until it is declared, a result cut short by a limit could be proved
+ * wrong by what lies beyond it, and an ordinary scenario cannot see the results a condition names.
  */
 const run = (context: Asserting, source: string): ReadonlyArray<GraphNode> => {
   const { project } = context
   const parsed = parseQuery(source)
   if (Result.isFailure(parsed)) throw new Error(`invalid query: ${parsed.failure.message}`)
   for (const attribute of resultsRead(project, parsed.success)) gatesOnly(context, `${attribute} in query "${source}"`)
-  const unknown = unknownNames(project, parsed.success)
-  if (unknown.kinds.length > 0) {
+  const unknown = unknownWords(project, parsed.success)
+  if (unknown.length > 0) {
     throw new Error(
-      `query "${source}" names kind ${unknown.kinds.join(", ")}, which no node has; kinds in use: ${[...project.graph.kinds().keys()].join(", ")}`
-    )
-  }
-  if (unknown.relations.length > 0) {
-    throw new Error(
-      `query "${source}" names relation ${unknown.relations.join(", ")}, which no edge has; relations in use: ${
-        [...project.graph.relations().keys()].join(", ")
-      }`
+      `query "${source}" names what this workspace does not know, so it proves nothing: ${
+        unknown.join("; ")
+      }. Fix the word, or declare one that is meant under vocabulary.words in the configuration`
     )
   }
   const result = runQuery(project.graph, parsed.success, projectQueryOptions(project))
@@ -130,9 +126,9 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
 
   Then("the node {string} has {word} {string}", ({ args: [id, key, value], ...context }) => {
     const node = context.project.graph.node(id)
-    if (!node) throw new Error(`no node ${id}`)
-    if (isResult(key, node.kind === "scenario")) gatesOnly(context, `${id}.${key}`)
-    const actual = key === "kind" ? node.kind : key === "title" ? node.title : node.attrs[key]
+    if (!node || node.kind === made.kinds.missing) throw new Error(`no node ${id}`)
+    if (isResult(key, node.kind === made.kinds.scenario)) gatesOnly(context, `${id}.${key}`)
+    const actual = key === "kind" ? node.kind : key === "title" ? node.title : attribute(node, key)
     if (String(actual) !== value) throw new Error(`${id}.${key} is ${JSON.stringify(actual)}, expected ${JSON.stringify(value)}`)
   })
 }, { name: "sdp/builtin" })

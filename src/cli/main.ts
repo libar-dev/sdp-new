@@ -12,7 +12,7 @@ import { architectureJson, architectureView, renderArchitecture } from "../arch/
 import { check } from "../check/Check.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
-import { formatPath, queryProject, querySyntax, stageLadder, unusedNamesNote } from "../graph/Query.ts"
+import { formatPath, parseQuery, queryProject, querySyntax, stageLadder, unknownWords } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { idsDeclaration } from "../graph/Types.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
@@ -126,9 +126,7 @@ const queryCommand = Command.make(
     }
     if (truncated) yield* Console.error(c.yellow(`result cut short: ${result.success.limits.join("; ")} — the answer may be incomplete`))
     if (!ids) yield* Console.error(c.dim(`${nodes.length} node(s)`))
-    // An empty result because of a misspelt kind or relation should not look like a real "none".
-    const note = nodes.length === 0 ? unusedNamesNote(project, expression) : undefined
-    if (note) yield* Console.error(c.yellow(note))
+    for (const note of unknownWords(project, Result.getOrThrow(parseQuery(expression)))) yield* Console.error(c.yellow(`note: ${note}`))
   })
 ).pipe(
   Command.withAlias("q"),
