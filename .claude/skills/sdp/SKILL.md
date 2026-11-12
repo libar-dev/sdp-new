@@ -41,9 +41,11 @@ Feature: Guest checkout
   Rule: Can a guest save the cart for later?
 ```
 
-- **`@key=value` describes, `@rel:ID` links**, and the first `=` or `:` decides. Above `Feature:`
-  they are about the spec, above `Rule:` about the rule, above `Scenario:` about the scenario. Only
-  a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is not written.
+- **`@key=value` describes, `@rel:ID` links**, and the first `=` or `:` decides; a tag with
+  neither is a Cucumber tag, and one whose key is not a word (`@1st=x`) is an error. Above
+  `Feature:` they are about the spec, above `Rule:` about the rule, above `Scenario:` about the
+  scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is
+  not written.
   A key written twice is a list, `@owner.team=core` nests, and a value that reads back as a number
   is one. Annotations are not tags: they are not inherited, not matched by `--tags` and not part
   of a scenario's hash, so re-planning a spec leaves its results valid.

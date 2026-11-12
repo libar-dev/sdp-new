@@ -63,7 +63,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
   const diagnostics: Array<Diagnostic> = []
   const { attrLines, links } = feature
   const { id: writtenId, kind: rawKind, ...attrs } = feature.attrs
-  const id = Predicate.isString(writtenId) || Predicate.isNumber(writtenId) ? String(writtenId) : fallbackId
+  const id = Predicate.isString(writtenId) ? writtenId : fallbackId
   const kind = writtenKind(rawKind, { file, owner: id, line: attrLines.kind ?? 1 }, diagnostics) ??
     (id === fallbackId ? "feature" : inferKind(id, config))
   const gherkin = read(id, [kind])

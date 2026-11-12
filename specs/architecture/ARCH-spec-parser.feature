@@ -31,6 +31,7 @@ Feature: Spec parser
         | @id=SEARCH-1 @kind=story @web | Product search | SEARCH-1                        | story       | Product search |
         | @web                          | Product search | feature:features/search.feature | feature     | Product search |
         | @id=REQ-search                |                | REQ-search                      | requirement | REQ-search     |
+        | @id=true @kind=false          | Product search | true                            | false       | Product search |
 
     Scenario: A second Feature in a file is text of the description above it, and an error
       Given a file "specs/REQ-pay.feature" containing:
@@ -148,7 +149,7 @@ Feature: Spec parser
 
     Its author meant a fact or a link, so it is not quietly read as a Cucumber tag instead.
 
-    Scenario Outline: A list in one tag, a second id, a key that is a value and a map, an id below the Feature, an annotation on Examples
+    Scenario Outline: A list in one tag, a second id, an id that links, a key that is a value and a map, a key that names nothing, an id below the Feature, an annotation on Examples
       Given a file "specs/REQ-pay.feature" containing:
         """
         @id=REQ-pay <feature>
@@ -176,7 +177,11 @@ Feature: Spec parser
         | feature                     | rule    | scenario    | examples         | line | message                                     |
         | @uses:A,B                   |         |             |                  | 1    | @uses:A,B: one tag is one link              |
         | @id=REQ-other               |         |             |                  | 1    | @id=REQ-other: a spec has one id            |
+        | @id:REQ-other               |         |             |                  | 1    | @id:REQ-other: a spec's id is written with = |
         | @owner=ada @owner.team=core |         |             |                  | 1    | owner is written as a value and as a map    |
+        | @owner..team=core           |         |             |                  | 1    | @owner..team=core: this key names nothing   |
+        |                             | @1st=ok |             |                  | 4    | @1st=ok: this key names nothing             |
+        |                             |         | @:REQ-b     |                  | 7    | @:REQ-b: this key names nothing             |
         |                             | @id=R-1 |             |                  | 4    | @id=R-1: only a Feature says what it is     |
         |                             |         | @kind=story |                  | 7    | @kind=story: only a Feature says what it is |
         |                             |         |             | @browser=firefox | 11   | an annotation on Examples is about no node  |

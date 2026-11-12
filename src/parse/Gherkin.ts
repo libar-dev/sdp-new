@@ -163,7 +163,8 @@ const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<
   }
 }
 
-const annotationTag = /^@([A-Za-z][\w.-]*)([=:])(.*)$/
+/** `@key=value` or `@rel:ID`: a key is a letter, then letters, digits, `_` or `-`, in parts joined by single dots. */
+const annotationTag = /^@([A-Za-z][\w-]*(?:\.[\w-]+)*)([=:])(.*)$/
 
 /** Where a tag sits: what an annotation there is about, and which ones it may hold. */
 type Level = "Feature" | "Rule" | "Scenario" | "Examples"
@@ -177,8 +178,8 @@ const tagValue = (text: string): unknown => {
 
 /**
  * What the tags of one element say. `=` makes a fact, `:` a link, and the first of them decides;
- * any other tag is a Cucumber tag. An annotation that cannot mean what it says is a problem, and
- * neither a fact nor a tag.
+ * a tag with neither is a Cucumber tag. An annotation that cannot mean what it says is a problem,
+ * and neither a fact nor a tag. What a spec is — its `id` and `kind` — is the text written.
  */
 const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: LinkKeys, problems: Array<GherkinProblem> = []): Annotations => {
   const plain: Array<string> = []
@@ -190,7 +191,9 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
   for (const tag of tags) {
     const match = annotationTag.exec(tag.name)
     if (!match) {
-      plain.push(tag.name)
+      if (isAnnotation(tag.name)) {
+        problem(tag, "this key names nothing: a key is a letter, then letters, digits, _ or -, in parts joined by single dots", "write @key=value or @rel:ID; a tag without = and : is a Cucumber tag")
+      } else plain.push(tag.name)
       continue
     }
     const key = match[1]!
@@ -205,6 +208,8 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
       problem(tag, `${key} is a link, so a value written with = links nothing`, `write @${key}:${value}`, "link-syntax")
     } else if (level !== "Feature" && (key === "id" || key === "kind")) {
       problem(tag, `only a Feature says what it is with @${key}=`, "move it above `Feature:`: a Rule or a Scenario is a node sdp names itself")
+    } else if ((key === "id" || key === "kind") && separator === ":") {
+      problem(tag, `a spec's ${key} is written with =, so this links nothing`, `write @${key}=${value}`)
     } else if ((key === "id" || key === "kind") && values.has(key)) {
       problem(tag, `a spec has one ${key}`, `keep one @${key}= tag: another node is a file of its own`)
     } else if (separator === ":" && value.includes(",")) {
@@ -212,7 +217,7 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
     } else if (separator === ":") {
       links.push({ rel: key, to: value, line })
     } else {
-      values.set(key, [...(values.get(key) ?? []), tagValue(value)])
+      values.set(key, [...(values.get(key) ?? []), key === "id" || key === "kind" ? value : tagValue(value)])
       if (!attrLines.has(key)) attrLines.set(key, line)
     }
   }
@@ -250,8 +255,8 @@ const nested = (values: ReadonlyMap<string, ReadonlyArray<unknown>>, tags: Reado
   return record(root)
 }
 
-/** Whether a tag is an annotation — a fact about the node it sits on — rather than a Cucumber tag. */
-const isAnnotation = (tag: string): boolean => annotationTag.test(tag)
+/** Whether a tag is an annotation — a fact or a link about the node it sits on, or meant as one — rather than a Cucumber tag. */
+const isAnnotation = (tag: string): boolean => /[=:]/.test(tag)
 
 /** The text under a keyword line, without the indentation it was written with. */
 const describe = (description: string): string | undefined => {
