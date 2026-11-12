@@ -83,6 +83,10 @@ export const exec = (command: string, cwd: string, input = "") =>
       if (error && typeof error.code !== "number") reject(error)
       else done({ code: error ? Number(error.code) : 0, stdout, stderr })
     })
+    // A command that reads no input may have exited before it is written to: how it ended is still its outcome.
+    child.stdin?.on("error", (error: NodeJS.ErrnoException) => {
+      if (error.code !== "EPIPE") reject(error)
+    })
     child.stdin?.end(input)
   })
 
