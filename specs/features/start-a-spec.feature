@@ -116,10 +116,13 @@ Feature: Start a spec
         """
       And the file "specs/architecture/ARCH-orders.feature" does not exist
 
-  Rule: A new feature is written where it stays, and a change has no file
+  Rule: A new spec is written where this repository keeps its kind, a feature where it stays, and a change has no file
 
-    Nothing moves when a feature is built. A change to it is rules of it, each with a maturity of its
-    own until it is built, so it has no file of its own, unless a team has a kind of that name.
+    A feature under specs/features, a decision under specs/decisions, a milestone, a phase and an
+    iteration under specs/plan, and any other kind under specs/ and its name, unless `--dir` says
+    otherwise. Nothing moves when a feature is built. A change to it is rules of it, each with a
+    maturity of its own until it is built, so it has no file of its own, unless a team has a kind of
+    that name.
 
     Scenario: A feature, written where it stays
       When I run "sdp new feature 'Saved carts'"
@@ -136,6 +139,18 @@ Feature: Start a spec
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         """
       And the output contains "next: it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"
+
+    Scenario Outline: A <kind>, under <directory>
+      When I run "sdp new <kind> 'Go live'"
+      Then the output lines are "<id>\t<directory>/<id>.feature"
+
+      Examples:
+        | kind      | directory       | id         |
+        | decision  | specs/decisions | go-live    |
+        | milestone | specs/plan      | MS-go-live |
+        | phase     | specs/plan      | PH-go-live |
+        | iteration | specs/plan      | IT-go-live |
+        | runbook   | specs/runbook   | go-live    |
 
     Scenario Outline: A change, <where>
       Given a file "sdp.config.yaml" containing:
