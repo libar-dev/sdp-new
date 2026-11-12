@@ -287,10 +287,10 @@ Feature: Serve AI agents
 
     Scenario: The server's instructions
       When an agent reads the MCP server's instructions
-      Then the output contains 'Code links to the architecture, not to requirements'
+      Then the output contains 'Code links to the architecture, not to features'
       And the output contains '`annotate(Orders, { is: "ARCH-orders" })` imported from "sdp/annotations"'
       And the output contains "other languages use a comment line, `// @sdp is ARCH-orders`"
-      And the output contains "`requirement -realized-by-> element <-is- code`"
+      And the output contains "`feature -realized-by-> element <-is- code`"
       And the output contains "propose an element, a pattern or an `is` annotation, do not add or remove one yourself"
       And the output does not contain "implements"
 
