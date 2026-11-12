@@ -9,51 +9,42 @@ Feature: Quality requirements as quality attribute scenarios
   and its measure. They are architectural drivers, and once their steps are automated they are
   fitness functions that run with every `sdp run`.
 
-  Scenario Outline: A quality requirement is a node of kind nfr, or of any kind whose type says so, and is shown next to the elements it constrains
-    Given a file "specs/model.md" containing:
-      """
-      ---
-      id: MODEL
-      kind: model
-      nodes:
-        - { id: ARCH-orders, kind: element, links: { constrained-by: Q-latency } }
-        - { id: Q-latency, <marker>, title: Checkout latency }
-      ---
-      # Model
-      """
-    When I ask for the architecture view
-    Then the output contains "ARCH-orders -constrained-by-> Q-latency"
+  Rule: A quality requirement is of kind nfr, or of any kind whose type says so, and is shown beside what it constrains
 
-    Examples:
-      | marker                              |
-      | kind: nfr                           |
-      | kind: requirement, type: quality    |
-      | kind: requirement, type: constraint |
-      | kind: requirement, type: non-functional |
-      | kind: story, type: nfr              |
+    Scenario Outline: Marked by its kind or by its type
+      Given these specs:
+        | tags                                      | Feature          |
+        | @id=ARCH-orders @constrained-by:Q-latency | Orders           |
+        | @id=Q-latency <marker>                    | Checkout latency |
+      When I ask for the architecture view
+      Then the output contains "ARCH-orders -constrained-by-> Q-latency"
 
-  Scenario: An automated quality attribute scenario verifies its requirement
-    Given a file "specs/NFR-checkout-latency.md" containing:
-      """
-      ---
-      id: NFR-checkout-latency
-      maturity: ready
-      quality: performance
-      ---
-      # Checkout latency
+      Examples:
+        | marker                                 |
+        | @kind=nfr                              |
+        | @kind=requirement @type=quality        |
+        | @kind=requirement @type=constraint     |
+        | @kind=requirement @type=non-functional |
+        | @kind=story @type=nfr                  |
 
-      Shoppers abandon a slow checkout.
+  Rule: A quality attribute scenario runs like any other, and verifies its quality requirement
 
-      ```gherkin
-      Scenario: Checkout under peak load
-        Given 500 concurrent shoppers on the production topology
-        When a shopper submits an order
-        Then the confirmation is shown within 300 ms at p95
-      ```
-      """
-    And a step definition "{int} concurrent shoppers on the production topology" that passes
-    And a step definition "a shopper submits an order" that passes
-    And a step definition "the confirmation is shown within {int} ms at p95" that passes
-    When the workspace is run
-    Then node "NFR-checkout-latency" has attribute kind = "nfr"
-    And node "NFR-checkout-latency" has attribute stage = "verified"
+    Scenario: Every step of the scenario automated
+      Given a file "specs/NFR-checkout-latency.feature" containing:
+        """
+        @id=NFR-checkout-latency
+        Feature: Checkout latency
+
+          Rule: Checkout keeps up with peak load
+
+            Scenario: Checkout under peak load
+              Given 500 concurrent shoppers on the production topology
+              When a shopper submits an order
+              Then the confirmation is shown within 300 ms at p95
+        """
+      And a step definition "{int} concurrent shoppers on the production topology" that passes
+      And a step definition "a shopper submits an order" that passes
+      And a step definition "the confirmation is shown within {int} ms at p95" that passes
+      When the workspace is run
+      Then node "NFR-checkout-latency" has attribute kind = "nfr"
+      And node "NFR-checkout-latency" has attribute stage = "verified"

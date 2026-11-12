@@ -1,51 +1,36 @@
 @id=REQ-executable-specs @maturity=ready @execution
-@refines:CAP-living-specs @realized-by:ARCH-runner @decided-by:DEC-0005 @decided-by:DEC-0001 @decided-by:DEC-0010
+@refines:CAP-living-specs @realized-by:ARCH-runner @decided-by:DEC-0001
 @iteration:I1 @activity.implementation:I1 @activity.test:I1
 Feature: Executable specifications
 
-  The scenarios in a spec run as tests once step definitions exist — without rewriting them. Before
-  that, they are still valid specifications: a step without a definition is *undefined*, which means
-  "not automated yet", not "broken". Results roll up into each spec's `verification` and `stage`, so
-  the difference between specified and implemented is evidence, not a status someone remembered to
-  update.
+  The scenarios in a spec run as tests once step definitions exist, without rewriting them, and what
+  they did when they last ran is the evidence of whether the spec is built.
 
   Background:
-    Every scenario starts from a cart spec whose steps nobody has automated yet; step definitions
-    are scripted per scenario.
-
-    Given a file "specs/REQ-cart.md" containing:
+    Given a file "specs/REQ-cart.feature" containing:
       """
-      ---
-      id: REQ-cart
-      maturity: ready
-      ---
-      # Cart
+      @id=REQ-cart @maturity=ready
+      Feature: Cart
 
-      Shoppers collect items before paying.
+        Shoppers collect items before paying.
 
-      ```gherkin
-      Scenario: Add an item
-        Given an empty cart
-        When I add a lamp
-        Then the cart holds 1 item
-      ```
+        Rule: A cart holds what was added
+
+          Scenario: Add an item
+            Given an empty cart
+            When I add a lamp
+            Then the cart holds 1 item
       """
 
+  @decided-by:DEC-0005
   Rule: A spec's stage is derived from what its scenarios did when they last ran
 
-    Undefined is not failed: a scenario nobody has automated is a specification, not a regression. The
-    statuses roll up into the spec's `verification` and `stage`, so whether a spec is built is
-    evidence and never a status somebody set.
+    Undefined is not failed: a scenario nobody has automated is a specification, not a regression.
 
     Scenario: Until its scenarios run, a spec's stage is its declared maturity
-      Given a file "specs/REQ-wishlist.md" containing:
-        """
-        ---
-        id: REQ-wishlist
-        maturity: idea
-        ---
-        # Wishlist
-        """
+      Given these specs:
+        | tags                            | Feature  |
+        | @id=REQ-wishlist @maturity=idea | Wishlist |
       When the workspace is loaded
       Then node "REQ-cart#add-an-item" has attribute status = "unrun"
       And node "REQ-cart" has attribute verification = "unrun"
@@ -60,23 +45,15 @@ Feature: Executable specifications
       And node "REQ-cart" has attribute stage = "ready"
 
     Scenario: A scenario without steps is undefined: it automates nothing
-      Given a file "specs/REQ-later.md" containing:
+      Given a file "specs/REQ-later.feature" containing:
         """
-        ---
-        id: REQ-later
-        maturity: draft
-        ---
-        # Later
-
-        Something to specify.
-
-        ```gherkin
-        Scenario: To be written
-        ```
+        @id=REQ-later @maturity=idea
+        Feature: Later
+          Scenario: To be written
         """
       When the workspace is run
       Then node "REQ-later#to-be-written" has attribute status = "undefined"
-      And node "REQ-later" has attribute stage = "draft"
+      And node "REQ-later" has attribute stage = "idea"
 
     Scenario: A scenario stays undefined until every step has a definition
       Given a step definition "an empty cart" that passes
@@ -101,23 +78,15 @@ Feature: Executable specifications
         | fails  | failed   | failing      | failing     |
 
     Scenario: A spec is verified only when every one of its scenarios passed
-      Given a file "specs/REQ-wishlist.md" containing:
+      Given a file "specs/REQ-wishlist.feature" containing:
         """
-        ---
-        id: REQ-wishlist
-        maturity: draft
-        ---
-        # Wishlist
+        @id=REQ-wishlist
+        Feature: Wishlist
+          Scenario: Keep a lamp
+            Given an empty cart
 
-        Shoppers keep items for later.
-
-        ```gherkin
-        Scenario: Keep a lamp
-          Given an empty cart
-
-        Scenario: Share the list
-          Given a friend to share with
-        ```
+          Scenario: Share the list
+            Given a friend to share with
         """
       And a step definition "an empty cart" that passes
       When the workspace is run
@@ -127,14 +96,9 @@ Feature: Executable specifications
       And node "REQ-wishlist" has attribute stage = "in-progress"
 
     Scenario: Verification orders from none to passing, so a query can ask for everything short of it
-      Given a file "specs/REQ-wishlist.md" containing:
-        """
-        ---
-        id: REQ-wishlist
-        maturity: idea
-        ---
-        # Wishlist
-        """
+      Given these specs:
+        | tags                            | Feature  |
+        | @id=REQ-wishlist @maturity=idea | Wishlist |
       And a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
@@ -144,35 +108,31 @@ Feature: Executable specifications
       When I query "requirement[verification>=passing]"
       Then the result is "REQ-cart"
 
+  @decided-by:DEC-0010
   Rule: A result counts only while what it ran against is unchanged
 
-    After that it is stale: kept, but not counted. `verified` therefore promises exactly this and
-    nothing wider: every scenario of the spec passed against what sdp fingerprinted, and none of that
-    has changed since. It says nothing about what sdp was not told of — a service the steps call, the
-    clock, a file read while running that `evidence.inputs` does not name (DEC-0010). The files a run
-    imported are compared per result, because which they are is a fact about one run.
+    After that it is stale: kept, but not counted. So `verified` promises no more than this, and
+    nothing about what sdp was not told of: a service the steps call, the clock, a file
+    `evidence.inputs` does not name.
 
     Scenario: Editing a scenario makes its last result stale
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      And a file "specs/REQ-cart.md" containing:
+      And a file "specs/REQ-cart.feature" containing:
         """
-        ---
-        id: REQ-cart
-        maturity: ready
-        ---
-        # Cart
+        @id=REQ-cart @maturity=ready
+        Feature: Cart
 
-        Shoppers collect items before paying.
+          Shoppers collect items before paying.
 
-        ```gherkin
-        Scenario: Add an item
-          Given an empty cart
-          When I add two lamps
-          Then the cart holds 2 items
-        ```
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Given an empty cart
+              When I add two lamps
+              Then the cart holds 2 items
         """
       Then node "REQ-cart#add-an-item" has attribute status = "stale"
       And node "REQ-cart#add-an-item" has attribute staleBecause = "scenario-changed"
@@ -184,34 +144,32 @@ Feature: Executable specifications
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      And a file "specs/REQ-cart.md" containing:
+      And a file "specs/REQ-cart.feature" containing:
         """
-        ---
-        id: REQ-cart
-        maturity: ready
-        <front matter>
-        ---
-        # Cart
+        @id=REQ-cart @maturity=ready <on the feature>
+        Feature: Cart
 
-        Shoppers collect items before paying.
+          Shoppers collect items before paying.
 
-        ```gherkin
-        <tag line>
-        Scenario: Add an item
-          Given an empty cart
-          When I add a lamp
-          Then the cart holds 1 item
-        ```
+          <on the rule>
+          Rule: A cart holds what was added
+
+            <on the scenario>
+            Scenario: Add an item
+              Given an empty cart
+              When I add a lamp
+              Then the cart holds 1 item
         """
       Then node "REQ-cart#add-an-item" has attribute status = "stale"
       And node "REQ-cart#add-an-item" has attribute staleBecause = "scenario-changed"
 
       Examples:
-        | front matter | tag line |
-        |              | @slow    |
-        | tags: [slow] |          |
+        | on the feature | on the rule | on the scenario |
+        | @slow          |             |                 |
+        |                | @slow       |                 |
+        |                |             | @slow           |
 
-    Scenario Outline: A result counts only while the code, the configuration, the step files, the lockfile and the declared inputs are unchanged
+    Scenario Outline: Each kind of source that changed gives its own reason
       Given a file "sdp.config.yaml" containing:
         """
         evidence:
@@ -253,30 +211,20 @@ Feature: Executable specifications
             Then the query "#REQ-cart" returns 1 result
         """
       When the workspace is run
-      And a file "specs/REQ-wishlist.md" containing:
-        """
-        ---
-        id: REQ-wishlist
-        ---
-        # Wishlist
-        """
+      And these specs:
+        | tags             | Feature  |
+        | @id=REQ-wishlist | Wishlist |
       Then node "REQ-catalogue#the-cart-is-specified" has attribute status = "stale"
       And node "REQ-catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
       And node "REQ-cart#add-an-item" has attribute status = "passed"
 
     Scenario: Changing what step definitions import leaves their results stale, and a gate on them unmet
-      Given a file "specs/MS-beta.md" containing:
+      Given a file "specs/MS-beta.feature" containing:
         """
-        ---
-        id: MS-beta
-        kind: milestone
-        ---
-        # Beta
-
-        ```gherkin
-        Scenario: The cart works
-          Then the node "REQ-cart" has stage "verified"
-        ```
+        @id=MS-beta
+        Feature: Beta
+          Scenario: The cart works
+            Then the node "REQ-cart" has stage "verified"
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
@@ -390,17 +338,12 @@ Feature: Executable specifications
         | data.stale | {} |
 
     Scenario: Each result is compared with the files its own run imported
-      Given a file "specs/REQ-wishlist.md" containing:
+      Given a file "specs/REQ-wishlist.feature" containing:
         """
-        ---
-        id: REQ-wishlist
-        ---
-        # Wishlist
-
-        ```gherkin
-        Scenario: Keep a lamp
-          Given a lamp to keep
-        ```
+        @id=REQ-wishlist
+        Feature: Wishlist
+          Scenario: Keep a lamp
+            Given a lamp to keep
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
@@ -494,12 +437,9 @@ Feature: Executable specifications
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
-  Rule: A handler gets typed arguments, a fresh world and a deadline it is asked to keep
+  Rule: What a handler returns or throws is its step's status
 
-    The deadline is cooperative: sdp tells a step to stop and fails it when it returns late, but
-    cannot stop code that never yields. Killing a step that hangs is an idea (REQ-step-isolation).
-
-    Scenario Outline: A handler returns nothing, a Promise or an Effect; a failure fails the step, and pending() marks it recognised but not built
+    Scenario Outline: Nothing, a Promise or an Effect, each passing or failing, and pending()
       Given a step definition "an empty cart" that <handler>
       When the workspace is run
       Then the step "an empty cart" has status "<status>"
@@ -526,6 +466,10 @@ Feature: Executable specifications
         | returns a rejected Promise                  |
         | returns a failed Effect                     |
         | wraps a failing Promise in Effect.tryPromise |
+
+  Rule: A handler gets typed arguments, a fresh world and a deadline it is asked to keep
+
+    A step runs in sdp's own thread, where code that never yields cannot be stopped.
 
     Scenario Outline: Parameters are typed by the expression, and a regular expression passes on the text it captured
       Given a file "specs/pricing.feature" containing:
@@ -664,65 +608,37 @@ Feature: Executable specifications
         | fails      | failed  | failed    |
         | pends      | pending | undefined |
 
-  Rule: Only a run imports step modules; every other command reads them as text
-
-    Inspecting a workspace therefore executes none of its code, and what a reader cannot read
-    statically it reports instead of guessing. A step module needs nothing installed: sdp resolves its
-    own package for it.
-
-    Scenario: A step module imports sdp without installing it
-      Given a file "specs/steps/cart.steps.ts" containing:
+    Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
+      Given a file "specs/REQ-wishlist.feature" containing:
         """
-        import { defineSteps } from "sdp/steps"
-
-        export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
-          Given("an empty cart", () => {})
-          When("I add a lamp", ({ world }) => {
-            world.items++
-          })
-          Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
-            if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
-          })
-        })
-        """
-      When I run "sdp run --json"
-      Then the JSON output has:
-        | data.summary.passed | 1 |
-
-    Scenario: Annotated application code under test imports sdp/annotations without installing it
-      Given a file "src/cart.ts" containing:
-        """
-        import { annotate } from "sdp/annotations"
-
-        export const lamp = () => 1
-        annotate(lamp, { implements: "REQ-cart" })
+        @id=REQ-wishlist
+        Feature: Wishlist
+          Scenario: Keep a lamp for later
+            Given an empty cart
+            When I add a lamp
+            And I keep it for later
+            Then the wishlist holds 1 item
+            But the cart holds 1 item
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
-        import { lamp } from "../../src/cart.ts"
 
-        export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
+        export default defineSteps(() => ({}), ({ Given }) => {
           Given("an empty cart", () => {})
-          When("I add a lamp", ({ world }) => {
-            world.items += lamp()
-          })
-          Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
-            if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
-          })
         })
         """
-      When I run "sdp run --json"
-      Then the JSON output has:
-        | data.summary.passed | 1 |
+      When I run "sdp run --snippets"
+      Then the output contains 'import { defineSteps, pending } from "sdp/steps"'
+      And the output contains "export default defineSteps(newWorld, ({ When, Then }) => {"
+      And the output contains '  When("I add a lamp", ({ world }) => pending())' 1 time
+      And the output contains '  When("I keep it for later", ({ world }) => pending())'
+      And the output contains '  Then("the wishlist holds {int} item", ({ world, args: [int] }) => pending())'
+      And the output contains '  Then("the cart holds {int} item", ({ world, args: [int] }) => pending())' 1 time
+      And the output contains "Existing step files: specs/steps/cart.steps.ts"
+      And the output contains "step modules that pass the same factory share it"
 
-    Scenario: The step API loads no parser and reads no workspace
-      When a fresh Node process imports "sdp/steps"
-      Then the output contains "/src/run/Steps.ts"
-      And the output does not contain "oxc-parser"
-      And the output does not contain "/src/parse/"
-      And the output does not contain "/src/graph/"
-      And the output does not contain "/src/workspace/"
+  Rule: Only a run imports step modules; every other command reads them as text, and says what it could not read
 
     Scenario Outline: Reading a workspace runs none of its step files
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -818,45 +734,65 @@ Feature: Executable specifications
       And the output section "Contract" contains "undefined: Given an empty cart"
       And the output section "Step definitions" contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}"'
 
-    Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
-      Given a file "specs/REQ-wishlist.md" containing:
-        """
-        ---
-        id: REQ-wishlist
-        ---
-        # Wishlist
+  Rule: Step modules, and the code they test, import sdp without installing it, and the step API loads nothing else
 
-        ```gherkin
-        Scenario: Keep a lamp for later
-          Given an empty cart
-          When I add a lamp
-          And I keep it for later
-          Then the wishlist holds 1 item
-          But the cart holds 1 item
-        ```
+    Scenario: A step module imports sdp without installing it
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
+          Given("an empty cart", () => {})
+          When("I add a lamp", ({ world }) => {
+            world.items++
+          })
+          Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
+            if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
+          })
+        })
+        """
+      When I run "sdp run --json"
+      Then the JSON output has:
+        | data.summary.passed | 1 |
+
+    Scenario: Annotated application code under test imports sdp/annotations without installing it
+      Given a file "src/cart.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+
+        export const lamp = () => 1
+        annotate(lamp, { implements: "REQ-cart" })
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
+        import { lamp } from "../../src/cart.ts"
 
-        export default defineSteps(() => ({}), ({ Given }) => {
+        export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
           Given("an empty cart", () => {})
+          When("I add a lamp", ({ world }) => {
+            world.items += lamp()
+          })
+          Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
+            if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
+          })
         })
         """
-      When I run "sdp run --snippets"
-      Then the output contains 'import { defineSteps, pending } from "sdp/steps"'
-      And the output contains "export default defineSteps(newWorld, ({ When, Then }) => {"
-      And the output contains '  When("I add a lamp", ({ world }) => pending())' 1 time
-      And the output contains '  When("I keep it for later", ({ world }) => pending())'
-      And the output contains '  Then("the wishlist holds {int} item", ({ world, args: [int] }) => pending())'
-      And the output contains '  Then("the cart holds {int} item", ({ world, args: [int] }) => pending())' 1 time
-      And the output contains "Existing step files: specs/steps/cart.steps.ts"
-      And the output contains "step modules that pass the same factory share it"
+      When I run "sdp run --json"
+      Then the JSON output has:
+        | data.summary.passed | 1 |
 
-  Rule: A run records only what it executed
+    Scenario: The step API loads no parser and reads no workspace
+      When a fresh Node process imports "sdp/steps"
+      Then the output contains "/src/run/Steps.ts"
+      And the output does not contain "oxc-parser"
+      And the output does not contain "/src/parse/"
+      And the output does not contain "/src/graph/"
+      And the output does not contain "/src/workspace/"
 
-    Runs overlap — agents, shells, CI jobs — so a run merges its own results into the store and leaves
-    every other result as it found it.
+  Rule: A run records the scenarios it executed and what they ran against, and leaves every other result as it found it
+
+    Runs overlap: agents, shells and CI jobs record into one store.
 
     Scenario: A partial run keeps the results of everything else
       Given a step definition "an empty cart" that passes
@@ -900,7 +836,7 @@ Feature: Executable specifications
       Then node "REQ-wishlist#keep-a-lamp-for-later" has attribute status = "failed"
       And node "REQ-cart#add-an-item" has attribute status = "passed"
 
-    Scenario: The results file holds one plain record per scenario, with what it ran against
+    Scenario: One plain record per scenario in the results file
       Given a file "specs/steps/cart.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
@@ -931,12 +867,12 @@ Feature: Executable specifications
       And the output contains "another sdp run is recording results (.sdp/results.json.lock exists)"
       And the file ".sdp/results.json" does not exist
 
-  Rule: A run executes the examples it was asked for, one at a time unless asked otherwise
+  Rule: A run executes the examples it was asked for, one at a time unless asked otherwise, and reports each once and in order
 
     Step definitions written for a sequential run may share state, so running scenarios concurrently
     is the caller's choice, and a scenario tagged @serial is never part of it.
 
-    Scenario Outline: Progress is reported once per scenario and in order, whatever finishes first and however slow the reporter
+    Scenario Outline: Whatever finishes first, and however slow the reporter
       Given a file "specs/timing.feature" containing:
         """
         @id=REQ-timing
@@ -1031,26 +967,20 @@ Feature: Executable specifications
       When the workspace is run with "--concurrency 4 --tags 'not @serial'"
       Then the scenarios "One" and "Two together" overlapped
 
+  @decided-by:DEC-0010
   Rule: No scenario reads the layer of evidence it belongs to
 
-    An ordinary scenario sees the graph without results, and a gate — a scenario of a milestone, or
-    one tagged @gate — sees what the ordinary ones say; so gates run last, and never read a gate.
-    Results that read results would have no order to be evaluated in (DEC-0010). An unmet gate is
-    reported and does not fail the run: a later milestone is expected to be unmet.
+    A gate is a scenario of a milestone or one tagged @gate: it runs last and sees what the ordinary
+    scenarios say. Results that read results would have no order to be evaluated in. An unmet gate
+    does not fail the run, because a later milestone is expected to be unmet.
 
     Background:
-      Given a file "specs/MS-beta.md" containing:
+      Given a file "specs/MS-beta.feature" containing:
         """
-        ---
-        id: MS-beta
-        kind: milestone
-        ---
-        # Beta
-
-        ```gherkin
-        Scenario: The cart works
-          Then the node "REQ-cart" has stage "verified"
-        ```
+        @id=MS-beta
+        Feature: Beta
+          Scenario: The cart works
+            Then the node "REQ-cart" has stage "verified"
         """
 
     Scenario: A gate sees the results of the scenarios that ran before it
@@ -1140,45 +1070,31 @@ Feature: Executable specifications
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
-      And a file "specs/MS-audit.md" containing:
+      And a file "specs/MS-audit.feature" containing:
         """
-        ---
-        id: MS-audit
-        kind: milestone
-        ---
-        # Audit
+        @id=MS-audit
+        Feature: Audit
+          Scenario: Look at the results
+            Then the graph shows what the results say and no more
 
-        ```gherkin
-        Scenario: Look at the results
-          Then the graph shows what the results say and no more
-
-        Scenario: Ask when the cart last ran
-          Then the query "scenario[lastRun]" returns at least 1 result
-        ```
+          Scenario: Ask when the cart last ran
+            Then the query "scenario[lastRun]" returns at least 1 result
         """
       And a step definition "the graph shows what the results say and no more" that finds statuses without run details
       When the workspace is run
       And the workspace is run with "REQ-cart"
       Then node "MS-audit#look-at-the-results" has attribute status = "passed"
-      And node "MS-audit#look-at-the-results" has attribute status = "passed"
       And the step 'the query "scenario[lastRun]" returns at least 1 result' reports "which no scenario sees"
 
     Scenario: A gate never sees the result of a gate, so none depends on another or on itself
-      Given a file "specs/MS-alpha.md" containing:
+      Given a file "specs/MS-alpha.feature" containing:
         """
-        ---
-        id: MS-alpha
-        kind: milestone
-        ---
-        # Alpha
-
-        ```gherkin
-        Scenario: Nothing fails
-          Then the query "scenario[status=failed]" returns no results
-        ```
+        @id=MS-alpha
+        Feature: Alpha
+          Scenario: Nothing fails
+            Then the query "scenario[status=failed]" returns no results
         """
       When the workspace is run
       And the workspace is run
       Then node "MS-beta#the-cart-works" has attribute status = "failed"
-      And node "MS-alpha#nothing-fails" has attribute status = "passed"
       And node "MS-alpha#nothing-fails" has attribute status = "passed"
