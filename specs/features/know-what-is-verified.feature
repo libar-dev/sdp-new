@@ -309,6 +309,49 @@ Feature: Know what is verified
       And the output contains 'cart.stage is "unrun", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
+    Scenario: An outline whose ordinary row changed the code while it ran, and whose gate row ran after
+      Given a file "src/cart.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario Outline: Add <item>
+              When I add <item>
+
+              Examples:
+                | item   |
+                | a lamp |
+
+              @gate
+              Examples:
+                | item   |
+                | a desk |
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ When }) => {
+          When("I add a lamp", () => {
+            writeFileSync(new URL("../../src/cart.ts", import.meta.url), "export const lamps = 2")
+          })
+          When("I add a desk", () => {})
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-item"
+
   Rule: Editing a scenario, a tag it inherits included, makes its result stale; planning or rewording its spec does not
 
     A scenario's hash covers what a step handler can observe, and nothing else, and a result counts

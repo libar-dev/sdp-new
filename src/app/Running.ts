@@ -20,13 +20,13 @@ import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
-import { notPassing, type RunResults, type ScenarioResult, type StepStatus, worstStatus } from "../model/Results.ts"
+import { type Evidence, notPassing, type RunResults, type ScenarioResult, type StepStatus, worstStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import { withTag } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
-import { fingerprint, isClosed, isGate } from "../run/Evidence.ts"
+import { digest, fingerprint, isClosed, isGate } from "../run/Evidence.ts"
 import { snippetModule } from "../run/Match.ts"
 import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
@@ -160,14 +160,18 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
    * Commits one batch as evidence about the sources it ran against: those read before it started
    * and every file a handler imported while it ran — all of them still as this process loaded them.
    */
-  const commit = Effect.fnUntraced(function*(batch: ReadonlyArray<ScenarioResult>, ranAgainst: Workspace) {
+  const commit = Effect.fnUntraced(function*(
+    batch: ReadonlyArray<ScenarioResult>,
+    ranAgainst: Workspace,
+    complete: (result: ScenarioResult) => ScenarioResult = (result) => result
+  ) {
     const known = new Set(ranAgainst.sources.map((file) => file.path))
     const late = yield* readFiles(root, imports().filter((file) => !known.has(file)))
     const files = [...ranAgainst.sources, ...late]
     yield* asLoaded(files)
     const sources = late.length === 0 ? ranAgainst.now.sources : fingerprint(files)
-    const executed = batch.map((result) => ({ ...result, evidence: { ...result.evidence, sources } }))
-    return { executed, results: yield* commitResults(root, config, { executed, live, imports: imports() }) }
+    const executed = batch.map((result) => complete({ ...result, evidence: { ...result.evidence, sources } }))
+    return { sources, executed, results: yield* commitResults(root, config, { executed, live, imports: imports() }) }
   })
   const run = (workspace: Workspace, gates: boolean, complete: (result: ScenarioResult) => ScenarioResult | undefined) =>
     runScenarios({
@@ -186,7 +190,11 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
 
   const ranFirst = yield* run(before, false, (result) => partlyGates.has(result.id) ? undefined : result)
   const ordinary = yield* commit(ranFirst.filter((result) => !partlyGates.has(result.id)), before)
-  const rows = new Map(ranFirst.filter((result) => partlyGates.has(result.id)).map((result) => [result.id, result]))
+  const rows = new Map(
+    ranFirst.filter((result) => partlyGates.has(result.id)).map((result) =>
+      [result.id, { ...result, evidence: { ...result.evidence, sources: ordinary.sources } }]
+    )
+  )
   // The gate rows of an outline that is partly gates, with the rows that ran as ordinary examples.
   const whole = (result: ScenarioResult): ScenarioResult => {
     const ordinaryRows = rows.get(result.id)
@@ -197,18 +205,17 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       const pickle = scenario.pickles[index]
       return pickle === undefined || isGate(scenario, spec, config.vocabulary, [pickle]) ? example : ordinaryRows.examples[index] ?? example
     })
-    const specs = result.evidence.specs ?? ordinaryRows.evidence.specs
     return {
       ...result,
       status: worstStatus(examples.map((example) => example.status)),
-      evidence: { ...result.evidence, ...(specs === undefined ? {} : { specs }) },
+      evidence: joined(result.evidence, ordinaryRows.evidence),
       durationMs: result.durationMs + ordinaryRows.durationMs,
       examples
     }
   }
   // Gates see what the ordinary results say, the fresh ones included, and never the results of gates.
   const after = yield* loadWorkspace(root, { results: "ordinary", imports: imports() })
-  const gates = yield* commit((yield* run(after, true, whole)).map(whole), after)
+  const gates = yield* commit(yield* run(after, true, whole), after, whole)
   const { project } = yield* loadWorkspace(root)
   const { graph } = project
   const reasons = graph.ofKind([made.kinds.scenario]).flatMap((node) => {
@@ -240,6 +247,25 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     livable: livable(project, ran)
   } satisfies WorkspaceRun
 })
+
+/**
+ * The evidence of an outline whose ordinary rows ran before its gate rows: what both ran against.
+ * Where the two differ — a row changed a file, say — the result ran against no one workspace, and
+ * records a fingerprint of both, which matches none: it never counts.
+ */
+const joined = (gates: Evidence, ordinary: Evidence): Evidence => {
+  const both = (a: string, b: string) => a === b ? a : digest([a, b])
+  const specs = gates.specs === undefined || ordinary.specs === undefined
+    ? gates.specs ?? ordinary.specs
+    : both(gates.specs, ordinary.specs)
+  return {
+    ...gates,
+    sources: both(gates.sources, ordinary.sources),
+    toolchain: both(gates.toolchain, ordinary.toolchain),
+    inputs: both(gates.inputs, ordinary.inputs),
+    ...(specs === undefined ? {} : { specs })
+  }
+}
 
 export interface RunInput {
   /** Spec ids, scenario ids, files or directories, relative to the workspace root; none runs everything. */
