@@ -396,14 +396,15 @@ const stretches = (report: LifecycleReport) => {
 }
 
 /** What `sdp lifecycle` says before there is a plan: how to write one. */
-export const emptyPlanHint = `No plan yet. \`sdp new plan "Delivery plan"\` writes one with four phases and an iteration in each,
-or declare iterations in any spec's front matter:
+export const emptyPlanHint = `No plan yet. A phase and an iteration are files of their own:
+\`sdp new phase "Elaboration"\`, then \`sdp new iteration "Architecture baseline" --id E1\`, which writes
 
-  nodes:
-    - { id: E1, kind: iteration, title: Architecture baseline, start: "2026-11-16", end: "2026-11-27" }
+  @id=E1 @kind=iteration @start=2026-11-16 @end=2026-11-29
+  Feature: Architecture baseline
 
-Plan work with \`iteration: E1\` on a spec — and other disciplines' work on it with
-\`activity: { implementation: C1, test: [C1, T1] }\` — and end a stretch of the timeline with a
-milestone (\`sdp new milestone "Architecture baseline"\`, \`closes: E1\`) whose scenarios are its gate.`
+with \`@phase:PH-elaboration\` to put it in its phase. Plan work on the work itself — \`@iteration:E1\`
+on a spec, and other disciplines' work with \`@activity.implementation:C1 @activity.test:T1\` — and end
+a stretch of the timeline with a milestone (\`sdp new milestone "Architecture baseline"\`,
+\`@closes:E1\`) whose scenarios are its gate.`
 
 const pad = (s: string, n: number) => s.length >= n ? `${s} ` : s + " ".repeat(n - s.length)

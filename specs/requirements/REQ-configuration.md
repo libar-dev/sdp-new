@@ -315,20 +315,18 @@ Scenario: attributes.met names the key a milestone is recorded as met with
     """
     vocabulary: { attributes: { met: reached } }
     """
-  And a file "specs/MS-launch.md" containing:
+  And a file "specs/MS-launch.feature" containing:
     """
-    ---
-    id: MS-launch
-    ---
-    # Launch
+    @id=MS-launch
+    Feature: Launch
 
-    ```gherkin
-    Scenario: There is something to launch
-      Then the query "requirement" returns at least 1 result
-    ```
+      Rule: Something is built
+
+        Scenario: There is something to launch
+          Then the query "requirement" returns at least 1 result
     """
   When I run "sdp gate MS-launch --record"
-  Then the file "specs/MS-launch.md" contains "reached: 20"
+  Then the file "specs/MS-launch.feature" contains "@id=MS-launch @reached=20"
   When I run "sdp status"
   Then the output contains "milestones    met 1"
 
@@ -396,24 +394,23 @@ Scenario: sdp new writes what a renamed profile reads
       attributes: { start: from, end: until }
     """
   When I run "sdp new adr 'Use Postgres'"
-  Then the output contains "ADR-0001\tspecs/decisions/ADR-0001-use-postgres.md"
-  And the file "specs/decisions/ADR-0001-use-postgres.md" contains "id: ADR-0001"
-  And the file "specs/decisions/ADR-0001-use-postgres.md" does not contain "kind:"
-  When I run "sdp new plan Roadmap"
-  Then the output contains "PLAN-roadmap\tspecs/delivery/PLAN-roadmap.md"
-  When I run "sdp new checkpoint Launch"
-  Then the file "specs/delivery/CHEC-launch.md" contains "ends: ERA-elaboration"
-  When I run "sdp q era|sprint --ids"
-  Then the output lines are "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition, I1, E1, C1, T1"
-  When I run "sdp q 'checkpoint -ends-> era' --ids"
-  Then the output lines are "ERA-elaboration"
+  Then the output contains "ADR-0001\tspecs/decisions/ADR-0001.feature"
+  And the file "specs/decisions/ADR-0001.feature" does not contain "@kind="
+  When I run the pipeline:
+    """
+    sdp new era Elaboration
+    sdp new sprint Baseline --id E1
+    sdp new checkpoint Launch
+    """
+  Then the exit code is 0
+  And the file "specs/delivery/E1.feature" contains "@id=E1 @kind=sprint @part-of:ERA-elaboration @from=2026"
+  And the file "specs/delivery/CHEC-launch.feature" contains "@ends:ERA-elaboration"
+  When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
+  Then the output lines are "E1"
   When I run "sdp check --json"
   Then the exit code is 1
   And the JSON output has:
     | data.rule | maturity-criteria, maturity-value, template-placeholder |
-  When I run "sdp lifecycle --json"
-  Then the JSON output has:
-    | data.phases | ERA-inception, ERA-elaboration, ERA-construction, ERA-transition |
 
 Scenario Outline: A profile that cannot work is rejected where it is wrong
   Given a file "sdp.config.yaml" containing:

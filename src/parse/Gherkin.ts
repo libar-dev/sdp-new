@@ -451,6 +451,20 @@ const readFeature = (
   return { scenarios, rules, errors: [], problems: problems.sort((a, b) => a.line - b.line) }
 }
 
+/**
+ * A `.feature` file with `tag` added to its first tag line, before a comment on it; undefined when
+ * no tag line is above its Feature.
+ */
+export const withTag = (content: string, tag: string): string | undefined => {
+  const lines = content.split("\n")
+  const index = lines.findIndex((line) => line.trimStart().startsWith("@") || featureLine.test(line))
+  const line = lines[index]
+  if (line === undefined || featureLine.test(line)) return undefined
+  const end = /\s+#/.exec(line)?.index ?? line.trimEnd().length
+  lines[index] = `${line.slice(0, end)} ${tag}${line.slice(end)}`
+  return lines.join("\n")
+}
+
 const parserErrors = (error: unknown): ReadonlyArray<GherkinError> => {
   const nested = (error as { errors?: ReadonlyArray<{ message: string; location?: { line: number } }> }).errors
   const list = nested && nested.length > 0 ? nested : [error as { message: string; location?: { line: number } }]

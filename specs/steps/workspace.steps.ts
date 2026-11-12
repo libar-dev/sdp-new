@@ -51,24 +51,23 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     })
   })
 
+  // Each row joins the workspace before the next is created, as with `sdp new`.
   Given("specs created from the sdp new templates:", ({ table, world }) =>
-    Effect.map(load(world), (project) => {
+    Effect.gen(function*() {
       const [header = [], ...rows] = table ?? []
-      const existing = project.graph.nodes().map((n) => n.id)
       for (const row of rows) {
         const cell = (name: string) => row[header.indexOf(name)] ?? ""
+        const project = yield* load(world)
         const created = newSpec({
           kind: cell("kind"),
           title: cell("title"),
           maturity: cell("maturity") || undefined,
           today: "2026-11-12",
           config: project.config,
-          existing
+          graph: project.graph
         })
         if (Result.isFailure(created)) assert.fail(created.failure)
-        const spec = created.success
-        existing.push(spec.id)
-        setFile(world, spec.file, spec.content)
+        setFile(world, created.success.file, created.success.content)
       }
     }))
 

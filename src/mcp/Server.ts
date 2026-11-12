@@ -178,7 +178,7 @@ export const instructions = [
   "Code links to the architecture, not to requirements. TypeScript and JavaScript say which code an element is with a typed call, `annotate(Orders, { is: \"ARCH-orders\" })` imported from \"sdp/annotations\", whose ids the compiler checks once `sdp types` has run; other languages use a comment line, `// @sdp is ARCH-orders`. A requirement names its element with `realized-by`, so the way from a requirement to its code is `requirement -realized-by-> element <-is- code`.",
   "What belongs in the architecture is the architects' call: propose an element, a pattern or an `is` annotation, do not add or remove one yourself.",
   `Relations are free-form; sdp's templates use ${relationVocabulary}.`,
-  "Source files are Markdown with YAML front matter — you can also grep them directly."
+  "A spec is a Gherkin file: `@id=REQ-x @maturity=ready` above `Feature:` says what it is, `@decided-by:DEC-x` what it links to, a `Rule:` what must hold and its scenarios the examples — you can also grep them directly."
 ].join(" ")
 
 export const serveMcp = (root: string) =>

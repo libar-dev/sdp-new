@@ -74,7 +74,7 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
     ...input,
     today: DateTime.formatIsoDate(yield* DateTime.now),
     config: project.config,
-    existing: project.graph.nodes().map((n) => n.id)
+    graph: project.graph
   })
   if (Result.isFailure(drafted)) return yield* new Refused({ reason: drafted.failure })
   const created = drafted.success

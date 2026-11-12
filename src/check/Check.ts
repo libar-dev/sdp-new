@@ -89,11 +89,14 @@ export const decisionPlaceholder = "Not <what a reasonable person would have cho
 /** and template scenarios name their parts in angle brackets: `Given <context>`. */
 const placeholderStep = /^<[^<>]+>$/
 
-/** Template text still in a spec, with its line: prose, scenario names and steps. */
+/** Template text still in a spec, with its line: prose, rule and scenario names and steps. */
 export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
   const found: Array<{ text: string; line: number }> = []
   for (const prose of spec.prose) {
     if (prose.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: prose.line })
+  }
+  for (const rule of spec.rules) {
+    if (placeholderStep.test(rule.name)) found.push({ text: `Rule: ${rule.name}`, line: rule.line })
   }
   for (const scenario of spec.scenarios) {
     if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })

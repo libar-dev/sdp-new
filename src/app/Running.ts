@@ -19,6 +19,7 @@ import { tally } from "../model/Graph.ts"
 import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
+import { withTag } from "../parse/Gherkin.ts"
 import { withFrontMatter } from "../parse/Markdown.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
@@ -228,7 +229,7 @@ export const run = Effect.fn("run")(function*(root: string, input: RunInput = {}
 export interface GateInput {
   /** The milestone whose gate to evaluate — or any spec with scenarios tagged `@gate`. */
   readonly milestone: string
-  /** When the gate passes, write `met: <today>` into the milestone. */
+  /** When the gate passes, write `@met=<today>` on the milestone's tag line. */
   readonly record?: boolean | undefined
   readonly onScenario?: RunInput["onScenario"]
 }
@@ -250,8 +251,6 @@ const unrecordable = (project: Project, spec: Spec): string | undefined => {
     ? `${spec.id} is a ${spec.kind}: only a ${vocabulary.kinds.milestone.join(" or ")} is recorded as met`
     : earlier
     ? `${spec.id} cannot be met before ${earlier.node.id}, which is dated before it and is not met`
-    : spec.format !== "markdown"
-    ? `${spec.file} is not a Markdown spec: write the tag @${vocabulary.attributes.met}:<date> there yourself`
     : undefined
 }
 
@@ -284,8 +283,10 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   if (met !== undefined) {
     const fs = yield* FileSystem.FileSystem
     const file = (yield* Path.Path).join(root, spec.file)
-    const recorded = withFrontMatter(yield* fs.readFileString(file), vocabulary.attributes.met, met)
-    if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no front matter to record ${milestone} in` })
+    const content = yield* fs.readFileString(file)
+    const key = vocabulary.attributes.met
+    const recorded = spec.format === "feature" ? withTag(content, `@${key}=${met}`) : withFrontMatter(content, key, met)
+    if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${milestone} on` })
     yield* fs.writeFileString(file, recorded)
   }
   const report: GateReport = { ...ran.data, milestone, met }

@@ -1,17 +1,70 @@
 ---
 name: sdp
-description: How to work in a repository that uses sdp (it has an `sdp.config.yaml`) — requirements, decisions, architecture and the delivery plan kept as one graph of Markdown specs with Gherkin scenarios. Use this whenever you are about to read, navigate or change such a repository - finding the code behind a requirement or an architecture element, changing behaviour, writing or editing a spec, a decision, a scenario or a step definition, checking what is verified, or planning work — even if the user only says "fix this" or "where is X handled". Reach for the graph before grep.
+description: How to work in a repository that uses sdp (it has an `sdp.config.yaml`) — requirements, decisions, architecture and the delivery plan kept as one graph of Gherkin specs whose tags say what each is and what it links to. Use this whenever you are about to read, navigate or change such a repository - finding the code behind a requirement or an architecture element, changing behaviour, writing or editing a spec, a decision, a rule, a scenario or a step definition, checking what is verified, or planning work — even if the user only says "fix this" or "where is X handled". Reach for the graph before grep.
 ---
 
 # Working with sdp
 
 sdp is architecture-focused software delivery. Requirements, quality requirements, decisions, the
-architecture and the delivery plan are plain Markdown files with YAML front matter (`id`, `kind`,
-`links`) and Gherkin scenarios. Together they form one graph, and code is anchored to it with
-`annotate()` calls or `@sdp` comments.
+architecture and the delivery plan are Gherkin files. Together they form one graph, and code is
+anchored to it with `annotate()` calls or `@sdp` comments.
 
 `sdp` below is the CLI. Where it is not installed, run it from its source:
 `node <path-to-sdp>/src/cli/main.ts …` (inside the sdp repository itself, `node src/cli/main.ts …`).
+
+## A spec is a `.feature` file
+
+Read by the official Gherkin parser as it is; sdp adds no syntax of its own. Markdown is for
+`README.md`, `AGENTS.md` and this skill, which sdp does not read: a rule written there counts for
+nothing.
+
+```gherkin
+@id=REQ-guest-checkout @maturity=specified @checkout   # what it is: = is a value; a bare tag is a tag
+@refines:CAP-online-sales @realized-by:ARCH-orders    # what it links to: one tag, one link
+@iteration:C2 @activity.implementation:C3              # when it is written, when it is built
+Feature: Guest checkout
+
+  Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form.
+
+  @decided-by:DEC-0004
+  Rule: A guest pays without creating an account
+
+    Scenario: By card
+      When the guest pays with a valid card
+      Then an order is created
+
+  Rule: A guest gets a receipt by email
+
+    The address is not verified first: a wrong one costs a receipt, a check costs the sale.
+
+  @open
+  Rule: Can a guest save the cart for later?
+```
+
+- **`@key=value` describes, `@rel:ID` links**, and the first `=` or `:` decides. Above `Feature:`
+  they are about the spec, above `Rule:` about the rule, above `Scenario:` about the scenario. Only
+  a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is not written.
+  A key written twice is a list, `@owner.team=core` nests, and a value that reads back as a number
+  is one. Annotations are not tags: they are not inherited, not matched by `--tags` and not part
+  of a scenario's hash, so re-planning a spec leaves its results valid.
+- **The Feature is the node**: its name is the title, its first paragraph the intent.
+- **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
+  under it say why, and its scenarios are the examples; a scenario's name says the case. Every
+  scenario belongs to a rule. A rule without an example yet is a to-do that `ready` refuses.
+- **An open question is a Rule or a Scenario tagged `@open`**, its name the question. Answering
+  it means renaming it into the rule that was chosen and deleting the tag.
+- **One node, one file**, named by its id: a phase, an iteration and a decision too.
+
+What the parser does with free text in a description, a line that starts with:
+
+| Line starts with | Read as | So |
+| --- | --- | --- |
+| `#` | a comment | left out of the description silently (`description-comment` warns): no headings |
+| `@` | a tag line | a parse error |
+| `Scenario:`, `Example:`, `Rule:`, `Background:`, `Examples:` | a new block | start no sentence with one |
+| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario | a step | write lists with `-` |
+
+A Background cannot be tagged, and scenarios outside a Rule must come before the first Rule.
 
 ## What holds everywhere
 
@@ -22,18 +75,16 @@ architecture and the delivery plan are plain Markdown files with YAML front matt
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
   requirements: `annotate(Thing, { is: "ARCH-x" })` from `sdp/annotations`, or an `@sdp is ARCH-x`
-  comment, says which code an element is, and a requirement names its element with `realized-by`.
-- **Specs instead of prose.** A claim that can be structured or checked is a link or a scenario,
-  not a paragraph. When you would write "X depends on Y" or "this must never happen", write the
-  link or the scenario. A scenario's name is the rule it pins, so write it as the rule — and when
-  a sentence becomes a scenario, delete the sentence: promote, do not copy.
-- **A rule and its reason are written in the Gherkin.** What several examples illustrate is a
-  `Rule:` — its name says what must hold, the lines under it why, and its examples follow in the
-  same fence, where the rule ends. One scenario's reason goes under its `Scenario:` line. Outside
-  the fences a spec keeps only its intent, in a few sentences.
+  comment, says which code an element is, and a requirement names its element with `@realized-by:`.
+- **Specs instead of prose.** A claim that can be structured or checked is a link or a rule with
+  examples, not a paragraph. When you would write "X depends on Y" or "this must never happen",
+  write the link or the rule. A description says what the examples cannot — never a "verified by"
+  list, a status, or a restatement of the rules below it. When a sentence becomes a rule, delete
+  the sentence: promote, do not copy.
 - **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
-  context and a real trade-off is recorded: a title and one to three sentences on what was chosen
-  over what. Any other choice is a sentence where it applies.
+  context and a real trade-off is recorded: a Feature whose name is the choice and one to three
+  sentences on what was chosen over what. The rules it imposes stay on the spec they constrain,
+  tagged `@decided-by:DEC-x`. Any other choice is a sentence where it applies.
 - **Evidence, not status.** Scenarios are the tests. `stage: verified` is derived from a run and
   goes stale when what it ran against changes; it is an error to write it by hand.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
@@ -45,10 +96,10 @@ The graph already knows which requirement an element realises, which decision co
 which file implements it, each with its `file:line`. Asking it gets you to the right three files
 faster than grepping for a guess.
 
-- **One node, everything around it:** `sdp context <id>` — its rules with their reasons, the
-  names of its scenarios with their status and the steps still undefined, then the spec, its
-  links, the architecture and decisions in reach, the code. Read this before changing anything
-  the node covers.
+- **One node, everything around it:** `sdp context <id>` — its rules with their state and reason,
+  the names of its scenarios with their status and the steps still undefined, then the spec, its
+  links, what rests on it, the architecture and decisions in reach, the code. Read this before
+  changing anything the node covers.
 - **From a requirement to its code:** `sdp q '#REQ-x -realized-by-> element <-is- code' --ids`.
   From an element: `sdp q '#ARCH-x <-is- code'`. A query answers with the last node of the
   pattern; `--paths` shows the route. Syntax and examples: `sdp q --help`.
@@ -62,14 +113,15 @@ faster than grepping for a guess.
   ```
 
   A node is `{type, id, kind, title, file, line, attrs}`; an edge is
-  `{type, from, rel, to, attrs, declared: [{file, line}]}`. `sdp graph -q '<pattern>'` exports
-  only what a query matches.
+  `{type, from, rel, to, attrs, declared: [{file, line}]}`. A rule is a node of kind `rule` that
+  is `rule-of` its spec, and a scenario `verifies` its rule and its spec. `sdp graph -q '<pattern>'`
+  exports only what a query matches.
 - **Orientation:** `sdp arch` (the architecture with its decisions and the code that is it),
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
 
-Plain grep is still right for one thing: an id is literal text wherever it is declared or linked,
-so `grep -rn <id> .` finds every mention.
+Plain grep is still right for what tags make literal: `grep -rn '@id=DEC-0003'` is the
+declaration, `grep -rn ':DEC-0003\b'` every link to it, `grep -rn -A1 '@open'` every open question.
 
 **An answer says when it is incomplete.** If sdp could not read a file or cut a traversal short,
 it prints `incomplete:` and `note:` lines on stderr and exits with code 2; with `--json` the
@@ -83,7 +135,7 @@ typed does not exist and which one is closest.
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new requirement "…"`
    writes the file and says what to write in it next. What a user sees belongs to a requirement;
    how one part does its job belongs to that element.
-2. Write or adjust the scenario first. It is the acceptance test.
+2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for
    steps that have none.
@@ -96,12 +148,13 @@ a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without 
 
 ## Planning work
 
-- Work is planned in its own front matter: `iteration: E1` says when a spec is written,
-  `activity: { implementation: C1, test: [C1, T1] }` when it is built and tested.
-- `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
+- Work is planned on the work itself: `@iteration:E1` says when a spec is written,
+  `@activity.implementation:C1 @activity.test:T1` when it is built and tested.
+- A phase and an iteration are files of their own (`sdp new phase`, `sdp new iteration`), and
+  `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
   iteration in which it will be done, never into one that is over.
 - A milestone's scenarios are its gate. `sdp gate <milestone>` says whether it passes, and
-  `--record` writes `met: <date>` into the milestone when it does: the project is at the first
+  `--record` writes `@met=<date>` on its tag line when it does: the project is at the first
   milestone without one. Recording is the team's act, never a side effect.
 
 ## More

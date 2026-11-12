@@ -296,47 +296,48 @@ Scenario: init starts a workspace where it is run, never in one further up
 ### `sdp new <kind> <title>`
 
 Any kind works; `sdp new --help` lists those with a template of their own. Kinds that play a role
-of the vocabulary get that role's template, in the workspace's words ([[REQ-configuration]]).
+of the vocabulary get that role's template, in the workspace's words ([[REQ-configuration]]). A new
+spec is a Gherkin file named by its id.
 
 ~~~gherkin
 Scenario: new writes only what stays in the file, and says in its answer what to write next
   When I run "sdp new requirement 'Saved carts'"
-  Then the output lines are "REQ-saved-carts\tspecs/requirements/REQ-saved-carts.md"
-  And the file "specs/requirements/REQ-saved-carts.md" is:
+  Then the output lines are "REQ-saved-carts\tspecs/requirements/REQ-saved-carts.feature"
+  And the file "specs/requirements/REQ-saved-carts.feature" is:
     """
-    ---
-    id: REQ-saved-carts
-    kind: requirement
-    title: Saved carts
-    maturity: idea
-    ---
-
-    # Saved carts
+    @id=REQ-saved-carts @maturity=idea
+    Feature: Saved carts
     """
   And the output contains "next: write the idea in a sentence under the title"
-  And the output contains "next: link it: links: { refines: CAP-…, realized-by: ARCH-… }"
-  And the output contains "next: plan it: `iteration: E1`"
+  And the output contains "next: link it: @refines:CAP-… @realized-by:ARCH-…"
+  And the output contains "next: plan it: `@iteration:E1`"
 
-Scenario: From specified on, the file has a scenario to fill in
+Scenario: From specified on, the file has a rule with a scenario to fill in
   When I run "sdp new nfr 'Checkout latency' --maturity specified"
-  Then the file "specs/quality/NFR-checkout-latency.md" contains "Then <response measure, e.g. confirmation is shown within 300 ms at p95>"
-  And the output contains "next: fill in the scenario: Given the source and environment, When the stimulus, Then the response and its measure"
+  Then the file "specs/quality/NFR-checkout-latency.feature" is:
+    """
+    @id=NFR-checkout-latency @maturity=specified
+    Feature: Checkout latency
+
+      Rule: <the rule, in one sentence>
+
+        Scenario: <quality attribute scenario>
+          Given <environment, e.g. normal load of 500 concurrent users>
+          When <stimulus, e.g. a user submits an order>
+          Then <response measure, e.g. confirmation is shown within 300 ms at p95>
+    """
+  And the output contains "next: fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
 
 Scenario: An element or a pattern is its title, and the answer says how to anchor and link it
   When I run "sdp new element Orders"
-  Then the file "specs/architecture/ARCH-orders.md" is:
+  Then the file "specs/architecture/ARCH-orders.feature" is:
     """
-    ---
-    id: ARCH-orders
-    kind: element
-    title: Orders
-    ---
-
-    # Orders
+    @id=ARCH-orders
+    Feature: Orders
     """
   And the output contains 'next: anchor it next to the declaration that is it: annotate(Thing, { is: "ARCH-orders" })'
   When I run "sdp new pattern Outbox"
-  Then the output contains "next: elements that apply it link `instance-of: PAT-outbox`"
+  Then the output contains "next: elements that apply it link `@instance-of:PAT-outbox`"
 
 Scenario: What the templates write at the first maturity level passes the check
   Given specs created from the sdp new templates:
@@ -365,36 +366,30 @@ Scenario: Above the first level a new spec claims what its author has yet to wri
 
 Scenario: A decision starts as the sentence it must become, and the check flags it until it is written
   When I run "sdp new decision 'Use Postgres'"
-  Then the file "specs/decisions/DEC-0002-use-postgres.md" is:
+  Then the file "specs/decisions/DEC-0002.feature" is:
     """
-    ---
-    id: DEC-0002
-    ---
+    @id=DEC-0002
+    Feature: Use Postgres
 
-    # Use Postgres
-
-    Not <what a reasonable person would have chosen>, because <why>.
+      Not <what a reasonable person would have chosen>, because <why>.
     """
   And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off"
   When I run "sdp check --json"
   Then the JSON output has:
-    | data.rule | template-placeholder                      |
-    | data.node | DEC-0002                                  |
-    | data.file | specs/decisions/DEC-0002-use-postgres.md  |
-    | data.line | 7                                         |
+    | data.rule | template-placeholder             |
+    | data.node | DEC-0002                         |
+    | data.file | specs/decisions/DEC-0002.feature |
+    | data.line | 4                                |
 
 Scenario: A risk is its title, and the answer says what to write and how a risk is linked and retired
   When I run "sdp new risk Outage"
-  Then the file "specs/risks/RISK-0001-outage.md" is:
+  Then the file "specs/risks/RISK-0001.feature" is:
     """
-    ---
-    id: RISK-0001
-    ---
-
-    # Outage
+    @id=RISK-0001
+    Feature: Outage
     """
-  And the output contains "next: link it: links: { affects: REQ-…, mitigated-by: REQ-…, due: MS-… }"
-  And the output contains "next: it is retired when the work that mitigates it is verified; `status: tolerated` says we live with it instead"
+  And the output contains "next: link it: @affects:REQ-… @mitigated-by:REQ-… @due:MS-…"
+  And the output contains "next: it is retired when the work that mitigates it is verified; `@status=tolerated` says we live with it instead"
 
 Scenario: What the decision, milestone and risk templates write passes the check but for the decision's sentence
   Given specs created from the sdp new templates:
@@ -407,19 +402,39 @@ Scenario: What the decision, milestone and risk templates write passes the check
     | rule                 | node     |
     | template-placeholder | DEC-0002 |
 
+Scenario: A phase and an iteration are files of their own, and a new iteration follows the one that ends last, in its phase
+  When I run "sdp new phase Hardening"
+  Then the file "specs/delivery/PH-hardening.feature" is:
+    """
+    @id=PH-hardening
+    Feature: Hardening
+    """
+  Given a file "specs/delivery/E1.feature" containing:
+    """
+    @id=E1 @kind=iteration @phase:PH-elaboration @start=2026-11-16 @end=2026-11-27
+    Feature: Architecture baseline
+    """
+  When I run "sdp new iteration Packaging --id E2"
+  Then the file "specs/delivery/E2.feature" is:
+    """
+    @id=E2 @kind=iteration @phase:PH-elaboration @start=2026-11-28 @end=2026-12-11
+    Feature: Packaging
+    """
+  And the output contains "next: check its dates and its `@phase:`"
+
 Scenario: new never overwrites: an id or a file that exists is refused
   When I run "sdp new requirement Search --id REQ-search"
   Then the exit code is 1
   And the output contains "id REQ-search already exists at specs/REQ-search.md:1"
-  Given a file "specs/requirements/REQ-carts.md" containing:
+  Given a file "specs/requirements/REQ-carts.feature" containing:
     """
     Notes on carts, not a spec.
     """
   When I run "sdp new requirement Carts"
   Then the exit code is 1
-  And the output contains "specs/requirements/REQ-carts.md already exists"
+  And the output contains "specs/requirements/REQ-carts.feature already exists"
 
-Scenario Outline: A title reads back as written, whatever it looks like to YAML
+Scenario Outline: A title reads back as written, however it looks
   Given specs created from the sdp new templates:
     | kind        | title   |
     | requirement | <title> |
@@ -433,7 +448,6 @@ Scenario Outline: A title reads back as written, whatever it looks like to YAML
     | Cart #2              | REQ-cart-2              |
     | 'Quoted' carts       | REQ-quoted-carts        |
     | true                 | REQ-true                |
-    | null                 | REQ-null                |
     | 2026-11-12           | REQ-2026-11-12          |
     | [draft] Wishlist     | REQ-draft-wishlist      |
     | - Returns            | REQ-returns             |
@@ -445,32 +459,27 @@ Scenario: new refuses to write a spec that would not read back with its id, kind
   And the output contains "would not read back"
 
 Scenario: An id that only a dangling link names is free: creating it resolves the link
-  Given a file "specs/REQ-filters.md" containing:
+  Given a file "specs/REQ-filters.feature" containing:
     """
-    ---
-    id: REQ-filters
-    links:
-      realized-by: ARCH-facets
-    ---
-    # Filters
+    @id=REQ-filters @realized-by:ARCH-facets
+    Feature: Filters
     """
   When I run "sdp new element Facets"
-  Then the output contains "ARCH-facets\tspecs/architecture/ARCH-facets.md"
+  Then the output contains "ARCH-facets\tspecs/architecture/ARCH-facets.feature"
   When I run "sdp check"
   Then the exit code is 0
 
 Scenario: An idea is a requirement at maturity idea
   When I run "sdp new idea 'Gift wrapping'"
-  Then the output contains "REQ-gift-wrapping\tspecs/requirements/REQ-gift-wrapping.md"
-  And the file "specs/requirements/REQ-gift-wrapping.md" contains "kind: requirement"
-  And the file "specs/requirements/REQ-gift-wrapping.md" contains "maturity: idea"
+  Then the output contains "REQ-gift-wrapping\tspecs/requirements/REQ-gift-wrapping.feature"
+  And the file "specs/requirements/REQ-gift-wrapping.feature" contains "@id=REQ-gift-wrapping @maturity=idea"
 
 Scenario: --id names the node and --dir its directory, relative to the workspace root or absolute
   When I run "sdp new requirement 'Gift cards' --id REQ-vouchers --dir specs/payments"
-  Then the output contains "REQ-vouchers\tspecs/payments/REQ-vouchers.md"
+  Then the output contains "REQ-vouchers\tspecs/payments/REQ-vouchers.feature"
   When I run "sdp new requirement 'Gift cards' --dir $PWD/specs/payments"
-  Then the output contains "REQ-gift-cards\tspecs/payments/REQ-gift-cards.md"
-  And the file "specs/payments/REQ-gift-cards.md" contains "id: REQ-gift-cards"
+  Then the output contains "REQ-gift-cards\tspecs/payments/REQ-gift-cards.feature"
+  And the file "specs/payments/REQ-gift-cards.feature" contains "@id=REQ-gift-cards"
 
 Scenario: A file written outside the workspace is not part of its graph, and the answer says so
   Given a file "shop/sdp.config.yaml" containing:
@@ -478,11 +487,11 @@ Scenario: A file written outside the workspace is not part of its graph, and the
     # every key at its default
     """
   When I run "sdp -C shop new requirement 'Gift cards' --dir $PWD/elsewhere"
-  Then the output contains "/elsewhere/REQ-gift-cards.md is outside the workspace"
+  Then the output contains "/elsewhere/REQ-gift-cards.feature is outside the workspace"
 
 Scenario: new --help lists the kinds with a template of their own and the maturity levels
   When I run "sdp new --help"
-  Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan, risk"
+  Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan, phase, iteration, risk"
   And the output contains "idea (default), draft, specified or ready"
 
 Scenario Outline: An id is the kind's prefix and a slug of the title in ASCII; decisions, risks and titles without ASCII letters are numbered
@@ -490,12 +499,11 @@ Scenario Outline: An id is the kind's prefix and a slug of the title in ASCII; d
   Then the output contains "<id>\t<file>"
 
   Examples:
-    | kind        | title           | id                  | file                                    |
-    | requirement | Kasse für Gäste | REQ-kasse-fur-gaste | specs/requirements/REQ-kasse-fur-gaste.md |
-    | requirement | Корзина         | REQ-0001            | specs/requirements/REQ-0001.md          |
-    | decision    | Ödeme yöntemi   | DEC-0002            | specs/decisions/DEC-0002-odeme-yontemi.md |
-    | decision    | Оплата          | DEC-0002            | specs/decisions/DEC-0002.md             |
-    | risk        | Vendor lock-in  | RISK-0001           | specs/risks/RISK-0001-vendor-lock-in.md   |
+    | kind        | title           | id                  | file                                           |
+    | requirement | Kasse für Gäste | REQ-kasse-fur-gaste | specs/requirements/REQ-kasse-fur-gaste.feature |
+    | requirement | Корзина         | REQ-0001            | specs/requirements/REQ-0001.feature            |
+    | decision    | Ödeme yöntemi   | DEC-0002            | specs/decisions/DEC-0002.feature               |
+    | risk        | Vendor lock-in  | RISK-0001           | specs/risks/RISK-0001.feature                  |
 ~~~
 
 ### `sdp types`
@@ -800,18 +808,23 @@ Scenario: Before there is a plan lifecycle says how to write one, and a mileston
   When I run "sdp -C fresh init"
   Then the output contains "created sdp.config.yaml"
   When I run "sdp -C fresh lifecycle"
-  Then the output contains "sdp new plan"
-  And the output contains "- { id: E1, kind: iteration"
+  Then the output contains 'sdp new phase "Elaboration"'
+  And the output contains "@id=E1 @kind=iteration @start=2026-11-16 @end=2026-11-29"
   When I run "sdp -C fresh new plan 'Delivery plan'"
-  Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.md"
-  And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `closes: PH-elaboration`'
-  When I run "sdp -C fresh new milestone 'Architecture baseline'"
-  Then the output contains "MS-architecture-baseline\tspecs/delivery/MS-architecture-baseline.md"
-  And the output contains "next: set `closes` to the phase or the iteration this milestone ends: sdp lifecycle shows them"
+  Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.feature"
+  And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `@closes:PH-elaboration`'
+  When I run the pipeline:
+    """
+    sdp -C fresh new phase Elaboration
+    sdp -C fresh new iteration 'Architecture baseline' --id E1
+    sdp -C fresh new milestone 'Architecture baseline'
+    """
+  Then the exit code is 0
+  And the file "fresh/specs/delivery/E1.feature" contains "@id=E1 @kind=iteration @phase:PH-elaboration"
+  And the file "fresh/specs/delivery/MS-architecture-baseline.feature" contains "@id=MS-architecture-baseline @closes:PH-elaboration"
   When I run "sdp -C fresh lifecycle"
   Then the output line with "MS-architecture-baseline" contains "Elaboration"
-  And the output line with "MS-architecture-baseline" contains "I1* E1"
-  And the output line with "no milestone" contains "C1"
+  And the output line with "MS-architecture-baseline" contains "E1"
 ~~~
 
 ## Checking and running
@@ -1064,7 +1077,7 @@ Scenario: A --tags filter that is not a tag expression is an error that says so
 ### `sdp gate <milestone>`
 
 Runs one milestone's gate scenarios against the current graph and exits 0 only when every one of
-them passed. `--record` then writes `met: <today>` into the milestone: it is closed, its gate does
+them passed. `--record` then writes `@met=<today>` on the milestone's tag line: it is closed, its gate does
 not run again, and the next milestone is where the project is ([[REQ-lifecycle-view]]). Ending a
 phase is somebody's act, so nothing is recorded unasked — and no command enforces a gate by the
 calendar: the same commit would pass today and fail tomorrow.
@@ -1111,23 +1124,21 @@ Scenario: gate --record records nothing while the gate does not pass
   And the output contains "MS-beta is not recorded as met"
   And the file "specs/MS-beta.md" does not contain "met:"
 
-Scenario: gate --record writes met into a milestone whose gate passes, and the next one is where the project is
-  Given a file "specs/MS-alpha.md" containing:
+Scenario: gate --record writes met on the tag line of a milestone whose gate passes, and the next one is where the project is
+  Given a file "specs/MS-alpha.feature" containing:
     """
-    ---
-    id: MS-alpha
-    closes: C1
-    ---
-    # Alpha
+    @id=MS-alpha @closes:C1   # the first iteration
+    Feature: Alpha
 
-    ```gherkin
-    Scenario: There is a plan
-      Then the query "plan" returns 1 result
-    ```
+      Rule: The plan is written down
+
+        Scenario: There is a plan
+          Then the query "plan" returns 1 result
     """
   When I run "sdp gate MS-alpha --record"
   Then the exit code is 0
-  And the file "specs/MS-alpha.md" contains "met: 20"
+  And the file "specs/MS-alpha.feature" contains "@id=MS-alpha @closes:C1 @met=20"
+  And the file "specs/MS-alpha.feature" contains "   # the first iteration"
   When I run "sdp q milestone[met] --ids"
   Then the output lines are "MS-alpha"
   When I run "sdp lifecycle --json"
