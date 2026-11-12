@@ -101,11 +101,12 @@ Feature: Plan delivery
       Then the output contains 'sdp new stage "Elaboration"'
       And the output contains 'sdp new sprint "<title>"'
 
-  Rule: The timeline is the iterations in the order they end, each under its phase, and one without a first and a last day has no place on it
+  Rule: The timeline is the iterations in the order they end, each under its phase, and one without a last day has no place on it
 
     A milestone is dated by the end of what it closes, and milestones are met in the order of their
-    dates: so an iteration inside a longer one comes before it. An iteration without both days is
-    planned work all the same, after the timeline, and dates no milestone.
+    dates: so an iteration inside a longer one comes before it, and one needs no first day to have
+    its place. An iteration without a last day is planned work all the same, after the timeline,
+    and dates no milestone.
 
     Scenario: Inception's iteration, then Elaboration's two
       When the lifecycle is computed
@@ -130,9 +131,10 @@ Feature: Plan delivery
         | MS-architecture | 2026-02-27 |      |
         | MS-long         | 2026-03-27 |      |
 
-    Scenario: An end that is no date, and no end, come after the timeline
+    Scenario: No first day keeps an iteration off the timeline; an end that is no date, and no end, do
       Given these specs:
         | tags                                                                    | Feature   |
+        | @id=IT-prototype @phase:PH-elaboration @end=2026-02-13                  | Prototype |
         | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-30 | Baseline  |
         | @id=IT-hardening @phase:PH-elaboration @start=2026-03-02                | Hardening |
         | @id=MS-hardened @closes:IT-hardening                                    | Hardened  |
@@ -223,6 +225,19 @@ Feature: Plan delivery
       And the output contains "project in Elaboration · calendar in IT-scope"
       And the output line with "MS-objectives" contains "✔"
       And the output line with "MS-architecture" contains "▶"
+
+    Scenario: Milestones none of which is on the timeline are in no order, and the project is at none of them
+      Given these specs:
+        | tags                                                     | Feature   |
+        | @id=IT-scope @phase:PH-inception @start=2026-01-05       | Scope     |
+        | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 | Prototype |
+        | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16  | Baseline  |
+      When the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id              | planned | next |
+        | MS-architecture |         |      |
+        | MS-objectives   |         |      |
+      And the output contains "(2026-01-20 · no timeline to place the milestones on · no iteration today)"
 
     Scenario: A met that is no day of the calendar records nothing
       Given these specs:
