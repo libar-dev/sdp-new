@@ -2,8 +2,9 @@
  * Reads one Markdown file — YAML front matter, then a CommonMark body — once, into everything
  * later stages need: front matter as JSON data in which every value keeps its line, the fenced
  * code blocks, the prose with its sections and summary, open questions and wiki-links. The body
- * is parsed by a CommonMark parser, so what a renderer shows as code or HTML is never read as a
- * scenario, a link or a question. Every fact keeps its 1-based file line.
+ * is parsed by a CommonMark parser, so what a renderer shows as code or HTML, or hides in the
+ * destination of a link, is never read as a scenario, a link or a question. Every fact keeps its
+ * 1-based file line.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
@@ -123,9 +124,15 @@ export const parseMarkdown = (content: string): MarkdownDoc => {
   }
 
   const fences: Array<Fence> = []
-  const code: Array<Nodes> = []
+  /** What is no prose: code, HTML, and of a link everything but its text — the destination, the title, a definition. */
+  const hidden: Array<Span> = []
   for (const node of descendants(tree)) {
-    if (node.type === "code" || node.type === "inlineCode" || node.type === "html") code.push(node)
+    const { end, start } = node.position!
+    if (["code", "inlineCode", "html", "image", "definition"].includes(node.type)) hidden.push([start.offset!, end.offset!])
+    if (node.type === "link") {
+      const text = node.children.map((child) => child.position!)
+      hidden.push([start.offset!, text[0]?.start.offset ?? end.offset!], [text.at(-1)?.end.offset ?? end.offset!, end.offset!])
+    }
     if (node.type === "code" && node.lang) {
       const line = lineOf(node)
       fences.push({ lang: node.lang.toLowerCase(), line, contentLine: line + 1, lines: node.value === "" ? [] : node.value.split("\n") })
@@ -133,7 +140,7 @@ export const parseMarkdown = (content: string): MarkdownDoc => {
   }
 
   const references: Array<Reference> = []
-  withoutCode(body, code).split("\n").forEach((text, index) => collectReferences(text, index + 1 + fm.lines, references))
+  blanked(body, hidden).split("\n").forEach((text, index) => collectReferences(text, index + 1 + fm.lines, references))
 
   const headings: Array<Omit<Section, "text">> = []
   const prose: Array<Prose> = []
@@ -189,14 +196,17 @@ const itemTexts = (list: List): ReadonlyArray<Paragraph> =>
 const hasText = (node: Nodes): boolean =>
   [...descendants(node)].some((child) => (child.type === "text" || child.type === "inlineCode") && child.value.trim() !== "")
 
-/** The body with code, code spans and HTML blanked out, so line numbers stay as they are. */
-const withoutCode = (body: string, code: ReadonlyArray<Nodes>): string => {
+/** From one offset in the body up to another. */
+type Span = readonly [start: number, end: number]
+
+/** The body with the spans blanked out, so line numbers stay as they are. */
+const blanked = (body: string, spans: ReadonlyArray<Span>): string => {
   let out = ""
   let at = 0
-  for (const node of code) {
-    const { end, start } = node.position!
-    out += body.slice(at, start.offset) + body.slice(start.offset, end.offset).replace(/[^\n]/g, " ")
-    at = end.offset!
+  for (const [start, end] of [...spans].sort((a, b) => a[0] - b[0])) {
+    if (end <= at) continue
+    out += body.slice(at, Math.max(at, start)) + body.slice(Math.max(at, start), end).replace(/[^\n]/g, " ")
+    at = end
   }
   return out + body.slice(at)
 }
@@ -229,8 +239,9 @@ const isMapping = (data: Json): data is { readonly [key: string]: Json } => Pred
 const jsonTags = new Set(["str", "int", "float", "bool", "null", "map", "seq"].map((tag) => `tag:yaml.org,2002:${tag}`))
 
 /**
- * A YAML node as JSON data with its lines. An alias stands for the value it names, unless it is
- * inside that value; tags and numbers JSON cannot hold, and keys that are not text, are errors.
+ * A YAML node as JSON data with its lines. An alias stands for the value it names, at the line of
+ * the alias; one that names no anchor or is inside the value it names, tags and numbers JSON
+ * cannot hold, and keys that are not text, are errors.
  */
 const toJson = (
   root: unknown,
@@ -246,8 +257,11 @@ const toJson = (
     if (node === null || node === undefined) return { line, data: null }
     if (isAlias(node)) {
       const target = node.resolve(doc)
-      if (inside.includes(target)) return fail(`the alias *${node.source} repeats a value it is inside`, lineAt(node.range?.[0]))
-      return convert(target, line, inside)
+      const used = lineAt(node.range?.[0])
+      if (target === undefined) return fail(`the alias *${node.source} names no anchor`, used)
+      if (inside.includes(target)) return fail(`the alias *${node.source} repeats a value it is inside`, used)
+      // The value is written at its anchor; the reference to it is here.
+      return { ...convert(target, line, inside), line: used }
     }
     if (!isScalar(node) && !isMap(node) && !isSeq(node)) return fail("not JSON data", line)
     const at = lineAt(node.range?.[0])

@@ -4,8 +4,9 @@ kind: element
 title: Spec parser
 iteration: I1
 links:
-  decided-by: DEC-0001
+  decided-by: [DEC-0001, DEC-0010]
   instance-of: { to: PAT-pipes-and-filters, role: filter }
+  uses: ARCH-vocabulary
 ---
 
 # Spec parser
@@ -29,12 +30,22 @@ the checker and the context bundle never read Markdown themselves.
   YAML document whose every node keeps its line: an attribute, an entry of a map attribute, an
   inline node and each link target point at the line they are written on, never at another
   occurrence of the same text. It holds JSON data — strings, numbers, booleans, null, lists, maps
-  with plain keys. An anchor may be repeated by an alias, but not inside itself; a tag JSON has no
-  type for (`!!set`, `!!binary`), a number it cannot hold (`.inf`) or a key that is not plain text
-  is an error.
+  with plain keys, `__proto__` and `constructor` being keys like any other. An anchor may be
+  repeated by an alias, which stands for the anchor's value at the alias's own line; an alias
+  inside the value it names or one that names no anchor, a tag JSON has no type for (`!!set`,
+  `!!binary`), a number it cannot hold (`.inf`) or a key that is not plain text is an error.
+- **Links** are read from the keys that link ([[DEC-0010]]): the entries of `links:`, and the keys
+  the vocabulary names — the plan and phase relations, a workspace's own link keys and each
+  discipline of `activity`, as `activity.<discipline>`. A key's value is one id, a comma-separated
+  or YAML list of ids, or a map with `to` and the link's attributes; each link is at the line of
+  its target.
+- **Kinds.** A node has the kind its `kind` gives it, else the kind its id prefix says
+  ([[DEC-0018]]). The kinds sdp makes itself — `scenario`, `code`, `missing` — are not an author's
+  to give: one written is a `derived-attribute` error and counts as not written.
 - **The body** is CommonMark, parsed by `mdast-util-from-markdown`. What a renderer shows as code
   — fenced and indented code blocks, code spans — and HTML, comments included, is never read as a
-  scenario, a link, a heading or an open question; fences close as CommonMark says (same
+  scenario, a link, a heading or an open question; nor is a `[[wiki-link]]` read out of what a
+  Markdown link does not show as its text: its destination, its title, an image, a definition; fences close as CommonMark says (same
   character, at least as long, nothing after it), CRLF and tabs count as CommonMark counts them.
 - **Gherkin** is a fenced code block whose language is `gherkin`, `feature` or `cucumber`,
   wherever it is: in a list or a quote too.
@@ -205,6 +216,7 @@ Scenario Outline: Front matter is JSON data
     | front matter             | message                                   |
     | owner: &x { self: *x }   | the alias *x repeats a value it is inside |
     | links: &x [*x]           | the alias *x repeats a value it is inside |
+    | owner: *nobody           | the alias *nobody names no anchor         |
     | estimate: .inf           | .inf is not a JSON number                 |
     | ? [team, lead] : Ada     | a key must be plain text                  |
     | owners: !!set { a, b }   | !!set has no JSON type                    |
@@ -247,12 +259,19 @@ Scenario: Every key, map entry and link target is at the line it is written on
     ---
     id: REQ-cart
     note: shares a store with ARCH-cart-store
+    store: &store ARCH-cart-store
     "activity":
       test: [C1, T1]
+    iteration:
+      - E1
+      - E2
     links:
-      uses: ARCH-cart-store
+      uses: *store
       calls:
         - ARCH-pricing
+      guarded-by:
+        since: 2026
+        to: DEC-0001
     nodes:
       - id: ARCH-cart-store
         links:
@@ -263,17 +282,24 @@ Scenario: Every key, map entry and link target is at the line it is written on
     """
   When "specs/REQ-cart.md" is parsed
   Then the parsed spec has links:
-    | rel   | to              | line |
-    | uses  | ARCH-cart-store | 7    |
-    | calls | ARCH-pricing    | 9    |
+    | rel           | to              | line |
+    | uses          | ARCH-cart-store | 11   |
+    | calls         | ARCH-pricing    | 13   |
+    | guarded-by    | DEC-0001        | 16   |
+    | iteration     | E1              | 8    |
+    | iteration     | E2              | 9    |
+    | activity.test | C1              | 6    |
+    | activity.test | T1              | 6    |
   And the parsed spec has attribute lines:
     | key           | line |
     | note          | 3    |
-    | activity      | 4    |
-    | activity.test | 5    |
+    | store         | 4    |
+    | activity      | 5    |
+    | activity.test | 6    |
+    | iteration     | 7    |
   And the parsed spec has inline nodes:
     | id              | line | links             | link lines |
-    | ARCH-cart-store | 11   | -stores-> ARCH-db | 14         |
+    | ARCH-cart-store | 18   | -stores-> ARCH-db | 21         |
 
 Scenario Outline: A reserved key of the wrong shape is an error at its line
   Given a file "specs/REQ-cart.md" containing:
@@ -323,7 +349,7 @@ Scenario: Inline nodes are declared under nodes, each at the line of its id
   Then the parsed spec has inline nodes:
     | id         | kind      | title      | line | attributes          | links              | link lines |
     | E10        | iteration | E10        | 6    |                     |                    |            |
-    | E1         | iteration | E1         | 7    | phase="elaboration" |                    |            |
+    | E1         | iteration | E1         | 7    | phase="elaboration" | -phase-> elaboration | 7        |
     | ARCH-cache | element   | Page cache | 8    |                     | -serves-> ARCH-api | 10         |
   And parsing reports:
     | rule        | severity | line | message                          |
@@ -353,7 +379,7 @@ Scenario: Prose links are mentions or typed, and never inside code
     | ARCH-orders   | realized-by | 7    |
     | ARCH-payments | realized-by | 7    |
 
-Scenario: What a renderer shows as code or HTML is not read as a scenario, a link or a question
+Scenario: What a renderer shows as code or HTML, or hides in a link's destination, is not read as a scenario, a link or a question
   Given a file "specs/REQ-docs.md" containing:
     """
     ---
@@ -387,6 +413,10 @@ Scenario: What a renderer shows as code or HTML is not read as a scenario, a lin
     ~~~~
 
     Visible: [[VISIBLE]].
+
+    [Shown: [[LINKED]]](https://example.com/[[DESTINATION]] "[[TITLED]]") ![[[ALT]]](logo.png)
+
+    [reference]: https://example.com/[[DEFINED]]
     """
   When "specs/REQ-docs.md" is parsed
   Then the parsed spec has no scenarios
@@ -394,6 +424,7 @@ Scenario: What a renderer shows as code or HTML is not read as a scenario, a lin
   And the parsed spec has prose links:
     | to      | line |
     | VISIBLE | 31   |
+    | LINKED  | 33   |
 
 Scenario: Gherkin in a quote or a list item runs, and CRLF and tabs count as CommonMark counts them
   Given a file "specs/REQ-pay.md" containing:

@@ -26,7 +26,8 @@ Authors link nodes where they write: in front matter (`links:`, or a key the voc
 link, such as `iteration:`), in prose (`rel:: [[ID]]`), and in code (`annotate(…)` or
 `@sdp <relation> <ID>`, [[ARCH-code-annotations]]). Whether a front matter key links depends on the
 key, never on its value ([[DEC-0010]]), and a link is also an attribute of the node it starts
-from. A plain `[[ID]]` in prose is a mention: it is recorded, but it is not a link. How each of
+from: the key holds the link's targets, and no link shares a name with an attribute. A plain
+`[[ID]]` in prose is a mention: it is recorded, but it is not a link. How each of
 these becomes nodes and edges is the contract of [[ARCH-graph-builder]].
 
 ## Scenarios
@@ -128,9 +129,27 @@ Scenario Outline: A link reads the same whichever way it is written
     | plan                                    | key                     |
     | iteration: I1                           | iteration               |
     | iteration: [I2, I1]                     | iteration               |
+    | iteration: I2, I1                       | iteration               |
     | links: { iteration: I1 }                | iteration               |
     | links: { iteration: { to: I1, why: x } } | iteration              |
     | activity: { implementation: [I1] }      | activity.implementation |
+
+Scenario: A link key holds its targets, not the text they were written as
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    iteration: I1, I2
+    nodes:
+      - { id: I1, kind: iteration }
+      - { id: I2, kind: iteration }
+    ---
+    # A
+    """
+  When I query '*[iteration="I1, I2"]'
+  Then the result is "nothing"
+  When I query "*[iteration=I2]"
+  Then the result is "REQ-a"
 
 Scenario: Any word is just a word
   Given a file "sdp.config.yaml" containing:
@@ -143,6 +162,8 @@ Scenario: Any word is just a word
     id: REQ-a
     kind: constructor
     maturity: toString
+    __proto__: { valueOf: 1 }
+    links: { hasOwnProperty: { to: REQ-a, __proto__: yes } }
     ---
     # A
     """
@@ -151,6 +172,13 @@ Scenario: Any word is just a word
   And sdp status counts the stages "toString:1"
   When I query "constructor[maturity>constructor]"
   Then the result is "REQ-a"
+  When I query "*[__proto__.valueOf=1, hasOwnProperty=REQ-a]"
+  Then the result is "REQ-a"
+  When I query "*[toString]"
+  Then the result is "nothing"
+  When the graph is exported
+  Then the output contains '"__proto__":{"valueOf":1}'
+  And the output contains '"rel":"hasOwnProperty","to":"REQ-a","attrs":{"__proto__":"yes"}'
   When I run "sdp new constructor 'Odd one'"
   Then the exit code is 0
 ~~~

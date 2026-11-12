@@ -13,6 +13,7 @@ export interface SourceRef {
   readonly line: number
 }
 
+/** Attributes are JSON data: text, numbers, booleans, null, lists and maps of them. A graph accepts nothing else. */
 export type Attrs = Readonly<Record<string, unknown>>
 
 export interface GraphNode {
@@ -50,32 +51,28 @@ const edgeKey = (edge: Pick<GraphEdge, "from" | "rel" | "to">) => `${edge.from}\
  * Merges the declarations of each `(from, rel, to)` into one edge that keeps every source and the
  * union of their attributes, in first-declared order. Disagreeing attributes are returned as conflicts.
  */
-export const mergeEdges = (
+const mergeEdges = (
   edges: Iterable<GraphEdge>
 ): { readonly edges: ReadonlyArray<GraphEdge>; readonly conflicts: ReadonlyArray<EdgeConflict> } => {
-  const merged = new Map<string, { edge: GraphEdge; attrs: Record<string, unknown>; at: Map<string, SourceRef | undefined>; sources: Array<SourceRef> }>()
+  // Attributes are kept in maps while they merge: an author's key may be `__proto__` or `constructor`.
+  interface Merging {
+    readonly edge: GraphEdge
+    readonly attrs: Map<string, { readonly value: unknown; readonly source: SourceRef | undefined }>
+    readonly sources: Array<SourceRef>
+  }
+  const merged = new Map<string, Merging>()
   const conflicts: Array<EdgeConflict> = []
   for (const edge of edges) {
     const key = edgeKey(edge)
     const declared = edge.sources ?? (edge.source ? [edge.source] : [])
-    const existing = merged.get(key)
-    if (!existing) {
-      const attrs: Record<string, unknown> = { ...edge.attrs }
-      merged.set(key, { edge, attrs, at: new Map(Object.keys(attrs).map((k) => [k, edge.source])), sources: [...declared] })
-      continue
-    }
+    const existing: Merging = merged.get(key) ?? { edge, attrs: new Map(), sources: [] }
+    merged.set(key, existing)
     existing.sources.push(...declared)
     for (const [k, value] of Object.entries(edge.attrs ?? {})) {
-      if (!Object.hasOwn(existing.attrs, k)) {
-        existing.attrs[k] = value
-        existing.at.set(k, edge.source)
-      } else if (JSON.stringify(existing.attrs[k]) !== JSON.stringify(value)) {
-        conflicts.push({
-          edge: existing.edge,
-          key: k,
-          kept: { value: existing.attrs[k], source: existing.at.get(k) },
-          dropped: { value, source: edge.source }
-        })
+      const kept = existing.attrs.get(k)
+      if (kept === undefined) existing.attrs.set(k, { value, source: edge.source })
+      else if (JSON.stringify(kept.value) !== JSON.stringify(value)) {
+        conflicts.push({ edge: existing.edge, key: k, kept, dropped: { value, source: edge.source } })
       }
     }
   }
@@ -84,7 +81,7 @@ export const mergeEdges = (
       from: edge.from,
       rel: edge.rel,
       to: edge.to,
-      attrs: Object.keys(attrs).length > 0 ? attrs : undefined,
+      attrs: attrs.size > 0 ? Object.fromEntries([...attrs].map(([k, kept]) => [k, kept.value])) : undefined,
       source: sources[0] ?? edge.source,
       sources
     })),
@@ -103,11 +100,15 @@ export class Graph {
   readonly #edges: ReadonlyArray<GraphEdge>
   readonly #out = new Map<string, Array<GraphEdge>>()
   readonly #in = new Map<string, Array<GraphEdge>>()
+  /** The declarations of one edge that disagreed on an attribute when the graph was built. */
+  readonly conflicts: ReadonlyArray<EdgeConflict>
 
   constructor(nodes: Iterable<GraphNode>, edges: Iterable<GraphEdge>) {
     for (const node of nodes) this.#nodes.set(node.id, freezeNode(node))
     this.#nodeList = Object.freeze([...this.#nodes.values()])
-    this.#edges = Object.freeze(mergeEdges(edges).edges.map(freezeEdge))
+    const merged = mergeEdges(edges)
+    this.conflicts = Object.freeze([...merged.conflicts])
+    this.#edges = Object.freeze(merged.edges.map(freezeEdge))
     for (const edge of this.#edges) {
       push(this.#out, edge.from, edge)
       push(this.#in, edge.to, edge)
@@ -174,15 +175,20 @@ annotate(Graph, { is: "ARCH-graph", "instance-of": "PAT-derived-index" })
 
 export const formatSource = (source: SourceRef | undefined): string => source ? `${source.file}:${source.line}` : ""
 
-/** A deep, frozen copy of plain data: objects and arrays are copied, anything else is kept as it is. */
+/**
+ * A deep, frozen copy of JSON data. What is not JSON data — a Date, a Map, a function — would stay
+ * shared with whoever passed it, so a graph refuses it.
+ */
 const frozen = (value: unknown): unknown => {
   if (Array.isArray(value)) return Object.freeze(value.map(frozen))
-  if (value !== null && typeof value === "object" && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
-    const copy: Record<string, unknown> = {}
-    for (const [key, item] of Object.entries(value)) copy[key] = frozen(item)
-    return Object.freeze(copy)
+  if (typeof value === "function") throw new TypeError("an attribute is JSON data, not a function")
+  if (typeof value !== "object" || value === null) return value
+  const prototype: unknown = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(`an attribute is JSON data, not a ${value.constructor.name}`)
   }
-  return value
+  // Not assigned key by key: `__proto__` is a key like any other.
+  return Object.freeze(Object.fromEntries(Object.entries(value).map(([key, item]) => [key, frozen(item)])))
 }
 
 const freezeSource = (source: SourceRef | undefined) => source && Object.freeze({ file: source.file, line: source.line })

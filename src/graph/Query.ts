@@ -417,8 +417,8 @@ const ownValue = (node: GraphNode, key: string): unknown => {
 
 /**
  * What `key` holds for a node: `id`, `kind`, `title` and `source` are keys like any attribute, and
- * a key also holds the targets of the node's links of that relation, so a link reads the same
- * whichever way it was written.
+ * the key of a link holds the link's targets, so a link reads the same whichever way it was
+ * written. A key is one or the other: the builder lets no link share a name with an attribute.
  */
 const valueOf = (context: Context, node: GraphNode, key: string): unknown => {
   switch (key) {
@@ -432,12 +432,8 @@ const valueOf = (context: Context, node: GraphNode, key: string): unknown => {
       return node.source ? `${node.source.file}:${node.source.line}` : undefined
   }
   const { graph, vocabulary } = context
-  const own = ownValue(node, key)
   const linked = graph.out(node.id).filter((edge) => edge.rel === key && !isMention(vocabulary, edge)).map((edge) => edge.to)
-  if (linked.length === 0) return own
-  // A link written with attributes (`{ to: E1, ... }`) is its target here.
-  const values = [...new Set([...scalars(own).filter((v) => !Predicate.isObject(v)), ...linked])]
-  return values.length === 1 ? values[0] : values
+  return linked.length === 0 ? ownValue(node, key) : linked.length === 1 ? linked[0] : linked
 }
 
 /** What `[key]` asks: is the key set? Missing, null, false, empty text and empty lists are not. */
@@ -485,7 +481,7 @@ const compare = (value: unknown, expected: string, ladder: Ladder | undefined, o
   } else if (value !== "" && expected !== "" && Number.isFinite(a) && Number.isFinite(b)) {
     diff = a - b
   } else {
-    diff = String(value instanceof Date ? value.toISOString() : value).localeCompare(expected)
+    diff = String(value).localeCompare(expected)
   }
   switch (op) {
     case "<":

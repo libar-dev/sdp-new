@@ -398,6 +398,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   // --- this repository ------------------------------------------------------
 
+  // A row of the table: | `rule` | severity | …
+  Then("the rules table gives every rule the severity sdp reports it with", ({ project, scenario }) => {
+    const body = project.specById.get(scenario.specId)?.body ?? ""
+    const listed = Object.fromEntries([...body.matchAll(/^\| `([a-z-]+)` \| (\w+) \|/gm)].map((row) => [row[1]!, row[2]!]))
+    assert.deepEqual(listed, { ...rules })
+  })
+
   Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
     const spec = project.specById.get(scenario.specId)
     const steps = (spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.map((step) => step.text))).join("\n")

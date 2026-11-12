@@ -12,10 +12,10 @@ export const rules = {
   "missing-id": "error",
   "duplicate-id": "error",
   "dangling-link": "error",
-  "link-syntax": "warning",
+  "link-syntax": "error",
   "link-conflict": "warning",
   "derived-attribute": "error",
-  "inline-node": "warning",
+  "inline-node": "error",
   "gherkin-syntax": "error",
   "scenario-empty": "warning",
   "maturity-value": "error",
@@ -58,6 +58,9 @@ export interface Diagnostic {
   /** What to do about it, phrased so an agent can act on it. */
   readonly hint?: string | undefined
 }
+
+/** A diagnostic of `rule`, as severe as the catalogue says that rule is. */
+export const diagnostic = (rule: RuleId, about: Omit<Diagnostic, "rule" | "severity">): Diagnostic => ({ rule, severity: rules[rule], ...about })
 
 export const severityRank: Readonly<Record<Severity, number>> = { error: 0, warning: 1, info: 2 }
 

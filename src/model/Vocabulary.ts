@@ -149,6 +149,13 @@ export const made = {
   declaredInCode: "code"
 } as const
 
+/**
+ * Names no link may have. A link reads as an attribute of the node it starts from (DEC-0010), so
+ * one named like a fact sdp derives, or like the maturity or the status it checks, would pass for
+ * that fact.
+ */
+export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
+
 /** The maturity levels whose criteria are built in; levels a workspace adds have none. */
 export const criteria = { idea: "idea", draft: "draft", specified: "specified", ready: "ready" } as const
 

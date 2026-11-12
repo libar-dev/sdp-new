@@ -31,13 +31,13 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 
 | Rule | Severity | Reported when | Fix |
 | --- | --- | --- | --- |
-| `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping, is not closed or holds what is not JSON data — an alias inside itself, a tag such as `!!set`, `.inf`, a key that is not text ([[ARCH-spec-parser]]); the file stays out of the graph | fix the YAML |
+| `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping, is not closed or holds what is not JSON data — an alias inside itself or to no anchor, a tag such as `!!set`, `.inf`, a key that is not text ([[ARCH-spec-parser]]); the file stays out of the graph | fix the YAML |
 | `missing-id` | error | a file declares a `kind` in its front matter, or has a Gherkin block, but no `id`: it is plainly meant as a spec, yet it is not part of the graph and its scenarios would not run | add `id: <PREFIX>-<slug>`, or `exclude` a document that only shows Gherkin |
 | `duplicate-id` | error | a spec or inline node reuses an id declared elsewhere; the later one is left out | rename one of them |
 | `dangling-link` | error | a link key ([[DEC-0010]]), a `[[ID]]` mention or a code annotation names an id no node has — each reference is reported; the target stays queryable as a `missing` node | create the node (`sdp new`) or fix the reference; for a plan or phase relation, the hint lists the declared ones |
-| `link-syntax` | error | `links:` is not a map or a list, or the value of a link key has a shape sdp does not understand; it is ignored | write `<rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes }` |
+| `link-syntax` | error | `links:` is not a map or a list, the value of a link key has a shape sdp does not understand, or a link is named like an attribute — of the node it starts from, or one sdp derives or checks (`stage`, `verification`, `maturity`, `status`, …), which it would pass for ([[DEC-0010]]); it is ignored | write `<rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes }`; give the relation a name no attribute has |
 | `link-conflict` | warning | two declarations of the same link give one of its attributes different values; the first is kept | give the attribute one value, or declare the link once |
-| `derived-attribute` | error | a spec, an inline node or a code annotation writes an attribute sdp derives (`stage`, `verification`, …); the value is ignored | delete it |
+| `derived-attribute` | error | a spec, an inline node or a code annotation writes an attribute sdp derives (`stage`, `verification`, …) or a kind sdp makes itself (`scenario`, `code`, `missing`); the value is ignored | delete it |
 | `inline-node` | error | `nodes:` is not a list, or an entry under it is not a map with an `id`; it is ignored | write `nodes: [{ id: <ID>, … }]` |
 | `gherkin-syntax` | error | a gherkin block does not parse; the first error is reported, with the number of follow-on errors | fix the Gherkin at that line |
 | `scenario-empty` | warning | a scenario has no steps | write its steps or delete it |
@@ -250,4 +250,5 @@ Scenario: Id declarations that no longer match the graph are reported
 
 Scenario: The catalogue covers every rule
   Then every rule sdp reports has an example in this spec
+  And the rules table gives every rule the severity sdp reports it with
 ~~~

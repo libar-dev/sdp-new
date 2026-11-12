@@ -6,22 +6,13 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
-import { type Diagnostic, rules, sortDiagnostics } from "../model/Diagnostic.ts"
-import { type Attrs, Graph, type GraphEdge, type GraphNode, mergeEdges, type SourceRef } from "../model/Graph.ts"
+import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
+import { type Attrs, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
 import { type RunResults, type StepStatus, type Verification, verificationOf } from "../model/Results.ts"
-import {
-  activityRelation,
-  attribute,
-  hasKind,
-  hasRelation,
-  isDerived,
-  linkKeys,
-  made,
-  type Words
-} from "../model/Vocabulary.ts"
+import { hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Words } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
-import { linksOfKey, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
+import { linksOfKeys, parseFeatureSpec, parseMarkdownSpec, type Spec, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
 export interface SourceFile {
@@ -101,23 +92,19 @@ export const buildProject = (input: ProjectInput): Project => {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
     for (const problem of scan.unreadable) {
-      diagnostics.push({
-        rule: "annotation-unreadable",
-        severity: "warning",
+      diagnostics.push(diagnostic("annotation-unreadable", {
         message: problem.message,
         source: { file: file.path, line: problem.line },
         hint: problem.hint ?? "write ids and attributes as literals, e.g. annotate(Graph, { is: \"ARCH-graph\" })"
-      })
+      }))
     }
     for (const ignored of scan.ignored) {
-      diagnostics.push({
-        rule: "annotation-ignored",
-        severity: "warning",
+      diagnostics.push(diagnostic("annotation-ignored", {
         message: `"${ignored.text}" follows code on the same line, so it is not read as an annotation`,
         source: { file: file.path, line: ignored.line },
         hint:
           "put it on a comment line of its own: directly above a declaration it binds to that declaration, followed by a blank line to the whole file"
-      })
+      }))
     }
   }
   const stepDefinitions: Array<StepSignature> = []
@@ -125,15 +112,13 @@ export const buildProject = (input: ProjectInput): Project => {
     const scan = scanStepDefinitions(file.path, file.content)
     stepDefinitions.push(...scan.definitions)
     for (const problem of scan.problems) {
-      diagnostics.push({
-        rule: problem.rule,
-        severity: rules[problem.rule],
+      diagnostics.push(diagnostic(problem.rule, {
         message: problem.message,
         source: { file: file.path, line: problem.line },
         hint: problem.rule === "step-expression"
           ? "fix the Cucumber Expression: {int}, {float}, {word}, {string} and {} are the parameters, and ( ) / { } \\ are escaped with a backslash"
           : "register steps in a top-level `defineSteps(world, ({ Given }) => { Given(\"…\", …) })` with literal expressions; until then context, snippets and `sdp steps` do not know them"
-      })
+      }))
     }
   }
 
@@ -142,14 +127,12 @@ export const buildProject = (input: ProjectInput): Project => {
   const declare = (node: GraphNode) => {
     const existing = nodes.get(node.id)
     if (existing) {
-      diagnostics.push({
-        rule: "duplicate-id",
-        severity: "error",
+      diagnostics.push(diagnostic("duplicate-id", {
         message: `id ${node.id} is already declared at ${fmt(existing.source)}`,
         node: node.id,
         source: node.source,
         hint: "ids must be unique across the workspace; rename one of them"
-      })
+      }))
       return false
     }
     nodes.set(node.id, node)
@@ -157,27 +140,27 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   /** An authored node's attributes without those sdp derives; each one written is reported where it is. */
   const authored = (id: string, kind: string, attrs: Attrs, at: (key: string) => SourceRef): Record<string, unknown> => {
-    const kept: Record<string, unknown> = {}
+    const kept: Array<readonly [string, unknown]> = []
     for (const [key, value] of Object.entries(attrs)) {
       if (!isDerived(kind, key)) {
-        kept[key] = value
+        kept.push([key, value])
         continue
       }
-      diagnostics.push({
-        rule: "derived-attribute",
-        severity: "error",
+      diagnostics.push(diagnostic("derived-attribute", {
         message: `${id}: ${key} is derived by sdp, so the value written here is ignored`,
         node: id,
         source: at(key),
         hint: `delete \`${key}\`; sdp computes it (\`sdp vocabulary\` lists what it derives)`
-      })
+      }))
     }
-    return kept
+    // Not assigned one by one: `__proto__` is a key like any other.
+    return Object.fromEntries(kept)
   }
-  /** The stage of a node without scenarios: its maturity, while that is a level of the ladder. */
-  const declaredStage = (attrs: Attrs) => stageOf(attrs.maturity, "none", vocabulary.maturity)
-  /** Authored nodes, with where each writes its attributes, so the links those hold point at the right line. */
-  const writtenAt = new Map<string, (key: string) => SourceRef>()
+  /** What the scenarios of each spec say; a node without a spec of its own has none. */
+  const verifications = new Map<string, Verification>()
+  /** A node's attributes with its stage, which its maturity and its scenarios decide. */
+  const staged = (id: string, attrs: Attrs) =>
+    compact({ ...attrs, stage: stageOf(attrs.maturity, verifications.get(id) ?? "none", vocabulary.maturity) })
 
   const evidence = input.evidence?.(specs)
   const unrun: Settled = { status: undefined, stale: undefined, lastRun: undefined }
@@ -210,39 +193,37 @@ export const buildProject = (input: ProjectInput): Project => {
       edges.push({ from: scenario.id, rel: vocabulary.relations.scenario, to: spec.id, source: { file: spec.file, line: scenario.line } })
     }
     const verification: Verification = verificationOf(statuses)
+    if (!nodes.has(spec.id)) verifications.set(spec.id, verification)
     const openQuestions = spec.openQuestions.filter((q) => !q.resolved).length
     const at = (key: string): SourceRef => ({ file: spec.file, line: lineOfKey(spec.attrLines, key) ?? 1 })
     const attrs = authored(spec.id, spec.kind, spec.attrs, at)
-    const declared = declare({
+    declare({
       id: spec.id,
       kind: spec.kind,
       title: spec.title,
-      attrs: compact({
+      attrs: staged(spec.id, {
         ...attrs,
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,
         verification,
-        stage: stageOf(attrs.maturity, verification, vocabulary.maturity),
         openQuestions: openQuestions > 0 ? openQuestions : undefined
       }),
       source: { file: spec.file, line: 1 }
     })
-    if (declared) writtenAt.set(spec.id, at)
     for (const inline of spec.inlineNodes) {
       const at = (key?: string): SourceRef => ({
         file: spec.file,
         line: (key === undefined ? undefined : lineOfKey(inline.attrLines, key)) ?? inline.line
       })
       const attrs = authored(inline.id, inline.kind, inline.attrs, at)
-      const declared = declare({
+      declare({
         id: inline.id,
         kind: inline.kind,
         title: inline.title,
-        attrs: compact({ ...attrs, stage: declaredStage(attrs), declaredIn: spec.id }),
+        attrs: staged(inline.id, { ...attrs, declaredIn: spec.id }),
         source: at()
       })
-      if (declared) writtenAt.set(inline.id, at)
     }
   }
 
@@ -263,20 +244,26 @@ export const buildProject = (input: ProjectInput): Project => {
     for (const target of annotation.targets) {
       const existing = nodes.get(target)
       const { kind: rawKind, title, ...rest } = annotation.attrs
-      const kind = Predicate.isString(rawKind) ? rawKind : existing?.kind ?? vocabulary.kinds.anchored
       const at = (): SourceRef => ({ file: annotation.file, line: annotation.line })
+      const where = { file: annotation.file, owner: target, line: annotation.line }
+      const kind = existing?.kind ?? writtenKind(rawKind, where, diagnostics) ?? vocabulary.kinds.anchored
       const attrs = authored(target, kind, rest, at)
-      if (!existing) {
-        nodes.set(target, {
-          id: target,
-          kind,
-          title: Predicate.isString(title) ? title : target,
-          attrs: compact({ ...attrs, stage: declaredStage(attrs), declaredIn: made.declaredInCode }),
-          source: at()
-        })
-        writtenAt.set(target, at)
-      } else if (Object.keys(attrs).length > 0) {
-        nodes.set(target, { ...existing, attrs: { ...attrs, ...existing.attrs } })
+      // A node a spec declares takes from code only the attributes the spec does not set.
+      const added = existing ? Object.fromEntries(Object.entries(attrs).filter(([key]) => !Object.hasOwn(existing.attrs, key))) : attrs
+      nodes.set(
+        target,
+        existing
+          ? { ...existing, attrs: staged(target, { ...existing.attrs, ...added }) }
+          : {
+            id: target,
+            kind,
+            title: Predicate.isString(title) ? title : target,
+            attrs: staged(target, { ...attrs, declaredIn: made.declaredInCode }),
+            source: at()
+          }
+      )
+      for (const link of linksOfKeys(added, vocabulary, where, diagnostics)) {
+        edges.push({ from: target, rel: link.rel, to: link.to, attrs: link.attrs, source: at() })
       }
     }
   }
@@ -294,21 +281,6 @@ export const buildProject = (input: ProjectInput): Project => {
       }
     }
   }
-  /** The link keys a node writes with their values; each discipline of `activity` under its path. */
-  const writtenLinks = (node: GraphNode): ReadonlyArray<readonly [string, unknown]> => {
-    const keys = linkKeys(vocabulary).filter((key) => Object.hasOwn(node.attrs, key))
-    const linked = keys.map((key) => [key, node.attrs[key]] as const)
-    const activity = attribute(node, vocabulary.attributes.activity)
-    if (!Predicate.isObject(activity) || Array.isArray(activity)) return linked
-    return [...linked, ...Object.entries(activity).map(([discipline, value]) => [activityRelation(vocabulary, discipline), value] as const)]
-  }
-  for (const [id, at] of writtenAt) {
-    for (const [rel, value] of writtenLinks(nodes.get(id)!)) {
-      const source = at(rel)
-      const links = linksOfKey(rel, value, { file: source.file, owner: id, line: source.line }, diagnostics)
-      for (const link of links) edges.push({ from: id, rel: link.rel, to: link.to, attrs: link.attrs, source })
-    }
-  }
   for (const annotation of annotations) {
     const from = codeNodeId(annotation)
     const { kind: _k, title: _t, ...attrs } = annotation.attrs
@@ -322,14 +294,38 @@ export const buildProject = (input: ProjectInput): Project => {
       })
     }
   }
-  // A prose mention is not a link: it adds an edge only between nodes no authored link joins.
-  const joined = new Set(edges.flatMap((edge) => [`${edge.from}\u0000${edge.to}`, `${edge.to}\u0000${edge.from}`]))
   for (const spec of specs) {
     for (const ref of spec.references) {
-      if (ref.id === spec.id) continue
-      const rel = ref.rel ?? vocabulary.relations.mention
-      if (rel === vocabulary.relations.mention && joined.has(`${spec.id}\u0000${ref.id}`)) continue
-      edges.push({ from: spec.id, rel, to: ref.id, source: { file: spec.file, line: ref.line } })
+      if (ref.rel === undefined || ref.id === spec.id) continue
+      edges.push({ from: spec.id, rel: ref.rel, to: ref.id, source: { file: spec.file, line: ref.line } })
+    }
+  }
+
+  // A link reads as an attribute of the node it starts from. So it cannot carry the name of a fact
+  // sdp derives or checks, nor of an attribute that node has: either would pass for the other.
+  const keys = linkKeys(vocabulary)
+  const links = edges.filter((edge) => {
+    const from = nodes.get(edge.from)
+    const reserved = reservedRelations.includes(edge.rel)
+    const written = from !== undefined && Object.hasOwn(from.attrs, edge.rel) && !keys.includes(edge.rel)
+    if (!reserved && !written) return true
+    diagnostics.push(diagnostic("link-syntax", {
+      message: reserved
+        ? `${edge.from} -${edge.rel}-> ${edge.to}: no link can be named ${edge.rel}, which sdp reads as an attribute; the link is ignored`
+        : `${edge.from} -${edge.rel}-> ${edge.to}: ${edge.rel} is an attribute of ${edge.from}, so no link of it can have that name; the link is ignored`,
+      node: edge.from,
+      source: edge.source,
+      hint: "give the relation another name: a link reads as an attribute of the node it starts from, so `[key=value]` must mean one thing"
+    }))
+    return false
+  })
+
+  // A prose mention is not a link: it adds an edge only between nodes no link joins.
+  const joined = new Set(links.flatMap((edge) => [`${edge.from}\u0000${edge.to}`, `${edge.to}\u0000${edge.from}`]))
+  for (const spec of specs) {
+    for (const ref of spec.references) {
+      if (ref.rel !== undefined || ref.id === spec.id || joined.has(`${spec.id}\u0000${ref.id}`)) continue
+      links.push({ from: spec.id, rel: vocabulary.relations.mention, to: ref.id, source: { file: spec.file, line: ref.line } })
     }
   }
 
@@ -349,32 +345,28 @@ export const buildProject = (input: ProjectInput): Project => {
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
       : `create a spec with \`id: ${edge.to}\` (sdp new) or fix the reference`
   }
-  for (const edge of edges) {
+  for (const edge of links) {
     if (declaredIds.has(edge.to)) continue
-    diagnostics.push({
-      rule: "dangling-link",
-      severity: "error",
+    diagnostics.push(diagnostic("dangling-link", {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: no node has id ${edge.to}`,
       node: edge.from,
       source: edge.source,
       hint: hintFor(edge)
-    })
+    }))
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const merged = mergeEdges(edges)
-  for (const conflict of merged.conflicts) {
+  const graph = new Graph(nodes.values(), links)
+  for (const conflict of graph.conflicts) {
     const { edge, key } = conflict
-    diagnostics.push({
-      rule: "link-conflict",
-      severity: "warning",
+    diagnostics.push(diagnostic("link-conflict", {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: ${key} is ${JSON.stringify(conflict.dropped.value)} here but ${
         JSON.stringify(conflict.kept.value)
       } at ${fmt(conflict.kept.source)}, which is kept`,
       node: edge.from,
       source: conflict.dropped.source,
       hint: `give ${key} one value in every declaration of this link, or declare it once`
-    })
+    }))
   }
 
   return {
@@ -383,7 +375,7 @@ export const buildProject = (input: ProjectInput): Project => {
     specs,
     specById,
     annotations,
-    graph: new Graph(nodes.values(), merged.edges),
+    graph,
     diagnostics: sortDiagnostics(diagnostics),
     results: evidence?.results,
     types: input.types,
