@@ -9,9 +9,12 @@
  * loop, after a statement that may return, through another name or a helper,
  * with a computed expression, by a `defineSteps` renamed or not exported, as
  * the export of another call — is
- * reported, never guessed: only `sdp run`, which imports the module, knows it.
+ * reported, never guessed: only `sdp run`, which imports the module, knows it. A file that only
+ * exports again what another step file exports registers nothing of its own: a run counts each
+ * module once, and that module is read in its own file.
  */
 import { CucumberExpression, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
+import { posix } from "node:path"
 import { children, isNode, type Node, parseScript } from "./Script.ts"
 
 export type StepKeyword = "Given" | "When" | "Then" | "Step"
@@ -59,12 +62,13 @@ const exits = (node: Node): boolean =>
   node.type === "ReturnStatement" || node.type === "ThrowStatement" || (!node.type.includes("Function") && children(node).some(exits))
 
 /**
- * Reads the step definitions of one step file without running it.
+ * Reads the step definitions of one step file without running it; `stepFiles` are the workspace's
+ * step files, which it may export again.
  *
  * @sdp is ARCH-spec-parser
  * @sdp plays PAT-static-reading
  */
-export const scanStepDefinitions = (file: string, content: string): StepScan => {
+export const scanStepDefinitions = (file: string, content: string, stepFiles: ReadonlySet<string> = new Set()): StepScan => {
   const script = parseScript(file, content)
   const unread = (line: number, message: string): StepScan => ({ definitions: [], problems: [{ rule: "step-unreadable", line, message }] })
   if (script === undefined) return unread(1, "the file is not TypeScript or JavaScript, so its step definitions cannot be read")
@@ -191,7 +195,15 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
   const called = new Set(callsOf(program, defineSteps).map((call) => call.callee))
   const aliases = references(program, defineSteps).filter((reference) => !called.has(reference))
   for (const alias of aliases) unreadable(alias, "defineSteps is renamed or passed on here, so the steps it defines cannot be read without running the file")
-  if (modules === 0 && problems.length === 0) {
+  // `export { steps } from "./cart.steps.ts"`: what another step file exports, read there.
+  const again = program.body.filter((statement) =>
+    statement.type === "ExportAllDeclaration" || (statement.type === "ExportNamedDeclaration" && statement.source)
+  )
+  const fromStepFiles = again.length > 0 && again.every((statement) => {
+    const from = (statement.source as { value: string }).value
+    return /^\.\.?\//.test(from) && stepFiles.has(posix.join(posix.dirname(file), from))
+  })
+  if (modules === 0 && problems.length === 0 && !fromStepFiles) {
     problems.push({
       rule: "step-unreadable",
       line: 1,

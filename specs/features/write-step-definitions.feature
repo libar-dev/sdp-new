@@ -206,7 +206,8 @@ Feature: Write step definitions
 
   Rule: Every step is matched against every definition
 
-    So one run reports everything that is missing or ambiguous, not only the first step that is.
+    So one run reports everything that is missing or ambiguous, not only the first step that is. A
+    step module counts once, however many names and files export it.
 
     Scenario Outline: Every undefined step comes with a suggested definition
       When the workspace is run
@@ -247,6 +248,11 @@ Feature: Write step definitions
       When I run "sdp run"
       Then the exit code is 0
       And the output contains "1 scenario(s): 1 passed"
+      When I run "sdp steps 'an empty cart' --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | complete  | true                      |
+        | data.file | specs/steps/cart.steps.ts |
 
     Scenario Outline: After a step that does not pass the rest are skipped but still matched, and the scenario takes the worst status
       Given a step definition "an empty cart" that <first step>

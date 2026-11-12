@@ -124,8 +124,9 @@ export const buildProject = (input: ProjectInput): Project => {
     }
   }
   const stepDefinitions: Array<StepSignature> = []
+  const stepPaths = new Set((input.stepFiles ?? []).map((file) => file.path))
   for (const file of input.stepFiles ?? []) {
-    const scan = scanStepDefinitions(file.path, file.content)
+    const scan = scanStepDefinitions(file.path, file.content, stepPaths)
     stepDefinitions.push(...scan.definitions)
     for (const problem of scan.problems) {
       diagnostics.push(diagnostic(problem.rule, {
