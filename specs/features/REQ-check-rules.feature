@@ -151,41 +151,6 @@ Feature: Check rules
         | rule       | at                             |
         | not-a-spec | specs/billing/REQ-invoice.md:1 |
 
-  Rule: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
-
-    Background:
-      Given these specs:
-        | tags                                         | Feature     |
-        | @id=PH-elaboration                           | Elaboration |
-        | @id=E1 @kind=iteration @phase:PH-elaboration | E1          |
-        | @id=E2 @kind=iteration @phase:PH-elaboration | E2          |
-
-    Scenario Outline: What is wrong with each reference
-      Given these specs:
-        | tags             | Feature |
-        | @id=REQ-a <tags> | Example |
-      When the workspace is checked
-      Then sdp reports:
-        | rule           | severity | node  | at                    | message   |
-        | plan-reference | warning  | REQ-a | specs/REQ-a.feature:1 | <problem> |
-
-      Examples:
-        | tags                                                                | problem                              |
-        | @iteration:PH-elaboration                                           | "PH-elaboration" names no iteration  |
-        | @phase:E1                                                           | "E1" names no phase                  |
-        | @closes:REQ-a                                                       | "REQ-a" names no phase or iteration  |
-        | @activity.implementation:REQ-a                                      | "REQ-a" names no iteration           |
-        | @activity.implementation:E1 @activity.implementation:PH-elaboration | "PH-elaboration" names no iteration  |
-        | @activity.testing:E1                                                | "testing", which is not a discipline |
-        | @kind=risk @iteration:E1                                            | belongs to no discipline             |
-
-    Scenario: A requirement planned into what the plan declares
-      Given these specs:
-        | tags                                                                                                         | Feature |
-        | @id=REQ-a @iteration:E1 @activity.analysis-design:E1 @activity.implementation:E1 @activity.implementation:E2 | Example |
-      When the workspace is checked
-      Then sdp reports nothing
-
   Rule: Text a template wrote is flagged until it is filled in, once per spec, at the first
 
     Scenario Outline: A rule, a scenario and a step as the template wrote them

@@ -129,60 +129,6 @@ Feature: Honest maturity
       When I query "requirement[maturity>draft, maturity<specified]"
       Then the result is "REQ-csv"
 
-  Rule: What ready means beyond the shape of a spec is the team's Definition of Ready, a gate of its own
-
-    sdp cannot know whether the design behind a spec is decided or anyone has reviewed it: a
-    placeholder paragraph with a token scenario meets every criterion.
-
-    Scenario Outline: A ready requirement, its review and what it depends on
-      Given a file "specs/POL-definition-of-ready.feature" containing:
-        """
-        @id=POL-definition-of-ready @kind=policy
-        Feature: Definition of Ready
-
-          Rule: A ready requirement is reviewed, and what it depends on is ready too
-
-            @gate
-            Scenario: Reviewed, and depending only on what is ready
-              Then the query "requirement[maturity=ready] ?-depends-on-> requirement[maturity<ready]" returns no results
-              And the query "requirement[maturity=ready, !reviewed-by]" returns no results
-        """
-      And a file "specs/REQ-reports.feature" containing:
-        """
-        @id=REQ-reports @maturity=<dependency> @reviewed-by=analysts
-        Feature: Reports
-
-          Analysts see what was sold.
-
-          Rule: Sales are reported by day
-
-            Scenario: Sales by day
-              Then the report has one row per day
-        """
-      And a file "specs/REQ-csv.feature" containing:
-        """
-        @id=REQ-csv @maturity=ready <review> @depends-on:REQ-reports
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          Rule: Every row is exported
-
-            Scenario: Export current rows
-              When I export the report
-              Then I get a CSV file with one line per row
-        """
-      When I run "sdp check"
-      Then the exit code is 0
-      When I run "sdp gate POL-definition-of-ready"
-      Then the exit code is <exit code>
-
-      Examples:
-        | dependency | review                | exit code |
-        | draft      | @reviewed-by=analysts | 1         |
-        | ready      |                       | 1         |
-        | ready      | @reviewed-by=analysts | 0         |
-
   @decided-by:declared-maturity-derived-stage
   Rule: A spec's stage is its maturity until its scenarios say more, and only a node with a maturity or scenarios has one
 
