@@ -13,7 +13,7 @@
  *   idea         a title (anything goes; capture it before it is lost)
  *   draft        a description of the problem or intent (a Rule's name says what must hold)
  *   specified    at least one scenario stating an outcome (`Then`)
- *   ready        nothing tagged `@open`, every rule has an example, every scenario
+ *   ready        no rule tagged `@open`, every rule has an example, every scenario
  *                states an outcome, gherkin parses
  *   implemented  what ready asks, and so is a spec that declares no maturity
  */
@@ -441,8 +441,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
 
   for (const spec of project.specs) {
     for (const scenario of spec.scenarios) {
-      // An open scenario is a question: its name is all there is so far.
-      if (scenario.steps.length === 0 && !scenario.tags.includes(made.tags.open)) {
+      if (scenario.steps.length === 0) {
         out.push(diagnostic("scenario-empty", {
           message: `${scenario.id} has no steps`,
           node: scenario.id,
