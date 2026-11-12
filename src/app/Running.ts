@@ -93,8 +93,10 @@ export interface WorkspaceRun {
   readonly gates: ReadonlyArray<ScenarioResult>
   /** Everything stored after the run, including results of scenarios that were not selected. */
   readonly results: RunResults
-  /** Stored results that no longer count, by what changed since they ran (scenarios the run did not select). */
+  /** Stored results that no longer count, by what changed since they ran (scenarios the run did not run). */
   readonly stale: Readonly<Record<string, number>>
+  /** Results this run recorded that no longer count, by what changed while it ran. */
+  readonly wentStale: Readonly<Record<string, number>>
   /** The scenarios this run ran that are examples of work still to come: whatever they did fails no run. */
   readonly toCome: ReadonlySet<string>
   /** The live examples this run ran that did not pass, by the results it recorded, a gate's rows that are no gate included: they fail the run. */
@@ -219,10 +221,12 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const gates = yield* commit(yield* run(after, true, whole), after, whole)
   const { project } = yield* loadWorkspace(root)
   const { graph } = project
-  const reasons = graph.ofKind([made.kinds.scenario]).flatMap((node) => {
-    const reason = attribute(node, "staleBecause")
-    return typeof reason === "string" ? [reason] : []
-  })
+  const recorded = new Set([...ordinary.executed, ...gates.executed].map((result) => result.id))
+  const staleBecause = (own: boolean) =>
+    tally(graph.ofKind([made.kinds.scenario]).flatMap((node) => {
+      const reason = attribute(node, "staleBecause")
+      return typeof reason === "string" && recorded.has(node.id) === own ? [reason] : []
+    }))
   const ran = new Set(ordinary.executed.map((result) => result.id))
   // Which examples are live is read from the graph the run ran against; whether one
   // fails the run, from the result this run recorded for it.
@@ -242,7 +246,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     scenarios: ordinary.executed,
     gates: gates.executed,
     results: gates.results,
-    stale: tally(reasons),
+    stale: staleBecause(false),
+    wentStale: staleBecause(true),
     toCome: new Set([...ran].filter((id) => toCome(ranAgainst, id))),
     regressions: [...regressions(ranAgainst, ordinary.executed), ...ordinaryRows.map((result) => result.id)],
     livable: livable(project, ran)
@@ -292,8 +297,10 @@ export interface RunReport {
   readonly toCome: Readonly<Record<StepStatus, number>>
   /** The gate scenarios by status. */
   readonly gates: Readonly<Record<StepStatus, number>>
-  /** Stored results of scenarios this run did not select that no longer count, by what changed. */
+  /** Stored results of scenarios this run did not run that no longer count, by what changed. */
   readonly stale: Readonly<Record<string, number>>
+  /** Results this run recorded that no longer count, by what changed while it ran. */
+  readonly wentStale: Readonly<Record<string, number>>
   /** Every result of this run: the ordinary scenarios, then the gates. */
   readonly scenarios: ReadonlyArray<ScenarioResult>
   /** A step definition module for the undefined steps, when asked for and there are any. */
@@ -325,6 +332,7 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     toCome: summarize(run.scenarios.filter((result) => run.toCome.has(result.id))),
     gates,
     stale: run.stale,
+    wentStale: run.wentStale,
     scenarios,
     snippets: input.snippets && suggested.length > 0 ? snippetModule(suggested, steps.files) : undefined
   }
@@ -424,7 +432,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const spec = project.specById.get(milestone)
   // Closed first: the closing commit may move its last criterion to the spec that owns the rule.
   if (spec && isClosed(spec, vocabulary)) {
-    const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
+    const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, wentStale: {}, scenarios: [] }
     const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
     return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
   }

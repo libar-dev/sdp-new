@@ -349,6 +349,7 @@ Feature: Know what is verified
         """
       When I run "sdp run"
       Then the exit code is 0
+      And the output contains "stale: 1 result(s) of this run no longer count (1 code-changed): what they ran against changed while they ran"
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "cart#add-item"
 
