@@ -2,7 +2,7 @@
  * `sdp` — the command line. A thin transport: each command parses its flags,
  * calls one use case of the application layer (`src/app/`) and prints the
  * answer — as text by default, as the JSON envelope with `--json`. Notes go to
- * stderr, and an incomplete answer exits with 2 (REQ-cli).
+ * stderr, and an incomplete answer exits with 2 (use-the-command-line).
  */
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import { annotate } from "sdp/annotations"

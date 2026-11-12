@@ -6,7 +6,7 @@
  * module is the only place that names those words. Every other module asks it.
  *
  * Each role has a default word, and a workspace renames a role under
- * `vocabulary:` in its configuration (REQ-configuration). `sdp vocabulary`
+ * `vocabulary:` in its configuration (configure-a-workspace). `sdp vocabulary`
  * prints the active profile. Words sdp makes itself (the `scenario` and `code`
  * kinds, derived attributes such as `stage`) are fixed and listed here too.
  */
