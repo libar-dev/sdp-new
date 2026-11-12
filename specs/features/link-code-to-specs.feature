@@ -231,6 +231,8 @@ Feature: Link code to specs
         | a JSDoc tag of its own after them  | /**\n * Charges the card on file.\n *\n * @internal\n * @sdp implements pay\n */ | 7    |
         | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
         | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
+        | a comment of its own above it      | // Copyright 2026 Acme Corp.\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */ | 7    |
+        | a doc comment of its own above it  | /** @license MIT */\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */      | 7    |
 
     Scenario Outline: In <language>, the comment lines around the tag describe the code
       Given a file "<file>" containing:

@@ -212,28 +212,27 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
   const firstCode = program.body[0] === undefined ? content.length : leadingStart(program.body[0])
   const shaped = shapes(content, script)
   for (const group of groups) {
-    const tags = group.flatMap((comment) =>
+    const tags = group.flatMap((comment, at) =>
       comment.value.split(/\r?\n/).flatMap((text, index) => {
         const line = lineOf(comment.start) + index
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
         if (tag && "unread" in tag) unreadable.push({ line, ...tag.unread })
         if (!match) ignored.push(...wordsBefore(text, line))
-        return tag && !("unread" in tag) ? [{ ...tag, line, trailing: index === 0 && afterCode(comment.start) }] : []
+        return tag && !("unread" in tag) ? [{ ...tag, line, trailing: index === 0 && afterCode(comment.start), at }] : []
       })
     )
     if (tags.length === 0) continue
     const end = group.at(-1)!.end
     const next = program.body.find((statement) => leadingStart(statement) >= end)
-    const doc = description(group.map((comment) => comment.value))
     const declared = next && /^[ \t]*\r?\n?[ \t]*$/.test(content.slice(end, leadingStart(next))) ? declaredName(next) : undefined
     const shape = declared === undefined ? undefined : shaped.of(next!)
     const target: Target | undefined = declared !== undefined
-      ? { symbol: declared, symbolLine: lineOf(next!.start), doc, shape: shape?.text, returnType: shape?.returnType }
+      ? { symbol: declared, symbolLine: lineOf(next!.start), shape: shape?.text, returnType: shape?.returnType }
       : end <= firstCode
-      ? { symbol: undefined, symbolLine: 1, doc, exports: nonEmpty(shaped.exports()) }
+      ? { symbol: undefined, symbolLine: 1, exports: nonEmpty(shaped.exports()) }
       : undefined
-    for (const { line, rel, targets, attrs, trailing } of tags) {
+    for (const { line, rel, targets, attrs, trailing, at } of tags) {
       const written = `@sdp ${rel} ${targets.join(", ")}`
       if (trailing) {
         ignored.push({ line, message: `"${written}" follows code on the same line, so it is not read as an annotation`, hint: trailingHint })
@@ -244,11 +243,28 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
           hint: "write it in the doc comment directly above a module-level declaration, or in the comment that opens the file"
         })
       } else {
-        annotations.push({ file, line, rel, targets, attrs, ...target })
+        annotations.push({ file, line, rel, targets, attrs, ...target, doc: carrying(group, at) })
       }
     }
   }
   return { annotations, ignored, unreadable }
+}
+
+/**
+ * What the comment that carries a tag says: its block, or the run of line comments that holds it —
+ * or, when that says nothing but tags, the doc comment directly above it. Another comment above, a
+ * licence or a copyright, describes no code.
+ */
+const carrying = (group: ReadonlyArray<Script["comments"][number]>, at: number): string | undefined => {
+  let first = at
+  let last = at
+  if (group[at]!.type === "Line") {
+    while (group[first - 1]?.type === "Line") first--
+    while (group[last + 1]?.type === "Line") last++
+  }
+  const above = group[first - 1]
+  return description(group.slice(first, last + 1).map((comment) => comment.value)) ??
+    (above?.type === "Block" && above.value.startsWith("*") ? description([above.value]) : undefined)
 }
 
 /** A tag that a comment's line has after words, which is not read: well formed, it was meant as one. */
