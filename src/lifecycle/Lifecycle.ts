@@ -72,7 +72,7 @@ export interface LifecycleReport {
   readonly unclosed: ReadonlyArray<GraphNode>
   /** The phases, in the order of their first iteration. */
   readonly phases: ReadonlyArray<PhaseReport>
-  /** Nodes with a maturity that are planned into no iteration. */
+  /** Nodes still to be specified, a maturity below the last of the ladder, that are planned into no iteration. */
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
@@ -250,9 +250,11 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     discipline,
     activity: iterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))
-  // Only work still to do can be unplanned: what has a maturity and is not yet verified.
+  // Only work still to be specified can be unplanned: what has a maturity below the last of the
+  // ladder. Read from the files, as the plan is: whether a spec is built is evidence, which goes stale.
+  const specified = vocabulary.maturity.at(-1)
   const unplanned = graph.nodes().filter((n) =>
-    Predicate.isString(n.attrs.maturity) && n.attrs.stage !== made.stages.verified && !planned.has(n.id) &&
+    Predicate.isString(n.attrs.maturity) && n.attrs.maturity !== specified && !planned.has(n.id) &&
     !isStructural(vocabulary, n)
   )
   const current = iterations.find((it) => {
