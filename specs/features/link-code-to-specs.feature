@@ -272,6 +272,35 @@ Feature: Link code to specs
         | data.rule | types-stale   |
         | data.file | .sdp/ids.d.ts |
 
+    Scenario: The compiler accepts any id until sdp types has run, and then only the ids it declared
+      Given sdp is installed in the workspace
+      And a file "tsconfig.json" containing:
+        """
+        { "include": ["src", ".sdp/ids.d.ts"] }
+        """
+      And a file "src/pay.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+
+        export const pay = () => 0
+        annotate(pay, { implements: "REQ-pay" })
+        """
+      And a file "src/refund.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+
+        export const refund = () => 0
+        annotate(refund, { implements: "REQ-refund" })
+        """
+      When I run "tsc --noEmit"
+      Then the exit code is 0
+      When I run "sdp types"
+      Then the exit code is 0
+      When I run "tsc --noEmit"
+      Then the exit code is 1
+      And the output contains "src/refund.ts(4,"
+      And the output does not contain "src/pay.ts"
+
   Rule: A comment line `@sdp <relation> <ID>[, <ID>…] [key=value …]` annotates the declaration directly below it, or else the file
 
     Scenario Outline: A comment line in any language carries an annotation, bound to the declaration below it if sdp knows its keyword

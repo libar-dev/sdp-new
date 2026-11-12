@@ -1,13 +1,13 @@
 /**
  * Processes and the directory they run in. Files given with `a file … containing:` are written to
  * a fresh temporary directory before the first command; commands run there, with `sdp` standing
- * for `node <this repository>/src/cli/main.ts`, `$PWD` for that directory, `$TODAY` for today's
- * date (YYYY-MM-DD, as sdp's clock gives it) and leading `NAME=value` words setting environment
- * variables, as in a shell.
+ * for `node <this repository>/src/cli/main.ts`, the repository's own tools (`tsc`) found as under
+ * `npm run`, `$PWD` for that directory, `$TODAY` for today's date (YYYY-MM-DD, as sdp's clock gives
+ * it) and leading `NAME=value` words setting environment variables, as in a shell.
  */
 import { strict as assert } from "node:assert"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
-import { dirname, join, resolve } from "node:path"
+import { delimiter, dirname, join, resolve } from "node:path"
 import { execFile } from "node:child_process"
 import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -17,7 +17,12 @@ import { produce, settled, type World } from "./world.ts"
 export const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)))
 export const cli = join(repository, "src/cli/main.ts")
 // Every command is a fresh Node process; a shared compile cache keeps start-up short.
-export const env = { ...process.env, NO_COLOR: "1", NODE_COMPILE_CACHE: join(tmpdir(), "sdp-compile-cache") }
+export const env = {
+  ...process.env,
+  PATH: [join(repository, "node_modules/.bin"), process.env.PATH].filter(Boolean).join(delimiter),
+  NO_COLOR: "1",
+  NODE_COMPILE_CACHE: join(tmpdir(), "sdp-compile-cache")
+}
 
 // Created once (scenarios may run concurrently, so the promise is shared, not the result).
 let base: Promise<string> | undefined
