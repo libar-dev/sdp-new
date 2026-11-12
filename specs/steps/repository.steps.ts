@@ -1,19 +1,50 @@
 /**
- * Step definitions for the model the rest of sdp stands on: the vocabulary
- * profile and the guard that keeps the words sdp interprets in it
- * (ARCH-vocabulary), the immutable graph (ARCH-graph), and how
- * reports count stages (REQ-maturity-criteria).
+ * What is specific to this repository: the guards over its own source — the words only the
+ * vocabulary profile may name, the imports between its elements, the lines its graph points at —
+ * the immutable graph, and the time its pipeline takes.
  */
-import { Effect } from "effect"
+import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { readdir, readFile } from "node:fs/promises"
-import { join, relative } from "node:path"
+import { dirname, join, normalize, relative } from "node:path"
 import { parseSync } from "oxc-parser"
-import { statusSummary } from "../../src/graph/Status.ts"
-import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
-import { defaultVocabulary, vocabularyWords } from "../../src/model/Vocabulary.ts"
+import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
+import { formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
-import { load, newWorld, type World } from "./world.ts"
+import { defaultVocabulary, hasKind, vocabularyWords } from "../../src/model/Vocabulary.ts"
+import type { Project } from "../../src/graph/Build.ts"
+import { existsSync } from "node:fs"
+import { rules } from "../../src/model/Diagnostic.ts"
+import { newWorld, reload, type World } from "./world.ts"
+
+/**
+ * `A -rel-> B` for every value import from a module anchored to element A to a module anchored to
+ * element B: the dependencies between elements as the code has them. A module is anchored by an
+ * anchor annotation; an import or re-export of types alone calls nothing, so it does not count.
+ */
+const importsBetweenElements = async (project: Project, rel: string): Promise<ReadonlyArray<string>> => {
+  const anchor = project.config.vocabulary.relations.anchor
+  const elementsOf = new Map<string, Set<string>>()
+  for (const annotation of project.annotations.filter((a) => a.rel === anchor)) {
+    elementsOf.set(annotation.file, new Set([...(elementsOf.get(annotation.file) ?? []), ...annotation.targets]))
+  }
+  const links = new Set<string>()
+  for (const [file, elements] of elementsOf) {
+    const content = await readFile(join(project.root, file), "utf8")
+    const { module } = parseSync(file, content)
+    const imported = [
+      ...module.staticImports.filter((i) => i.entries.length === 0 || i.entries.some((entry) => !entry.isType)).map((i) => i.moduleRequest.value),
+      ...module.staticExports.flatMap((e) => e.entries.flatMap((entry) => entry.moduleRequest && !entry.isType ? [entry.moduleRequest.value] : [])),
+      ...module.dynamicImports.map((i) => content.slice(i.moduleRequest.start + 1, i.moduleRequest.end - 1))
+    ]
+    for (const specifier of imported.filter((specifier) => specifier.startsWith("."))) {
+      for (const used of elementsOf.get(normalize(join(dirname(file), specifier))) ?? []) {
+        for (const element of elements) if (element !== used) links.add(`${element} -${rel}-> ${used}`)
+      }
+    }
+  }
+  return [...links].sort()
+}
 
 type Node = { readonly type: string; readonly start: number; readonly [key: string]: unknown }
 
@@ -115,9 +146,36 @@ const builtGraph = (world: World) => {
   return graph
 }
 
-export default defineSteps(newWorld, ({ Given, Then, When }) => {
-  // --- the vocabulary guard (ARCH-vocabulary) -------------------------------
+/**
+ * Every node and link of the graph, followed back to its file and line: those whose line does not
+ * exist, and the links whose line does not name their target. A scenario's link to its spec is
+ * made by sdp, at the scenario's line: no author wrote an id there.
+ */
+const followed = async (project: Project) => {
+  const { config, graph, root } = project
+  const lines = new Map<string, ReadonlyArray<string>>()
+  const lineAt = async (source: SourceRef | undefined) => {
+    if (!source) return undefined
+    if (!lines.has(source.file)) lines.set(source.file, (await readFile(join(root, source.file), "utf8")).split("\n"))
+    return lines.get(source.file)![source.line - 1]
+  }
+  const untraceable: Array<string> = []
+  const unnamed: Array<string> = []
+  for (const node of graph.nodes()) {
+    if (await lineAt(node.source) === undefined) untraceable.push(node.id)
+  }
+  for (const edge of graph.edges()) {
+    const label = `${edge.from} -${edge.rel}-> ${edge.to}`
+    for (const source of edge.sources ?? [edge.source]) {
+      const line = await lineAt(source)
+      if (line === undefined) untraceable.push(label)
+      else if (edge.rel !== config.vocabulary.relations.scenario && !line.includes(edge.to)) unnamed.push(`${label} ${formatSource(source)}`)
+    }
+  }
+  return { untraceable, unnamed }
+}
 
+export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("the TypeScript files under {string} are searched for interpreted words", ({ args: [directory], world }) =>
     search(world, [...world.files].filter(([file]) => file.startsWith(`${directory}/`) && file.endsWith(".ts"))))
 
@@ -139,7 +197,53 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.deepEqual([...found].sort(), expected.split(",").map((s) => s.trim()).filter((s) => s !== "nothing").sort())
   })
 
-  // --- the immutable graph (ARCH-graph) -------------------------------------
+  Then("the {string} links between elements are the value imports between the modules anchored to them", ({ args: [rel], project }) =>
+    Effect.promise(async () => {
+      const architectural = (id: string) => hasKind(project.config.vocabulary, "architectural", project.graph.node(id)?.kind ?? "")
+      const declared = project.graph.edges()
+        .filter((edge) => edge.rel === rel && architectural(edge.from) && architectural(edge.to))
+        .map((edge) => `${edge.from} -${rel}-> ${edge.to}`)
+      const imported = await importsBetweenElements(project, rel)
+      const undeclared = imported.filter((link) => !declared.includes(link))
+      const unfounded = declared.filter((link) => !imported.includes(link))
+      assert.deepEqual(
+        { "imported but not declared": undeclared, "declared but not imported": unfounded },
+        { "imported but not declared": [], "declared but not imported": [] }
+      )
+    }))
+
+  Then("no element reaches itself over {string} links", ({ args: [rel], project }) => {
+    const elements = project.graph.nodes().filter((n) => hasKind(project.config.vocabulary, "architectural", n.kind))
+    const cyclic = elements.filter((element) => {
+      const back = queryProject(project, `#${element.id} -${rel}+-> #${element.id}`)
+      return Result.isSuccess(back) && back.success.nodes.length > 0
+    })
+    assert.deepEqual(cyclic.map((element) => element.id), [])
+  })
+
+  Then("every node and link of this repository is at a file and line that exist", ({ project }) =>
+    Effect.promise(async () => {
+      const { untraceable } = await followed(project)
+      assert.equal(untraceable.length, 0, `no file and line for: ${untraceable.slice(0, 10).join(", ")}`)
+    }))
+
+  Then("the line of every link of this repository contains the id it links to", ({ project }) =>
+    Effect.promise(async () => {
+      const { unnamed } = await followed(project)
+      assert.equal(unnamed.length, 0, `grep for the target would miss:\n${unnamed.slice(0, 10).join("\n")}`)
+    }))
+
+  Given("this repository has no build output", ({ project }) => {
+    const found = ["dist", "build", "out"].filter((dir) => existsSync(join(project.root, dir)))
+    assert.equal(found.length, 0, `build output found: ${found.join(", ")}`)
+  })
+
+  Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
+    const spec = project.specById.get(scenario.specId)
+    const cells = new Set((spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.flatMap((step) => step.dataTable?.flat() ?? []))))
+    const missing = Object.keys(rules).filter((rule) => !cells.has(rule))
+    assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
+  })
 
   Given("a graph built from a node {string} linked to {string} by {string}", ({ args: [from, to, rel], world }) => {
     const nodes: Array<GraphNode> = [
@@ -204,15 +308,30 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.throws(() => new Graph([node], []), new RegExp(`an attribute is JSON data, not a ${what}`))
   })
 
-  // --- stages (REQ-maturity-criteria) ------------------------------------------
-
-  Then("sdp status counts the stages {string}", ({ args: [expected], world }) =>
-    Effect.map(load(world), (project) => {
-      const stages = statusSummary(project).stages
-      assert.equal(counted(stages), expected)
+  When("the graph is built from it", ({ world }) =>
+    Effect.gen(function*() {
+      const samples: Array<number> = []
+      for (let i = 0; i < 3; i++) {
+        const started = performance.now()
+        yield* reload(world)
+        samples.push(performance.now() - started)
+      }
+      world.durationMs = samples.sort((a, b) => a - b)[1]!
     }))
-})
 
-/** `draft:1 verified:2`, by stage name. */
-const counted = (record: Readonly<Record<string, number>>) =>
-  Object.entries(record).sort(([a], [b]) => a.localeCompare(b)).map(([stage, n]) => `${stage}:${n}`).join(" ") || "nothing"
+  When("the query {string} runs on it", ({ args: [q], world }) => {
+    const graph = world.graph!
+    const samples: Array<number> = []
+    for (let i = 0; i < 7; i++) {
+      const started = performance.now()
+      const result = query(graph, q, { orderings: projectOrderings(defaultVocabulary) })
+      samples.push(performance.now() - started)
+      assert.ok(Result.isSuccess(result))
+    }
+    world.durationMs = samples.sort((a, b) => a - b)[3]!
+  })
+
+  Then("the median run completes within {int} ms", ({ args: [budget], world }) => {
+    assert.ok(world.durationMs <= budget, `median ${world.durationMs.toFixed(1)} ms exceeds ${budget} ms`)
+  })
+})

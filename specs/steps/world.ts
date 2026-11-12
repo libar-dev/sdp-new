@@ -13,7 +13,7 @@ import type { Project } from "../../src/graph/Build.ts"
 import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
+import { type Attrs, formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
 import type { RunResults } from "../../src/model/Results.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
 
@@ -189,3 +189,12 @@ export const assertRows = (
   }
   if (mode === "exactly" && remaining.length > 0) fail()
 }
+
+/** Strings as written, lists comma-separated, anything else as JSON. */
+export const show = (value: unknown): string =>
+  value === undefined ? "" : typeof value === "string" ? value : Array.isArray(value) ? value.map(show).join(", ") : JSON.stringify(value)
+
+/** `key=value` pairs in the annotation syntax, values as JSON so types stay visible: `via="events" tier=1`. */
+export const attrsText = (attrs: Attrs | undefined): string =>
+  Object.entries(attrs ?? {}).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(" ")
+

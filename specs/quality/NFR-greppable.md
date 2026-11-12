@@ -22,10 +22,8 @@ every node and edge carries the `file:line` it came from; the exports are one re
 
 ~~~gherkin
 Scenario: Every fact leads back to a line, and a link's line names its target
-  Given an agent that explores this repository with grep
-  When it follows every node and link of the graph back to its file and line
-  Then every one of them has a file and a line that exist
-  And the line of every link contains the id it links to
+  Then every node and link of this repository is at a file and line that exist
+  And the line of every link of this repository contains the id it links to
 
 Scenario: The export keeps one fact per line, whatever the text
   Given a file "specs/REQ-a.md" containing:

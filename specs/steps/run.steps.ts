@@ -1,26 +1,17 @@
 /**
- * Step definitions for executing scenarios: step definitions scripted by a
- * scenario (what they match, how they behave, which module and world they
- * belong to), runs of scenarios and of whole workspaces in memory, run results, and
- * what agents get from them (MCP tools, context bundles, the rule catalogue).
- * Shares its world with every other module (world.ts).
+ * Running scenarios in memory: step definitions a scenario scripts (what they match, how they
+ * behave, which module and world they belong to), the run, and what it recorded for each step.
  */
-import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "sdp/steps"
 import { Duration, Effect } from "effect"
-import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { execFile } from "node:child_process"
-import { isDeepStrictEqual, promisify } from "node:util"
-import { registrations } from "../../src/mcp/Server.ts"
-import { rules } from "../../src/model/Diagnostic.ts"
+import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "sdp/steps"
+import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { runWorkspace } from "../../src/app/Running.ts"
+import { isDeepStrictEqual } from "node:util"
 import type { ScenarioResult, StepResult } from "../../src/model/Results.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
-import { runWorkspace } from "../../src/app/Running.ts"
 import { readResults } from "../../src/run/Store.ts"
-import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { ids, newWorld, output, produce, reload, type World } from "./world.ts"
-
-// --- scripted step definitions ---------------------------------------------
+import { newWorld, node, reload, type World } from "./world.ts"
 
 /** A step definition a scenario asks for: what it matches, how it behaves, and where it lives. */
 export interface Scripted {
@@ -189,22 +180,11 @@ const interval = (world: World, scenario: string) => {
   return found
 }
 
-// --- results ----------------------------------------------------------------
-
 const stepsWithText = (world: World, text: string): ReadonlyArray<StepResult> => {
   assert.ok(world.run, "run the scenarios first")
   const found = Object.values(world.run.scenarios).flatMap((s) => s.examples.flatMap((p) => p.steps)).filter((s) => s.text === text)
   assert.ok(found.length > 0, `no step "${text}" in the results`)
   return found
-}
-
-/** Text from a `## <heading…>` line up to the next `## ` heading. */
-const section = (output: string, heading: string): string => {
-  const start = output.split("\n").findIndex((line) => line.startsWith(`## ${heading}`))
-  if (start < 0) return ""
-  const rest = output.split("\n").slice(start + 1)
-  const end = rest.findIndex((line) => line.startsWith("## "))
-  return (end < 0 ? rest : rest.slice(0, end)).join("\n")
 }
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
@@ -235,6 +215,17 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     return runInMemory(world, { targets: words, ...(tags ? { tags } : {}), ...(concurrency ? { concurrency: Number(concurrency) } : {}) })
   })
 
+  When("the workspace is run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, { timeout: Duration.millis(ms) }))
+
+  // The run is interrupted once the handler is waiting, however long it took to get there.
+  When("the workspace is run and interrupted while {string} runs", ({ args: [expression], world }) =>
+    Effect.raceFirst(
+      runInMemory(world),
+      Effect.gen(function*() {
+        while (!execution(world).waiting.includes(expression)) yield* Effect.sleep("5 millis")
+      })
+    ))
+
   // Two runs over the same workspace in one process, as two agents or shells would start them.
   When("the workspace is run for {string} and for {string} at the same time", ({ args: [first, second], world }) =>
     Effect.gen(function*() {
@@ -256,36 +247,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
           execution(world).progress.push(`end ${result.name}`)
         })
     }))
-
-  Then("the reporter saw {string}", ({ args: [events], world }) => {
-    assert.deepEqual(execution(world).progress, events.split(/,\s*/))
-  })
-
-  Then("the scenarios {string} and {string} overlapped", ({ args: [a, b], world }) => {
-    const [first, second] = [interval(world, a), interval(world, b)]
-    assert.ok(first.start < second.end && second.start < first.end, `"${a}" and "${b}" ran one after the other`)
-  })
-
-  Then("the scenario {string} ran alone", ({ args: [name], world }) => {
-    const alone = interval(world, name)
-    const overlapping = execution(world).timeline.filter((t) => t !== alone && t.start < alone.end && alone.start < t.end)
-    assert.equal(overlapping.length, 0, `"${name}" overlapped ${overlapping.map((t) => `"${t.scenario}"`).join(", ")}`)
-  })
-
-  When("the workspace is run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, { timeout: Duration.millis(ms) }))
-
-  // The run is interrupted once the handler is waiting, however long it took to get there.
-  When("the workspace is run and interrupted while {string} runs", ({ args: [expression], world }) =>
-    Effect.raceFirst(
-      runInMemory(world),
-      Effect.gen(function*() {
-        while (!execution(world).waiting.includes(expression)) yield* Effect.sleep("5 millis")
-      })
-    ))
-
-  Then("the handler of {string} saw its signal abort", ({ args: [expression], world }) => {
-    assert.ok(execution(world).aborted.includes(expression), `the signal of "${expression}" did not abort`)
-  })
 
   Then("the step {string} has status {string}", ({ args: [text, status], world }) => {
     for (const step of stepsWithText(world, text)) assert.equal(step.status, status, `status of "${text}"${step.error ? `: ${step.error}` : ""}`)
@@ -321,64 +282,22 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(received.some((t) => isDeepStrictEqual(t, table)), `received ${JSON.stringify(received)}`)
   })
 
-  // --- the step API ---------------------------------------------------------
-
-  // Every module the import loads, one URL per line, as a load hook sees them.
-  When("a fresh Node process imports {string}", async ({ args: [specifier], project, world }) => {
-    const script = [
-      `import { registerHooks } from "node:module"`,
-      `registerHooks({ load: (url, context, nextLoad) => (console.log(url), nextLoad(url, context)) })`,
-      `await import(${JSON.stringify(specifier)})`
-    ].join("\n")
-    const { stdout: loaded } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script], { cwd: project.root })
-    produce(world, loaded)
+  Then("the handler of {string} saw its signal abort", ({ args: [expression], world }) => {
+    assert.ok(execution(world).aborted.includes(expression), `the signal of "${expression}" did not abort`)
   })
 
-  // --- MCP and context ------------------------------------------------------
-
-  When("an agent lists the MCP tools", ({ world }) =>
-    Effect.gen(function*() {
-      const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
-      execution(world).tools = (yield* client.listTools()).tools
-    }).pipe(Effect.scoped, Effect.provide(layerMemoryWorkspace(world.files))))
-
-  Then("the MCP tools are {string}", ({ args: [list], world }) => {
-    assert.deepEqual(execution(world).tools.map((t) => t.name).sort(), ids(list))
+  Then("the scenarios {string} and {string} overlapped", ({ args: [a, b], world }) => {
+    const [first, second] = [interval(world, a), interval(world, b)]
+    assert.ok(first.start < second.end && second.start < first.end, `"${a}" and "${b}" ran one after the other`)
   })
 
-  Then("every MCP tool is marked {string}", ({ args: [hints], world }) => {
-    for (const tool of execution(world).tools) {
-      for (const hint of hints.split(/,\s*/)) {
-        assert.equal(tool.annotations?.[hint], true, `${tool.name} is not marked ${hint}: ${JSON.stringify(tool.annotations)}`)
-      }
-    }
+  Then("the scenario {string} ran alone", ({ args: [name], world }) => {
+    const alone = interval(world, name)
+    const overlapping = execution(world).timeline.filter((t) => t !== alone && t.start < alone.end && alone.start < t.end)
+    assert.equal(overlapping.length, 0, `"${name}" overlapped ${overlapping.map((t) => `"${t.scenario}"`).join(", ")}`)
   })
 
-  // The MCP call step (sdp.steps.ts) records whether the tool answered with an error.
-  Then("the MCP tool reports an error", ({ world }) => {
-    assert.equal(world.scratch.mcpError, true, `expected a tool error, got:\n${output(world)}`)
-  })
-
-  // The `## ` headings of a Markdown document, in the order they come.
-  Then("the sections of the output are {string}", ({ args: [expected], world }) => {
-    const headings = output(world).split("\n").filter((line) => line.startsWith("## ")).map((line) => line.slice(3))
-    assert.deepEqual(headings, expected.split(",").map((heading) => heading.trim()))
-  })
-
-  Then("the output section {string} contains {string}", ({ args: [heading, text], world }) => {
-    assert.ok(section(output(world), heading).includes(text), `section "${heading}" does not contain ${JSON.stringify(text)}:\n${output(world)}`)
-  })
-
-  Then("the output section {string} does not contain {string}", ({ args: [heading, text], world }) => {
-    assert.ok(!section(output(world), heading).includes(text), `section "${heading}" contains ${JSON.stringify(text)}:\n${output(world)}`)
-  })
-
-  // --- this repository ------------------------------------------------------
-
-  Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
-    const spec = project.specById.get(scenario.specId)
-    const cells = new Set((spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.flatMap((step) => step.dataTable?.flat() ?? []))))
-    const missing = Object.keys(rules).filter((rule) => !cells.has(rule))
-    assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
+  Then("the reporter saw {string}", ({ args: [events], world }) => {
+    assert.deepEqual(execution(world).progress, events.split(/,\s*/))
   })
 })

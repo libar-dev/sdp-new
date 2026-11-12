@@ -639,7 +639,7 @@ Scenario: A world factory that throws fails the step that needs the world
   When the workspace is run
   Then the step "an empty cart" has status "failed"
   And the step "an empty cart" reports "could not create the world of"
-  And the step "an empty cart" reports "execution.steps.ts: deliberate failure in the world factory"
+  And the step "an empty cart" reports "run.steps.ts: deliberate failure in the world factory"
   And the step "I add a lamp" has status "skipped"
 ~~~
 
