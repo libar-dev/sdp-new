@@ -61,6 +61,22 @@ Scenario Outline: Each rule reports its problem with its severity, at the line t
     | annotation-ignored  | warning  | src/cart.py      | 6    |                                                      | total = 0  # @sdp implements REQ-a                                                    |
     | template-placeholder | warning | specs/DEC-0001.md | 6    | { id: DEC-0001 }                                     | Not <what a reasonable person would have chosen>, because <why>.                      |
 
+Scenario Outline: Each rule of the Gherkin format reports its problem with its severity, at the line to fix
+  Given a file "specs/REQ-a.feature" containing:
+    """
+    <content>
+    """
+  When the workspace is checked
+  Then sdp reports at least:
+    | rule   | severity   | at                         |
+    | <rule> | <severity> | specs/REQ-a.feature:<line> |
+
+  Examples:
+    | rule                  | severity | line | content                                                        |
+    | annotation            | error    | 1    | @id=REQ-a @uses:A,B\nFeature: A                                |
+    | description-comment   | warning  | 4    | @id=REQ-a\nFeature: A\n  Why:\n  # not read\n  because.        |
+    | scenario-outside-rule | error    | 3    | @id=REQ-a\nFeature: A\n  Scenario: S\n    Then it works        |
+
 Scenario Outline: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
   Given a file "specs/PLAN.md" containing:
     """

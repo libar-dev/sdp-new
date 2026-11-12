@@ -120,15 +120,23 @@ export const defaultVocabulary: Vocabulary = {
 export const made = {
   kinds: {
     scenario: "scenario",
+    /** A `Rule:` of a spec: what must hold, with its scenarios as examples. */
+    rule: "rule",
     /** An annotated declaration or file. */
     code: "code",
     /** What an unresolved reference points at. */
     missing: "missing"
   },
+  /** From a rule to the spec it is a rule of. */
+  relations: { rule: "rule-of" },
+  /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
+  tags: { gate: "@gate", serial: "@serial", open: "@open" },
   /** Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error. */
   attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
   /** Facts sdp computes on scenario nodes. */
-  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "ruleDescription", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  /** Facts sdp computes on rule nodes. */
+  ruleAttributes: ["spec", "description", "tags", "scenarios", "verification"],
   /** What sdp records on a code node: where the annotated declaration is and what its own comment says of it. */
   codeAttributes: ["file", "symbol", "doc"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
@@ -197,7 +205,8 @@ export const activityRelation = (vocabulary: Vocabulary, discipline: string): st
 /** Whether an attribute is one sdp computes on nodes of `kind`. */
 export const isDerived = (kind: string, key: string): boolean =>
   (made.attributes as ReadonlyArray<string>).includes(key) ||
-  (kind === made.kinds.scenario && (made.scenarioAttributes as ReadonlyArray<string>).includes(key))
+  (kind === made.kinds.scenario && (made.scenarioAttributes as ReadonlyArray<string>).includes(key)) ||
+  (kind === made.kinds.rule && (made.ruleAttributes as ReadonlyArray<string>).includes(key))
 
 /** Every word the profile names, by what it is: for the unknown words of queries and the guard of ARCH-vocabulary. */
 export const vocabularyWords = (vocabulary: Vocabulary) => ({
@@ -222,6 +231,12 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     attributes: made.attributes,
     /** The attributes of a scenario node. */
     scenarioAttributes: made.scenarioAttributes,
+    /** The attributes of a rule node. */
+    ruleAttributes: made.ruleAttributes,
+    /** The relations sdp makes between the nodes it makes and their specs. */
+    relations: Object.values(made.relations),
+    /** The Cucumber tags sdp reads. */
+    tags: Object.values(made.tags),
     /** The attributes of a code node. */
     codeAttributes: made.codeAttributes,
     /** The stages beyond the maturity ladder. */

@@ -19,7 +19,7 @@ Authors declare how mature a spec is, and `sdp check` holds the claim to the con
 results ([[REQ-executable-specs]]).
 
 The criteria check the *shape* of a spec, never its quality. `ready` means structurally ready:
-nothing is left open and every scenario is complete. It does not mean the design behind the spec
+nothing is left open, every rule has an example and every scenario is complete. It does not mean the design behind the spec
 is decided or anyone has reviewed it — sdp cannot know that, and a placeholder paragraph with a
 token scenario passes ([[RISK-0004]]). What else "ready" has to mean is the team's Definition of
 Ready, which the team writes as a gate of its own.
@@ -61,6 +61,52 @@ Scenario Outline: Each level asks for more of the content, and a claim the conte
     | ready     | Analysts want data in Excel.\n\n## Open questions\n- [ ] Archived rows too?\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                            | maturity-criteria |
     | ready     | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  Then I get a file\n\nScenario: Import\n  When I import a file\n```                            | maturity-criteria |
     | ready     | Analysts want data in Excel.\n\n## Open questions\n- [x] Which delimiter? Comma.\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                       | nothing           |
+
+Scenario Outline: From ready on, a rule is a to-do until it has an example, and a rule or a scenario tagged @open is a question
+  So a draft's rules are a checked list of what is still to specify.
+
+  Given a file "specs/REQ-csv.feature" containing:
+    """
+    @id=REQ-csv @maturity=<claimed>
+    Feature: Export to CSV
+
+      Analysts want data in Excel.
+
+      Rule: Every row is exported
+
+        Scenario: Export
+          Then I get a file
+
+      <second>
+    """
+  When the workspace is checked
+  Then sdp reports "<reported>"
+
+  Examples:
+    | claimed   | second                                                                  | reported          |
+    | specified | Rule: Archived rows too                                                 | nothing           |
+    | ready     | Rule: Archived rows too                                                 | maturity-criteria |
+    | ready     | Rule: Archived rows too\n  Scenario: Archive\n    Then they are exported | nothing           |
+    | ready     | @open\nRule: Archived rows too?                                         | maturity-criteria |
+    | ready     | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?     | maturity-criteria |
+
+Scenario: What keeps a spec from ready names the first open question and the first rule without an example
+  Given a file "specs/REQ-csv.feature" containing:
+    """
+    @id=REQ-csv @maturity=ready
+    Feature: Export to CSV
+
+      Analysts want data in Excel.
+
+      Rule: Archived rows are exported too
+
+      @open
+      Rule: Which delimiter?
+    """
+  When the workspace is checked
+  Then sdp reports:
+    | rule              | line | message                                                                                                      |
+    | maturity-criteria | 1    | 1 open question(s), e.g. "Which delimiter?" (line 9); rule "Archived rows are exported too" has no example (line 6) |
 
 Scenario Outline: A node declared inline or in code has only a title, so it can claim no more than the first level
   Given a file "<file>" containing:

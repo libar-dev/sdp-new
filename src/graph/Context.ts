@@ -1,8 +1,9 @@
 /**
  * A context bundle: everything an agent (or a new team member) needs to work
  * on one node, as a single Markdown document. It leads with the contract —
- * the names of the node's scenarios with their status and the step
- * definitions still to write — then the spec itself, why it is not ready yet,
+ * the node's rules with their state and reason, the names of its scenarios
+ * with their status and the step definitions still to write — then the spec
+ * itself, why it is not ready yet, what rests on it rule by rule,
  * its relationships, the architecture, quality requirements and decisions in
  * reach, and the code linked to it. What is in reach is reached through
  * links: a prose mention is listed as a relationship but leads no further.
@@ -11,12 +12,14 @@ import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { description } from "../arch/Architecture.ts"
 import { unmetCriteria } from "../check/Check.ts"
-import { formatSource, type GraphNode } from "../model/Graph.ts"
+import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
 import { attribute, criteria, hasKind, isDerived, isDriver, isMention, isPlanKind, made } from "../model/Vocabulary.ts"
+import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
 import type { Project } from "./Build.ts"
+import { ruleState } from "./Status.ts"
 
 /** The step definitions of the workspace, so the bundle can show what is not automated yet before any run. */
 export interface ContextSteps {
@@ -45,19 +48,15 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   }
   if (spec) out.push(...notReady(project, spec))
 
-  // The contract first: a scenario's name is the rule it pins, so the names with their status are the reference page.
-  if (spec && spec.scenarios.length > 0) {
-    out.push(`## Scenarios (${spec.scenarios.length})`, "")
-    let rule: string | undefined
-    for (const s of spec.scenarios) {
-      // A rule with what it says must hold, then its examples.
-      if (s.rule !== undefined && s.rule !== rule) {
-        if (out.at(-1) !== "") out.push("")
-        out.push(`### ${s.rule}`, "", ...(s.ruleDescription ? [s.ruleDescription, ""] : []))
-      }
-      rule = s.rule
+  // The contract first: each rule with its state, what it rests on and why it holds, then its
+  // examples with their status. Scenarios outside a rule come where they are written.
+  if (spec && spec.scenarios.length + spec.rules.length > 0) {
+    const open = spec.openQuestions.filter((q) => !q.resolved).length
+    const counts = [`${spec.rules.length} rule(s)`, `${spec.scenarios.length} scenario(s)`, ...(open > 0 ? [`${open} open`] : [])]
+    out.push("## Contract", "", counts.join(", "), "")
+    const scenarioLines = (s: Scenario) => {
       const status = graph.node(s.id)?.attrs.status ?? "unrun"
-      out.push(`- [${String(status)}] ${s.name} — ${spec.file}:${s.line}`)
+      out.push(`- [${s.tags.includes(made.tags.open) ? "open" : String(status)}] ${s.name} — ${spec.file}:${s.line}`)
       // What only a run knows (failures, pending steps) comes from fresh results; what is not
       // automated yet comes from matching the current step definitions, so it needs no run.
       const result = project.results?.scenarios[s.id]
@@ -84,8 +83,20 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
         }
       }
     }
+    const written: ReadonlyArray<Rule | Scenario> = [...spec.rules, ...spec.scenarios.filter((s) => s.rule === undefined)]
+    for (const element of [...written].sort((a, b) => a.line - b.line)) {
+      if ("pickles" in element) {
+        scenarioLines(element)
+        continue
+      }
+      const rests = graph.out(element.id).filter((e) => e.rel !== made.relations.rule).map((e) => ` · ${e.rel} ${e.to}`).join("")
+      if (out.at(-1) !== "") out.push("")
+      out.push(`### ${element.name}`, `[${ruleState(graph.node(element.id)!)}] — ${spec.file}:${element.line}${rests}`, "")
+      if (element.description) out.push(element.description, "")
+      spec.scenarios.filter((s) => s.rule === element.id).forEach(scenarioLines)
+    }
     out.push("")
-    if (steps) {
+    if (steps && spec.scenarios.length > 0) {
       out.push(
         "## Step definitions",
         "",
@@ -103,8 +114,22 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
 
   if (spec) out.push("## Specification", "", spec.body.trim(), "")
 
-  const outgoing = graph.out(id).filter((e) => e.rel !== vocabulary.relations.scenario)
-  const incoming = graph.in(id).filter((e) => e.rel !== vocabulary.relations.scenario)
+  // A scenario and a rule are the contract above, not relationships.
+  const structural = (e: GraphEdge) => e.rel === vocabulary.relations.scenario || e.rel === made.relations.rule
+  const outgoing = graph.out(id).filter((e) => !structural(e))
+  const madeNodes: ReadonlyArray<string> = [made.kinds.rule, made.kinds.scenario]
+  const resting = graph.in(id).filter((e) => !structural(e) && madeNodes.includes(graph.node(e.from)?.kind ?? ""))
+  const incoming = graph.in(id).filter((e) => !structural(e) && !resting.includes(e))
+  // What rests on this node rule by rule: the rules and scenarios of other specs that link to it.
+  if (resting.length > 0) {
+    out.push("## Rules that rest on this", "")
+    for (const e of resting) {
+      const from = graph.node(e.from)!
+      const state = from.kind === made.kinds.rule ? from.attrs.verification : from.attrs.status
+      out.push(`- [${String(state)}] ${from.title} (${e.rel}) — ${String(from.attrs.spec)} ${formatSource(from.source)}`)
+    }
+    out.push("")
+  }
   if (outgoing.length + incoming.length > 0) {
     out.push("## Relationships", "")
     // A node that several links lead to says what it is once.

@@ -72,17 +72,31 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       }
     }))
 
+  // One spec per row, its tag line and the name of its Feature: the whole file, specs/<id>.feature.
+  Given("these specs:", ({ table, world }) => {
+    const [header = [], ...rows] = table ?? []
+    const cell = (row: ReadonlyArray<string>, name: string) => row[header.indexOf(name)] ?? ""
+    for (const row of rows) {
+      const tags = cell(row, "tags")
+      const id = /@id=(\S+)/.exec(tags)?.[1]
+      assert.ok(id, `a spec needs an @id= tag: ${tags}`)
+      setFile(world, `specs/${id}.feature`, `${tags}\nFeature: ${cell(row, "Feature")}\n`)
+    }
+  })
+
   Given("a chain of {int} nodes linked by {string}", ({ args: [count, rel], world }) => {
-    const nodes = Array.from({ length: count }, (_, i) =>
-      `  - { id: N${i + 1}, kind: node${i + 1 < count ? `, links: { ${rel}: N${i + 2} }` : ""} }`)
-    setFile(world, "chain.md", `---\nid: CHAIN\nkind: chain\nnodes:\n${nodes.join("\n")}\n---\n# Chain\n`)
+    for (let i = 1; i <= count; i++) {
+      setFile(world, `specs/N${i}.feature`, `@id=N${i} @kind=node${i}${i < count ? ` @${rel}:N${i + 1}` : ""}\nFeature: N${i}\n`)
+    }
   })
 
   // Members M1…Mn of kind "member": n × (n-1) edges, so two hops make n × (n-1)² paths.
   Given("{int} nodes, each linked to all the others by {string}", ({ args: [count, rel], world }) => {
     const members = Array.from({ length: count }, (_, i) => `M${i + 1}`)
-    const nodes = members.map((id) => `  - { id: ${id}, kind: member, links: { ${rel}: [${members.filter((m) => m !== id).join(", ")}] } }`)
-    setFile(world, "mesh.md", `---\nid: MESH\nkind: mesh\nnodes:\n${nodes.join("\n")}\n---\n# Mesh\n`)
+    for (const id of members) {
+      const links = members.filter((m) => m !== id).map((m) => `@${rel}:${m}`).join(" ")
+      setFile(world, `specs/${id}.feature`, `@id=${id} @kind=member ${links}\nFeature: ${id}\n`)
+    }
   })
 
   Given("a generated graph of {int} nodes and {int} edges", ({ args: [nodeCount, edgeCount], world }) => {
@@ -108,9 +122,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     for (let i = 0; i < count; i++) {
       setFile(
         world,
-        `specs/REQ-${i}.md`,
-        `---\nid: REQ-${i}\nmaturity: specified\nlinks:\n  depends-on: REQ-${(i * 7) % count}\n---\n# Requirement ${i}\n\n` +
-          `Refines [[REQ-${(i * 3) % count}]].\n\n\`\`\`gherkin\nScenario: Works\n  Given a thing ${i}\n  When it is used\n  Then it works\n\`\`\`\n`
+        `specs/REQ-${i}.feature`,
+        `@id=REQ-${i} @maturity=specified @depends-on:REQ-${(i * 7) % count} @refines:REQ-${(i * 3) % count}\nFeature: Requirement ${i}\n\n` +
+          `  Requirement ${i} works.\n\n  Rule: It works\n\n    Scenario: Works\n      Given a thing ${i}\n      When it is used\n      Then it works\n`
       )
     }
   })

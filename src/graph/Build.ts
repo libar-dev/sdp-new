@@ -175,21 +175,22 @@ export const buildProject = (input: ProjectInput): Project => {
   const specById = new Map<string, Spec>()
   for (const spec of specs) {
     if (!specById.has(spec.id)) specById.set(spec.id, spec)
-    const statuses: Array<StepStatus | undefined> = []
+    const statuses = new Map<string, StepStatus | undefined>()
     for (const scenario of spec.scenarios) {
       const { lastRun, stale, status } = evidence?.settle(scenario) ?? unrun
-      statuses.push(status)
+      statuses.set(scenario.id, status)
+      const at = (key: string): SourceRef => ({ file: spec.file, line: scenario.attrLines[key] ?? scenario.line })
       declare({
         id: scenario.id,
         kind: made.kinds.scenario,
         title: scenario.name,
         attrs: compact({
+          ...authored(scenario.id, made.kinds.scenario, scenario.attrs, at),
           spec: spec.id,
           keyword: scenario.keyword,
           tags: scenario.tags.length > 0 ? scenario.tags : undefined,
           description: scenario.description,
           rule: scenario.rule,
-          ruleDescription: scenario.ruleDescription,
           steps: scenario.steps.length,
           examples: scenario.pickles.length > 1 ? scenario.pickles.length : undefined,
           status: status ?? (stale ? "stale" : "unrun"),
@@ -199,9 +200,32 @@ export const buildProject = (input: ProjectInput): Project => {
         }),
         source: { file: spec.file, line: scenario.line }
       })
-      edges.push({ from: scenario.id, rel: vocabulary.relations.scenario, to: spec.id, source: { file: spec.file, line: scenario.line } })
+      // A scenario verifies its spec, and the rule it is an example of.
+      for (const verified of [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])]) {
+        edges.push({ from: scenario.id, rel: vocabulary.relations.scenario, to: verified, source: { file: spec.file, line: scenario.line } })
+      }
     }
-    const verification: Verification = verificationOf(statuses)
+    // A rule is a node from the day it is written: what must hold, why, and what its examples show so far.
+    for (const rule of spec.rules) {
+      const examples = spec.scenarios.filter((scenario) => scenario.rule === rule.id)
+      const at = (key: string): SourceRef => ({ file: spec.file, line: rule.attrLines[key] ?? rule.line })
+      declare({
+        id: rule.id,
+        kind: made.kinds.rule,
+        title: rule.name,
+        attrs: compact({
+          ...authored(rule.id, made.kinds.rule, rule.attrs, at),
+          spec: spec.id,
+          description: rule.description,
+          tags: rule.tags.length > 0 ? rule.tags : undefined,
+          scenarios: examples.length,
+          verification: verificationOf(examples.map((scenario) => statuses.get(scenario.id)))
+        }),
+        source: { file: spec.file, line: rule.line }
+      })
+      edges.push({ from: rule.id, rel: made.relations.rule, to: spec.id, source: { file: spec.file, line: rule.line } })
+    }
+    const verification: Verification = verificationOf([...statuses.values()])
     if (!nodes.has(spec.id)) verifications.set(spec.id, verification)
     const openQuestions = spec.openQuestions.filter((q) => !q.resolved).length
     const at = (key: string): SourceRef => ({ file: spec.file, line: lineOfKey(spec.attrLines, key) ?? 1 })
@@ -281,8 +305,11 @@ export const buildProject = (input: ProjectInput): Project => {
   // vocabulary names as links — plan and phase relations, each discipline of `activity`, and the
   // workspace's own link keys. Every other attribute is a value.
   for (const spec of specs) {
-    for (const link of spec.links) {
-      edges.push({ from: spec.id, rel: link.rel, to: link.to, attrs: link.attrs, source: { file: spec.file, line: link.line } })
+    // What the tags of a Rule or a Scenario link is linked from that node.
+    for (const { id, links } of [{ id: spec.id, links: spec.links }, ...spec.rules, ...spec.scenarios]) {
+      for (const link of links) {
+        edges.push({ from: id, rel: link.rel, to: link.to, attrs: link.attrs, source: { file: spec.file, line: link.line } })
+      }
     }
     for (const inline of spec.inlineNodes) {
       for (const link of inline.links) {
@@ -324,7 +351,9 @@ export const buildProject = (input: ProjectInput): Project => {
         : `${edge.from} -${edge.rel}-> ${edge.to}: ${edge.rel} is already an attribute of ${edge.from}, so a link from it cannot have that name; the link is ignored`,
       node: edge.from,
       source: edge.source,
-      hint: "give the relation another name: a link reads as an attribute of the node it starts from, so `[key=value]` must mean one thing"
+      hint: reserved
+        ? `${edge.rel} is a value, written with =: @${edge.rel}=${edge.to}`
+        : "give the relation another name: a link reads as an attribute of the node it starts from, so `[key=value]` must mean one thing"
     }))
     return false
   })

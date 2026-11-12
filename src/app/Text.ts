@@ -76,6 +76,7 @@ export const status = (summary: StatusSummary): string => {
     counts("kinds", summary.kinds),
     counts("relations", summary.relations),
     counts("stages", summary.stages),
+    counts("rules", summary.rules),
     counts("scenarios", summary.scenarios),
     counts("gates", summary.gates),
     counts("milestones", summary.milestones),

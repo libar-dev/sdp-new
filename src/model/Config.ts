@@ -59,6 +59,7 @@ export const ConfigFile = Schema.Struct({
   results: Schema.optional(Schema.String),
   types: Schema.optional(Schema.String),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  rules: Schema.optional(Schema.Literals(["required", "optional"])),
   vocabulary: Schema.optional(VocabularyFile)
 }).check(Schema.makeFilter((file) => configProblems(file)))
 export type ConfigFile = typeof ConfigFile.Type
@@ -82,6 +83,8 @@ export interface Config {
   readonly types: string
   /** Id prefixes used by `sdp new` and to infer a kind, keyed by kind (a record without a prototype). */
   readonly ids: Readonly<Record<string, string>>
+  /** Whether every scenario of a feature file with an `@id=` must be an example of a `Rule:`. */
+  readonly rules: "required" | "optional"
   /** The words sdp interprets (ARCH-vocabulary). */
   readonly vocabulary: Vocabulary
 }
@@ -116,6 +119,7 @@ export const defaults: Config = {
   results: ".sdp/results.json",
   types: ".sdp/ids.d.ts",
   ids: record(defaultIds),
+  rules: "required",
   vocabulary: defaultVocabulary
 }
 
@@ -150,6 +154,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     results: file.results ?? defaults.results,
     types: file.types ?? defaults.types,
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
+    rules: file.rules ?? defaults.rules,
     vocabulary: resolveVocabulary(file.vocabulary)
   }
 }

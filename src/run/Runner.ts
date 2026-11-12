@@ -7,6 +7,7 @@ import { annotate } from "sdp/annotations"
 import { Cause, DateTime, Duration, Effect, Exit, Fiber, Predicate, Queue, Schema } from "effect"
 import type { Project } from "../graph/Build.ts"
 import { type ExampleResult, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "../model/Results.ts"
+import { made } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { Snapshot } from "./Evidence.ts"
@@ -202,7 +203,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
 
   // Scenarios run concurrently when asked to, except `@serial` ones (timings, shared resources),
   // which run alone afterwards. Whatever finishes first, one publisher reports them in this order.
-  const isSerial = ({ pickles }: Selected) => pickles.some((p) => p.tags.includes("@serial"))
+  const isSerial = ({ pickles }: Selected) => pickles.some((p) => p.tags.includes(made.tags.serial))
   const together = selected.filter((item) => !isSerial(item))
   const alone = selected.filter(isSerial)
   const finished = yield* Queue.unbounded<readonly [position: number, result: ScenarioResult]>()

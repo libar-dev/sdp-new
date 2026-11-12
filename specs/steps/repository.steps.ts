@@ -11,7 +11,7 @@ import { parseSync } from "oxc-parser"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
-import { defaultVocabulary, hasKind, vocabularyWords } from "../../src/model/Vocabulary.ts"
+import { defaultVocabulary, hasKind, made, vocabularyWords } from "../../src/model/Vocabulary.ts"
 import type { Project } from "../../src/graph/Build.ts"
 import { existsSync } from "node:fs"
 import { rules } from "../../src/model/Diagnostic.ts"
@@ -153,6 +153,8 @@ const builtGraph = (world: World) => {
  */
 const followed = async (project: Project) => {
   const { config, graph, root } = project
+  // A scenario's edges and a rule's edge to its spec are at their keyword line, which names neither end.
+  const structural = [config.vocabulary.relations.scenario, made.relations.rule]
   const lines = new Map<string, ReadonlyArray<string>>()
   const lineAt = async (source: SourceRef | undefined) => {
     if (!source) return undefined
@@ -169,7 +171,7 @@ const followed = async (project: Project) => {
     for (const source of edge.sources ?? [edge.source]) {
       const line = await lineAt(source)
       if (line === undefined) untraceable.push(label)
-      else if (edge.rel !== config.vocabulary.relations.scenario && !line.includes(edge.to)) unnamed.push(`${label} ${formatSource(source)}`)
+      else if (!structural.includes(edge.rel) && !line.includes(edge.to)) unnamed.push(`${label} ${formatSource(source)}`)
     }
   }
   return { untraceable, unnamed }

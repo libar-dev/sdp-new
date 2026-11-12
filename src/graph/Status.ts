@@ -1,7 +1,7 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { check } from "../check/Check.ts"
-import { tally } from "../model/Graph.ts"
+import { type GraphNode, tally } from "../model/Graph.ts"
 import { hasKind, made, metOn } from "../model/Vocabulary.ts"
 import { isClosed, isGate } from "../run/Evidence.ts"
 import type { Project } from "./Build.ts"
@@ -15,6 +15,12 @@ const counted = (values: ReadonlyArray<unknown>, order: ReadonlyArray<string> = 
 }
 
 const resultOrder = ["passed", "failed", "pending", "undefined", "unrun", "stale"]
+
+/** Where a rule stands: a question still `open`, a rule with `no example` yet, or what its examples verify. */
+export const ruleState = (rule: GraphNode): string => {
+  const tags = rule.attrs.tags
+  return Array.isArray(tags) && tags.includes(made.tags.open) ? "open" : rule.attrs.scenarios === 0 ? "no example" : String(rule.attrs.verification)
+}
 
 /** One-screen summary of the delivery state: what `sdp status` and the MCP tool answer with. */
 export const statusSummary = (project: Project) => {
@@ -33,6 +39,8 @@ export const statusSummary = (project: Project) => {
     relations: Object.fromEntries(graph.relations()),
     /** Counted the way every report counts stages: each node that has one. */
     stages: counted(graph.nodes().flatMap((n) => Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []), stageLadder(vocabulary).flat()),
+    /** Rules by where they stand: what their examples verify, or that they have none yet or are open. */
+    rules: counted(graph.ofKind([made.kinds.rule]).map(ruleState), ["passing", "failing", "partial", "undefined", "unrun", "no example", "open"]),
     scenarios: counted(scenarios.filter((n) => !gates.has(n.id)).map((n) => n.attrs.status), resultOrder),
     /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
     gates: counted(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status), resultOrder),

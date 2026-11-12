@@ -10,10 +10,10 @@
  *   phase      a name for a group of iterations, in the order of its first
  *   milestone  ends what it closes, a phase or an iteration, and with it the
  *              stretch of the timeline since the milestone before
- *   work       nodes linked to an iteration (`iteration: E2`): its kind's
- *              discipline is planned there, and `activity:` plans any
- *              discipline into iterations of its own
- *              (`activity: { implementation: C1, test: [C1, T1] }`)
+ *   work       nodes linked to an iteration (`@iteration:E2`): its kind's
+ *              discipline is planned there, and a link named for a
+ *              discipline plans that one into iterations of its own
+ *              (`@activity.implementation:C1 @activity.test:T1`)
  *
  * Plan facts are read as edges, which every link key yields whichever way it
  * is written. No other edge counts — a `[[E2]]` mention plans nothing — and a
@@ -23,7 +23,7 @@
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import { type GraphNode, tally } from "../model/Graph.ts"
+import { type GraphEdge, type GraphNode, tally } from "../model/Graph.ts"
 import { activityRelation, attribute, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
@@ -100,19 +100,6 @@ const notExecuted = new Set(["unrun", "stale"])
 
 const unique = <A>(values: Iterable<A>): Array<A> => [...new Set(values)]
 
-/**
- * `activity:` as written: each discipline with the values given for it (one iteration id or a
- * list). Undefined when the node has no `activity`, or when it is not a mapping.
- */
-export const declaredActivity = (
-  vocabulary: Vocabulary,
-  attrs: Readonly<Record<string, unknown>>
-): ReadonlyMap<string, ReadonlyArray<unknown>> | undefined => {
-  const value = attribute({ attrs }, vocabulary.attributes.activity)
-  if (!Predicate.isObject(value) || Array.isArray(value)) return undefined
-  return new Map(Object.entries(value).map(([discipline, its]) => [discipline, Array.isArray(its) ? its : its == null ? [] : [its]]))
-}
-
 /** The iterations an edge relation leads to from `node`, each once. */
 const iterationsBy = (project: Project, node: GraphNode, matches: (rel: string) => boolean): ReadonlyArray<string> => {
   const { graph } = project
@@ -128,17 +115,23 @@ const iterationsBy = (project: Project, node: GraphNode, matches: (rel: string) 
 export const planIterations = (project: Project, node: GraphNode): ReadonlyArray<string> =>
   iterationsBy(project, node, (rel) => hasRelation(project.config.vocabulary, "plan", rel))
 
+/** The disciplines whose work on a node is planned by its own edges, `activity.implementation:C1`. */
+export const plannedDisciplines = (project: Project, node: GraphNode): ReadonlyMap<string, GraphEdge> => {
+  const prefix = activityRelation(project.config.vocabulary, "")
+  return new Map(project.graph.out(node.id).filter((edge) => edge.rel.startsWith(prefix)).map((edge) => [edge.rel.slice(prefix.length), edge]))
+}
+
 /**
- * The discipline work planned on a node. A discipline its `activity:` names is planned into the
- * iterations named there (an empty list plans none); every other discipline whose kinds include
- * the node's kind is planned into the iterations of its plan relations.
+ * The discipline work planned on a node. A discipline with an edge of its own is planned into the
+ * iterations those edges name; every other discipline whose kinds include the node's kind is
+ * planned into the iterations of its plan relations.
  */
 export const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<PlannedActivity> => {
   const vocabulary = project.config.vocabulary
-  const declared = declaredActivity(vocabulary, node.attrs)
+  const declared = plannedDisciplines(project, node)
   const home = planIterations(project, node)
   return [...vocabulary.disciplines].flatMap(([discipline, kinds]) => {
-    const iterations = declared?.has(discipline)
+    const iterations = declared.has(discipline)
       ? iterationsBy(project, node, (rel) => rel === activityRelation(vocabulary, discipline))
       : kinds.includes(node.kind)
       ? home

@@ -1,23 +1,27 @@
 /**
- * A spec is any Markdown file whose front matter has an `id`. The same format
- * covers an idea written in one line and a fully designed, executable
- * specification: maturity is a property of the content, not of the format.
+ * A spec is a Gherkin file whose Feature's tags say what it is: `@id=REQ-x`, its kind, its
+ * attributes and its links. A Markdown file whose front matter has an `id` is one too, with its
+ * Gherkin in fences, until the last of them is converted. Either way the same format covers an
+ * idea written in one line and a fully designed, executable specification: maturity is a property
+ * of the content, not of the format.
  */
 import { annotate } from "sdp/annotations"
-import { Predicate } from "effect"
+import { Predicate, Result } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
 import { activityRelation, linkKeys, made, type Vocabulary } from "../model/Vocabulary.ts"
-import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
+import {
+  type GherkinError,
+  gherkinLangs,
+  type GherkinResult,
+  type LinkDecl,
+  parseFeatureFile,
+  parseGherkinFences,
+  type Rule,
+  type Scenario
+} from "./Gherkin.ts"
 import { type Json, type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
-
-export interface LinkDecl {
-  readonly rel: string
-  readonly to: string
-  readonly attrs?: Attrs | undefined
-  readonly line: number
-}
 
 /** A node declared inside another spec's front matter (`nodes:`), e.g. phases and iterations of a plan. */
 export interface InlineNode {
@@ -44,10 +48,12 @@ export interface Spec {
   readonly references: ReadonlyArray<Reference>
   readonly inlineNodes: ReadonlyArray<InlineNode>
   readonly scenarios: ReadonlyArray<Scenario>
+  /** The `Rule:` blocks: what must hold, each with its reason; the scenarios name the rule they are examples of. */
+  readonly rules: ReadonlyArray<Rule>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
   /** The first paragraph: the description the criteria of draft ask for. */
   readonly summary: string
-  /** Paragraphs, lists and quotes, as written. */
+  /** Paragraphs, lists and quotes, as written; of a Feature, the paragraphs of its description. */
   readonly prose: ReadonlyArray<Prose>
   readonly sections: ReadonlyArray<Section>
   readonly body: string
@@ -105,16 +111,7 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
   if (tags.length > 0) attrs.tags = tags
 
   const gherkin = parseGherkinFences({ specId: id, title, tags: [...tags, kind], fences: md.fences })
-  // Parse errors cascade; the first one is what needs fixing.
-  for (const error of gherkin.errors.slice(0, 1)) {
-    const more = gherkin.errors.length > 1 ? ` (and ${gherkin.errors.length - 1} follow-on errors)` : ""
-    diagnostics.push(diagnostic("gherkin-syntax", {
-      message: `${error.message}${more}`,
-      node: id,
-      source: { file, line: error.line },
-      hint: gherkinHint
-    }))
-  }
+  diagnostics.push(...gherkinDiagnostics(id, file, gherkin))
 
   return {
     spec: {
@@ -129,7 +126,8 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       references: md.references,
       inlineNodes: readInlineNodes(field(front, "nodes"), config, file, diagnostics),
       scenarios: gherkin.scenarios,
-      openQuestions: md.openQuestions,
+      rules: gherkin.rules,
+      openQuestions: [...md.openQuestions, ...openIn(gherkin)],
       summary: md.summary,
       prose: md.prose,
       sections: md.sections,
@@ -142,54 +140,87 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
 annotate(parseMarkdownSpec, { is: "ARCH-spec-parser", "instance-of": "PAT-pipes-and-filters" })
 
 /**
- * Classic `.feature` files join the graph too. Metadata travels in tags:
- * `@id:REQ-x @kind:requirement @maturity:ready`; other `@key:value` tags become attributes.
+ * A `.feature` file is a spec: the tags above `Feature:` say what it is — `@id=`, `@kind=` and any
+ * other `@key=value` its identity and attributes, `@rel:ID` its links, any other tag a Cucumber
+ * tag its scenarios inherit, as they inherit its kind. The Feature's name is its title and the
+ * paragraphs under it its description. A file without an `@id=` is a spec named by its path.
  */
 export const parseFeatureSpec = (file: string, content: string, config: Config): ParsedFile => {
-  const tagValue = /^@([\w-]+):(.+)$/
   const fallbackId = `feature:${file}`
-  const firstPass = parseFeatureFile(fallbackId, content)
-  const meta: Record<string, string> = {}
-  for (const tag of firstPass.featureTags) {
-    const m = tagValue.exec(tag)
-    if (m) meta[m[1]!] = m[2]!
+  const parsed = parseFeatureFile(content)
+  if (Result.isFailure(parsed)) return { spec: undefined, diagnostics: syntaxDiagnostics(fallbackId, file, parsed.failure) }
+  const { feature, read } = parsed.success
+  if (!feature) return { spec: undefined, diagnostics: [] }
+  const diagnostics: Array<Diagnostic> = []
+  const { attrLines, links } = feature
+  const { id: writtenId, kind: rawKind, ...attrs } = feature.attrs
+  const id = Predicate.isString(writtenId) || Predicate.isNumber(writtenId) ? String(writtenId) : fallbackId
+  const kind = writtenKind(rawKind, { file, owner: id, line: attrLines.kind ?? 1 }, diagnostics) ??
+    (id === fallbackId ? "feature" : inferKind(id, config))
+  const gherkin = read(id, [kind])
+  diagnostics.push(...gherkinDiagnostics(id, file, gherkin))
+  // A scenario is an example of a rule. A file named by its path is a suite sdp runs as it is.
+  const outside = gherkin.scenarios.filter((scenario) => scenario.rule === undefined)
+  if (outside.length > 0 && id !== fallbackId && config.rules === "required") {
+    diagnostics.push(diagnostic("scenario-outside-rule", {
+      message: `${id}: "${outside[0]!.name}" is an example of no rule${outside.length > 1 ? `, nor are ${outside.length - 1} more` : ""}`,
+      node: id,
+      source: { file, line: outside[0]!.line },
+      hint: "put each scenario under the `Rule:` it is an example of: the rule's name says what must hold, the lines under it why"
+    }))
   }
-  const id = meta.id ?? fallbackId
-  const parsed = id === fallbackId ? firstPass : parseFeatureFile(id, content)
-  const diagnostics: Array<Diagnostic> = parsed.errors.map((error) =>
-    diagnostic("gherkin-syntax", { message: error.message, node: id, source: { file, line: error.line }, hint: gherkinHint })
-  )
-  if (!parsed.featureName && parsed.errors.length === 0) return { spec: undefined, diagnostics }
-  const plainTags = parsed.featureTags.filter((tag) => !tagValue.test(tag)).map((tag) => tag.slice(1))
-  const { id: _id, kind: rawKind, title: rawTitle, ...rest } = meta
-  const attrs: Record<string, unknown> = { ...rest }
-  if (plainTags.length > 0) attrs.tags = plainTags
-  // Tags sit on the lines above `Feature:`; the first line is where to look.
-  const at = { file, owner: id, line: 1 }
+  const tags = feature.tags.map((tag) => tag.slice(1))
   return {
     spec: {
       file,
       format: "feature",
       id,
-      kind: writtenKind(rawKind, at, diagnostics) ?? (meta.id ? inferKind(id, config) : "feature"),
-      title: rawTitle ?? parsed.featureName ?? id,
-      attrs,
-      tags: plainTags,
-      links: linksOfKeys(rest, config.vocabulary, at, diagnostics),
+      kind,
+      title: feature.name || id,
+      attrs: tags.length > 0 ? { ...attrs, tags } : attrs,
+      tags,
+      links,
       references: [],
       inlineNodes: [],
-      scenarios: parsed.scenarios,
-      openQuestions: [],
-      summary: parsed.description?.split("\n\n")[0]?.replace(/\s+/g, " ") ?? "",
-      prose: [],
+      scenarios: gherkin.scenarios,
+      rules: gherkin.rules,
+      openQuestions: openIn(gherkin),
+      summary: feature.description[0]?.text ?? "",
+      prose: feature.description,
       sections: [],
       body: content,
-      attrLines: {}
+      attrLines
     },
     diagnostics
   }
 }
 annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
+
+/** A Rule or a Scenario tagged `@open` is a question still open, and its name is the question. */
+const openIn = (gherkin: GherkinResult): ReadonlyArray<OpenQuestion> =>
+  [...gherkin.rules, ...gherkin.scenarios]
+    .filter((element) => element.tags.includes(made.tags.open))
+    .map((element) => ({ text: element.name, line: element.line, resolved: false }))
+    .sort((a, b) => a.line - b.line)
+
+/** Parse errors cascade: the first one is what needs fixing. */
+const syntaxDiagnostics = (id: string, file: string, errors: ReadonlyArray<GherkinError>): ReadonlyArray<Diagnostic> =>
+  errors.slice(0, 1).map((error) =>
+    diagnostic("gherkin-syntax", {
+      message: `${error.message}${errors.length > 1 ? ` (and ${errors.length - 1} follow-on errors)` : ""}`,
+      node: id,
+      source: { file, line: error.line },
+      hint: gherkinHint
+    })
+  )
+
+/** What the Gherkin of a spec reports, as diagnostics of that spec. */
+const gherkinDiagnostics = (id: string, file: string, gherkin: GherkinResult): ReadonlyArray<Diagnostic> => [
+  ...syntaxDiagnostics(id, file, gherkin.errors),
+  ...gherkin.problems.map((problem) =>
+    diagnostic(problem.rule, { message: problem.message, node: id, source: { file, line: problem.line }, hint: problem.hint })
+  )
+]
 
 /**
  * The kind an author gives a node, if any. The kinds sdp makes itself are not an author's to give:

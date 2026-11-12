@@ -12,7 +12,7 @@ import { annotate } from "sdp/annotations"
 import { createHash } from "node:crypto"
 import type { EvidenceView, Settled, SourceFile } from "../graph/Build.ts"
 import type { RunResults, ScenarioResult } from "../model/Results.ts"
-import { hasKind, metOn, type Vocabulary } from "../model/Vocabulary.ts"
+import { hasKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 
@@ -31,7 +31,7 @@ export const isGate = (
   spec: Spec,
   vocabulary: Vocabulary,
   pickles: ReadonlyArray<Pickle> = scenario.pickles
-): boolean => hasKind(vocabulary, "milestone", spec.kind) || pickles.some((pickle) => pickle.tags.includes("@gate"))
+): boolean => hasKind(vocabulary, "milestone", spec.kind) || pickles.some((pickle) => pickle.tags.includes(made.tags.gate))
 
 /** The workspace as it is now, to compare with what each stored result recorded. */
 export interface Fingerprints {

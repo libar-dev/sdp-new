@@ -8,7 +8,7 @@ import { defineSteps } from "sdp/steps"
 import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
-import type { Scenario } from "../../src/parse/Gherkin.ts"
+import type { Annotations, Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
 import { loadConfig } from "../../src/workspace/Workspace.ts"
 import { assertRows, attrsText, newWorld, reportRow, type Row, setFile, show, type World } from "./world.ts"
@@ -52,6 +52,13 @@ const annotations = (world: World): ReadonlyArray<Annotation> => {
   return found
 }
 
+/** What the tags of a Rule or a Scenario say: its Cucumber tags, its facts and its links (`-rel-> ID` each). */
+const annotationColumns = (element: Annotations): Row => ({
+  tags: element.tags.join(", "),
+  attributes: attrsText(element.attrs),
+  links: element.links.map((link) => `-${link.rel}-> ${link.to}`).join(", ")
+})
+
 const annotationRow = (a: Annotation): Row => ({
   line: String(a.line),
   relation: a.rel,
@@ -88,8 +95,14 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(show(key in fields ? fields[key] : s.attrs[key]), expected, `${key} of the parsed spec`)
   })
 
+  // Each attribute's value as a reader sees it, and as JSON, which shows its type.
   Then("the parsed spec has exactly these attributes:", ({ table, world }) =>
-    assertRows("attributes", Object.entries(spec(world).attrs).map(([key, value]) => ({ key, value: show(value) })), table, "exactly"))
+    assertRows(
+      "attributes",
+      Object.entries(spec(world).attrs).map(([key, value]) => ({ key, value: show(value), json: JSON.stringify(value) })),
+      table,
+      "exactly"
+    ))
 
   Then("the parsed spec has attribute lines:", ({ table, world }) =>
     assertRows("attribute lines", Object.entries(spec(world).attrLines).map(([key, line]) => ({ key, line: String(line) })), table, "exactly"))
@@ -134,16 +147,33 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       "in order"
     ))
 
-  Then("the parsed spec has scenarios:", ({ table, world }) =>
+  // A scenario's rule by its name; its tags, attributes and links are its own annotations.
+  Then("the parsed spec has scenarios:", ({ table, world }) => {
+    const { rules, scenarios } = spec(world)
     assertRows(
       "scenarios",
-      spec(world).scenarios.map((s) => ({
+      scenarios.map((s) => ({
         id: s.id,
         name: s.name,
         line: String(s.line),
         description: s.description ?? "",
-        rule: s.rule ?? "",
-        "rule description": s.ruleDescription ?? ""
+        rule: rules.find((rule) => rule.id === s.rule)?.name ?? "",
+        ...annotationColumns(s)
+      })),
+      table,
+      "in order"
+    )
+  })
+
+  Then("the parsed spec has rules:", ({ table, world }) =>
+    assertRows(
+      "rules",
+      spec(world).rules.map((rule) => ({
+        id: rule.id,
+        name: rule.name,
+        line: String(rule.line),
+        description: rule.description ?? "",
+        ...annotationColumns(rule)
       })),
       table,
       "in order"

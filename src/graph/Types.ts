@@ -2,7 +2,8 @@
  * The id declarations that type `annotate`: every node a spec or annotation
  * declares, mapped to its kind, as an augmentation of `sdp/annotations`.
  * Written by `sdp types`; `sdp check` reports `types-stale` when the graph has
- * moved on. Scenarios and code nodes are left out — annotations point at specs.
+ * moved on. The nodes sdp makes — scenarios, rules, code — are left out:
+ * annotations point at specs.
  */
 import { annotate } from "sdp/annotations"
 import { made } from "../model/Vocabulary.ts"

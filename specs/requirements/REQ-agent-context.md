@@ -68,50 +68,51 @@ Rule: One call gives everything needed to work on a node, the contract first
     And the output contains "DEC-0001 — One database transaction per order"
     And the output section "Code" contains "src/orders.ts:1 checkout — implements REQ-checkout"
 
-  Scenario: The bundle leads with the contract, before the spec text: the scenario names with their status, under each rule and what it says must hold
-    Given a file "specs/REQ-cart.md" containing:
+  Scenario: The bundle leads with the contract: each rule with its state, what it rests on and why it holds, then its examples
+    Given a file "specs/REQ-cart.feature" containing:
       """
-      ---
-      id: REQ-cart
-      maturity: ready
-      ---
-      # Cart
+      @id=REQ-cart @maturity=draft
+      Feature: Cart
 
-      Shoppers collect items before paying.
+        Shoppers collect items before paying.
 
-      ```gherkin
-      Scenario: A new cart is empty
-        Then the cart holds 0 items
+        @decided-by:DEC-0001
+        Rule: A cart holds each item once
 
-      Rule: A cart holds each item once
+          Two lines for one item would be charged twice.
 
-        Two lines for one item would be charged twice.
+          Scenario: Adding an item twice raises its quantity
+            Then the cart holds 1 item
 
-        Scenario: Adding an item twice raises its quantity
-          Then the cart holds 1 item
+        Rule: An empty cart cannot be paid
 
-      Rule: An empty cart cannot be paid
-
-        Scenario: Paying for nothing is refused
-          Then the payment is refused
-      ```
+        @open
+        Rule: Does a cart expire?
       """
+    And these specs:
+      | tags         | Feature           |
+      | @id=DEC-0001 | One line per item |
     When I ask for the context of "REQ-cart"
-    Then the sections of the output are "Scenarios (3), Specification"
+    Then the sections of the output are "Not ready yet, Contract, Specification, Decisions in reach"
     And the output contains:
       """
-      - [unrun] A new cart is empty — specs/REQ-cart.md:10
+      3 rule(s), 1 scenario(s), 1 open
 
       ### A cart holds each item once
+      [unrun] — specs/REQ-cart.feature:7 · decided-by DEC-0001
 
       Two lines for one item would be charged twice.
 
-      - [unrun] Adding an item twice raises its quantity — specs/REQ-cart.md:17
+      - [unrun] Adding an item twice raises its quantity — specs/REQ-cart.feature:11
 
       ### An empty cart cannot be paid
+      [no example] — specs/REQ-cart.feature:14
 
-      - [unrun] Paying for nothing is refused — specs/REQ-cart.md:22
+      ### Does a cart expire?
+      [open] — specs/REQ-cart.feature:17
       """
+    When I ask for the context of "DEC-0001"
+    Then the output section "Rules that rest on this" contains "- [unrun] A cart holds each item once (decided-by) — REQ-cart specs/REQ-cart.feature:7"
 
   Scenario: A spec below ready says what keeps it from ready
     Given a file "specs/REQ-checkout.md" containing:
@@ -226,9 +227,9 @@ Rule: The bundle says which steps are still to write, and runs nothing to know
       })
       """
     When I run "sdp context REQ-cart"
-    Then the output section "Scenarios" contains "[unrun] Add an item — specs/REQ-cart.md:10"
-    And the output section "Scenarios" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
-    And the output section "Scenarios" does not contain "an empty cart"
+    Then the output section "Contract" contains "[unrun] Add an item — specs/REQ-cart.md:10"
+    And the output section "Contract" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
+    And the output section "Contract" does not contain "an empty cart"
     And the output section "Step definitions" contains "Step files: specs/steps/cart.steps.ts"
 
   Scenario: After a run, each scenario has its status and only the steps still undefined are listed
@@ -252,11 +253,11 @@ Rule: The bundle says which steps are still to write, and runs nothing to know
     And a step definition "an empty cart" that passes
     When the workspace is run
     And I ask for the context of "REQ-cart"
-    Then the output section "Scenarios" contains "[undefined] Add an item — specs/REQ-cart.md:10"
-    And the output section "Scenarios" contains "undefined: When I add a lamp"
-    And the output section "Scenarios" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
-    And the output section "Scenarios" contains 'suggested: `Then("the cart holds {int} item", ({ world, args: [int] }) => pending())`'
-    And the output section "Scenarios" does not contain "an empty cart"
+    Then the output section "Contract" contains "[undefined] Add an item — specs/REQ-cart.md:10"
+    And the output section "Contract" contains "undefined: When I add a lamp"
+    And the output section "Contract" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
+    And the output section "Contract" contains 'suggested: `Then("the cart holds {int} item", ({ world, args: [int] }) => pending())`'
+    And the output section "Contract" does not contain "an empty cart"
 
   Scenario: A step that failed in the last run is listed with its error and where it is defined
     Given a file "specs/REQ-cart.md" containing:
@@ -284,8 +285,8 @@ Rule: The bundle says which steps are still to write, and runs nothing to know
     When I run "sdp run"
     Then the exit code is 1
     When I run "sdp context REQ-cart"
-    Then the output section "Scenarios" contains "- [failed] Add an item — specs/REQ-cart.md:7"
-    And the output section "Scenarios" contains "failed: Given an empty cart — the cart service is down (defined at specs/steps/cart.steps.ts:4)"
+    Then the output section "Contract" contains "- [failed] Add an item — specs/REQ-cart.md:7"
+    And the output section "Contract" contains "failed: Given an empty cart — the cart service is down (defined at specs/steps/cart.steps.ts:4)"
 
   Scenario: A registration that cannot be read is named and leaves the bundle incomplete, so its step is not mistaken for undefined
     Given a file "specs/REQ-cart.md" containing:
@@ -311,7 +312,7 @@ Rule: The bundle says which steps are still to write, and runs nothing to know
       """
     When I run "sdp context REQ-cart"
     Then the exit code is 2
-    And the output section "Scenarios" contains "undefined: Given an empty cart"
+    And the output section "Contract" contains "undefined: Given an empty cart"
     And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: this statement registers steps under a condition, in a loop or through another name"
     When I run "sdp steps cart"
     Then the exit code is 2

@@ -310,7 +310,7 @@ const yamlList = (values: ReadonlyArray<string>) => `[${values.map((v) => JSON.s
 export const configTemplate = [
   "# sdp configuration. Every key is optional; uncomment one to change its default.",
   `# specs: ${yamlList(defaults.specs)}          # Markdown with an \`id:\` in front matter becomes a graph node`,
-  `# features: ${yamlList(defaults.features)}    # classic Gherkin files (@id:… @kind:… tags)`,
+  `# features: ${yamlList(defaults.features)}    # specs: Gherkin files, @id=… @kind=… above Feature:`,
   `# code: ${yamlList(defaults.code)}`,
   "#   (scanned for annotate() calls and @sdp comments that link code to the graph)",
   `# steps: ${yamlList(defaults.steps)}    # step definition modules`,

@@ -15,8 +15,8 @@ links:
 # Specifications at every maturity
 
 A product idea, a half-understood need and a fully designed feature are written in the same
-format: a CommonMark file with YAML front matter. The file grows with understanding — a sentence
-becomes a description, the description gains scenarios, open questions get resolved — but it never
+format: a Gherkin file, read by the official parser as it is. The file grows with understanding —
+a name becomes a description, rules gain examples, open questions become rules — but it never
 moves to another tool or format, and the scenarios later run as tests, unchanged. Decisions,
 quality requirements, the plan, milestones and risks are written the same way.
 
@@ -26,60 +26,47 @@ The first is the format, in one file; how each part of it is read is the contrac
 [[ARCH-spec-parser]], and how it becomes nodes and edges, of [[ARCH-graph-builder]].
 
 ~~~gherkin
-Scenario: One file says what a spec is, what it links to, what is still open and what must be true
-  Given a file "specs/REQ-guest-checkout.md" containing:
+Scenario: One file says what a spec is, what it links to, what must hold and why, and what is still open
+  Given a file "specs/REQ-guest-checkout.feature" containing:
     """
-    ---
-    id: REQ-guest-checkout           # unique, literal, greppable
-    kind: requirement                # the author's word; read from the id prefix when omitted
-    title: Guest checkout            # defaults to the first # heading
-    maturity: specified              # idea → draft → specified → ready
-    iteration: C2                    # when it is written
-    activity: { implementation: C3 } # when other disciplines work on it
-    tags: [checkout]
-    links:                           # relations, named by their author
-      refines: CAP-online-sales
-      realized-by: [ARCH-orders, ARCH-payments]
-      constrained-by: { to: NFR-checkout-latency, note: "p95" }
-    ---
+    @id=REQ-guest-checkout @maturity=specified @checkout   # what it is: = describes; a bare tag is a tag
+    @refines:CAP-online-sales @realized-by:ARCH-orders    # what it links to: one tag, one link
+    @iteration:C2 @activity.implementation:C3              # when it is written, when it is built
+    Feature: Guest checkout
 
-    # Guest checkout
+      Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form.
 
-    Shoppers without an account can buy.
+      Background:
+        Given a cart with 2 items
 
-    The first paragraph is the summary. Prose mentions a node with [[DEC-0004]], or links it:
-    guarded-by:: [[POL-fraud]]
+      @decided-by:DEC-0004
+      Rule: A guest pays without creating an account
 
-    ## Open questions
-    - [ ] Do we verify the email address before payment?
-    - [x] Can guests save their cart? No.
+        Scenario: By card
+          When the guest pays with a valid card
+          Then an order is created
 
-    ## Scenarios
+      Rule: A guest gets a receipt by email
 
-    ```gherkin
-    Scenario: Guest pays by card
-      Given a cart with 2 items
-      When the guest checks out with a valid card
-      Then an order is created
-      And a receipt is emailed
-    ```
+        The address is not verified first: a wrong one costs a receipt, a check costs the sale.
+
+      @open
+      Rule: Can a guest save the cart for later?
     """
   When the workspace is loaded
   Then node "REQ-guest-checkout" has attribute kind = "requirement"
-  And node "REQ-guest-checkout" has attribute summary = "Shoppers without an account can buy."
+  And node "REQ-guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
   And node "REQ-guest-checkout" has attribute openQuestions = "1"
   And node "REQ-guest-checkout" has attribute scenarios = "1"
-  And the edges from "REQ-guest-checkout" are "REQ-guest-checkout -iteration-> C2, REQ-guest-checkout -activity.implementation-> C3, REQ-guest-checkout -refines-> CAP-online-sales, REQ-guest-checkout -realized-by-> ARCH-orders, REQ-guest-checkout -realized-by-> ARCH-payments, REQ-guest-checkout -constrained-by-> NFR-checkout-latency, REQ-guest-checkout -mentions-> DEC-0004, REQ-guest-checkout -guarded-by-> POL-fraud"
+  And the edges from "REQ-guest-checkout" are "REQ-guest-checkout -refines-> CAP-online-sales, REQ-guest-checkout -realized-by-> ARCH-orders, REQ-guest-checkout -iteration-> C2, REQ-guest-checkout -activity.implementation-> C3"
+  And the edges from "REQ-guest-checkout#a-guest-pays-without-creating-an-account" are "REQ-guest-checkout#a-guest-pays-without-creating-an-account -rule-of-> REQ-guest-checkout, REQ-guest-checkout#a-guest-pays-without-creating-an-account -decided-by-> DEC-0004"
+  And node "REQ-guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
+  And node "REQ-guest-checkout#by-card" has attribute rule = "REQ-guest-checkout#a-guest-pays-without-creating-an-account"
 
-Scenario: An idea is an id and a title
-  Given a file "specs/REQ-dark-mode.md" containing:
-    """
-    ---
-    id: REQ-dark-mode
-    maturity: idea
-    ---
-    # Dark mode
-    """
+Scenario: An idea is an id and a name
+  Given these specs:
+    | tags                              | Feature   |
+    | @id=REQ-dark-mode @maturity=idea  | Dark mode |
   When the workspace is loaded
   Then node "REQ-dark-mode" has attribute kind = "requirement"
   And node "REQ-dark-mode" has attribute title = "Dark mode"
@@ -135,18 +122,4 @@ Scenario: An outline is one scenario with one executable example per row
     """
   When the workspace is loaded
   Then node "REQ-vat#vat-by-country" has attribute examples = "3"
-
-Scenario: A classic feature file is a spec too, with its id and attributes in the tags of its Feature
-  Given a file "features/search.feature" containing:
-    """
-    @id:REQ-search @maturity:ready
-    Feature: Product search
-      Scenario: Search by name
-        When I search for "lamp"
-        Then I see lamps
-    """
-  When the workspace is loaded
-  Then node "REQ-search" has attribute kind = "requirement"
-  And node "REQ-search" has attribute maturity = "ready"
-  And node "REQ-search" has attribute scenarios = "1"
 ~~~

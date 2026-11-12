@@ -85,6 +85,27 @@ Rule: The record
       | an edge stated in two places     | {"type":"edge","from":"REQ-a","rel":"realized-by","to":"ARCH-x","attrs":{"since":2026},"declared":[{"file":"specs/REQ-a.md","line":5},{"file":"specs/REQ-a.md","line":7}]}                      |
       | an edge without attributes       | {"type":"edge","from":"ARCH-x","rel":"decided-by","to":"DEC-0001","attrs":{},"declared":[{"file":"specs/architecture/ARCH-x.md","line":5}]}                                                                   |
 
+  Scenario: A rule is a node of kind rule with what it holds and how its examples stand, and its edges say whose it is and what it rests on
+    Given a file "specs/REQ-c.feature" containing:
+      """
+      @id=REQ-c
+      Feature: Gamma
+
+        @decided-by:DEC-0001
+        Rule: Gamma comes third
+
+          After alpha and beta.
+
+          Scenario: Third
+            Then gamma comes third
+      """
+    When the graph is exported
+    Then the output contains '{"type":"node","id":"REQ-c#gamma-comes-third","kind":"rule","title":"Gamma comes third","file":"specs/REQ-c.feature","line":5,"attrs":{"spec":"REQ-c","description":"After alpha and beta.","scenarios":1,"verification":"unrun"}}'
+    And the output contains '{"type":"edge","from":"REQ-c#gamma-comes-third","rel":"rule-of","to":"REQ-c","attrs":{},"declared":[{"file":"specs/REQ-c.feature","line":5}]}'
+    And the output contains '{"type":"edge","from":"REQ-c#gamma-comes-third","rel":"decided-by","to":"DEC-0001","attrs":{},"declared":[{"file":"specs/REQ-c.feature","line":4}]}'
+    And the output contains '{"type":"edge","from":"REQ-c#third","rel":"verifies","to":"REQ-c#gamma-comes-third","attrs":{},"declared":[{"file":"specs/REQ-c.feature","line":9}]}'
+    And the output contains '"kind":"scenario","title":"Third","file":"specs/REQ-c.feature","line":9,"attrs":{"spec":"REQ-c","keyword":"Scenario","rule":"REQ-c#gamma-comes-third",'
+
   Scenario: One record per line, whatever the text
     When the graph is exported
     Then the output has one line per node and edge

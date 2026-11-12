@@ -263,7 +263,7 @@ Rule: A result counts only while what it ran against is unchanged
     And a step definition "the cart holds {int} item(s)" that passes
     And a file "specs/catalogue.feature" containing:
       """
-      @id:REQ-catalogue
+      @id=REQ-catalogue
       Feature: Catalogue
         Scenario: The cart is specified
           Then the query "#REQ-cart" returns 1 result
@@ -587,7 +587,7 @@ Rule: A handler gets typed arguments, a fresh world and a deadline it is asked t
   Scenario Outline: Every scenario gets a fresh world, shared by the modules on one world factory
     Given a file "specs/shop.feature" containing:
       """
-      @id:REQ-shop
+      @id=REQ-shop
       Feature: Shop
         Scenario: One lamp
           When I add a lamp
@@ -837,7 +837,7 @@ Rule: Only a run imports step modules; every other command reads them as text
     When I run "sdp context REQ-cart"
     Then the exit code is 2
     And the output contains "incomplete: this answer may miss something"
-    And the output section "Scenarios" contains "undefined: Given an empty cart"
+    And the output section "Contract" contains "undefined: Given an empty cart"
     And the output section "Step definitions" contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}"'
 
   Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
@@ -888,7 +888,7 @@ Rule: A run records only what it executed
     And a step definition "the cart holds {int} item(s)" that passes
     And a file "specs/wishlist.feature" containing:
       """
-      @id:REQ-wishlist
+      @id=REQ-wishlist
       Feature: Wishlist
         Scenario: Keep a lamp for later
           Then the query "#REQ-cart" returns 1 result
@@ -896,7 +896,7 @@ Rule: A run records only what it executed
     When the workspace is run
     And a file "specs/wishlist.feature" containing:
       """
-      @id:REQ-wishlist
+      @id=REQ-wishlist
       Feature: Wishlist
         Scenario: Remember a lamp
           Then the query "#REQ-cart" returns 1 result
@@ -909,7 +909,7 @@ Rule: A run records only what it executed
   Scenario: Two runs at once each record what they executed, and neither restores what the other replaced
     Given a file "specs/wishlist.feature" containing:
       """
-      @id:REQ-wishlist
+      @id=REQ-wishlist
       Feature: Wishlist
         Scenario: Keep a lamp for later
           Given a wishlist
@@ -965,7 +965,7 @@ Rule: A run executes the examples it was asked for, one at a time unless asked o
   Scenario Outline: Progress is reported once per scenario and in order, whatever finishes first and however slow the reporter
     Given a file "specs/timing.feature" containing:
       """
-      @id:REQ-timing
+      @id=REQ-timing
       Feature: Timing
         Scenario: One
           Given a first step
@@ -989,7 +989,7 @@ Rule: A run executes the examples it was asked for, one at a time unless asked o
   Scenario: Scenarios run concurrently when asked to, except those tagged @serial
     Given a file "specs/timing.feature" containing:
       """
-      @id:REQ-timing
+      @id=REQ-timing
       Feature: Timing
         Scenario: One
           Given a slow step
@@ -1010,7 +1010,7 @@ Rule: A run executes the examples it was asked for, one at a time unless asked o
   Scenario: --tags selects examples, and a scenario passes only when all its examples ran
     Given a file "specs/payment.feature" containing:
       """
-      @id:REQ-payment
+      @id=REQ-payment
       Feature: Payment
         Scenario Outline: Pay by <method>
           Given a payment by <method>
@@ -1036,7 +1036,7 @@ Rule: A run executes the examples it was asked for, one at a time unless asked o
   Scenario: Whether a scenario runs alone depends on the examples a run selects
     Given a file "specs/timing.feature" containing:
       """
-      @id:REQ-timing
+      @id=REQ-timing
       Feature: Timing
         Scenario: One
           Given a slow step
@@ -1109,7 +1109,7 @@ Rule: No scenario reads the layer of evidence it belongs to
     And a step definition "the cart holds {int} item(s)" that passes
     And a file "specs/release.feature" containing:
       """
-      @id:REQ-release
+      @id=REQ-release
       Feature: Release
         Scenario Outline: The cart is <state>
           Then the node "REQ-cart" has <attribute> "<state>"
@@ -1133,7 +1133,7 @@ Rule: No scenario reads the layer of evidence it belongs to
     And a step definition "the cart holds {int} item(s)" that passes
     And a file "specs/audit.feature" containing:
       """
-      @id:REQ-audit
+      @id=REQ-audit
       Feature: Audit
         Scenario: Look at the graph
           Then the graph shows no results
@@ -1147,7 +1147,7 @@ Rule: No scenario reads the layer of evidence it belongs to
   Scenario Outline: An ordinary scenario that asserts on results is told to become a gate
     Given a file "specs/progress.feature" containing:
       """
-      @id:REQ-progress
+      @id=REQ-progress
       Feature: Progress
         Scenario: Delivery state
           Then <step>

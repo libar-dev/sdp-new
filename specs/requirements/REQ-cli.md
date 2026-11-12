@@ -543,6 +543,30 @@ Scenario: status counts gate scenarios apart from the others, since a gate may b
   And the output contains "gates         unrun 1"
   And the output contains "milestones    open 1"
   And the output contains "check         no diagnostics"
+
+Scenario: status counts rules by where they stand: what their examples verify, or that they have none yet or are open
+  Given a file "specs/REQ-cart.feature" containing:
+    """
+    @id=REQ-cart
+    Feature: Cart
+
+      Rule: A cart holds each item once
+
+        Scenario: An item added twice
+          Then the cart holds 1 item
+
+      Rule: An empty cart cannot be paid
+
+      @open
+      Rule: Does a cart expire?
+    """
+  When I run "sdp status --json"
+  Then the JSON output has:
+    | data.rules.unrun        | 1 |
+    | data.rules.no example   | 1 |
+    | data.rules.open         | 1 |
+  When I run "sdp status"
+  Then the output contains "rules         unrun 1 · no example 1 · open 1"
 ~~~
 
 ### `sdp query <pattern>`, `sdp q`
@@ -732,7 +756,8 @@ Scenario: vocabulary prints the words sdp interprets, and the kinds and attribut
   Then the JSON output has:
     | data.vocabulary.maturity     | idea, draft, specified, ready                                                                                    |
     | data.made.attributes         | stage, verification, scenarios, summary, file, openQuestions, declaredIn                                         |
-    | data.made.scenarioAttributes | spec, keyword, tags, description, rule, ruleDescription, steps, examples, status, staleBecause, lastRun, hash    |
+    | data.made.scenarioAttributes | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash                     |
+    | data.made.ruleAttributes     | spec, description, tags, scenarios, verification                                                                 |
     | data.made.codeAttributes     | file, symbol, doc                                                                                                |
   When I run "sdp vocabulary"
   Then the output line with "stages" contains "failing, in-progress, verified"

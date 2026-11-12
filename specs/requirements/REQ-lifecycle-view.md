@@ -281,7 +281,8 @@ Scenario: A milestone written as met before one dated earlier is reported
 
 Activity is planned on the work itself, not as a task per discipline or one iteration per spec:
 a requirement is written in one iteration and built in another, and a gate has to tell the two
-apart. `iteration:` plans the work of the node's own kind, `activity:` that of any discipline.
+apart. `@iteration:` plans the work of the node's own kind, `@activity.<discipline>:` that of any
+discipline.
 
 ~~~gherkin
 Scenario: Iterations hang off their phase, in the order of the timeline
@@ -379,31 +380,21 @@ Scenario: activity plans other disciplines into iterations of their own
     | E1 | ARCH-x, REQ-a, REQ-b |
     | E2 | REQ-b                |
 
-Scenario Outline: A discipline activity names takes only the iterations listed there
-  Given a file "specs/REQ-b.md" containing:
+Scenario: A discipline with links of its own is planned only into the iterations they name
+  Given a file "specs/REQ-b.feature" containing:
     """
-    ---
-    id: REQ-b
-    maturity: idea
-    iteration: E1
-    activity: { requirements: <iterations> }
-    ---
-    # Beta
+    @id=REQ-b @maturity=idea @iteration:E1 @activity.requirements:E2
+    Feature: Beta
     """
   When the lifecycle is computed
   Then the planned activity is:
-    | discipline   | E1 | E2      |
-    | requirements | 1  | <in E2> |
+    | discipline   | E1 | E2 |
+    | requirements | 1  | 1  |
   And the iterations are:
     | id | plans                |
     | I1 |                      |
     | E1 | ARCH-x, REQ-a, REQ-b |
-    | E2 | <planned into E2>    |
-
-  Examples:
-    | iterations | in E2 | planned into E2 |
-    | E2         | 1     | REQ-b           |
-    | []         | 0     |                 |
+    | E2 | REQ-b                |
 
 Scenario: The chart shades each discipline relative to its busiest iteration
   Given a file "specs/REQ-b.md" containing:

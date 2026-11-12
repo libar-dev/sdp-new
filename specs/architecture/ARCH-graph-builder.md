@@ -75,28 +75,54 @@ Scenario: A spec, each of its scenarios and each inline node is a node at the li
   And node "E1" has attribute declaredIn = "PLAN"
   And the edges from "E1" are "nothing"
 
-Scenario: A scenario node carries the rule it is an example of, with the text under the rule and under itself
-  Given a file "specs/REQ-pay.md" containing:
+Scenario: A rule is a node of its spec, and a scenario verifies its rule and its spec
+  A query or a jq filter over the export finds what a rule rests on and what verifies it, the
+  same way it finds a spec's.
+
+  Given a file "specs/REQ-pay.feature" containing:
     """
-    ---
-    id: REQ-pay
-    ---
-    # Pay
+    @id=REQ-pay
+    Feature: Pay
 
-    ```gherkin
-    Rule: A wallet is charged once
-      Charging twice is the one error a shopper does not forgive.
+      Rule: A wallet is charged once
 
-      Scenario: Retry
-        The network failed after the charge.
+        Charging twice is the one error a shopper does not forgive.
 
-        When the payment is retried
-    ```
+        @decided-by:DEC-0001
+        Scenario: Retry
+          The network failed after the charge.
+
+          When the payment is retried
+          Then one charge is made
+
+      @decided-by:DEC-0001
+      Rule: A refund returns the whole amount
     """
+  And these specs:
+    | tags         | Feature     |
+    | @id=DEC-0001 | Charge once |
   When the workspace is loaded
-  Then node "REQ-pay#retry" has attribute rule = "A wallet is charged once"
-  And node "REQ-pay#retry" has attribute ruleDescription = "Charging twice is the one error a shopper does not forgive."
+  Then the workspace graph has exactly these nodes:
+    | id                                        | kind        | title                            | source                   |
+    | REQ-pay                                   | requirement | Pay                              | specs/REQ-pay.feature:1  |
+    | REQ-pay#a-wallet-is-charged-once          | rule        | A wallet is charged once         | specs/REQ-pay.feature:4  |
+    | REQ-pay#retry                             | scenario    | Retry                            | specs/REQ-pay.feature:9  |
+    | REQ-pay#a-refund-returns-the-whole-amount | rule        | A refund returns the whole amount | specs/REQ-pay.feature:16 |
+    | DEC-0001                                  | decision    | Charge once                      | specs/DEC-0001.feature:1 |
+  And the workspace graph has edges:
+    | from                                      | rel        | to                               | source                   |
+    | REQ-pay#a-wallet-is-charged-once          | rule-of    | REQ-pay                          | specs/REQ-pay.feature:4  |
+    | REQ-pay#retry                             | verifies   | REQ-pay#a-wallet-is-charged-once | specs/REQ-pay.feature:9  |
+    | REQ-pay#retry                             | verifies   | REQ-pay                          | specs/REQ-pay.feature:9  |
+    | REQ-pay#retry                             | decided-by | DEC-0001                         | specs/REQ-pay.feature:8  |
+    | REQ-pay#a-refund-returns-the-whole-amount | decided-by | DEC-0001                         | specs/REQ-pay.feature:15 |
+  And node "REQ-pay#a-wallet-is-charged-once" has attribute description = "Charging twice is the one error a shopper does not forgive."
+  And node "REQ-pay#a-wallet-is-charged-once" has attribute scenarios = "1"
+  And node "REQ-pay#a-refund-returns-the-whole-amount" has attribute verification = "none"
+  And node "REQ-pay#retry" has attribute rule = "REQ-pay#a-wallet-is-charged-once"
   And node "REQ-pay#retry" has attribute description = "The network failed after the charge."
+  When I query "#DEC-0001 <-decided-by- rule -rule-of-> *"
+  Then the result is "REQ-pay"
 
 Scenario Outline: A link key always links and any other key never does, whatever its value
   Given a file "specs/model.md" containing:
@@ -198,7 +224,9 @@ Scenario Outline: What sdp derives cannot be written, wherever a node is declare
     | specs/REQ-a.md    | ---\nid: REQ-a\nmaturity: idea\nstage: verified\n---\n# A                   | specs/REQ-a.md:4    |
     | specs/plan.md      | ---\nid: PLAN\nnodes:\n  - { id: REQ-b, kind: requirement, stage: verified }\n---\n# Plan | specs/plan.md:4      |
     | src/pay.py        | # @sdp is REQ-pay kind=requirement stage=verified\ndef pay(): pass               | src/pay.py:1        |
-    | specs/pay.feature | @id:REQ-f @stage:verified\nFeature: Pay                                         | specs/pay.feature:1 |
+    | specs/pay.feature | @id=REQ-f @stage=verified\nFeature: Pay                                         | specs/pay.feature:1 |
+    | specs/pay.feature | @id=REQ-f\nFeature: Pay\n\n  @stage=verified\n  Rule: A card is charged once      | specs/pay.feature:4 |
+    | specs/pay.feature | @id=REQ-f\nFeature: Pay\n\n  Rule: R\n\n    @stage=verified\n    Scenario: S\n      Then ok | specs/pay.feature:6 |
 
 Scenario Outline: A link cannot take the name of an attribute, wherever it is declared
   Given a file "specs/model.md" containing:
@@ -216,20 +244,21 @@ Scenario Outline: A link cannot take the name of an attribute, wherever it is de
     """
   When the workspace is loaded
   Then sdp reports:
-    | rule        | severity | at   | message   |
-    | link-syntax | error    | <at> | <message> |
+    | rule        | severity | at   | message   | hint   |
+    | link-syntax | error    | <at> | <message> | <hint> |
   When I query "* -<name>-> *"
   Then the result is "nothing"
   When I query "*[<name>=verified]"
   Then the result is "nothing"
 
   Examples:
-    | file           | content                                                                | at               | name     | message                           |
-    | specs/REQ-a.md | ---\nid: REQ-a\nlinks: { stage: verified }\n---\n# A                   | specs/REQ-a.md:3 | stage    | no link can be named stage        |
-    | specs/REQ-a.md | ---\nid: REQ-a\nnodes:\n  - id: REQ-b\n    links:\n      verification: verified\n---\n# A | specs/REQ-a.md:6 | verification | no link can be named verification |
-    | specs/REQ-a.md | ---\nid: REQ-a\n---\n# A\n\nmaturity:: [[verified]]                     | specs/REQ-a.md:6 | maturity | no link can be named maturity     |
-    | src/a.py       | # @sdp status verified\ndef a(): pass                                  | src/a.py:1       | status   | no link can be named status       |
-    | specs/REQ-a.md | ---\nid: REQ-a\nowner: payments\nlinks: { owner: verified }\n---\n# A   | specs/REQ-a.md:4 | owner    | owner is already an attribute of REQ-a |
+    | file                | content                                                                | at                    | name     | message                           | hint                                   |
+    | specs/REQ-a.feature | @id=REQ-a @maturity:verified\nFeature: A                               | specs/REQ-a.feature:1 | maturity | no link can be named maturity     | written with =: @maturity=verified     |
+    | specs/REQ-a.md | ---\nid: REQ-a\nlinks: { stage: verified }\n---\n# A                   | specs/REQ-a.md:3 | stage    | no link can be named stage        | written with =: @stage=verified |
+    | specs/REQ-a.md | ---\nid: REQ-a\nnodes:\n  - id: REQ-b\n    links:\n      verification: verified\n---\n# A | specs/REQ-a.md:6 | verification | no link can be named verification | written with = |
+    | specs/REQ-a.md | ---\nid: REQ-a\n---\n# A\n\nmaturity:: [[verified]]                     | specs/REQ-a.md:6 | maturity | no link can be named maturity     | written with = |
+    | src/a.py       | # @sdp status verified\ndef a(): pass                                  | src/a.py:1       | status   | no link can be named status       | written with = |
+    | specs/REQ-a.md | ---\nid: REQ-a\nowner: payments\nlinks: { owner: verified }\n---\n# A   | specs/REQ-a.md:4 | owner    | owner is already an attribute of REQ-a | give the relation another name |
 
 Scenario: A kind sdp makes itself cannot be written; the node has the kind its id says
   Given a file "specs/REQ-a.md" containing:

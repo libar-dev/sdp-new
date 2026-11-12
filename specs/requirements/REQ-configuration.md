@@ -50,7 +50,7 @@ Background:
     """
   And a file "features/search.feature" containing:
     """
-    @id:REQ-search @maturity:ready
+    @id=REQ-search @maturity=ready
     Feature: Search
     """
   And a file "src/orders.ts" containing:
@@ -161,6 +161,29 @@ Scenario: results says where scenario results are kept
   When the workspace is run
   Then the file "out/results.json" contains '"REQ-cart#a-new-cart-is-empty"'
   And node "REQ-cart" has attribute verification = "passing"
+
+Scenario: rules says whether every scenario of a spec must be an example of a rule
+  Until the scenarios of a workspace are grouped under the rules they illustrate, it can say that
+  they need not be yet.
+
+  Given a file "specs/REQ-cart.feature" containing:
+    """
+    @id=REQ-cart
+    Feature: Cart
+
+      Scenario: A new cart is empty
+        Then the cart is empty
+    """
+  When the workspace is checked
+  Then sdp reports at least:
+    | rule                  | at                       |
+    | scenario-outside-rule | specs/REQ-cart.feature:4 |
+  Given a file "sdp.config.yaml" containing:
+    """
+    rules: optional
+    """
+  When the workspace is checked
+  Then sdp does not report "scenario-outside-rule"
 
 Scenario: kinds.architectural says which kinds are the architecture
   Given a file "sdp.config.yaml" containing:
@@ -344,7 +367,9 @@ Scenario: sdp vocabulary prints the profile in force
   Then the JSON output has:
     | data.vocabulary.links       | owner                                                                                      |
     | data.vocabulary.maturity    | idea, draft, specified, ready                                                              |
-    | data.made.kinds             | scenario, code, missing                                                                    |
+    | data.made.kinds             | scenario, rule, code, missing                                                              |
+    | data.made.relations         | rule-of                                                                                    |
+    | data.made.tags              | @gate, @serial, @open                                                                      |
     | data.made.stages            | failing, in-progress, verified                                                             |
     | data.made.reservedRelations | stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status |
   When I run "sdp vocabulary"

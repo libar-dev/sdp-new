@@ -12,8 +12,8 @@ links:
 # Spec parser
 
 Turns one file into one spec in the format of [[REQ-progressive-specs]] — identity, attributes,
-links, prose links, open questions and executable scenarios — plus a diagnostic for anything it
-cannot read. It is a pure function of the file's content and the configuration, it never throws on
+links, rules, open questions and executable scenarios — plus a diagnostic for anything it cannot
+read. It is a pure function of the file's content and the configuration, it never throws on
 content, and it keeps the line of every fact, so each node, edge and diagnostic built from it
 points at a greppable `file:line`.
 
@@ -734,7 +734,7 @@ Rule: The text under a Rule or a Scenario is kept as its description
   a reader of the graph gets the rule with its reason, and the prose around the fence has nothing
   left to say about it.
 
-  Scenario: A scenario carries its own description and its rule's, without the indentation they were written with
+  Scenario: A scenario and a rule carry the text under their keyword line, without the indentation it was written with
     Given a file "specs/REQ-pay.md" containing:
       """
       ---
@@ -758,10 +758,13 @@ Rule: The text under a Rule or a Scenario is kept as its description
       ```
       """
     When "specs/REQ-pay.md" is parsed
-    Then the parsed spec has scenarios:
-      | id             | description                          | rule description                                                                              |
-      | REQ-pay#retry  | The network failed after the charge. | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
-      | REQ-pay#refund |                                      | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
+    Then the parsed spec has rules:
+      | id                               | description                                                                                   |
+      | REQ-pay#a-wallet-is-charged-once | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
+    And the parsed spec has scenarios:
+      | id             | description                          | rule                     |
+      | REQ-pay#retry  | The network failed after the charge. | A wallet is charged once |
+      | REQ-pay#refund |                                      | A wallet is charged once |
 
   Scenario Outline: The scenario hash covers what a step handler can observe, and nothing of the text around it
     Given a file "specs/REQ-pay.md" containing:
@@ -798,9 +801,56 @@ Rule: The text under a Rule or a Scenario is kept as its description
 ~~~
 
 ~~~gherkin
-Rule: A feature file is a spec too
+Rule: A spec is a Feature, and the tags above it say what it is and what it links to
 
-  Classic Gherkin joins the graph as it is: its tags say what front matter says in Markdown.
+  `@key=value` is a fact and `@rel:ID` a link: the first `=` or `:` decides, so a link is a property
+  of how it is written, never of its value. Any other tag is a Cucumber tag its scenarios inherit.
+
+  Scenario: The tags give the id, the facts and the links, each at the line of its tag; the Feature gives the title and the summary
+    Given a file "specs/REQ-checkout.feature" containing:
+      """
+      @id=REQ-checkout @maturity=draft @web
+      @estimate=8 @ratio=1.50 @public=false @due=2026-12-01T10:00 @owner.team=core @owner.lead=ada @label=a @label=b
+      @refines:CAP-sales @iteration:E1 @activity.test:E1 @activity.test:T1
+      Feature: Guest checkout
+
+        Shoppers without an account can buy:
+        a third of all carts are abandoned at the sign-up form.
+
+        A later paragraph says more.
+      """
+    When "specs/REQ-checkout.feature" is parsed
+    Then the parsed spec has kind "requirement"
+    And the parsed spec has title "Guest checkout"
+    And the parsed spec has summary "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
+    And the parsed spec has exactly these attributes:
+      | key      | json                         |
+      | maturity | "draft"                      |
+      | estimate | 8                            |
+      | ratio    | "1.50"                       |
+      | public   | false                        |
+      | due      | "2026-12-01T10:00"           |
+      | owner    | {"team":"core","lead":"ada"} |
+      | label    | ["a","b"]                    |
+      | tags     | ["web"]                      |
+    And the parsed spec has attribute lines:
+      | key        | line |
+      | id         | 1    |
+      | maturity   | 1    |
+      | estimate   | 2    |
+      | ratio      | 2    |
+      | public     | 2    |
+      | due        | 2    |
+      | owner.team | 2    |
+      | owner.lead | 2    |
+      | label      | 2    |
+    And the parsed spec has links:
+      | rel           | to        | line |
+      | refines       | CAP-sales | 3    |
+      | iteration     | E1        | 3    |
+      | activity.test | E1        | 3    |
+      | activity.test | T1        | 3    |
+    And sdp reports nothing
 
   Scenario Outline: A feature file is identified by its tags, else by its path
     Given a file "features/search.feature" containing:
@@ -816,7 +866,179 @@ Rule: A feature file is a spec too
 
     Examples:
       | tags                           | id                              | kind        |
-      | @id:REQ-search @maturity:ready | REQ-search                      | requirement |
-      | @id:SEARCH-1 @kind:story @web  | SEARCH-1                        | story       |
+      | @id=REQ-search @maturity=ready | REQ-search                      | requirement |
+      | @id=SEARCH-1 @kind=story @web  | SEARCH-1                        | story       |
       | @web                           | feature:features/search.feature | feature     |
+
+  Scenario: The tags of a Rule and of a Scenario are facts and links of that node, and only its Cucumber tags are inherited
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay @maturity=ready @checkout
+      Feature: Pay
+
+        Shoppers pay by card.
+
+        @decided-by:DEC-0001 @slow @owner=payments
+        Rule: A wallet is charged once
+
+          A retry reuses the first charge.
+
+          @priority=1 @serial @covers:REQ-refund
+          Scenario Outline: Retry
+            When the payment is retried by <method>
+            Then one charge is made
+
+            @eu
+            Examples:
+              | method |
+              | card   |
+      """
+    When "specs/REQ-pay.feature" is parsed
+    Then the parsed spec has rules:
+      | id                               | name                     | line | description                      | tags  | attributes       | links                  |
+      | REQ-pay#a-wallet-is-charged-once | A wallet is charged once | 7    | A retry reuses the first charge. | @slow | owner="payments" | -decided-by-> DEC-0001 |
+    And the parsed spec has scenarios:
+      | id            | rule                     | tags    | attributes | links                |
+      | REQ-pay#retry | A wallet is charged once | @serial | priority=1 | -covers-> REQ-refund |
+    And the executable tags of "REQ-pay#retry" are "@requirement, @checkout, @slow, @serial, @eu"
+    And sdp reports nothing
+
+  Scenario Outline: What a hash covers is what a step can see: an annotation, the spec's kind aside, is none of it
+    Planning a spec into another iteration, raising its maturity or naming the decision a rule rests
+    on leaves its results valid.
+
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay @maturity=draft @iteration:E1
+      Feature: Pay
+
+        Shoppers pay.
+
+        @decided-by:DEC-0001
+        Rule: An order needs a payment
+
+          No goods leave without one.
+
+          @slow
+          Scenario: Card payment
+            When the shopper pays
+            Then an order is created
+      """
+    When "specs/REQ-pay.feature" is parsed
+    And "specs/REQ-pay.feature" is parsed again after replacing "<text>" with "<replacement>"
+    Then the hash of "REQ-pay#card-payment" <hash>
+
+    Examples:
+      | text                        | replacement             | hash           |
+      | @maturity=draft             | @maturity=ready         | stays the same |
+      | @iteration:E1               | @iteration:E2           | stays the same |
+      | @decided-by:DEC-0001        | @decided-by:DEC-0002    | stays the same |
+      | Shoppers pay.               | Shoppers pay by card.   | stays the same |
+      | No goods leave without one. | Nothing ships unpaid.   | stays the same |
+      | @slow                       | @fast                   | changes        |
+      | @id=REQ-pay                 | @id=REQ-pay @kind=story | changes        |
+
+  Scenario Outline: An annotation that cannot mean what it says is an error at its line, and no tag
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay <feature>
+      Feature: Pay
+
+        <rule>
+        Rule: An order needs a payment
+
+          <scenario>
+          Scenario Outline: Card
+            Then an order is created
+
+            <examples>
+            Examples:
+              | n |
+              | 1 |
+      """
+    When "specs/REQ-pay.feature" is parsed
+    Then sdp reports:
+      | rule       | severity | line   | message   |
+      | annotation | error    | <line> | <message> |
+    And the executable tags of "REQ-pay#card" are "@requirement"
+
+    Examples:
+      | feature                     | rule    | scenario    | examples         | line | message                                     |
+      | @uses:A,B                   |         |             |                  | 1    | @uses:A,B: one tag is one link              |
+      | @id=REQ-other               |         |             |                  | 1    | @id=REQ-other: a spec has one id            |
+      | @owner=ada @owner.team=core |         |             |                  | 1    | owner is written as a value and as a map    |
+      |                             | @id=R-1 |             |                  | 4    | @id=R-1: only a Feature says what it is     |
+      |                             |         | @kind=story |                  | 7    | @kind=story: only a Feature says what it is |
+      |                             |         |             | @browser=firefox | 11   | an annotation on Examples is about no node  |
+
+  Scenario: A # line inside a description is a comment, which Gherkin leaves out of it, and sdp says so
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay
+      Feature: Pay
+
+        Shoppers pay.
+        # Why
+        Cards first, wallets later.
+
+        # A comment after the description is only a comment.
+        Rule: An order needs a payment
+      """
+    When "specs/REQ-pay.feature" is parsed
+    Then the parsed spec has summary "Shoppers pay. Cards first, wallets later."
+    And sdp reports:
+      | rule                | severity | line | message                               |
+      | description-comment | warning  | 5    | "# Why" is a comment, so Gherkin leaves it out |
+
+  Scenario: A Rule or a Scenario tagged @open is a question still open, and its name is the question, so it needs no steps
+    Given a file "specs/REQ-explorer.feature" containing:
+      """
+      @id=REQ-explorer
+      Feature: Explorer
+
+        Rule: A reader browses the architecture
+
+        @open
+        Rule: A static export, or a local server?
+
+        Rule: The explorer only reads
+
+          @open
+          Scenario: Is the code behind an element shown always?
+      """
+    When "specs/REQ-explorer.feature" is parsed
+    Then the parsed spec has open questions:
+      | question                                    | resolved | line |
+      | A static export, or a local server?         | no       | 7    |
+      | Is the code behind an element shown always? | no       | 12   |
+    When the workspace is checked
+    Then sdp reports nothing
+
+  Scenario: A scenario is an example of a rule; one outside every rule is an error, except in a suite named by its path
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay
+      Feature: Pay
+
+        Scenario: Card
+          Then an order is created
+
+        Scenario: Wallet
+          Then an order is created
+
+        Rule: An order needs a payment
+
+          Scenario: Nothing to pay
+            Then no order is created
+      """
+    And a file "features/search.feature" containing:
+      """
+      Feature: Search
+        Scenario: By name
+          Then I see lamps
+      """
+    When the workspace is loaded
+    Then sdp reports:
+      | rule                  | severity | at                      | message                                          |
+      | scenario-outside-rule | error    | specs/REQ-pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
 ~~~
