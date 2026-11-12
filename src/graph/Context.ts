@@ -1,11 +1,12 @@
 /**
  * A context bundle: everything an agent (or a new team member) needs to work
  * on one node, as a single Markdown document — the spec itself, its
- * relationships, scenario status, the significant architecture and decisions
- * in reach, and the code locations already linked to it.
+ * relationships, scenario status, the curated architecture and decisions in
+ * reach, and the code locations already linked to it. Architecture nobody
+ * marked significant appears only as a direct relationship.
  */
 import { Predicate } from "effect"
-import { isSignificant } from "../arch/Architecture.ts"
+import { architectureView, isSignificant } from "../arch/Architecture.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import type { Project } from "./Build.ts"
 
@@ -58,11 +59,12 @@ export const contextBundle = (project: Project, id: string, depth = 2): string |
     out.push("")
   }
 
-  // Curated context within reach: significant elements, patterns and decisions.
+  // Curated context within reach: significant nodes, the patterns of the curated view, decisions.
   const reach = neighbourhood(project, id, depth)
+  const curated = new Set(architectureView(project).nodes.map((n) => n.id))
   const significant = reach.filter((n) => isSignificant(n) && n.id !== id)
   const decisions = reach.filter((n) => n.kind === "decision" && n.id !== id)
-  const patterns = reach.filter((n) => n.kind === "pattern" && n.id !== id)
+  const patterns = reach.filter((n) => n.kind === "pattern" && n.id !== id && curated.has(n.id) && !isSignificant(n))
   if (significant.length > 0) {
     out.push(`## Significant architecture within ${depth} hops`, "")
     for (const n of significant) {

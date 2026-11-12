@@ -166,7 +166,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
           severity: "warning",
           message: `${scenario.id} has no steps`,
           node: scenario.id,
-          source: { file: spec.file, line: scenario.line }
+          source: { file: spec.file, line: scenario.line },
+          hint: "write its Given/When/Then steps or delete the scenario"
         })
       }
     }
