@@ -47,6 +47,19 @@ Feature: Architecture overview
       And the query "code ?-*-> feature|change" returns no results
       And the query "requirement|feature[maturity=ready] !-realized-by-> element" returns no results
 
+  Rule: The step API loads nothing of the parser, the graph or the workspace
+
+    `sdp/steps` is all a step module needs, so importing it reads no workspace; what reads one is
+    `sdp`, the programmatic API.
+
+    Scenario: A fresh process that imports sdp/steps
+      When a fresh Node process imports "sdp/steps"
+      Then the output contains "/src/run/Steps.ts"
+      And the output does not contain "oxc-parser"
+      And the output does not contain "/src/parse/"
+      And the output does not contain "/src/graph/"
+      And the output does not contain "/src/workspace/"
+
   Rule: Only the vocabulary profile names the words sdp interprets
 
     Every other module asks the profile what a role is called, so renaming a word changes what sdp

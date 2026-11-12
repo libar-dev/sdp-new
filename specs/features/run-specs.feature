@@ -33,6 +33,32 @@ Feature: Run specs as tests
         | data.passed            | true                              |
         | data.summary.undefined | 1                                 |
 
+    Scenario Outline: A spec, a scenario, a file and a directory
+      Given a file "specs/sort/REQ-sort.feature" containing:
+        """
+        @id=REQ-sort
+        Feature: Sort
+
+          Rule: A shopper sorts by name or by price
+
+            Scenario: Sort by name
+              When a shopper sorts by name
+
+            Scenario: Sort by price
+              When a shopper sorts by price
+        """
+      When I run "sdp run <target> --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.scenarios | <scenarios> |
+
+      Examples:
+        | target                   | scenarios                                     |
+        | REQ-sort                 | REQ-sort#sort-by-name, REQ-sort#sort-by-price |
+        | REQ-sort#sort-by-price   | REQ-sort#sort-by-price                        |
+        | specs/REQ-search.feature | REQ-search#find-a-product-by-name             |
+        | specs/sort               | REQ-sort#sort-by-name, REQ-sort#sort-by-price |
+
   Rule: A run executes the examples it was asked for, one at a time unless asked otherwise, and reports each once and in order
 
     Step definitions written for a sequential run may share state, so running scenarios concurrently
@@ -62,6 +88,22 @@ Feature: Run specs as tests
         | first step     |
         | passes         |
         | takes a moment |
+
+    Scenario: Without --concurrency, one scenario at a time
+      Given a file "specs/timing.feature" containing:
+        """
+        @id=REQ-timing
+        Feature: Timing
+          Rule: Every step finishes
+            Scenario: One
+              Given a slow step
+
+            Scenario: Two
+              Given a slow step
+        """
+      And a step definition "a slow step" that takes a moment
+      When the workspace is run
+      Then the scenario "One" ran alone
 
     Scenario: Scenarios run concurrently when asked to, except those tagged @serial
       Given a file "specs/timing.feature" containing:
