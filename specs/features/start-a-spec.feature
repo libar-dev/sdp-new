@@ -57,9 +57,14 @@ Feature: Start a spec
         @id=use-postgres @kind=decision
         Feature: Use Postgres
 
-          Not <what a reasonable person would have chosen>, because <why>.
+          Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>.
         """
-      And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains"
+      And the output contains:
+        """
+        next: write what was chosen over what, why, and the cost accepted with it, in one to three sentences
+        next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains
+        next: a rule that rests on it is written on the spec it constrains, tagged `@decided-by:use-postgres`
+        """
 
   Rule: A new feature and a change to one are work still to come: they start in specs/incoming, and the answer says how each is written
 

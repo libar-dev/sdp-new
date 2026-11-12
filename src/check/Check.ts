@@ -84,8 +84,8 @@ const achievableMaturity = (content: Content): string => {
   return best
 }
 
-/** What `sdp new` writes for the author to replace. A decision starts as its shape: */
-export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>."
+/** What `sdp new` writes for the author to replace. A decision starts as its shape, what it was chosen over, why and at what cost: */
+export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>."
 /** and template scenarios name their parts in angle brackets: `Given <context>`. */
 const placeholderStep = /^<[^<>]+>$/
 
@@ -169,7 +169,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  // A decision says what was chosen over what, and why. Anything more has a place of its own.
+  // A decision says what was chosen over what, why, and the cost accepted with it. Anything more has a place of its own.
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
     const spec = project.specById.get(node.id)
     const [rule] = spec?.rules ?? []
@@ -180,7 +180,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
       node: node.id,
       source: at(spec, Math.min(rule?.line ?? Infinity, scenario?.line ?? Infinity)),
-      hint: `a rule it imposes belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; a cost is a risk; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
+      hint: `a rule it imposes belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; the cost it accepts is one of its sentences; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
     }))
   }
 

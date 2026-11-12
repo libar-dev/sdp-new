@@ -285,9 +285,9 @@ const guidance = (options: {
       ]
     case "decision":
       return [
-        "write what was chosen over what, and why, in one to three sentences",
+        "write what was chosen over what, why, and the cost accepted with it, in one to three sentences",
         "record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains",
-        `a rule that rests on it is written on the spec it constrains, tagged \`@decided-by:${id}\`; its price is a risk`
+        `a rule that rests on it is written on the spec it constrains, tagged \`@decided-by:${id}\``
       ]
     case "milestone":
       return [
