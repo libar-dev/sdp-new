@@ -507,7 +507,7 @@ const resolveModule = (file: string, specifier: string, files: ReadonlySet<strin
 /**
  * Which of a spec's rules and examples are work still to come. A Rule without a maturity of its own
  * has its Feature's, and one tagged `@open` is a question, still to come whatever it would inherit;
- * an example is its rule's, and one under no rule its spec's. The maturity a rule is at is the one
+ * an example is its rule's, an open rule's included, and one under no rule its spec's. The maturity a rule is at is the one
  * it declares or inherits — an open rule's only while that is a rung still to come.
  */
 const workOf = (spec: Spec, vocabulary: Vocabulary) => {
@@ -517,14 +517,16 @@ const workOf = (spec: Spec, vocabulary: Vocabulary) => {
     const own = attribute(written, "maturity")
     const maturity = own === undefined ? declared : own
     const open = written.tags.includes(made.tags.open)
-    return { maturity: open && !isToCome(vocabulary, maturity) ? undefined : maturity, toCome: open || isToCome(vocabulary, maturity) }
+    const examplesToCome = isToCome(vocabulary, maturity)
+    return { maturity: open && !examplesToCome ? undefined : maturity, toCome: open || examplesToCome, examplesToCome }
   }
   const rules = new Map(spec.rules.map((written) => [written.id, rule(written)]))
   return {
     /** Whether the spec itself is still to come. */
     spec: toCome,
     rule: (written: Rule) => rules.get(written.id) ?? rule(written),
-    example: (scenario: Scenario) => scenario.rule === undefined ? toCome : rules.get(scenario.rule)?.toCome ?? toCome
+    // A question excuses no example written under it: that is judged by the maturity the rule has.
+    example: (scenario: Scenario) => scenario.rule === undefined ? toCome : rules.get(scenario.rule)?.examplesToCome ?? toCome
   }
 }
 

@@ -53,6 +53,8 @@ export interface Content {
   readonly openQuestions: ReadonlyArray<OpenQuestion>
   /** What the content is written under. */
   readonly under: "Feature" | "Rule"
+  /** Examples of rules ahead of it, judged on their own: they show it has examples, and their problems are reported at their rule. */
+  readonly ahead?: ReadonlyArray<Scenario> | undefined
 }
 
 const noContent: Content = { summary: "", scenarios: [], rules: [], openQuestions: [], under: "Feature" }
@@ -60,17 +62,32 @@ const noContent: Content = { summary: "", scenarios: [], rules: [], openQuestion
 const isOpen = (rule: Rule) => rule.tags.includes(made.tags.open)
 
 /**
- * What a Feature claiming `maturity` is judged on: its first paragraph, and the rules that have its
- * maturity, with their examples. A rule that declares a maturity of its own is judged on its own,
- * and from the implemented rung up an open rule is a question still to come, not part of what is built.
+ * What a Feature claiming `maturity` is judged on: its first paragraph, and the rules at its
+ * maturity, with their examples. A rule that declares another maturity is judged on its own; the
+ * examples of one ahead of the Feature still show that it has examples. From the implemented rung
+ * up, an open rule is a question still to come, not part of what is built.
  */
 export const featureContent = (spec: Spec, vocabulary: Vocabulary, maturity: string): Content => {
   const built = vocabulary.maturity.includes(maturity) && !isToCome(vocabulary, maturity)
-  const rules = spec.rules.filter((rule) => attribute(rule, "maturity") === undefined && !(built && isOpen(rule)))
+  const rank = (rung: unknown) => vocabulary.maturity.indexOf(String(rung))
+  const own = (rule: Rule) => attribute(rule, "maturity")
+  const rules = spec.rules.filter((rule) => {
+    const declared = own(rule)
+    return (declared === undefined || declared === maturity || rank(declared) < 0) && !(built && isOpen(rule))
+  })
   const ids = new Set(rules.map((rule) => rule.id))
   const scenarios = spec.scenarios.filter((scenario) => scenario.rule === undefined || ids.has(scenario.rule))
+  const aheadRules = new Set(spec.rules.filter((rule) => rank(own(rule)) > rank(maturity) && !isOpen(rule)).map((rule) => rule.id))
+  const ahead = spec.scenarios.filter((scenario) => scenario.rule !== undefined && aheadRules.has(scenario.rule))
   const lines = new Set([...rules, ...scenarios].map((element) => element.line))
-  return { summary: spec.summary, scenarios, rules, openQuestions: spec.openQuestions.filter((question) => lines.has(question.line)), under: "Feature" }
+  return {
+    summary: spec.summary,
+    scenarios,
+    rules,
+    openQuestions: spec.openQuestions.filter((question) => lines.has(question.line)),
+    under: "Feature",
+    ahead
+  }
 }
 
 /** What a Rule that declares its own maturity is judged on: its examples. Its name says what must hold, and a reason is written only where that is not plain. */
@@ -100,10 +117,11 @@ export const unmetCriteria = (content: Content, level: string | undefined): Read
   if (index >= 1 && content.under === "Feature" && content.summary === "") {
     reasons.push("no description: write a paragraph on the problem or intent under the Feature")
   }
-  if (index >= 2 && content.scenarios.length === 0) {
+  const shown = [...content.scenarios, ...(content.ahead ?? [])]
+  if (index >= 2 && shown.length === 0) {
     reasons.push(`no scenarios: add a Scenario that states an outcome under ${content.under === "Rule" ? "it" : "a Rule"}`)
   }
-  if (index >= 2 && content.scenarios.length > 0 && !content.scenarios.some((s) => s.hasOutcome)) {
+  if (index >= 2 && shown.length > 0 && !shown.some((s) => s.hasOutcome)) {
     reasons.push("no scenario states an outcome: add a Then step")
   }
   if (index >= 3) reasons.push(...readyReasons(content))
@@ -180,6 +198,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       }))
       continue
     }
+    // A rule at its Feature's own maturity is judged with the Feature, not a second time on its own.
+    if (owner && rule && attribute(owner, "maturity") === maturity) continue
     const content = spec ? featureContent(spec, vocabulary, maturity) : owner && rule ? ruleContent(owner, rule) : noContent
     const reasons = unmetCriteria(content, criteriaOf(vocabulary, maturity))
     const above = rule ? "the Rule" : "`Feature:`"

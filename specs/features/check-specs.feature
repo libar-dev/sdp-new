@@ -174,7 +174,7 @@ Feature: Check specs
   Rule: Implemented work is held to what ready asks, each Rule on its own
 
     Being built does not excuse a rule from what makes it testable. A Rule that declares a maturity
-    is judged on its own examples; an open one is a question still to come.
+    other than its Feature's is also judged on its own examples; an open one is a question still to come.
 
     Scenario Outline: A feature at <claimed>, and <case>
       Given a file "specs/export-to-csv.feature" containing:
@@ -203,6 +203,23 @@ Feature: Check specs
         | a question still to come                           | implemented | @open\nRule: Archived rows too?                                                                                             | nothing           |
         | a rule built ahead of its feature                  | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    Then they are exported | nothing           |
         | a rule built ahead, its example without an outcome | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    When I archive         | maturity-criteria |
+
+    Scenario: A feature whose only rule declares the feature's own maturity
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        @id=export-to-csv @maturity=implemented
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          @maturity=implemented
+          Rule: Every row is exported
+
+            Scenario: Export
+              Then I get a file
+        """
+      When the workspace is checked
+      Then sdp reports nothing
 
   Rule: A spec without a maturity is implemented, and check asks for one
 

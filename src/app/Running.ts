@@ -89,7 +89,7 @@ export interface WorkspaceRun {
   readonly stale: Readonly<Record<string, number>>
   /** The scenarios this run ran that are examples of work still to come: whatever they did fails no run. */
   readonly toCome: ReadonlySet<string>
-  /** The examples of implemented work this run ran that do not pass, as the graph after it shows them: they fail the run. */
+  /** The examples of implemented work this run ran that did not pass, by the results it recorded: they fail the run. */
   readonly regressions: ReadonlyArray<string>
   /** Work still to come whose every example passes, some of them in this run: it can be declared implemented. */
   readonly implementable: ReadonlyArray<Implementable>
@@ -167,7 +167,6 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   // Gates see what the ordinary results say, the fresh ones included, and never the results of gates.
   const after = yield* loadWorkspace(root, { results: "ordinary", imports: imports() })
   const gates = yield* commit(yield* run(after, true), after)
-  // What the run amounts to is asked of the graph after it, as any report asks it.
   const { project } = yield* loadWorkspace(root)
   const { graph } = project
   const reasons = graph.ofKind([made.kinds.scenario]).flatMap((node) => {
@@ -175,13 +174,16 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     return typeof reason === "string" ? [reason] : []
   })
   const ran = new Set(ordinary.executed.map((result) => result.id))
+  // Which examples are implemented work is read from the graph the run ran against; whether one
+  // fails the run, from the result this run recorded for it.
+  const ranAgainst = before.project.graph
   return {
     scenarios: ordinary.executed,
     gates: gates.executed,
     results: gates.results,
     stale: tally(reasons),
-    toCome: new Set([...ran].filter((id) => toCome(graph, id))),
-    regressions: regressions(graph, ran).map((node) => node.id),
+    toCome: new Set([...ran].filter((id) => toCome(ranAgainst, id))),
+    regressions: regressions(ranAgainst, ordinary.executed),
     implementable: implementable(project, ran)
   } satisfies WorkspaceRun
 })

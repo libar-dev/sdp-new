@@ -2,7 +2,7 @@ import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { check } from "../check/Check.ts"
 import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
-import { notPassing, type StepStatus } from "../model/Results.ts"
+import { notPassing, type ScenarioResult } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import { isClosed, isGate } from "../run/Evidence.ts"
@@ -39,16 +39,12 @@ export const ruleLabel = (rule: GraphNode): string => {
 }
 
 /**
- * The examples of implemented work among `ran` that do not pass, as the graph shows them: what
- * fails a run. It is the question `scenario[!toCome][status=failed|ambiguous|pending|undefined]`
- * asks of the scenarios that ran, so the run, a query and every report agree.
+ * The examples of implemented work this run ran that did not pass: what fails it. The graph says
+ * which examples are implemented work; each is judged by the result this run recorded, so neither a
+ * result another run wrote since nor one that went stale while it ran stands in for it.
  */
-export const regressions = (graph: Graph, ran: Iterable<string>): ReadonlyArray<GraphNode> =>
-  [...ran].flatMap((id) => {
-    const node = graph.node(id)
-    const status = node?.attrs.status
-    return node && node.attrs.toCome !== true && notPassing.has(status as StepStatus) ? [node] : []
-  })
+export const regressions = (graph: Graph, ran: ReadonlyArray<ScenarioResult>): ReadonlyArray<string> =>
+  ran.flatMap((result) => graph.node(result.id)?.attrs.toCome === true || !notPassing.has(result.status) ? [] : [result.id])
 
 /** Work still to come that every example of it shows built: what a run points out, to be declared implemented. */
 export interface Implementable {

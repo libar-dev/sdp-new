@@ -103,12 +103,11 @@ Feature: Run specs as tests
         | has a step with no definition |                                                                                            | undefined |
         | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    |
 
-  @decided-by:files-are-the-source-of-truth
   Rule: A run fails when an example of implemented work it ran does not pass
 
-    The verdict is asked of the graph after the run, `scenario[!toCome][status=failed|ambiguous|pending|undefined]`,
-    so the run, a query and `sdp status` agree. An example `--tags` left out fails no run, and is
-    no evidence either.
+    Each example is judged by the result this run recorded: neither another run's result written
+    meanwhile nor a result gone stale while it ran stands in for it. An example `--tags` left out
+    fails no run, and is no evidence either.
 
     Scenario Outline: An example of an implemented feature that <outcome>
       Given a file "specs/wishlist.feature" containing:
@@ -142,6 +141,62 @@ Feature: Run specs as tests
         | matches two definitions       | Then("the wishlist holds a lamp", () => {}); Then("the wishlist holds a {word}", () => {}) | ambiguous | 1         |
         | has a step with no definition |                                                                                            | undefined | 1         |
         | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    | 0         |
+
+    Scenario: A failure fails the run that recorded it, even when its result went stale while it ran
+      Given a file "sdp.config.yaml" containing:
+        """
+        evidence:
+          inputs: [prices.csv]
+        """
+      And a file "prices.csv" containing:
+        """
+        lamp,10
+        """
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item", () => {
+            writeFileSync(new URL("../../prices.csv", import.meta.url), "lamp,12")
+            throw new Error("the cart is empty")
+          })
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 failed"
+
+    Scenario: An open question excuses no example written under it
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=implemented
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          @open
+          Rule: Does a wishlist expire?
+
+            Scenario: An old wishlist
+              Then the wishlist holds a lamp
+        """
+      When I run "sdp run wishlist"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
 
     Scenario: The run, a query and sdp status tell a regression from work still to come
       Given a file "specs/cart.feature" containing:
