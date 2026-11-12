@@ -199,8 +199,9 @@ Feature: Start a spec
         | kind      | title         | maturity |
         | gizmo     | Sprocket      | idea     |
         | idea      | Gift wrapping |          |
-        | phase     | Elaboration   |          |
         | milestone | Launch        |          |
+        | phase     | Construction  |          |
+        | milestone | Go-live       |          |
         | risk      | Outage        |          |
         | feature   | Gift cards    | draft    |
         | feature   | Wishlist      | ready    |

@@ -185,11 +185,15 @@ const specTemplate = (options: {
       return feature(identity, `  ${decisionPlaceholder}`)
     case "phase":
       return feature(identity)
-    case "milestone":
+    case "milestone": {
+      // It closes the phase when there is just one: a template links no node that does not exist.
+      const phases = graph.ofKind(vocabulary.kinds.phase)
+      const closes = phases.length === 1 ? [`@${wordFor(vocabulary.relations.closes)}:${phases[0]!.id}`] : []
       return feature(
-        [...identity, `@${wordFor(vocabulary.relations.closes)}:${phaseId(config, "Elaboration")}`],
+        [...identity, ...closes],
         ...rule("The specification graph is consistent", ["Scenario: No errors in the specification graph", "  Then there are no error diagnostics"])
       )
+    }
     case "iteration": {
       // Two weeks long, back to back with the one before.
       const { phase, start } = nextIteration(graph, vocabulary, today)
@@ -201,9 +205,6 @@ const specTemplate = (options: {
   // Still to come, at whatever maturity it starts: what it says next is the author's.
   return feature([...identity, `@maturity=${maturity}`])
 }
-
-/** The id `sdp new` gives a phase of that name. */
-const phaseId = (config: Config, name: string) => newId(wordFor(config.vocabulary.kinds.phase), name, config, [])
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
