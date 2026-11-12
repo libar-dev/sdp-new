@@ -18,7 +18,7 @@ import { builtinSteps } from "../../src/run/Builtin.ts"
 import { runWorkspace } from "../../src/app/Running.ts"
 import { readResults } from "../../src/run/Store.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { ids, newWorld, output, produce, reload, stdout, type World } from "./world.ts"
+import { ids, newWorld, output, produce, reload, type World } from "./world.ts"
 
 // --- scripted step definitions ---------------------------------------------
 
@@ -376,14 +376,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // The MCP call step (sdp.steps.ts) records whether the tool answered with an error.
   Then("the MCP tool reports an error", ({ world }) => {
     assert.equal(world.scratch.mcpError, true, `expected a tool error, got:\n${output(world)}`)
-  })
-
-  // The field may be a path into the JSON: "data.nodes".
-  Then("the output field {string} holds {string}", ({ args: [field, list], world }) => {
-    const value: unknown = field.split(".").reduce((json, key) => json?.[key], JSON.parse(stdout(world)))
-    assert.ok(Array.isArray(value), `${field} is not a list in:\n${output(world)}`)
-    const actual = value.map((v: unknown) => typeof v === "object" && v !== null && "id" in v ? String(v.id) : String(v))
-    assert.deepEqual(actual.sort(), ids(list))
   })
 
   // The `## ` headings of a Markdown document, in the order they come.

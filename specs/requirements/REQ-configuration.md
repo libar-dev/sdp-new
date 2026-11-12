@@ -333,12 +333,12 @@ Scenario: sdp vocabulary prints the profile in force
     vocabulary: { kinds: { decision: [adr] }, links: [owner] }
     """
   When I run "sdp vocabulary --json"
-  Then the output is valid JSON
-  And the output field "data.vocabulary.links" holds "owner"
-  And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
-  And the output field "data.made.kinds" holds "scenario, code, missing"
-  And the output field "data.made.stages" holds "failing, in-progress, verified"
-  And the output field "data.made.reservedRelations" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status"
+  Then the JSON output has:
+    | data.vocabulary.links       | owner                                                                                      |
+    | data.vocabulary.maturity    | idea, draft, specified, ready                                                              |
+    | data.made.kinds             | scenario, code, missing                                                                    |
+    | data.made.stages            | failing, in-progress, verified                                                             |
+    | data.made.reservedRelations | stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status |
   When I run "sdp vocabulary"
   Then the output line with "decision" contains "adr"
   And the output line with "scenarioAttributes" under "made by sdp, not configurable" contains "staleBecause"
@@ -379,7 +379,8 @@ Scenario: sdp new writes what a renamed profile reads
   And the output does not contain "[dangling-link]"
   And the output does not contain "[plan-reference]"
   When I run "sdp lifecycle --json"
-  Then the output field "data.phases" holds "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition"
+  Then the JSON output has:
+    | data.phases | ERA-inception, ERA-elaboration, ERA-construction, ERA-transition |
 
 Scenario Outline: A profile that cannot work is rejected where it is wrong
   Given a file "sdp.config.yaml" containing:

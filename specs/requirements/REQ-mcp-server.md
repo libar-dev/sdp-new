@@ -68,8 +68,8 @@ Scenario Outline: Asked for JSON, a tool answers with the envelope its command p
     """
     <arguments>
     """
-  Then the output is valid JSON
-  And the output contains '"complete": true'
+  Then the JSON output has:
+    | complete | true |
   And the output contains '<data>'
 
   Examples:
@@ -115,8 +115,8 @@ Scenario: As JSON, the envelope says that the answer may miss something
     """
     { "expression": "#N1 -next+-> #N14", "json": true }
     """
-  Then the output is valid JSON
-  And the output contains '"complete": false'
+  Then the JSON output has:
+    | complete | false |
   And the output contains '"cut short: a + edge reaches further than 12 hops"'
 
 Scenario: The instructions teach that code links to the architecture, and that the architecture is the architects' call
@@ -221,8 +221,9 @@ Scenario: The architecture tool returns the declared architecture and what shape
     """
     { "json": true }
     """
-  Then the output field "data.architecture" holds "ARCH-cache, ARCH-orders"
-  And the output field "data.drivers" holds "DEC-0001"
+  Then the JSON output has:
+    | data.architecture | ARCH-cache, ARCH-orders |
+    | data.drivers      | DEC-0001                |
 
 Scenario: Every call reads the workspace afresh, so an agent sees its own edits
   When an agent calls the MCP tool "sdp_query" with:

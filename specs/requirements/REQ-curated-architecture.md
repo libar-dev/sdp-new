@@ -69,8 +69,9 @@ Scenario: A decision or quality requirement is shown when a link joins it to the
     """
     { "json": true }
     """
-  Then the output field "data.architecture" holds "ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox"
-  And the output field "data.drivers" holds "DEC-1, NFR-latency"
+  Then the JSON output has:
+    | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox |
+    | data.drivers      | DEC-1, NFR-latency                                 |
 
 Scenario: An element anchored in code is part of the architecture, with or without a spec
   Given a file "src/quiet.ts" containing:
@@ -97,7 +98,8 @@ Scenario: An element declared without a description is described by the code anc
     """
     { "json": true }
     """
-  Then the output field "data.anchors" holds "code:src/mailer.ts#Mailer"
+  Then the JSON output has:
+    | data.anchors | code:src/mailer.ts#Mailer |
 
 Scenario: However much code there is, the architecture is what an architect declared or anchored
   Given a file "src/orders.ts" containing:

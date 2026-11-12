@@ -91,9 +91,10 @@ Rule: The record
 
   Scenario: The programmatic API answers with the same records, in the envelope of every answer
     When a program asks the API for "requirement[maturity=ready]"
-    Then the output contains '"complete": true'
-    And the output field "data.nodes" holds "REQ-b"
-    And the output contains '"file": "specs/REQ-b.md"'
+    Then the JSON output has:
+      | complete        | true           |
+      | data.nodes      | REQ-b          |
+      | data.nodes.file | specs/REQ-b.md |
 
   Scenario: sdp graph prints every node and then every edge
     When I run the pipeline:

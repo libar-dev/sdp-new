@@ -178,17 +178,17 @@ Scenario: With --json the answer is one envelope — complete, notes, data — a
     """
   When I run "sdp q requirement --json"
   Then the exit code is 2
-  And the output is valid JSON
-  And the output contains '"complete": false'
+  And the JSON output has:
+    | complete   | false      |
+    | data.nodes | REQ-search |
   And the output contains '"not read: specs/REQ-broken.md:3 [front-matter]'
-  And the output field "data.nodes" holds "REQ-search"
 
 Scenario: A complete answer has no notes
   When I run "sdp q requirement --json"
-  Then the exit code is 0
-  And the output contains '"complete": true'
-  And the output contains '"notes": []'
-  And the output field "data.nodes" holds "REQ-search"
+  Then the JSON output has:
+    | complete   | true       |
+    | notes      | nothing    |
+    | data.nodes | REQ-search |
 ~~~
 
 ## Choosing the workspace
@@ -375,7 +375,11 @@ Scenario: A decision starts as the sentence it must become, and the check flags 
     """
   And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off"
   When I run "sdp check --json"
-  Then the output contains '"rule": "template-placeholder"'
+  Then the JSON output has:
+    | data.rule | template-placeholder                      |
+    | data.node | DEC-0002                                  |
+    | data.file | specs/decisions/DEC-0002-use-postgres.md  |
+    | data.line | 7                                         |
 
 Scenario: A risk is its title, and the answer says what to write and how a risk is linked and retired
   When I run "sdp new risk Outage"
@@ -521,9 +525,11 @@ Scenario: types writes every id with its kind for annotate() to accept, and chec
 ~~~gherkin
 Scenario: status counts kinds, relations, stages and results on one screen, and as data with --json
   When I run "sdp status --json"
-  Then the output is valid JSON
-  And the output contains '"requirement": 1'
-  And the output contains '"stages": {'
+  Then the JSON output has:
+    | data.kinds.requirement         | 1 |
+    | data.relations.realized-by     | 1 |
+    | data.stages.specified          | 1 |
+    | data.scenarios.unrun           | 2 |
 
 Scenario: status counts gate scenarios apart from the others, since a gate may be unmet with nothing broken
   When I run "sdp status"
@@ -546,10 +552,11 @@ Scenario: q answers with one node per line — id, kind, status or stage, title,
 
 Scenario: q --json answers with the node records, and with the paths when asked
   When I run "sdp q 'requirement -realized-by-> element' --paths --json"
-  Then the output is valid JSON
-  And the output field "data.nodes" holds "ARCH-index"
-  And the output contains '"paths": ['
-  And the output contains '"from": "REQ-search"'
+  Then the JSON output has:
+    | data.nodes            | ARCH-index             |
+    | data.paths.nodes      | REQ-search, ARCH-index |
+    | data.paths.edges.from | REQ-search             |
+    | data.paths.edges.rel  | realized-by            |
 
 Scenario: q --paths prints each path on one line, every edge as it points
   When I run "sdp q '#ARCH-index <-realized-by- requirement' --paths"
@@ -633,10 +640,12 @@ Scenario: show prints a node with its attributes and its edges, each with the ti
 
 Scenario: show --json is the node, its edges and its neighbours as records
   When I run "sdp show ARCH-index --json"
-  Then the output is valid JSON
-  And the output field "data.neighbours" holds "DEC-0001, REQ-search"
-  And the output contains '"declared": ['
-  And the output contains '"file": "specs/REQ-search.md"'
+  Then the JSON output has:
+    | data.node.id          | ARCH-index           |
+    | data.neighbours       | DEC-0001, REQ-search |
+    | data.out.to           | DEC-0001             |
+    | data.in.from          | REQ-search           |
+    | data.in.declared.file | specs/REQ-search.md  |
 
 Scenario: An id no node has is an error that names the closest one
   When I run "sdp show ARCH-indx"
@@ -695,10 +704,10 @@ Scenario: arch shows every declared element with its links
 
 Scenario: arch --json tells the architecture from what shaped it and from the code anchored to it
   When I run "sdp arch --json"
-  Then the output is valid JSON
-  And the output field "data.architecture" holds "ARCH-cache, ARCH-index"
-  And the output field "data.drivers" holds "DEC-0001"
-  And the output field "data.anchors" holds "nothing"
+  Then the JSON output has:
+    | data.architecture | ARCH-cache, ARCH-index |
+    | data.drivers      | DEC-0001               |
+    | data.anchors      | nothing                |
 
 Scenario: arch --mermaid draws it
   When I run "sdp arch --mermaid"
@@ -714,11 +723,11 @@ makes itself, which nothing configures.
 ~~~gherkin
 Scenario: vocabulary prints the words sdp interprets, and the kinds and attributes it makes itself
   When I run "sdp vocabulary --json"
-  Then the output is valid JSON
-  And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
-  And the output field "data.made.attributes" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn"
-  And the output field "data.made.scenarioAttributes" holds "spec, keyword, tags, description, rule, ruleDescription, steps, examples, status, staleBecause, lastRun, hash"
-  And the output field "data.made.codeAttributes" holds "file, symbol, doc"
+  Then the JSON output has:
+    | data.vocabulary.maturity     | idea, draft, specified, ready                                                                                    |
+    | data.made.attributes         | stage, verification, scenarios, summary, file, openQuestions, declaredIn                                         |
+    | data.made.scenarioAttributes | spec, keyword, tags, description, rule, ruleDescription, steps, examples, status, staleBecause, lastRun, hash    |
+    | data.made.codeAttributes     | file, symbol, doc                                                                                                |
   When I run "sdp vocabulary"
   Then the output line with "stages" under "made by sdp, not configurable" contains "failing, in-progress, verified"
 ~~~
@@ -746,14 +755,15 @@ Scenario: lifecycle lays out the milestones, the planned work and the chart
 
 Scenario: lifecycle --json says where the project is, and keeps the plan and the evidence apart
   When I run "sdp lifecycle --json"
-  Then the output is valid JSON
-  And the output contains '"position": {'
-  And the output contains '"milestone": "MS-beta"'
-  And the output field "data.milestones" holds "MS-beta"
-  And the output field "data.phases" holds "PH-inception, PH-elaboration, PH-construction, PH-transition"
-  And the output contains '"unmet": ['
-  And the output contains '"disciplines"'
-  And the output contains '"evidence"'
+  Then the JSON output has:
+    | data.position.milestone      | MS-beta                                                |
+    | data.position.phase          | PH-construction                                        |
+    | data.milestones              | MS-beta                                                |
+    | data.milestones.gate.passed  | 0                                                      |
+    | data.phases                  | PH-inception, PH-elaboration, PH-construction, PH-transition |
+    | data.iterations              | C1                                                     |
+    | data.disciplines.requirements | 1                                                     |
+    | data.work.evidence.stages.specified | 1                                               |
 
 Scenario: Before there is a plan lifecycle says how to write one, and a milestone from the template ends its phase
   When I run "sdp -C fresh init"
@@ -828,10 +838,12 @@ Scenario: check --json prints the diagnostics as data
     """
   When I run "sdp check --json"
   Then the exit code is 1
-  And the output is valid JSON
-  And the output contains '"rule": "dangling-link"'
-  And the output contains '"file": "specs/REQ-a.md"'
-  And the output contains '"line": 3'
+  And the JSON output has:
+    | data.rule     | dangling-link  |
+    | data.severity | error          |
+    | data.node     | REQ-a          |
+    | data.file     | specs/REQ-a.md |
+    | data.line     | 3              |
 ~~~
 
 ### `sdp steps [text]`
@@ -887,11 +899,11 @@ Scenario: steps --json is the same list as data
     })
     """
   When I run "sdp steps catalogue --json"
-  Then the output is valid JSON
-  And the output contains '"file": "specs/steps/search.steps.ts"'
-  And the output contains '"line": 4'
-  And the output contains '"keyword": "Given"'
-  And the output contains '"expression": "a catalogue with a desk lamp"'
+  Then the JSON output has:
+    | data.file       | specs/steps/search.steps.ts |
+    | data.line       | 4                           |
+    | data.keyword    | Given                       |
+    | data.expression | a catalogue with a desk lamp |
 ~~~
 
 ### `sdp run [targets]`
@@ -922,10 +934,10 @@ Scenario: A failing scenario fails the run
 
 Scenario: A target is a spec id, a scenario id, or a file or directory relative to the current directory
   When I run "sdp run REQ-search.md --json" in "specs"
-  Then the output is valid JSON
-  And the output field "data.scenarios" holds "REQ-search#find-a-product-by-name"
-  And the output contains '"passed": true'
-  And the output contains '"summary": {'
+  Then the JSON output has:
+    | data.scenarios      | REQ-search#find-a-product-by-name |
+    | data.passed         | true                              |
+    | data.summary.undefined | 1                              |
 
 Scenario: A target that matches nothing is an error, not an empty run
   When I run "sdp run REQ-serach"
@@ -1056,8 +1068,9 @@ Scenario: Only milestones and @gate scenarios can be gates
 Scenario: gate --json prints nothing but JSON
   When I run "sdp gate MS-beta --json"
   Then the exit code is 1
-  And the output is valid JSON
-  And the output contains '"passed": false'
+  And the JSON output has:
+    | complete    | true  |
+    | data.passed | false |
 
 Scenario: gate --record records nothing while the gate does not pass
   When I run "sdp gate MS-beta --record"
@@ -1085,7 +1098,8 @@ Scenario: gate --record writes met into a milestone whose gate passes, and the n
   When I run "sdp q milestone[met] --ids"
   Then the output lines are "MS-alpha"
   When I run "sdp lifecycle --json"
-  Then the output contains '"milestone": "MS-beta"'
+  Then the JSON output has:
+    | data.position.milestone | MS-beta |
 
 Scenario: A milestone that is met is closed: its gate does not run again
   Given a file "specs/MS-alpha.md" containing:

@@ -7,7 +7,7 @@
  * in a shell. Shares its world with every other module (world.ts).
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Effect, Result } from "effect"
+import { Effect, Predicate, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { execFile } from "node:child_process"
@@ -55,6 +55,16 @@ const workspace = async (world: World) => {
   }
   return directory
 }
+
+/** One step of a path into JSON: a key of an object, an index of a list, or the key in every item of a list. */
+const field = (value: unknown, key: string): unknown => {
+  if (Array.isArray(value)) return /^\d+$/.test(key) ? value[Number(key)] : value.flatMap((item) => field(item, key) ?? [])
+  return Predicate.hasProperty(value, key) ? value[key] : undefined
+}
+
+/** A value as a table cell says it: text as it is, a record by its id, anything else as JSON. */
+const shown = (value: unknown): string =>
+  typeof value === "string" ? value : Predicate.hasProperty(value, "id") ? String(value.id) : JSON.stringify(value)
 
 /** Shell-like words: quotes group, and are removed. */
 const words = (command: string) => [...command.matchAll(/'([^']*)'|"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!)
@@ -192,12 +202,23 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.deepEqual(lines.sort(), ids(expected.replace(/\\t/g, "\t")), `output:\n${output(world)}`)
   })
 
-  Then("the output is valid JSON", ({ world }) => {
+  // Each row is a path into the JSON on stdout and the value there: `data.summary.passed | 1`. A
+  // path reads through a list into each of its items; a list is its items in any order, an item
+  // with an id that id, and "nothing" an empty list.
+  Then("the JSON output has:", ({ table, world }) => {
     const text = stdout(world)
-    try {
-      JSON.parse(text)
-    } catch (error) {
-      assert.fail(`not JSON (${error instanceof Error ? error.message : String(error)}):\n${text}`)
+    const json: unknown = (() => {
+      try {
+        return JSON.parse(text)
+      } catch (error) {
+        return assert.fail(`not JSON (${error instanceof Error ? error.message : String(error)}):\n${text}`)
+      }
+    })()
+    for (const [path = "", expected = ""] of table ?? []) {
+      const value = path.split(".").reduce(field, json)
+      assert.notEqual(value, undefined, `no field ${path} in:\n${text}`)
+      if (Array.isArray(value)) assert.deepEqual(value.map(shown).sort(), ids(expected), path)
+      else assert.equal(shown(value), expected, path)
     }
   })
 
