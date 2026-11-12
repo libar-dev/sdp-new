@@ -7,7 +7,7 @@ Feature: Living specifications
   specification — in one format that stays true as the system changes, because it runs. The plan
   and its milestones live in the same graph, so progress is read from evidence rather than reported.
 
-  The README shows a requirement going from specified to verified in one file. This is the
+  GUIDE shows a requirement going from specified to verified in one file. This is the
   other half: a milestone that is met by what ran.
 
   Scenario: A milestone is met by what ran, not by a status or a date

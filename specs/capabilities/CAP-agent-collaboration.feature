@@ -8,7 +8,7 @@ Feature: Agent collaboration
 
   The same files answer through four doors, from least to most specialised: grep, the export with
   one record per line, the command line and MCP. No door has a store of its own, so they cannot
-  disagree, and every answer names the file it came from. The README asks one question through
+  disagree, and every answer names the file it came from. GUIDE asks one question through
   grep, jq and `sdp q`; here MCP gives the same answer as the command line.
 
   Scenario: An MCP client and the command line get the same answer, with the file it came from

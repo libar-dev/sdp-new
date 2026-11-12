@@ -7,7 +7,7 @@ Feature: Curated architecture knowledge
   the decisions and quality requirements behind them. Architects decide which ones they are;
   everything else stays design detail in the code, out of the graph.
 
-  The README shows an element anchored in code next to its decision. sdp holds its own
+  GUIDE shows an element anchored in code next to its decision. sdp holds its own
   architecture to that: a description that no code stands behind is a diagram that stopped being
   true.
 
