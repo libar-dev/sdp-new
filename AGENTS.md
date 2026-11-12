@@ -28,10 +28,10 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
 - `specs/` is organised by what a spec is for:
   - `features/` — what sdp does and is still to do, one file per feature, named for what its users
     do (`ask-the-graph`: an id with no prefix is a feature's). The file is the feature's
-    requirements document and its test suite at once. What is built is `@maturity=implemented`:
-    every rule has an example, and every example passes. What is still to come declares a rung
-    below, the feature or each of its rules: a change to a built feature is rules of it, and
-    nothing moves when it is built.
+    requirements document and its test suite at once. What is built declares no maturity: it is
+    live, every rule has an example, every example passes, and `sdp check` fails when anything live
+    at the git base stops being live. What is still to come declares a maturity, the feature or each
+    of its rules: a change to a built feature is rules of it, and nothing moves when it is built.
   - `decisions/` — few. Only a choice that is hard to reverse, surprising without context and a
     real trade-off, and that spans features: a title and one to three sentences on what was chosen
     over what, why, and the cost accepted with it. A reason that concerns one feature is written

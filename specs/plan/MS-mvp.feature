@@ -19,7 +19,7 @@ Feature: Minimum viable product
 
   Rule: Nothing built is still undecided
 
-    A question about what is built has its feature's maturity; one about work to come declares its own.
+    A question about live work declares no maturity of its own; one about work still to come declares one.
 
     Scenario: Open questions about what is built
       Then the query "rule[tags~@open][!maturity] -rule-of-> *[!toCome]" returns no results
@@ -34,6 +34,6 @@ Feature: Minimum viable product
 
   Rule: The specification graph is consistent
 
-    Scenario: No error, and no example of built work that does not pass
+    Scenario: No error, and no live example that does not pass
       Then there are no error diagnostics
       And the query "scenario[!toCome][status=failed|ambiguous|pending|undefined]" returns no results

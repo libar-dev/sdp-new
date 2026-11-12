@@ -6,7 +6,7 @@ step definitions that drive the domain code.
 
 | File | Shows |
 | --- | --- |
-| [specs/features/cart-totals.feature](specs/features/cart-totals.feature) | a feature declared *implemented* whose scenarios pass: *verified*. Its quality rule's step definitions are a fitness function |
+| [specs/features/cart-totals.feature](specs/features/cart-totals.feature) | a live feature — built, so it declares no maturity — whose scenarios pass: *verified*. Its quality rule's step definitions are a fitness function |
 | [specs/features/guest-checkout.feature](specs/features/guest-checkout.feature) | a feature specified and still to come: its steps are *undefined*, which fails no run, and what is still undecided is an open question |
 | [specs/features/wishlist.feature](specs/features/wishlist.feature) | an idea — a title and a sentence are a valid spec |
 | [specs/decisions/integer-cents.feature](specs/decisions/integer-cents.feature) | a decision: what was chosen over what, why, and at what price; the rule it imposes is a rule of cart totals |

@@ -55,14 +55,19 @@ Feature: Guest checkout
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
   scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
-  named by its path and run as it is. A rule without an example yet is a to-do that `ready`
-  refuses.
-- **How far a Feature or a Rule has come is its `@maturity=`**: idea, draft, specified, ready, then
-  `implemented`, which promises that its examples pass. Below it, work is still to come: its
-  examples run and fail no run, so they are written before the code. A Rule without a maturity of
-  its own has its Feature's, so a change to a built feature is rules of it, each at the maturity it
-  has reached, with `@replaces:<feature>#<rule>` on one that replaces a built rule; nothing moves
-  when it is built. A spec that declares no maturity is implemented.
+  named by its path and run as it is. A live rule without an example is an error; one still to
+  come is a to-do.
+- **A Feature or a Rule still to come declares a `@maturity=`; one that is built declares none, and
+  is live.** The maturity — idea, draft, specified, ready, or a word of the team's own — is the
+  team's judgement, and sdp checks nothing about it: whatever it says, the work is still to come,
+  and its examples run and fail no run, so they are written before the code. A live Feature or Rule
+  is a test: its examples must pass. A Rule without a maturity of its own has its Feature's, so a
+  change to a built feature is rules of it, each with a maturity of its own, with
+  `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
+  Nothing live goes back: `sdp check` compares the specs with the git base (where HEAD meets the
+  default branch, or `--base`), and a maturity on what was live there, or a live example that is
+  gone or still to come with no live rule that replaces its rule, is an error. Renaming an example
+  or its rule is no removal: an example is known by its steps.
 - **An open question is a Rule tagged `@open`**, its name the question. Answering it means
   renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
   has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
@@ -163,7 +168,7 @@ faster than grepping for a guess.
   matches.
 - **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it with the
   shape of what it exports, what each element imports, the code that plays each pattern, and the
-  work implemented on each and still to come),
+  live work on each and the work still to come),
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
 
@@ -188,9 +193,10 @@ typed does not exist and which one is closest.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for
    steps that have none.
 4. Implement.
-5. Verify: `sdp check` (no errors) and `sdp run`, which fails on an example of implemented work
-   that does not pass. Once every example of work still to come passes, the run says so: declare
-   it `@maturity=implemented`. Gates never fail `sdp run`; `sdp gate <milestone>` enforces one.
+5. Verify: `sdp check` (no errors, nothing live at the git base dropped) and `sdp run`, which fails
+   on a live example that does not pass. Once every example of work still to come passes, the run
+   says so: delete its maturity, and it is live. Gates never fail `sdp run`; `sdp gate <milestone>`
+   enforces one.
 
 A scenario that asserts on delivery state (`stage`, `verification`, a scenario's `status`) must be
 a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
