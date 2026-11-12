@@ -112,8 +112,8 @@ Feature: Ask the graph
         | query                              | result                    |
         | element[public=TRUE]               | ARCH-orders               |
         | element[title~^bill]               | ARCH-billing              |
-        | feature[tags=web]                  | checkout                  |
-        | feature[tags!=web]                 | refunds                   |
+        | feature[tags=@web]                 | checkout                  |
+        | feature[tags!=@web]                | refunds                   |
         | feature[maturity=ready\|idea]      | checkout, refunds         |
         | feature[maturity!=ready\|draft]    | refunds                   |
         | element[title!~^(billing\|ledger)] | ARCH-orders               |

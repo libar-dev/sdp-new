@@ -21,7 +21,10 @@ export interface Spec {
   readonly id: string
   readonly kind: string
   readonly title: string
+  /** What its author wrote of it as `@key=value`; sdp derives the rest of its node's attributes. */
   readonly attrs: Attrs
+  /** Its Feature's Cucumber tags, as written (`@web`). */
+  readonly tags: ReadonlyArray<string>
   readonly links: ReadonlyArray<LinkDecl>
   readonly scenarios: ReadonlyArray<Scenario>
   /** The `Rule:` blocks: what must hold, each with its reason; the scenarios name the rule they are examples of. */
@@ -79,14 +82,14 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       hint: "put each scenario under the `Rule:` it is an example of: the rule's name says what must hold, the lines under it why"
     }))
   }
-  const tags = feature.tags.map((tag) => tag.slice(1))
   return {
     spec: {
       file,
       id,
       kind,
       title: feature.name || id,
-      attrs: tags.length > 0 ? { ...attrs, tags } : attrs,
+      attrs,
+      tags: feature.tags,
       links,
       scenarios: gherkin.scenarios,
       rules: gherkin.rules,

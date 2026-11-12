@@ -147,9 +147,10 @@ export const made = {
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
   /**
    * Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error.
-   * `toCome` marks work still to come, and `rulesToCome` counts a spec's rules still to come.
+   * `tags` holds the Cucumber tags of a Feature, a Rule or a Scenario as written, `toCome` marks work
+   * still to come, and `rulesToCome` counts a spec's rules still to come.
    */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "toCome", "rulesToCome"],
+  attributes: ["stage", "verification", "scenarios", "summary", "file", "tags", "openQuestions", "toCome", "rulesToCome"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */

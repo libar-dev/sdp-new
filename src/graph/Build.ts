@@ -280,6 +280,7 @@ export const buildProject = (input: ProjectInput): Project => {
       title: spec.title,
       attrs: staged(spec.id, spec.kind, compact({
         ...attrs,
+        tags: spec.tags.length > 0 ? spec.tags : undefined,
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,

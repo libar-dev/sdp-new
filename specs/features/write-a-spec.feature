@@ -324,7 +324,6 @@ Feature: Write a spec
         | due      | "2026-12-01T10:00"           |
         | owner    | {"team":"core","lead":"ada"} |
         | label    | ["a","b"]                    |
-        | tags     | ["web"]                      |
       And the parsed spec has attribute lines:
         | key        | line |
         | id         | 1    |

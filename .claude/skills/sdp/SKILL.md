@@ -75,7 +75,7 @@ Feature: Guest checkout
   renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
   has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
   someone is written this way, on the spec it concerns, never kept in a chat or an agent's memory:
-  `sdp q 'rule[tags~open]'` lists it.
+  `sdp q 'rule[tags=@open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
   what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
   whoever reads a message citing it needs no lookup. Elements, patterns, milestones, phases and

@@ -113,5 +113,5 @@ export const workOn = (project: Project, node: GraphNode): Work => {
 
 const isQuestion = (node: GraphNode): boolean => {
   const tags = attribute(node, "tags")
-  return Array.isArray(tags) && tags.includes(made.tags.open)
+  return node.kind === made.kinds.rule && Array.isArray(tags) && tags.includes(made.tags.open)
 }
