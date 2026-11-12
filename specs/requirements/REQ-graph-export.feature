@@ -102,6 +102,15 @@ Feature: The graph as plain data
       And the output does not contain "REQ-b"
       And the output does not contain "DEC-0001"
 
+    Scenario: Only the edges a path walks, not every edge between the nodes it reaches
+      Given these specs:
+        | tags                                | Feature |
+        | @id=REQ-c @uses:REQ-d @avoids:REQ-d | C       |
+        | @id=REQ-d                           | D       |
+      When I run "sdp graph -q '#REQ-c -uses-> #REQ-d'"
+      Then the output contains '"from":"REQ-c","rel":"uses","to":"REQ-d"'
+      And the output does not contain '"rel":"avoids"'
+
     Scenario: The same graph as a Mermaid flowchart
       When I run "sdp graph --mermaid -q 'element -decided-by-> decision'"
       Then the output contains "flowchart LR"

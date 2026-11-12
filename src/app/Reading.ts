@@ -16,7 +16,7 @@ import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unk
 import { statusSummary } from "../graph/Status.ts"
 import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast, type Diagnostic, type RuleId, type Severity } from "../model/Diagnostic.ts"
-import type { Graph } from "../model/Graph.ts"
+import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
@@ -264,11 +264,15 @@ export const vocabulary = Effect.fn("vocabulary")(function*(root: string) {
   return { complete: true, notes: [], data } satisfies Answer<VocabularyData>
 })
 
-/** The whole graph, or with `select` the part along the paths a query matches. */
+/** The whole graph, or with `select` the part along the paths a query matches: their nodes and the edges they walk. */
 const selected = Effect.fnUntraced(function*(project: Project, select: string | undefined) {
   if (select === undefined) return { graph: project.graph, about: {} }
   const { about, result } = yield* evaluate(project, select)
-  const graph: Graph = project.graph.subgraph(result.paths.flatMap((path) => path.nodes))
+  const nodes = new Set(result.paths.flatMap((path) => path.nodes))
+  const walked = new Set(result.paths.flatMap((path) =>
+    path.edges.flatMap((step) => project.graph.out(step.from).filter((edge) => edge.rel === step.rel && edge.to === step.to))
+  ))
+  const graph = new Graph(project.graph.nodes().filter((node) => nodes.has(node.id)), walked)
   return { graph, about }
 })
 
