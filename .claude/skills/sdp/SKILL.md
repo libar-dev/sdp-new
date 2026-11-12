@@ -71,8 +71,8 @@ The sharp edges of the format, each what the official parser does:
 - A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a bare tag `@b.c`.
 - Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
   kept, so `@verifies:REQ-a#slug` links to a rule.
-- A Background cannot be tagged. Scenarios outside a Rule come before the first Rule; after it,
-  every scenario belongs to the rule above it, whatever its indentation.
+- A Background cannot be tagged. After the first Rule every scenario belongs to the rule above
+  it, whatever its indentation; one before it belongs to none, which `sdp check` reports.
 
 ## What holds everywhere
 
@@ -93,8 +93,8 @@ The sharp edges of the format, each what the official parser does:
   context and a real trade-off is recorded: a Feature whose name is the choice and one to three
   sentences on what was chosen over what. The rules it imposes stay on the spec they constrain,
   tagged `@decided-by:DEC-x`. Any other choice is a sentence where it applies.
-- **Evidence, not status.** Scenarios are the tests. `stage: verified` is derived from a run and
-  goes stale when what it ran against changes; it is an error to write it by hand.
+- **Evidence, not status.** Scenarios are the tests. The stage `verified` is derived from a run
+  and goes stale when what it ran against changes; `@stage=` written by hand is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
   few words sdp itself interprets in this workspace.
 

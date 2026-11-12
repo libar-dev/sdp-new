@@ -31,5 +31,5 @@ which code the element is: that is the architecture. `annotate(vatFor, { impleme
 annotated, and whether a team wants that link is its call. In languages other than TypeScript and
 JavaScript, an `@sdp is ARCH-pricing` comment does the same.
 
-The root [README](../../README.md) runs this suite, and shows this architecture, in a copy of the
-example with every build.
+[GUIDE.feature](../../specs/GUIDE.feature) runs this suite, and shows this architecture, in a copy
+of the example with every build of sdp.

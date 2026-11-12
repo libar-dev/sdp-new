@@ -12,7 +12,9 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   family: assert on data — a table of nodes, of what sdp reports, of JSON fields — before wording,
   and add a column before a step. After a command, an exit code other than 0 is stated before
   its output is read; the steps fail otherwise. `Given these specs:` writes one feature file per
-  row, its tag line and the name of its Feature.
+  row, its tag line and the name of its Feature. A fixture written whole is a spec like any other:
+  its scenarios sit under a `Rule:` named in the fixture's own words, as its Feature is
+  (`Rule: R` beside `Feature: A`).
 - `npm run verify` must pass before a change is done. After adding or renaming a spec, run
   `npm run types` so the compiler knows its id.
 - Node.js 24 runs `.ts` directly: erasable syntax only (no enums, namespaces, parameter
