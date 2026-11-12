@@ -21,25 +21,11 @@ Feature: Work still to come is told from what is built
     Nothing is copied into a feature and deleted when it is built, and sdp new writes a feature
     where it stays.
 
-  Rule: A spec that declares no maturity is implemented, and sdp check asks for its maturity to be declared
-
-    Failing safe: an example nobody marked is enforced, as it is under Cucumber, and someone else's
-    suite without an id runs as it does there.
-
-  Rule: Implemented work is held to what ready asks: every rule has an example, and none is open
-
-    Being built must not excuse a rule from the checks that make it testable.
-
   Rule: A rule still to come names the implemented rule it replaces with `@replaces:<feature>#<rule>`, and the replaced rule stays enforced until the edit that implements its replacement deletes it
 
     A replacement never switches the old rule's examples off: until it is built both run, and the
     edit that declares it implemented deletes the old rule and the link. Removing behaviour is
     written as what happens instead, such as an operation that is refused.
-
-  Rule: An open question is still to come, whatever maturity it would inherit, and has no examples
-
-    A question cannot switch off the examples of a rule that holds: an `@open` rule with examples
-    is an error.
 
   Rule: A rule still to come can be planned into an iteration, and work still to come at every maturity is unplanned until it is planned
 

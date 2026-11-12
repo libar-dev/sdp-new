@@ -233,7 +233,7 @@ Feature: Start a spec
     Scenario Outline: A rule, a scenario and a step as the template wrote them
       Given a file "specs/reports.feature" containing:
         """
-        @id=reports
+        @id=reports @maturity=ready
         Feature: Reports
 
           Analysts export reports.

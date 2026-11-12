@@ -23,7 +23,7 @@ Feature: See the architecture
       | @id=credit-notes @kind=decision                                                                            | A refund is a credit note               |
     And a file "specs/receipts.feature" containing:
       """
-      @id=receipts @realized-by:ARCH-orders
+      @id=receipts @maturity=idea @realized-by:ARCH-orders
       Feature: Receipts
 
         @decided-by:numbered-receipts

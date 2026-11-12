@@ -204,7 +204,7 @@ Feature: Use the command line
     Scenario: On one screen, and as data
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart
+        @id=cart @maturity=implemented
         Feature: Cart
 
           Rule: A cart holds each item once
@@ -220,7 +220,7 @@ Feature: Use the command line
       And the output contains "still to come unrun 1"
       And the output contains "gates         unrun 1"
       And the output contains "milestones    open 1"
-      And the output contains "check         no diagnostics"
+      And the output contains "check         error 1"
       When I run "sdp status --json"
       Then the JSON output has:
         | data.kinds.feature         | 2 |

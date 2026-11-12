@@ -22,6 +22,8 @@ export const rules = {
   "maturity-value": "error",
   "maturity-criteria": "error",
   "maturity-promotable": "info",
+  "maturity-missing": "warning",
+  "question-example": "error",
   "decision-shape": "warning",
   "template-placeholder": "warning",
   "plan-reference": "warning",

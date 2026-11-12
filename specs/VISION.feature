@@ -1,4 +1,4 @@
-@id=VISION @kind=vision
+@id=VISION @kind=vision @maturity=implemented
 @principle:specs-are-gherkin-files @principle:free-vocabulary @principle:files-are-the-source-of-truth
 @principle:declared-maturity-derived-stage
 Feature: Vision

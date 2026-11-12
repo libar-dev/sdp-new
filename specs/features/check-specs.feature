@@ -18,7 +18,7 @@ Feature: Check specs
     Scenario: A warning passes the check, an error fails it, and --severity leaves out what is less severe
       Given a file "specs/reports.feature" containing:
         """
-        @id=reports
+        @id=reports @maturity=idea
         Feature: Reports
 
           Rule: Something holds
@@ -68,6 +68,8 @@ Feature: Check specs
         | maturity-value        | error    | specs/reports.feature          | 1    | @id=reports @maturity=someday\nFeature: Reports                                                                                                                               |
         | maturity-criteria     | error    | specs/reports.feature          | 1    | @id=reports @maturity=specified\nFeature: Reports\n  Analysts export reports.                                                                                                 |
         | maturity-promotable   | info     | specs/reports.feature          | 1    | @id=reports @maturity=draft\nFeature: Reports\n  Analysts export reports.\n  Rule: R\n    Scenario: Export\n      Then a file is saved                                        |
+        | maturity-missing      | warning  | specs/reports.feature          | 1    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Export\n      Then a file is saved                                                                                    |
+        | question-example      | error    | specs/reports.feature          | 5    | @id=reports @maturity=idea\nFeature: Reports\n  @open\n  Rule: Mailed too?\n    Scenario: Mail\n      Then a mail is sent                                                     |
         | decision-shape        | warning  | specs/monthly-releases.feature | 4    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not weekly, because a release takes a week to test.\n  Rule: Consequences                                   |
         | template-placeholder  | warning  | specs/monthly-releases.feature | 3    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>. |
         | plan-reference        | warning  | specs/reports.feature          | 1    | @id=reports @iteration:reports\nFeature: Reports                                                                                                                              |
@@ -168,6 +170,68 @@ Feature: Check specs
         | rule              | line | message                                                                                                             |
         | maturity-criteria | 1    | 1 open question(s), e.g. "Which delimiter?" (line 9); rule "Archived rows are exported too" has no example (line 6) |
 
+  Rule: Implemented work is held to what ready asks, each Rule on its own
+
+    Being built does not excuse a rule from what makes it testable. A Rule that declares a maturity
+    is judged on its own examples; an open one is a question still to come.
+
+    Scenario Outline: A feature at <claimed>, and <case>
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        @id=export-to-csv @maturity=<claimed>
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          Rule: Every row is exported
+
+            Scenario: Export
+              Then I get a file
+
+          <second>
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | case                                               | claimed     | second                                                                                                                      | reported          |
+        | a rule without an example                          | implemented | Rule: Archived rows too                                                                                                     | maturity-criteria |
+        | a rule still to come                               | implemented | @maturity=draft\nRule: Archived rows too\n\n  Analysts audit them.                                                          | nothing           |
+        | a rule specified without an example                | implemented | @maturity=specified\nRule: Archived rows too                                                                                | maturity-criteria |
+        | an open question about what is built               | implemented | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?                                                         | maturity-criteria |
+        | a question still to come                           | implemented | @open\nRule: Archived rows too?                                                                                             | nothing           |
+        | a rule built ahead of its feature                  | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    Then they are exported | nothing           |
+        | a rule built ahead, its example without an outcome | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    When I archive         | maturity-criteria |
+
+  Rule: A spec without a maturity is implemented, and check asks for one
+
+    Failing safe: an example nobody marked is enforced, as under Cucumber, and a suite without an id
+    runs as it does there.
+
+    Scenario Outline: A spec <declaring> and an example without a step definition
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        <tags>
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          Rule: Every row is exported
+
+            Scenario: Export
+              Then I get a file
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+      When I run "sdp run"
+      Then the exit code is <exit code>
+
+      Examples:
+        | declaring             | tags                              | reported         | exit code |
+        | that declares nothing | @id=export-to-csv                 | maturity-missing | 1         |
+        | that is still to come | @id=export-to-csv @maturity=ready | nothing          | 0         |
+        | named by its path     |                                   | nothing          | 1         |
+
   Rule: Content ahead of its label is no error, only an info that the spec can be promoted
 
     Maturity is the team's judgement of how well a thing is understood: a claim below what the
@@ -248,8 +312,10 @@ Feature: Check specs
         | @id=retire-legacy-billing @kind=decision | Retire legacy billing |
       And a file "specs/ARCH-legacy-billing.feature" containing:
         """
-        @id=ARCH-legacy-billing
+        @id=ARCH-legacy-billing @maturity=implemented
         Feature: Legacy billing
+
+          Billing as it was before invoices, kept until the last caller is gone.
 
           @decided-by:retire-legacy-billing
           Rule: Nothing new calls legacy billing

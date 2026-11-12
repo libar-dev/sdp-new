@@ -10,7 +10,7 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { description } from "../arch/Architecture.ts"
-import { unmetCriteria } from "../check/Check.ts"
+import { featureContent, unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
 import { attribute, criteria, hasKind, isDriver, isPlanKind, made } from "../model/Vocabulary.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
@@ -192,7 +192,7 @@ const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
   const maturity = spec.attrs.maturity
   if (!Predicate.isString(maturity) || !ladder.includes(ready) || ladder.indexOf(maturity) < 0) return []
   if (ladder.indexOf(maturity) >= ladder.indexOf(ready)) return []
-  const reasons = unmetCriteria(spec, ready)
+  const reasons = unmetCriteria(featureContent(spec, project.config.vocabulary, ready), ready)
   return [
     "## Not ready yet",
     "",

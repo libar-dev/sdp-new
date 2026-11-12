@@ -1,4 +1,4 @@
-@id=GUIDE @kind=guide
+@id=GUIDE @kind=guide @maturity=implemented
 Feature: sdp, shown by running it
 
   What README.md promises a reader and AGENTS.md asks of an agent in this repository, as scenarios

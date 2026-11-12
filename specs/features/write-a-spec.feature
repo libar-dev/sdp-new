@@ -474,15 +474,17 @@ Feature: Write a spec
       Then the exit code is 1
       And the output contains "specs/pay.feature:9 [duplicate-id]"
 
-  Rule: A Rule or a Scenario tagged `@open` is a question still open, its name the question, and it needs no example
+  Rule: A Rule or a Scenario tagged `@open` is a question, its name the question
 
     A question is a choice of what must hold, so it is written where the rule chosen will be.
 
     Scenario: An open Rule needs no example, and an open Scenario no step
       Given a file "specs/explorer.feature" containing:
         """
-        @id=explorer
+        @id=explorer @maturity=draft
         Feature: Explorer
+
+          Stakeholders read the graph in a browser.
 
           Rule: A reader browses the architecture
 
@@ -497,10 +499,64 @@ Feature: Write a spec
       When "specs/explorer.feature" is parsed
       Then the parsed spec has open questions:
         | question                                    | line |
-        | A static export, or a local server?         | 7    |
-        | Is the code behind an element shown always? | 12   |
+        | A static export, or a local server?         | 9    |
+        | Is the code behind an element shown always? | 14   |
       When the workspace is checked
       Then sdp reports nothing
+
+  Rule: An open question is still to come, and has no examples
+
+    It cannot switch off the examples of a rule that holds, whatever maturity it would inherit.
+
+    Scenario Outline: A question in a feature at <maturity>
+      Given a file "specs/explorer.feature" containing:
+        """
+        @id=explorer @maturity=<maturity>
+        Feature: Explorer
+
+          Stakeholders read the graph in a browser.
+
+          Rule: A reader browses the architecture
+
+            Scenario: Browse
+              Then the architecture is shown
+
+          @open
+          Rule: A static export, or a local server?
+        """
+      When the workspace is checked
+      Then sdp reports nothing
+      And node "explorer#a-static-export-or-a-local-server" has attribute toCome = "true"
+      And node "explorer#a-reader-browses-the-architecture" has attribute toCome = "<still to come>"
+
+      Examples:
+        | maturity    | still to come |
+        | implemented | undefined     |
+        | specified   | true          |
+
+    Scenario: An open rule with an example is an error
+      Given a file "specs/explorer.feature" containing:
+        """
+        @id=explorer @maturity=implemented
+        Feature: Explorer
+
+          Stakeholders read the graph in a browser.
+
+          Rule: A reader browses the architecture
+
+            Scenario: Browse
+              Then the architecture is shown
+
+          @open
+          Rule: A static export, or a local server?
+
+            Scenario: Export
+              Then the graph is exported
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule             | severity | line | message                                                                               |
+        | question-example | error    | 14   | explorer#a-static-export-or-a-local-server is an open question, so it has no examples |
 
   Rule: A scenario runs the Feature's Background, then its Rule's, then its own steps, each at the line it is written on
 

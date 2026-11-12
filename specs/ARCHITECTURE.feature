@@ -1,4 +1,4 @@
-@id=ARCHITECTURE @kind=architecture
+@id=ARCHITECTURE @kind=architecture @maturity=implemented
 Feature: Architecture
 
   The rules this repository's code keeps, over the elements its annotations declare and what each
