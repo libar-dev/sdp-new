@@ -11,7 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
-import { extendedBy, moduleConfigFiles } from "../parse/Modules.ts"
+import { listedPackages, moduleConfigFiles, namedBy, pathFrom } from "../parse/Modules.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults } from "../run/Store.ts"
@@ -122,17 +122,30 @@ const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<s
   )
 })
 
-/** The configuration that says what the names code imports mean: `moduleConfigFiles`, and what they extend, as far as it is found. */
+/**
+ * The files that say what the names code imports mean: `moduleConfigFiles`, what the tsconfig.json
+ * files among them extend (`namedBy`), and the package.json of each package a workspace lists
+ * (`listedPackages`), as far as they are found.
+ */
 const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: ReadonlyArray<string>) {
+  const path = yield* Path.Path
+  const absolute = path.resolve(root)
   const read = new Map<string, SourceFile>()
   const asked = new Set<string>()
-  for (let wanted = moduleConfigFiles(code); wanted.length > 0;) {
-    for (const path of wanted) asked.add(path)
-    const found = yield* readFiles(root, wanted)
-    for (const file of found) read.set(file.path, file)
-    wanted = [...new Set(found.flatMap(extendedBy))].filter((path) => !asked.has(path))
+  const listed = new Set<string>()
+  for (let wanted = moduleConfigFiles(absolute, code); wanted.length > 0;) {
+    for (const file of wanted) asked.add(file)
+    for (const file of yield* readFiles(root, wanted)) read.set(file.path, file)
+    const files = [...read.values()]
+    const packages: Array<string> = []
+    for (const { directory, exclude, include } of listedPackages(files)) {
+      if (listed.has(directory)) continue
+      listed.add(directory)
+      for (const file of yield* findFiles(path.join(root, directory), include, exclude)) packages.push(pathFrom(absolute, directory, file))
+    }
+    wanted = [...new Set([...namedBy(absolute, files), ...packages])].filter((file) => !asked.has(file))
   }
-  return [...read.values()]
+  return { root: absolute, files: [...read.values()] }
 })
 
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */

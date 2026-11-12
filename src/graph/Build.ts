@@ -25,7 +25,7 @@ import {
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Import } from "../parse/Script.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import { readModules } from "../parse/Modules.ts"
+import { type ModuleConfigs, type Modules, readModules } from "../parse/Modules.ts"
 import { parseFeatureSpec, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
@@ -41,8 +41,8 @@ export interface ProjectInput {
   /** The `.md` files beside the feature files and under the directories the features globs start in, by path: sdp reads none of them. */
   readonly markdownFiles: ReadonlyArray<string>
   readonly codeFiles: ReadonlyArray<SourceFile>
-  /** The tsconfig.json and package.json files that say what the names code imports mean (`readModules`). */
-  readonly moduleConfigs?: ReadonlyArray<SourceFile> | undefined
+  /** The tsconfig.json, package.json and like files that say what the names code imports mean (`readModules`). */
+  readonly moduleConfigs?: ModuleConfigs | undefined
   /** The step definition files: their definitions are read statically, never run. */
   readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
   /** What the stored results say about the parsed specs' scenarios; without it the graph shows no results. */
@@ -457,9 +457,8 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const modules = readModules(input.moduleConfigs ?? [], new Set(input.codeFiles.map((file) => file.path)))
-  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, typesOf, modules.resolve, nodes, vocabulary)])
-  for (const { hint, message, source } of modules.unresolved) diagnostics.push(diagnostic("import-unresolved", { message, source, hint }))
+  const modules = readModules(input.moduleConfigs ?? { root: input.root, files: [] }, new Set(input.codeFiles.map((file) => file.path)))
+  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, typesOf, modules, nodes, vocabulary, diagnostics)])
 
   return {
     root: input.root,
@@ -480,16 +479,18 @@ export const buildProject = (input: ProjectInput): Project => {
  * dependencies between elements as the code has them. An import of types alone calls nothing —
  * written with `type`, or of names the module exports as types alone — and no element imports
  * itself. A name means the code file TypeScript resolves it to (`readModules`), whether or not
- * that file anchors an element. A pattern imports nothing and nothing imports it: the code that
+ * that file anchors an element; one sdp cannot follow, though it could name the workspace's code,
+ * is reported where it is written. A pattern imports nothing and nothing imports it: the code that
  * plays it is part of an element.
  */
 const importsBetweenElements = (
   annotations: ReadonlyArray<Annotation>,
   importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
   typesOf: ReadonlyMap<string, ReadonlySet<string>>,
-  resolve: (file: string, specifier: string, line: number) => string | undefined,
+  modules: Modules,
   nodes: ReadonlyMap<string, GraphNode>,
-  vocabulary: Vocabulary
+  vocabulary: Vocabulary,
+  diagnostics: Array<Diagnostic>
 ): ReadonlyArray<GraphEdge> => {
   const elementsOf = new Map<string, Set<string>>()
   for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
@@ -501,8 +502,10 @@ const importsBetweenElements = (
   }
   const edges: Array<GraphEdge> = []
   for (const [file, elements] of elementsOf) {
-    for (const { line, names, specifier } of importsOf.get(file) ?? []) {
-      const module = resolve(file, specifier, line)
+    for (const imported of importsOf.get(file) ?? []) {
+      const { line, names } = imported
+      const { module, unresolved } = modules.resolve(file, imported)
+      if (unresolved !== undefined) diagnostics.push(diagnostic("import-unresolved", { ...unresolved, source: { file, line } }))
       const types = module === undefined ? undefined : typesOf.get(module)
       if (names !== undefined && names.length > 0 && names.every((name) => types?.has(name))) continue
       for (const used of module === undefined ? [] : elementsOf.get(module) ?? []) {

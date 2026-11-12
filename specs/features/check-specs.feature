@@ -80,12 +80,8 @@ Feature: Check specs
         | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given("a cart of {items}", () => {})\n})                                  |
         | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(/a (cart of items/, () => {})\n})                                   |
 
-    Scenario: The smallest workspace that breaks import-unresolved, of code and its configuration
-      Given a file "tsconfig.json" containing:
-        """
-        { "extends": "@tsconfig/strictest" }
-        """
-      And a file "src/cart.ts" containing:
+    Scenario: The smallest workspace that breaks import-unresolved: code that imports what no package.json declares
+      Given a file "src/cart.ts" containing:
         """
         import { Effect } from "effect"
 
@@ -94,8 +90,8 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports at least:
-        | rule              | severity | at              |
-        | import-unresolved | warning  | tsconfig.json:1 |
+        | rule              | severity | at            |
+        | import-unresolved | warning  | src/cart.ts:1 |
 
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec
