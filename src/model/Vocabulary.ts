@@ -47,7 +47,7 @@ export interface Vocabulary {
     readonly scenario: string
     /** The relation of the code tag that anchors a node in code and declares it. */
     readonly anchor: string
-    /** From a rule still to come to the implemented rule it replaces, which stays enforced until then. */
+    /** From a rule still to come to the live rule it replaces, which stays live until then. */
     readonly replaces: Words
   }
   readonly attributes: {
@@ -63,13 +63,12 @@ export interface Vocabulary {
   }
   /** Values of the `quality` attribute that make a node an architectural driver. */
   readonly qualities: Words
-  /** The authoring maturity ladder, lowest first. */
-  readonly maturity: Words
   /**
-   * The rung of the ladder that says built: a Feature or a Rule at it or above it promises that its
-   * examples pass, and one below it is work still to come.
+   * The order of the maturities of work still to come, lowest first. sdp reads no meaning into a
+   * rung: any maturity says that the work is still to come, and the ladder orders the values a query
+   * compares, a value off it below every rung.
    */
-  readonly implemented: string
+  readonly maturity: Words
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
   readonly disciplines: ReadonlyMap<string, Words>
   /**
@@ -108,8 +107,7 @@ export const defaultVocabulary: Vocabulary = {
     quality: "type"
   },
   qualities: ["quality", "non-functional", "nfr", "constraint"],
-  maturity: ["idea", "draft", "specified", "ready", "implemented"],
-  implemented: "implemented",
+  maturity: ["idea", "draft", "specified", "ready"],
   disciplines: new Map<string, Words>([
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
     ["requirements", ["requirement", "nfr", "feature", "story", "use-case", "epic"]],
@@ -162,8 +160,11 @@ export const made = {
   resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
   /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
   recordedAt: "lastRun",
-  /** Where a node is in delivery, beyond its declared maturity (the decision declared-maturity-derived-stage). */
-  stages: { failing: "failing", inProgress: "in-progress", verified: "verified" }
+  /**
+   * Where live work is in delivery, as its examples say (the decision declared-maturity-derived-stage):
+   * not run yet, failing, run in part, or verified. Work still to come is at the stage its maturity names.
+   */
+  stages: { unrun: "unrun", failing: "failing", inProgress: "in-progress", verified: "verified" }
 } as const
 
 /**
@@ -174,27 +175,10 @@ export const made = {
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
 /**
- * The maturity levels whose criteria are built in; levels a workspace adds have none, except the
- * rungs from the implemented one up, which are held to what ready asks.
+ * Whether a declared maturity makes work still to come: any value does, whatever it is, and a
+ * Feature or a Rule that declares none is live.
  */
-export const criteria = { idea: "idea", draft: "draft", specified: "specified", ready: "ready" } as const
-
-/**
- * Whether a maturity is work still to come: a rung of the ladder below the one that says built.
- * Anything else — none, a rung at or above it, a word not on the ladder — is implemented, so an
- * example nobody marked is enforced.
- */
-export const isToCome = (vocabulary: Vocabulary, maturity: unknown): boolean => {
-  const rung = typeof maturity === "string" ? vocabulary.maturity.indexOf(maturity) : -1
-  return rung >= 0 && rung < vocabulary.maturity.indexOf(vocabulary.implemented)
-}
-
-/** The level whose built-in criteria a rung of the ladder is held to, if any: from the implemented rung up, those of ready. */
-export const criteriaOf = (vocabulary: Vocabulary, level: string): string | undefined => {
-  const rung = vocabulary.maturity.indexOf(level)
-  if (rung >= 0 && rung >= vocabulary.maturity.indexOf(vocabulary.implemented)) return criteria.ready
-  return Object.values<string>(criteria).includes(level) ? level : undefined
-}
+export const isToCome = (maturity: unknown): boolean => maturity !== undefined
 
 /** The word a role is written with — its first; a valid profile gives every role one. */
 export const wordFor = (words: Words): string => words[0]!
@@ -262,8 +246,8 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
   kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat(), ...vocabulary.words.kinds])],
   relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary), ...vocabulary.words.relations])],
   attributes: [...new Set([...Object.values(vocabulary.attributes), ...vocabulary.words.attributes])],
-  /** Attribute values the profile names: the qualities and the rung that says built. Other maturity levels compare only along the ladder. */
-  values: [...vocabulary.qualities, vocabulary.implemented],
+  /** Attribute values the profile names: the qualities. Maturities compare only along the ladder. */
+  values: [...vocabulary.qualities],
   disciplines: [...vocabulary.disciplines.keys()]
 })
 

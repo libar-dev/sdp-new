@@ -1,4 +1,4 @@
-@id=serve-agents @maturity=implemented
+@id=serve-agents
 @realized-by:ARCH-reports @realized-by:ARCH-mcp
 Feature: Serve AI agents
 
@@ -60,7 +60,7 @@ Feature: Serve AI agents
     Scenario: The spec, its links, and the architecture, decisions and code in reach
       When I run "sdp context cart"
       Then the output contains "kind: feature, maturity: draft  ·  source: specs/cart.feature:1"
-      And the sections of the output are "Not ready yet, Contract, Step definitions, Specification, Relationships, Architecture within 2 hops, Decisions in reach, Code"
+      And the sections of the output are "Contract, Step definitions, Specification, Relationships, Architecture within 2 hops, Decisions in reach, Code"
       And the output section "Relationships" contains "cart -realized-by-> ARCH-orders (element)"
       And the output does not contain "ARCH-orders — ARCH-orders"
       And the output section "Code" contains "src/orders.ts:6 Orders — is ARCH-orders"
@@ -212,33 +212,10 @@ Feature: Serve AI agents
         - ARCH-orders (element)
         Owns the order aggregate and its transaction boundary.
         """
-      And the output section "Quality requirements" contains "The cart keeps up with load (rule)"
+      And the output section "Quality requirements" contains "The cart keeps up with load (rule, stage: unrun)"
       And the output section "Quality requirements" contains "measure: the cart shows it within 300 ms at p95; no item is lost"
       And the output section "Decisions" contains "Not a line per addition, although it is simpler"
       And the output section "Decisions" contains "a dispute nobody wins."
-
-  Rule: A spec below ready says what it lacks for ready, or that it lacks nothing
-
-    Scenario Outline: What keeps a spec from ready, and a spec ready in all but name
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay @maturity=draft
-        Feature: Pay
-
-          Shoppers pay for their cart.
-
-          Rule: A payment creates an order
-
-            Scenario: Pay by card
-              Then an order is created
-        """
-      When I ask for the context of "<spec>"
-      Then the output section "Not ready yet" contains '<says>'
-
-      Examples:
-        | spec | says                                                     |
-        | cart | 1 open question(s), e.g. "Does a cart expire?" (line 19) |
-        | pay  | already meets the criteria of ready                      |
 
   Rule: The MCP server offers one tool per question, each read-only and idempotent, so a client can call it without asking
 
@@ -275,8 +252,8 @@ Feature: Serve AI agents
         | sdp_snippets     | { "id": "ARCH-orders" }                               | ARCH-orders has no scenarios                                |
         | sdp_steps        | { "text": "returns no results" }                      | \tThen\tthe query {string} returns no results               |
         | sdp_steps        | { "text": "returns no results", "json": true }        | "keyword": "Then"                                           |
-        | sdp_check        | {}                                                    | info  [maturity-promotable] cart                            |
-        | sdp_check        | { "json": true }                                      | "rule": "maturity-promotable"                               |
+        | sdp_check        | {}                                                    | 0 error(s), 0 warning(s), 0 info                            |
+        | sdp_check        | { "json": true }                                      | "data": []                                                  |
         | sdp_architecture | {}                                                    | Architecture: 1 node(s)                                     |
         | sdp_architecture | { "json": true }                                      | "architecture": [                                           |
         | sdp_lifecycle    | {}                                                    | No plan yet                                                 |

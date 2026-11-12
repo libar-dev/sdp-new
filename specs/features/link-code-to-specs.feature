@@ -1,4 +1,4 @@
-@id=link-code-to-specs @maturity=implemented
+@id=link-code-to-specs
 @realized-by:ARCH-code-annotations @realized-by:ARCH-graph-builder @realized-by:ARCH-checker
 Feature: Link code to specs
 

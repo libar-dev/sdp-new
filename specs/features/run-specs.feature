@@ -1,4 +1,4 @@
-@id=run-specs @maturity=implemented
+@id=run-specs
 @realized-by:ARCH-runner @realized-by:ARCH-reports
 Feature: Run specs as tests
 
@@ -103,16 +103,37 @@ Feature: Run specs as tests
         | has a step with no definition |                                                                                            | undefined |
         | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    |
 
-  Rule: A run fails when an example of implemented work it ran does not pass
+    Scenario Outline: A failing example of a feature at <maturity>
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=<maturity>
+        Feature: Wishlist
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      When I run "sdp run wishlist"
+      Then the exit code is 0
+      And the output line with "wishlist#keep-a-lamp" contains "still to come"
+
+      Examples:
+        | maturity                 |
+        | someday                  |
+        | verified                 |
+        | ready @maturity=someday  |
+
+  Rule: A run fails when a live example it ran does not pass
 
     Each example is judged by the result this run recorded: neither another run's result written
     meanwhile nor a result gone stale while it ran stands in for it. An example `--tags` left out
     fails no run, and is no evidence either.
 
-    Scenario Outline: An example of an implemented feature that <outcome>
+    Scenario Outline: An example of a live feature that <outcome>
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=implemented
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
@@ -142,6 +163,28 @@ Feature: Run specs as tests
         | has a step with no definition |                                                                                            | undefined | 1         |
         | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    | 0         |
 
+    Scenario Outline: A spec <declaring>, and an example without a step definition
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        <tags>
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          Rule: Every row is exported
+
+            Scenario: Export
+              Then I get a file
+        """
+      When I run "sdp run"
+      Then the exit code is <exit code>
+
+      Examples:
+        | declaring             | tags                              | exit code |
+        | that declares nothing | @id=export-to-csv                 | 1         |
+        | that is still to come | @id=export-to-csv @maturity=ready | 0         |
+        | named by its path     |                                   | 1         |
+
     Scenario: A failure fails the run that recorded it, even when its result went stale while it ran
       Given a file "sdp.config.yaml" containing:
         """
@@ -154,7 +197,7 @@ Feature: Run specs as tests
         """
       And a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -183,7 +226,7 @@ Feature: Run specs as tests
     Scenario: An open question excuses no example written under it
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=implemented
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
@@ -203,7 +246,7 @@ Feature: Run specs as tests
     Scenario: The run, a query and sdp status tell a regression from work still to come
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -252,7 +295,7 @@ Feature: Run specs as tests
     Scenario: An example that --tags left out fails no run
       Given a file "specs/payment.feature" containing:
         """
-        @id=payment @maturity=implemented
+        @id=payment
         Feature: Payment
 
           Shoppers pay by card or by invoice.
@@ -288,13 +331,14 @@ Feature: Run specs as tests
       When I run "sdp run payment"
       Then the exit code is 1
 
-  Rule: A run points out work still to come whose every example passes
+  Rule: A run points out work still to come whose every example passes, and the maturity to delete so that it is live
 
     Only on complete, current evidence: every example of the rule or feature ran in this run or
     still counts, at least one of them in this run, and none of its rules is open or without an
     example. A feature is named with each of its rules that declares a maturity of its own, so that
-    following the notes leaves none of it still to come. It is a note of the run, not of `sdp check`,
-    since the evidence is one checkout's.
+    following the notes leaves none of it still to come. A rule of a feature still to come is live
+    only once its feature is, so its note moves the feature's maturity onto the rules still to come.
+    It is a note of the run, not of `sdp check`, since the evidence is one checkout's.
 
     Background:
       Given a file "specs/steps/wishlist.steps.ts" containing:
@@ -327,7 +371,7 @@ Feature: Run specs as tests
       And the output does not contain "note:"
       When I run "sdp run wishlist#keep-a-desk"
       Then the exit code is 0
-      And the output contains "note: wishlist is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:1"
+      And the output contains "note: wishlist is still to come, and every example of it passes: make it live, delete @maturity=ready at specs/wishlist.feature:1"
 
     Scenario: A feature whose every example passes, with a rule at a maturity of its own
       Given a file "specs/wishlist.feature" containing:
@@ -350,11 +394,11 @@ Feature: Run specs as tests
         """
       When I run "sdp run"
       Then the exit code is 0
-      And the output contains "note: wishlist is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:1"
-      And the output contains "note: wishlist#a-wishlist-is-shared-with-a-friend is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:11"
+      And the output contains "note: wishlist is still to come, and every example of it passes: make it live, delete @maturity=ready at specs/wishlist.feature:1"
+      And the output contains "note: wishlist#a-wishlist-is-shared-with-a-friend is still to come, and every example of it passes: make it live, delete @maturity=specified at specs/wishlist.feature:11"
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=implemented
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
@@ -364,7 +408,6 @@ Feature: Run specs as tests
             Scenario: Keep a lamp
               Then the wishlist holds a lamp
 
-          @maturity=implemented
           Rule: A wishlist is shared with a friend
 
             Scenario: Share the list
@@ -375,10 +418,10 @@ Feature: Run specs as tests
       When I run "sdp q 'scenario[!toCome]' --ids"
       Then the output lines are "wishlist#keep-a-lamp, wishlist#share-the-list"
 
-    Scenario: A rule whose examples pass, in a feature that has a rule still without one, and a question
+    Scenario: A rule whose examples pass, in a live feature that has a rule still without one, and a question
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=implemented
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
@@ -399,8 +442,56 @@ Feature: Run specs as tests
         """
       When I run "sdp run"
       Then the exit code is 0
-      And the output contains "note: wishlist#a-wishlist-keeps-what-a-shopper-wants-for-later is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:6"
+      And the output contains "note: wishlist#a-wishlist-keeps-what-a-shopper-wants-for-later is still to come, and every example of it passes: make it live, delete @maturity=ready at specs/wishlist.feature:6"
       And the output contains "note:" 1 time
+
+    Scenario: A rule whose examples pass, in a feature still to come that has a rule still without one
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=ready
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+          Rule: A wishlist is shared with a friend
+
+            Friends buy presents from it.
+
+          @open
+          Rule: Does a wishlist expire?
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "note: wishlist#a-wishlist-keeps-what-a-shopper-wants-for-later is still to come, and every example of it passes: make it live, delete @maturity=ready at specs/wishlist.feature:1, and write it above the rules still to come at specs/wishlist.feature:11"
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+          @maturity=ready
+          Rule: A wishlist is shared with a friend
+
+            Friends buy presents from it.
+
+          @open
+          Rule: Does a wishlist expire?
+        """
+      When I run "sdp check"
+      Then the exit code is 0
+      When I run "sdp q 'scenario[!toCome]' --ids"
+      Then the output lines are "wishlist#keep-a-lamp"
 
   Rule: A run executes the examples it was asked for, one at a time unless asked otherwise, and reports each once and in order
 
@@ -581,14 +672,14 @@ Feature: Run specs as tests
       Then the exit code is 0
       And the output contains "note: specs/steps/search.steps.ts defines no steps"
 
-  Rule: run and gate start only on a workspace they can read whole, whose scenarios and maturities sdp check accepts
+  Rule: run and gate start only on a workspace they can read whole, whose scenarios sdp check accepts
 
     A scenario left unread, a fact or a link dropped, or an id two specs claim would make the run
-    incomplete and its record untrue. A scenario outside a rule, a maturity off the ladder or written
-    twice, and an example under an open question are in specs sdp check rejects: which examples
-    fail the run would rest on a declaration nobody made.
+    incomplete and its record untrue. A scenario outside a rule and an example under an open
+    question are in specs sdp check rejects: which examples fail the run would rest on a declaration
+    nobody made.
 
-    Scenario Outline: A file sdp cannot read, a tag it drops, an id two specs claim, a scenario outside a rule, a maturity sdp rejects
+    Scenario Outline: A file sdp cannot read, a tag it drops, an id two specs claim, a scenario outside a rule, an example of a question
       Given a file "specs/MS-beta.feature" containing:
         """
         @id=MS-beta
@@ -614,8 +705,5 @@ Feature: Run specs as tests
         | sdp gate MS-beta | specs/shop/search.feature | @id=search\nFeature: Search again                                                                                                 | 1    | duplicate-id          |
         | sdp run          | specs/wishlist.feature    | @id=wishlist @iteration=IT-beta\nFeature: Wishlist                                                                                | 1    | link-syntax           |
         | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Scenario: Outside\n    Then there are no error diagnostics                                     | 3    | scenario-outside-rule |
-        | sdp run          | specs/wishlist.feature    | @id=wishlist @maturity=done\nFeature: Wishlist                                                                                    | 1    | maturity-value        |
-        | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist @maturity=implemented @maturity=draft\nFeature: Wishlist                                                             | 1    | maturity-value        |
-        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @maturity=later\n  Rule: Kept                                                                  | 3    | maturity-value        |
         | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Rule: Kept\n    @maturity=draft\n    Scenario: Keep\n      Then there are no error diagnostics | 4    | annotation            |
         | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @open\n  Rule: Kept?\n    Scenario: Keep\n      Then there are no error diagnostics            | 5    | question-example      |

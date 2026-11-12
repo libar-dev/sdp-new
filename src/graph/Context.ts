@@ -3,16 +3,14 @@
  * on one node, as a single Markdown document. It leads with the contract —
  * the node's rules with their state and reason, the names of its scenarios
  * with their status and the step definitions still to write — then the rest
- * of the spec as written, why it is not ready yet, what rests on it rule by rule,
- * its relationships, for an element the work on it, and the architecture,
- * quality requirements, decisions and code within reach of its links, the
- * code with its surface.
+ * of the spec as written, what rests on it rule by rule, its relationships,
+ * for an element the work on it, and the architecture, quality requirements,
+ * decisions and code within reach of its links, the code with its surface.
  */
 import { Predicate } from "effect"
 import { description, workOn } from "../arch/Architecture.ts"
-import { featureContent, unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
-import { attribute, criteria, hasKind, isDriver, isPlanKind, made } from "../model/Vocabulary.ts"
+import { attribute, hasKind, isDriver, isPlanKind, made } from "../model/Vocabulary.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
@@ -49,7 +47,6 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   out.push(`kind: ${node.kind}${statusOf(node)}  ·  source: ${formatSource(node.source) || "n/a"}`, "")
   const attrs = Object.entries(node.attrs).filter(([k]) => !["summary", "file", "title"].includes(k))
   if (attrs.length > 0) out.push(`attributes: ${attrs.map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ")}`, "")
-  if (spec) out.push(...notReady(project, spec))
 
   // The contract first: each rule with its state, what it rests on and why it holds, then its
   // examples with their status. Scenarios outside a rule come where they are written.
@@ -147,15 +144,15 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("")
   }
 
-  // The work on an element or a pattern: what is built on it, then what is still to come, ready first.
+  // The work on an element or a pattern: what is live on it, then what is still to come, ready first.
   if (hasKind(vocabulary, "architectural", node.kind)) {
-    const { implemented, toCome } = workOn(project, node)
+    const { live, toCome } = workOn(project, node)
     const stage = (n: GraphNode) => Predicate.isString(n.attrs.stage) ? ` (${n.attrs.stage})` : ""
-    if (implemented.length + toCome.length > 0) {
+    if (live.length + toCome.length > 0) {
       out.push(
         "## Work",
         "",
-        ...implemented.map((n) => `- implemented: ${n.id} — ${n.title}`),
+        ...live.map((n) => `- live: ${n.id} — ${n.title}`),
         ...toCome.map((n) => `- still to come: ${n.id}${stage(n)} — ${n.title}`),
         ""
       )
@@ -203,24 +200,6 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("")
   }
   return out.join("\n")
-}
-
-/** Why a spec below `ready` is not ready: what the criteria of ready still miss, or that its content already meets them. */
-const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
-  const { maturity: ladder } = project.config.vocabulary
-  const { ready } = criteria
-  const maturity = spec.attrs.maturity
-  if (!Predicate.isString(maturity) || !ladder.includes(ready) || ladder.indexOf(maturity) < 0) return []
-  if (ladder.indexOf(maturity) >= ladder.indexOf(ready)) return []
-  const reasons = unmetCriteria(featureContent(spec, project.config.vocabulary, ready), ready)
-  return [
-    "## Not ready yet",
-    "",
-    ...(reasons.length > 0
-      ? [`Maturity is ${maturity}; for ready:`, ...reasons.map((reason) => `- ${reason}`)]
-      : [`Maturity is ${maturity}, but the content already meets the criteria of ${ready}: write \`@maturity=${ready}\` if the team agrees.`]),
-    ""
-  ]
 }
 
 const blockStart = /^\s*(@|(Scenario|Scenario Outline|Scenario Template|Example|Background|Rule):)/

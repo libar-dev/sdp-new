@@ -1,4 +1,4 @@
-@id=plan-delivery @maturity=implemented
+@id=plan-delivery
 @realized-by:ARCH-lifecycle @realized-by:ARCH-reports @realized-by:ARCH-runner @realized-by:ARCH-checker
 Feature: Plan delivery
 
@@ -306,10 +306,10 @@ Feature: Plan delivery
     that plans itself is one more item of its iteration, whose evidence its examples are: each
     example is counted in one iteration.
 
-    Scenario: A rule still to come of a built feature, planned into IT-baseline
+    Scenario: A rule still to come of a live feature, planned into IT-baseline
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -377,7 +377,7 @@ Feature: Plan delivery
     Scenario Outline: A feature <case>
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=<maturity> <plan>
+        @id=cart <maturity> <plan>
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -396,11 +396,11 @@ Feature: Plan delivery
       Then the unplanned work is "<unplanned>"
 
       Examples:
-        | case                                    | maturity    | plan                   | rule plan              | unplanned                      |
-        | that is built, with a rule to come      | implemented |                        |                        | cart#a-cart-is-kept-for-a-week |
-        | that is built, its rule to come planned | implemented |                        | @iteration:IT-baseline | nothing                        |
-        | at the top of the ladder below built    | ready       |                        |                        | cart                           |
-        | that is ready and planned               | ready       | @iteration:IT-baseline |                        | nothing                        |
+        | case                                   | maturity        | plan                   | rule plan              | unplanned                      |
+        | that is live, with a rule to come      |                 |                        |                        | cart#a-cart-is-kept-for-a-week |
+        | that is live, its rule to come planned |                 |                        | @iteration:IT-baseline | nothing                        |
+        | at the top of the ladder               | @maturity=ready |                        |                        | cart                           |
+        | that is ready and planned              | @maturity=ready | @iteration:IT-baseline |                        | nothing                        |
 
     Scenario: An unplanned feature and an unplanned element
       Given these specs:
@@ -411,10 +411,10 @@ Feature: Plan delivery
       Then the output line with "unplanned" contains "later"
       And the output line with "unplanned" does not contain "ARCH-cache"
 
-    Scenario: A feature that is built, with no plan, before its scenarios have run and after
+    Scenario: A live feature, with no plan, before its scenarios have run and after
       Given a file "specs/done.feature" containing:
         """
-        @id=done @maturity=implemented
+        @id=done
         Feature: Done
 
           Something already built.
@@ -477,7 +477,7 @@ Feature: Plan delivery
     Scenario: A feature verified in IT-baseline
       Given a file "specs/beta.feature" containing:
         """
-        @id=beta @maturity=implemented @iteration:IT-baseline
+        @id=beta @iteration:IT-baseline
         Feature: Beta
 
           Something worth testing.
@@ -691,10 +691,10 @@ Feature: Plan delivery
       Then the output contains "milestones    met 1 · open 1"
 
   @decided-by:declared-maturity-derived-stage
-  Rule: What ready means beyond the shape of a spec is the team's Definition of Ready, a gate of its own
+  Rule: What ready means is the team's Definition of Ready, a gate of its own
 
-    sdp cannot know whether the design behind a spec is decided or anyone has reviewed it: a
-    placeholder paragraph with a token scenario meets every criterion.
+    sdp checks nothing a maturity claims: it cannot know whether the design behind a spec is
+    decided or anyone has reviewed it.
 
     Scenario Outline: A ready feature, its review and what it depends on
       Given a file "specs/definition-of-ready.feature" containing:

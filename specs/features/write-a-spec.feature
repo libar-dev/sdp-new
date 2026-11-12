@@ -1,4 +1,4 @@
-@id=write-a-spec @maturity=implemented
+@id=write-a-spec
 @realized-by:ARCH-spec-parser @realized-by:ARCH-graph-builder
 Feature: Write a spec
 
@@ -131,15 +131,42 @@ Feature: Write a spec
       And node "dark-mode" has attribute stage = "idea"
 
   @decided-by:still-to-come-is-marked-where-it-is-written
-  Rule: A Feature or a Rule declares its maturity, and implemented says it is built
+  Rule: A Feature or a Rule that declares a maturity is still to come, whatever the value, and one that declares none is live
 
-    Below implemented is work still to come, `toCome` in the graph. A change to a built feature is
-    rules of it at the maturity they have reached, so nothing moves when it is built.
+    A live Feature or Rule is built: it is its examples, which must pass, and has no maturity to
+    declare. Work still to come is `toCome` in the graph, at the stage its maturity names, and a
+    change to a live feature is rules of it with a maturity of their own, so nothing moves when it is
+    built.
 
-    Scenario: A built feature with a rule still to come
+    Scenario Outline: A feature that declares <declared>
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart <maturity>
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When the workspace is loaded
+      Then node "cart" has attribute toCome = "<still to come>"
+      And node "cart" has attribute stage = "<stage>"
+
+      Examples:
+        | declared                    | maturity                        | still to come | stage     |
+        | nothing                     |                                 | undefined     | unrun     |
+        | a rung of the ladder        | @maturity=specified             | true          | specified |
+        | a word of the team's own    | @maturity=someday               | true          | someday   |
+        | two values                  | @maturity=draft @maturity=ready | true          | draft     |
+        | a stage that sdp derives    | @maturity=verified              | true          | undefined |
+
+    Scenario: A live feature with a rule still to come
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -159,12 +186,13 @@ Feature: Write a spec
       Then the result is "cart#a-cart-is-kept-for-a-week"
       And node "cart" has attribute rulesToCome = "1"
       And node "cart#a-cart-is-kept-for-a-week" has attribute stage = "draft"
-      And node "cart#a-cart-holds-what-was-added" has attribute stage = "implemented"
+      And node "cart#a-cart-holds-what-was-added" has attribute stage = "unrun"
 
   Rule: A Rule without a maturity of its own has its Feature's
 
-    So one rule can be built in a feature still to come, and one still to come in a built feature.
-    On a Scenario or Examples a maturity would switch single examples off, so it is an error.
+    So a rule still to come is written in the live feature it changes, and all of a feature still to
+    come is still to come. On a Scenario or Examples a maturity would switch single examples off, so
+    it is an error.
 
     Scenario Outline: A rule's own maturity, else its Feature's
       Given a file "specs/cart.feature" containing:
@@ -186,16 +214,16 @@ Feature: Write a spec
       And node "cart" has attribute toCome = "<feature still to come>"
 
       Examples:
-        | feature               | rule                  | rule still to come | feature still to come |
-        | @maturity=implemented |                       | undefined          | undefined             |
-        | @maturity=implemented | @maturity=ready       | true               | undefined             |
-        | @maturity=draft       |                       | true               | true                  |
-        | @maturity=draft       | @maturity=implemented | undefined          | true                  |
+        | feature         | rule            | rule still to come | feature still to come |
+        |                 |                 | undefined          | undefined             |
+        |                 | @maturity=ready | true               | undefined             |
+        | @maturity=draft |                 | true               | true                  |
+        | @maturity=draft | @maturity=ready | true               | true                  |
 
     Scenario: A maturity on a Scenario or on Examples is an error, and the example stays its rule's
       Given a file "specs/pay.feature" containing:
         """
-        @id=pay @maturity=implemented
+        @id=pay
         Feature: Pay
 
           Rule: An order needs a payment
@@ -216,15 +244,15 @@ Feature: Write a spec
         | annotation | error    | 10   | @maturity=idea: only a Feature or a Rule declares a maturity  |
       And node "pay#card" has attribute toCome = "undefined"
 
-  Rule: A rule still to come names the implemented rule it replaces
+  Rule: A rule still to come names the live rule it replaces
 
-    The replaced rule stays enforced until the edit that builds its replacement deletes it with the
+    The replaced rule stays live until the change that builds its replacement deletes it with the
     link, so no two rules replace each other. Removing behaviour is written as what happens instead.
 
     Scenario Outline: A rule that replaces <case>
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -250,13 +278,13 @@ Feature: Write a spec
       And node "cart#add-an-item" has attribute toCome = "undefined"
 
       Examples:
-        | case                      | first                                      | tags                                                       | reported                       |
-        | a built rule              |                                            | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | nothing                        |
-        | a rule still to come      |                                            | @maturity=draft @replaces:cart#a-cart-is-kept-for-a-week   | replacement                    |
-        | itself                    |                                            | @maturity=draft @replaces:cart#a-cart-holds-each-item-once | replacement                    |
-        | a feature                 |                                            | @maturity=draft @replaces:cart                             | replacement                    |
-        | a rule, once it is built  |                                            | @replaces:cart#a-cart-holds-what-was-added                 | maturity-criteria, replacement |
-        | the rule that replaces it | @replaces:cart#a-cart-holds-each-item-once | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | replacement                    |
+        | case                      | first                                      | tags                                                       | reported                   |
+        | a live rule               |                                            | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | nothing                    |
+        | a rule still to come      |                                            | @maturity=draft @replaces:cart#a-cart-is-kept-for-a-week   | replacement                |
+        | itself                    |                                            | @maturity=draft @replaces:cart#a-cart-holds-each-item-once | replacement                |
+        | a feature                 |                                            | @maturity=draft @replaces:cart                             | replacement                |
+        | a rule, once it is built  |                                            | @replaces:cart#a-cart-holds-what-was-added                 | replacement, untested-rule |
+        | the rule that replaces it | @replaces:cart#a-cart-holds-each-item-once | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | replacement                |
 
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag
@@ -552,10 +580,10 @@ Feature: Write a spec
 
     It cannot switch off the examples of a rule that holds, whatever maturity it would inherit.
 
-    Scenario Outline: A question in a feature at <maturity>
+    Scenario Outline: A question in a feature <case>
       Given a file "specs/explorer.feature" containing:
         """
-        @id=explorer @maturity=<maturity>
+        @id=explorer <maturity>
         Feature: Explorer
 
           Stakeholders read the graph in a browser.
@@ -574,14 +602,14 @@ Feature: Write a spec
       And node "explorer#a-reader-browses-the-architecture" has attribute toCome = "<still to come>"
 
       Examples:
-        | maturity    | still to come |
-        | implemented | undefined     |
-        | specified   | true          |
+        | case             | maturity            | still to come |
+        | that is live     |                     | undefined     |
+        | still to come    | @maturity=specified | true          |
 
     Scenario: An open rule with an example is an error
       Given a file "specs/explorer.feature" containing:
         """
-        @id=explorer @maturity=implemented
+        @id=explorer
         Feature: Explorer
 
           Stakeholders read the graph in a browser.

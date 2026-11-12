@@ -1,4 +1,4 @@
-@id=know-what-is-verified @maturity=implemented
+@id=know-what-is-verified
 @realized-by:ARCH-runner @realized-by:ARCH-graph-builder @realized-by:ARCH-spec-parser
 Feature: Know what is verified
 
@@ -12,7 +12,7 @@ Feature: Know what is verified
   Background:
     Given a file "specs/cart.feature" containing:
       """
-      @id=cart @maturity=implemented
+      @id=cart
       Feature: Cart
 
         Shoppers collect items before paying.
@@ -26,20 +26,20 @@ Feature: Know what is verified
       """
 
   @decided-by:declared-maturity-derived-stage
-  Rule: Work still to come stays at its maturity; implemented work, at what its examples did
+  Rule: Work still to come stays at its maturity; live work, at what its examples did
 
-    Before it is built, an example is the specification of work still to come. Implemented promises
-    that its examples pass, so one that does not makes it failing: a regression is not work in
-    progress.
+    Before it is built, an example is the specification of work still to come. A live example must
+    pass, so one that does not makes its work failing: a regression is not work in progress. Until
+    its examples run, live work is unrun.
 
-    Scenario: Until its scenarios run, a spec's stage is its declared maturity
+    Scenario: Until its scenarios run, live work is unrun, and work still to come at its maturity
       Given these specs:
         | tags                        | Feature  |
         | @id=wishlist @maturity=idea | Wishlist |
       When the workspace is loaded
       Then node "cart#add-an-item" has attribute status = "unrun"
       And node "cart" has attribute verification = "unrun"
-      And node "cart" has attribute stage = "implemented"
+      And node "cart" has attribute stage = "unrun"
       And node "wishlist" has attribute verification = "none"
       And node "wishlist" has attribute stage = "idea"
 
@@ -69,7 +69,7 @@ Feature: Know what is verified
         | fails   | failed  | failing      |
         | pends   | pending | partial      |
 
-    Scenario: Without step definitions a scenario is undefined, and implemented work with one is failing
+    Scenario: Without step definitions a scenario is undefined, and live work with one is failing
       When the workspace is run
       Then node "cart#add-an-item" has attribute status = "undefined"
       And node "cart" has attribute verification = "undefined"
@@ -112,7 +112,7 @@ Feature: Know what is verified
     Scenario: A spec is verified only when every one of its scenarios passed, and in-progress while some have not run
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=implemented
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
@@ -132,47 +132,6 @@ Feature: Know what is verified
       And node "wishlist" has attribute verification = "partial"
       And node "wishlist" has attribute stage = "in-progress"
 
-    Scenario: A spec without a maturity is implemented: it has no stage until its scenarios say more
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        @id=export-to-csv
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          Rule: Every row is exported
-
-            Scenario: Export current rows
-              When I export the report
-              Then I get a CSV file
-        """
-      And a step definition "I export the report" that passes
-      When the workspace is loaded
-      Then node "export-to-csv" has attribute stage = "undefined"
-      When the workspace is run
-      Then node "export-to-csv" has attribute stage = "failing"
-      And node "export-to-csv" has attribute toCome = "undefined"
-
-    Scenario: A stage written as a maturity is implemented, and no run starts until it is fixed
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        @id=export-to-csv @maturity=verified
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          Rule: Every row is exported
-
-            Scenario: Export current rows
-              Then I get a CSV file
-        """
-      When the workspace is loaded
-      Then node "export-to-csv" has attribute stage = "undefined"
-      And node "export-to-csv" has attribute toCome = "undefined"
-      When I run "sdp run"
-      Then the exit code is 1
-      And the output contains "specs/export-to-csv.feature:1 [maturity-value]"
-
     Scenario: Verification orders from none to passing, so a query can ask for everything short of it
       Given these specs:
         | tags                        | Feature  |
@@ -186,15 +145,15 @@ Feature: Know what is verified
       When I query "feature[verification>=passing]"
       Then the result is "cart"
 
-  Rule: An implemented feature is verified when its implemented rules pass
+  Rule: A live feature is verified when its live rules pass
 
-    A rule still to come neither fails it nor makes it verified, and `rulesToCome` counts them; an
-    implemented rule without an example yet keeps it from verified. Each rule has a stage of its own.
+    A rule still to come neither fails it nor makes it verified, and `rulesToCome` counts them; a
+    live rule without an example yet keeps it from verified. Each rule has a stage of its own.
 
     Scenario Outline: A cart that holds what was added, with a rule still to come that <later> and a question
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -231,10 +190,10 @@ Feature: Know what is verified
         | passes | fails  | verified | failing      |
         | fails  | passes | failing  | passing      |
 
-    Scenario Outline: A rule <declaring> that has no example yet keeps its feature from verified
+    Scenario: A live rule that has no example yet keeps its feature from verified
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -244,7 +203,6 @@ Feature: Know what is verified
             Scenario: Add an item
               Then the cart holds 1 item
 
-          <tags>
           Rule: A cart is emptied once paid
         """
       And a step definition "the cart holds {int} item(s)" that passes
@@ -253,11 +211,6 @@ Feature: Know what is verified
       And node "cart" has attribute stage = "in-progress"
       When I query "feature[stage=verified]"
       Then the result has 0 nodes
-
-      Examples:
-        | declaring                    | tags                  |
-        | with its feature's maturity  |                       |
-        | that declares it implemented | @maturity=implemented |
 
   Rule: Every report counts stages the same way, and failing ranks with in-progress
 
@@ -272,7 +225,7 @@ Feature: Know what is verified
         | @id=wishlist @maturity=idea @iteration:IT-beta | Wishlist |
       And a file "specs/export.feature" containing:
         """
-        @id=export @maturity=implemented @iteration:IT-beta
+        @id=export @iteration:IT-beta
         Feature: Export
 
           Something to export.
@@ -284,7 +237,7 @@ Feature: Know what is verified
         """
       And a file "specs/fast-exports.feature" containing:
         """
-        @id=fast-exports @kind=nfr @maturity=implemented @iteration:IT-beta
+        @id=fast-exports @kind=nfr @iteration:IT-beta
         Feature: Exports are fast
 
           Rule: A report exports within a second
@@ -295,7 +248,7 @@ Feature: Know what is verified
       And a step definition "a file is saved" that fails
       And a step definition "the guard holds" that passes
       When the workspace is run with "export fast-exports"
-      Then sdp status counts the stages "failing:1 idea:1 implemented:1 verified:1"
+      Then sdp status counts the stages "failing:1 idea:1 unrun:1 verified:1"
       When the lifecycle is computed
       Then the iterations are:
         | id      | stages                      |
@@ -353,13 +306,13 @@ Feature: Know what is verified
         | data.stale.code-changed | 2 |
       When I run "sdp gate MS-beta"
       Then the exit code is 1
-      And the output contains 'cart.stage is "implemented", expected "verified"'
+      And the output contains 'cart.stage is "unrun", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
   Rule: Editing a scenario, a tag it inherits included, makes its result stale; planning or rewording its spec does not
 
     A scenario's hash covers what a step handler can observe, and nothing else, and a result counts
-    only while its hash holds: planning a spec, raising its maturity, naming the decision a rule
+    only while its hash holds: planning a spec, changing its maturity, naming the decision a rule
     rests on or rewording a reason leaves it valid, unless the scenario reads the graph.
 
     Scenario Outline: Its steps, or a tag on the scenario, its rule or its feature, are edited
@@ -369,7 +322,7 @@ Feature: Know what is verified
       When the workspace is run
       And a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented <on the feature>
+        @id=cart <on the feature>
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -386,7 +339,7 @@ Feature: Know what is verified
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
       And node "cart" has attribute verification = "unrun"
-      And node "cart" has attribute stage = "implemented"
+      And node "cart" has attribute stage = "unrun"
 
       Examples:
         | added     | held    | on the feature | on the rule | on the scenario |
@@ -425,7 +378,7 @@ Feature: Know what is verified
         | 4242                            | 4000                     | changes        |
         | @slow                           | @fast                    | changes        |
         | @id=pay                         | @id=pay @kind=story      | changes        |
-        | @maturity=draft                 | @maturity=implemented    | stays the same |
+        | @id=pay @maturity=draft         | @id=pay                  | stays the same |
         | @iteration:IT-payments          | @iteration:IT-checkout   | stays the same |
         | @decided-by:pay-before-shipping | @decided-by:pay-up-front | stays the same |
         | Feature: Pay                    | Feature: Payment         | stays the same |
@@ -433,12 +386,12 @@ Feature: Know what is verified
         | No goods leave without one.     | Nothing ships unpaid.    | stays the same |
 
 
-  Rule: Declaring work implemented keeps the results of its examples
+  Rule: Making work live keeps the results of its examples
 
     Maturity is no part of an example's hash, so a failure it was allowed fails the next run, and a
     result that reads the graph goes stale as on any change to a spec.
 
-    Scenario: A wishlist still to come is declared implemented while its example fails
+    Scenario: A wishlist still to come is made live while its example fails
       Given a file "specs/wishlist.feature" containing:
         """
         @id=wishlist @maturity=ready
@@ -465,7 +418,7 @@ Feature: Know what is verified
       Then the exit code is 0
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=implemented
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
@@ -498,7 +451,7 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "code-changed"
-      And node "cart" has attribute stage = "implemented"
+      And node "cart" has attribute stage = "unrun"
 
       Examples:
         | file                      | content                    |
@@ -697,7 +650,7 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "toolchain-changed"
-      And node "cart" has attribute stage = "implemented"
+      And node "cart" has attribute stage = "unrun"
 
       Examples:
         | file                | content                  |
@@ -732,7 +685,7 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "inputs-changed"
-      And node "cart" has attribute stage = "implemented"
+      And node "cart" has attribute stage = "unrun"
 
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
@@ -821,8 +774,8 @@ Feature: Know what is verified
               Then the node "cart" has <attribute> "<state>"
 
               Examples: As authored
-                | attribute | state       |
-                | maturity  | implemented |
+                | attribute | state |
+                | title     | Cart  |
 
               @gate
               Examples: After the ordinary scenarios
@@ -830,7 +783,7 @@ Feature: Know what is verified
                 | stage     | verified |
         """
       When the workspace is run with "--tags 'not @gate'"
-      Then the step 'the node "cart" has maturity "implemented"' has status "passed"
+      Then the step 'the node "cart" has title "Cart"' has status "passed"
       And node "release#the-cart-is-state" has attribute status = "skipped"
 
     Scenario: An ordinary scenario sees the graph without results, whatever ran before

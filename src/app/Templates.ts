@@ -1,7 +1,7 @@
 /**
  * File templates for `sdp new` and `sdp init`. A template writes only what stays in the file —
- * what it is, and from `specified` on a rule with a scenario to fill in; what the author writes
- * next is said in the answer of `sdp new`, never in the file. A new spec is a Gherkin file: its
+ * what it is, at any maturity; what the author writes next is said in the answer of `sdp new`,
+ * never in the file. A new spec is a Gherkin file: its
  * tags say what it is and what it links to, its Feature's name is its title.
  *
  * @sdp is ARCH-reports
@@ -10,7 +10,7 @@ import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, criteria, criteriaOf, dayOf, hasKind, hasRelation, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -116,7 +116,7 @@ export const newSpec = (options: {
       `a change is rules of the ${feature} it changes: write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
     )
   }
-  const next = guidance({ kind, id, maturity, config })
+  const next = guidance({ kind, id, config })
   const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
   const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")
   const file = `${directory}/${id}.feature`
@@ -146,9 +146,6 @@ export const newSpec = (options: {
   }
   return Result.succeed({ id, file: { path: file, content }, next })
 }
-
-/** The levels whose criteria are built in: a template grows with them. */
-const levels: ReadonlyArray<string> = Object.values(criteria)
 
 const addDays = (isoDate: string, days: number) => {
   const date = new Date(`${isoDate}T00:00:00Z`)
@@ -184,7 +181,6 @@ const specTemplate = (options: {
 }): string => {
   const { config, graph, id, kind, maturity, title, today } = options
   const { vocabulary } = config
-  const level = Math.max(0, levels.indexOf(criteriaOf(vocabulary, maturity) ?? ""))
   // The kind is written only when the id's prefix does not give it.
   const identity = [`@id=${id}`, ...(inferKind(id, config) === kind ? [] : [`@kind=${kind}`])]
   const feature = (tags: ReadonlyArray<string>, ...body: ReadonlyArray<string>) =>
@@ -210,13 +206,8 @@ const specTemplate = (options: {
       return feature([...identity, ...inPhase, `@${startKey}=${start}`, `@${endKey}=${addDays(start, 13)}`])
     }
   }
-  const tags = [...identity, `@maturity=${maturity}`]
-  if (level < 2) return feature(tags)
-  // From specified on the criteria ask for a scenario that states an outcome: a rule and its first example, to fill in.
-  return feature(
-    tags,
-    ...rule("<the rule, in one sentence>", ["Scenario: <the main success case>", "  Given <context>", "  When <action>", "  Then <observable outcome>"])
-  )
+  // Still to come, at whatever maturity it starts: what it says next is the author's.
+  return feature([...identity, `@maturity=${maturity}`])
 }
 
 /** The id `sdp new` gives a phase of that name. */
@@ -233,10 +224,9 @@ export const relationVocabulary =
 const guidance = (options: {
   readonly kind: string
   readonly id: string
-  readonly maturity: string
   readonly config: Config
 }): ReadonlyArray<string> => {
-  const { config, id, kind, maturity } = options
+  const { config, id, kind } = options
   const { vocabulary } = config
   const { anchor } = vocabulary.relations
   const activity = vocabulary.attributes.activity
@@ -253,7 +243,7 @@ const guidance = (options: {
         "a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users",
         "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         `plan it: ${plan}`,
-        `it stays in this file: once it is built, declare it @maturity=${vocabulary.implemented}, and a rule still to come after that with a maturity of its own above \`Rule:\``
+        "it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"
       ]
     case "decision":
       return [
@@ -299,22 +289,13 @@ const guidance = (options: {
         "say under the title which problem the pattern solves, and how",
         `elements that apply it link \`@instance-of:${id}\`; what decided it, \`@decided-by:<decision>\``
       ]
-    case "generic": {
-      const level = levels.indexOf(criteriaOf(vocabulary, maturity) ?? "")
+    case "generic":
       return [
-        level <= 0
-          ? "write the idea in a sentence under the title"
-          : `say under the title who needs what, and why, before any solution: ${criteria.draft} asks for that paragraph`,
-        ...(level === 1 || level === 2
-          ? [`write what is still unknown as a \`Rule:\` tagged \`@open\`, its name the question: ${criteria.ready} asks for none left`]
-          : []),
-        ...(level >= 2
-          ? ["fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
-          : []),
+        "write the idea in a sentence under the title",
+        "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         "link it: @realized-by:ARCH-…",
         `plan it: ${plan}`
       ]
-    }
   }
 }
 
@@ -331,8 +312,7 @@ export const configTemplate = [
   "# evidence: { inputs: [], env: [] }   # files (globs) and environment variables the steps read: results go stale when they change",
   `# results: ${defaults.results}`,
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
-  `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]`,
-  `#   implemented: ${defaults.vocabulary.implemented}     # the rung that says built: below it, work is still to come`,
+  `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]   # how far work still to come has come, in order; live work declares none`,
   `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,
   `#   relations: { plan: [${defaults.vocabulary.relations.plan.join(", ")}] }    # relations that plan a node into an iteration`,
   "#   disciplines: {}            # merged with the RUP disciplines, e.g. { operations: [runbook] }",

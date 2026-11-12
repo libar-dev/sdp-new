@@ -179,10 +179,10 @@ export interface DriverRecord extends NodeRecord {
   readonly through: ReadonlyArray<QueryPath>
 }
 
-/** The work on an architectural node: what is built on it, and what is still to come, ready first. */
+/** The work on an architectural node: what is live on it, and what is still to come, ready first. */
 export interface WorkRecord {
   readonly node: string
-  readonly implemented: ReadonlyArray<NodeRecord>
+  readonly live: ReadonlyArray<NodeRecord>
   readonly toCome: ReadonlyArray<NodeRecord>
 }
 
@@ -228,8 +228,8 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
     anchors: graph.nodes().filter((node) => code.has(node.id)).map(nodeRecord),
     edges: [...view.edges, ...anchored].map(edgeRecord),
     work: architecture.map((node) => {
-      const { implemented, toCome } = workOn(project, node)
-      return { node: node.id, implemented: implemented.map(nodeRecord), toCome: toCome.map(nodeRecord) }
+      const { live, toCome } = workOn(project, node)
+      return { node: node.id, live: live.map(nodeRecord), toCome: toCome.map(nodeRecord) }
     })
   }
   return answer(project, data)

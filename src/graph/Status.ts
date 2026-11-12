@@ -1,5 +1,5 @@
 import { Predicate } from "effect"
-import { check } from "../check/Check.ts"
+import { check, maturityTags } from "../check/Check.ts"
 import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
 import { notPassing, type ScenarioResult } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
@@ -23,8 +23,8 @@ const isOpen = (rule: GraphNode) => {
 }
 
 /**
- * Where a rule stands: a question still `open`, a rule `still to come`, an implemented rule with
- * `no example`, or what the examples of an implemented rule verify.
+ * Where a rule stands: a question still `open`, a rule `still to come`, a live rule with
+ * `no example`, or what the examples of a live rule verify.
  */
 export const ruleState = (rule: GraphNode): string =>
   isOpen(rule) ? "open" : rule.attrs.toCome === true ? "still to come" : rule.attrs.scenarios === 0 ? "no example" : String(rule.attrs.verification)
@@ -38,50 +38,67 @@ export const ruleLabel = (rule: GraphNode): string => {
 }
 
 /**
- * The examples of implemented work this run ran that did not pass: what fails it. The graph says
- * which examples are implemented work; each is judged by the result this run recorded, so neither a
- * result another run wrote since nor one that went stale while it ran stands in for it.
+ * The live examples this run ran that did not pass: what fails it. The graph says which examples
+ * are live; each is judged by the result this run recorded, so neither a result another run wrote
+ * since nor one that went stale while it ran stands in for it.
  */
 export const regressions = (graph: Graph, ran: ReadonlyArray<ScenarioResult>): ReadonlyArray<string> =>
   ran.flatMap((result) => graph.node(result.id)?.attrs.toCome === true || !notPassing.has(result.status) ? [] : [result.id])
 
-/** Work still to come that every example of it shows built: what a run points out, to be declared implemented. */
-export interface Implementable {
-  /** The spec or the rule. */
-  readonly id: string
-  /** Where its maturity is declared, or would be: its tag, else its keyword line. */
-  readonly file: string
+/** Where a maturity is written: the tags as written, at their line. */
+export interface Written {
+  readonly maturity: string
   readonly line: number
 }
 
+/** Work still to come that every example of it shows built: what a run points out, and how it becomes live. */
+export interface Livable {
+  /** The spec or the rule. */
+  readonly id: string
+  readonly file: string
+  /** The maturities to delete: its own, and its feature's while its feature is still to come. */
+  readonly delete: ReadonlyArray<Written>
+  /** The lines of the rules still to come that keep the feature's maturity once it is deleted, by declaring it themselves. */
+  readonly keep: ReadonlyArray<number>
+}
+
 /**
- * The work still to come that can be declared implemented after a run that ran `ran`: a spec or a
- * rule still to come whose every example passed on current evidence, at least one of them in this
- * run, with no rule open and no rule without an example. A spec that qualifies is named
- * with each of its rules that declares a maturity of its own, which declaring the spec would leave
- * still to come; otherwise each rule that qualifies is named.
+ * The work still to come that can be made live after a run that ran `ran`: a spec or a rule still to
+ * come whose every example passed on current evidence, at least one of them in this run, with no
+ * rule open and no rule without an example. A spec that qualifies is named with each of its rules
+ * that declares a maturity of its own, which deleting the spec's would leave still to come;
+ * otherwise each rule that qualifies is named. A rule is live only once its feature is, so a rule
+ * of a feature still to come takes the feature's maturity with it, and the feature's other rules
+ * still to come declare it instead.
  */
-export const implementable = (project: Project, ran: ReadonlySet<string>): ReadonlyArray<Implementable> => {
+export const livable = (project: Project, ran: ReadonlySet<string>): ReadonlyArray<Livable> => {
   const { graph } = project
   const passed = (scenarios: ReadonlyArray<Scenario>) =>
     scenarios.length > 0 &&
     scenarios.every((scenario) => graph.node(scenario.id)?.attrs.status === "passed") &&
     scenarios.some((scenario) => ran.has(scenario.id))
-  return project.specs.flatMap((spec): ReadonlyArray<Implementable> => {
+  return project.specs.flatMap((spec): ReadonlyArray<Livable> => {
     const examples = (rule?: string) => spec.scenarios.filter((scenario) => rule === undefined || scenario.rule === rule)
     const rules = spec.rules.map((rule) => ({ rule, node: graph.node(rule.id) })).filter((rule) => rule.node !== undefined)
+    const declared = attribute(spec, "maturity")
+    const feature: ReadonlyArray<Written> = declared === undefined ? [] : [{ maturity: maturityTags(declared), line: spec.attrLines.maturity ?? 1 }]
+    const own = (rule: Rule): ReadonlyArray<Written> => {
+      const maturity = attribute(rule, "maturity")
+      return maturity === undefined ? [] : [{ maturity: maturityTags(maturity), line: rule.attrLines.maturity ?? rule.line }]
+    }
     const whole = graph.node(spec.id)?.attrs.toCome === true && passed(examples()) &&
       rules.every(({ node, rule }) => !isOpen(node!) && examples(rule.id).length > 0)
-    const named = (rule: Rule): Implementable => ({
-      id: rule.id,
-      file: spec.file,
-      line: attribute(rule, "maturity") === undefined ? rule.line : rule.attrLines.maturity ?? rule.line
-    })
     if (whole) {
-      const own = rules.filter(({ node, rule }) => node!.attrs.toCome === true && attribute(rule, "maturity") !== undefined)
-      return [{ id: spec.id, file: spec.file, line: spec.attrLines.maturity ?? 1 }, ...own.map(({ rule }) => named(rule))]
+      return [
+        { id: spec.id, file: spec.file, delete: feature, keep: [] },
+        ...rules.flatMap(({ node, rule }) => node!.attrs.toCome === true && own(rule).length > 0 ? [{ id: rule.id, file: spec.file, delete: own(rule), keep: [] }] : [])
+      ]
     }
-    return rules.flatMap(({ node, rule }) => node!.attrs.toCome === true && !isOpen(node!) && passed(examples(rule.id)) ? [named(rule)] : [])
+    const ready = rules.filter(({ node, rule }) => node!.attrs.toCome === true && !isOpen(node!) && passed(examples(rule.id)))
+    const named = new Set(ready.map(({ rule }) => rule.id))
+    // The rules that would be live with their feature but are not built: they keep its maturity by declaring it.
+    const keep = rules.filter(({ node, rule }) => !named.has(rule.id) && !isOpen(node!) && own(rule).length === 0).map(({ rule }) => rule.line)
+    return ready.map(({ rule }) => ({ id: rule.id, file: spec.file, delete: [...feature, ...own(rule)], keep: feature.length > 0 ? keep : [] }))
   })
 }
 
@@ -94,9 +111,9 @@ export interface StatusSummary {
   readonly relations: Readonly<Record<string, number>>
   /** Counted the way every report counts stages: each node that has one. Rules are counted apart. */
   readonly stages: Readonly<Record<string, number>>
-  /** Rules by where they stand: what the examples of an implemented one verify, or that it has none, is still to come or is open. */
+  /** Rules by where they stand: what the examples of a live one verify, or that it has none, is still to come or is open. */
   readonly rules: Readonly<Record<string, number>>
-  /** The examples of implemented work: one that failed is a regression. */
+  /** The live examples: one that failed is a regression. */
   readonly scenarios: Readonly<Record<string, number>>
   /** The examples of work still to come, apart: whatever they did is no regression. */
   readonly toCome: Readonly<Record<string, number>>

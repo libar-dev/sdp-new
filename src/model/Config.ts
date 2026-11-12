@@ -36,7 +36,6 @@ const VocabularyFile = Schema.Struct({
   })),
   qualities: Schema.optional(Words),
   maturity: Schema.optional(Words),
-  implemented: Schema.optional(Word),
   disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
   words: Schema.optional(Schema.Struct({
     kinds: Schema.optional(Words),
@@ -121,7 +120,6 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
     attributes: { ...d.attributes, ...file.attributes },
     qualities: file.qualities ?? d.qualities,
     maturity: file.maturity ?? d.maturity,
-    implemented: file.implemented ?? d.implemented,
     disciplines: new Map([...d.disciplines, ...Object.entries(file.disciplines ?? {})]),
     words: { ...d.words, ...file.words }
   }
@@ -184,21 +182,12 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   }
   const values: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
     ...Object.entries(v.kinds).map(([role, words]) => [["kinds", role], said(words)] as const),
-    [["maturity"], said(v.maturity)],
-    [["implemented"], said(v.implemented)]
+    [["maturity"], said(v.maturity)]
   ]
   for (const [path, words] of values) {
     for (const word of words.filter((candidate) => !isValueWord(candidate))) {
       problem(path, `\`${word}\` cannot be the value of a tag: write it without a space, @, = or :`)
     }
-  }
-
-  // The rung that says built is one of the ladder: a workspace with a ladder of its own names it.
-  if (v.implemented.trim() !== "" && v.maturity.length > 0 && !v.maturity.includes(v.implemented)) {
-    problem(
-      file.implemented === undefined ? ["maturity"] : ["implemented"],
-      `the ladder has no rung ${v.implemented}, which says that work is built: add it, or name the rung that does with implemented: <rung>`
-    )
   }
 
   const madeKinds: ReadonlyArray<string> = Object.values(made.kinds)

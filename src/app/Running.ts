@@ -6,7 +6,7 @@
  * then runs the gates (milestones and `@gate` examples) against a graph that
  * shows the ordinary results and no gate results. The gate of a milestone
  * that is met does not run again, and a workspace that cannot all be read as
- * written, has a scenario outside a rule or a maturity sdp check rejects, does not run at all. Works on any
+ * written, or has a scenario outside a rule or under a question, does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
  *
  * @sdp is ARCH-reports
@@ -16,7 +16,7 @@ import parseTagExpression from "@cucumber/tag-expressions"
 import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { type Implementable, implementable, regressions } from "../graph/Status.ts"
+import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
@@ -59,13 +59,13 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
   }
 })
 
-/** What sdp check rejects in which examples a spec holds to account: where they are, and the maturity that says whether they fail a run. */
-const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "maturity-value", "question-example"])
+/** What sdp check rejects in which examples a spec holds to account: a scenario outside a rule, and one under a question. */
+const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example"])
 
 /**
  * Fails before anything runs when part of the specs was not read as written, a scenario is outside
- * a rule, or a maturity or an open question is declared as sdp check rejects: a result of such a
- * workspace would be evidence about specs sdp check rejects.
+ * a rule, or an open question has examples: a result of such a workspace would be evidence about
+ * specs sdp check rejects.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
@@ -94,10 +94,10 @@ export interface WorkspaceRun {
   readonly stale: Readonly<Record<string, number>>
   /** The scenarios this run ran that are examples of work still to come: whatever they did fails no run. */
   readonly toCome: ReadonlySet<string>
-  /** The examples of implemented work this run ran that did not pass, by the results it recorded: they fail the run. */
+  /** The live examples this run ran that did not pass, by the results it recorded: they fail the run. */
   readonly regressions: ReadonlyArray<string>
-  /** Work still to come whose every example passes, some of them in this run: it can be declared implemented. */
-  readonly implementable: ReadonlyArray<Implementable>
+  /** Work still to come whose every example passes, some of them in this run: it can be made live. */
+  readonly livable: ReadonlyArray<Livable>
 }
 
 /**
@@ -179,7 +179,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     return typeof reason === "string" ? [reason] : []
   })
   const ran = new Set(ordinary.executed.map((result) => result.id))
-  // Which examples are implemented work is read from the graph the run ran against; whether one
+  // Which examples are live is read from the graph the run ran against; whether one
   // fails the run, from the result this run recorded for it.
   const ranAgainst = before.project.graph
   return {
@@ -189,7 +189,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     stale: tally(reasons),
     toCome: new Set([...ran].filter((id) => toCome(ranAgainst, id))),
     regressions: regressions(ranAgainst, ordinary.executed),
-    implementable: implementable(project, ran)
+    livable: livable(project, ran)
   } satisfies WorkspaceRun
 })
 
@@ -206,12 +206,12 @@ export interface RunInput {
 
 export interface RunReport {
   /**
-   * What the command exits by. `sdp run`: no ordinary example of implemented work that it ran fails,
+   * What the command exits by. `sdp run`: no ordinary live example that it ran fails,
    * is ambiguous, is pending or has a step without a definition — work still to come fails no run,
    * and an unmet gate is information. `sdp gate`: there are gate scenarios and every one of them passed.
    */
   readonly passed: boolean
-  /** The ordinary scenarios of implemented work by status. */
+  /** The ordinary live scenarios by status. */
   readonly summary: Readonly<Record<StepStatus, number>>
   /** The ordinary scenarios of work still to come by status: none of them fails the run. */
   readonly toCome: Readonly<Record<StepStatus, number>>
@@ -253,11 +253,12 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     scenarios,
     snippets: input.snippets && suggested.length > 0 ? snippetModule(suggested, steps.files) : undefined
   }
-  const { implemented } = config.vocabulary
   const notes = [
     ...steps.empty.map((file) => `${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``),
-    ...run.implementable.map(({ file, id, line }) =>
-      `${id} is still to come, and every example of it passes: declare it ${implemented}, @maturity=${implemented} at ${file}:${line}`
+    ...run.livable.map(({ delete: written, file, id, keep }) =>
+      `${id} is still to come, and every example of it passes: make it live, delete ${
+        written.map(({ line, maturity }) => `${maturity} at ${file}:${line}`).join(" and ")
+      }${keep.length > 0 ? `, and write it above the rules still to come at ${file}:${keep.join(", ")}` : ""}`
     )
   ]
   // Nothing runs on a workspace that cannot be fully read, so what ran is the whole answer.

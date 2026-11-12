@@ -1,4 +1,4 @@
-@id=write-step-definitions @maturity=implemented
+@id=write-step-definitions
 @realized-by:ARCH-runner @realized-by:ARCH-spec-parser
 Feature: Write step definitions
 
@@ -14,7 +14,7 @@ Feature: Write step definitions
   Background:
     Given a file "specs/cart.feature" containing:
       """
-      @id=cart @maturity=implemented
+      @id=cart
       Feature: Cart
 
         Shoppers collect items before paying.

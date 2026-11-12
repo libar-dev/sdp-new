@@ -19,10 +19,7 @@ export const rules = {
   "description-comment": "warning",
   "scenario-empty": "warning",
   "scenario-outside-rule": "error",
-  "maturity-value": "error",
-  "maturity-criteria": "error",
-  "maturity-promotable": "info",
-  "maturity-missing": "warning",
+  "untested-rule": "error",
   "question-example": "error",
   "replacement": "error",
   "decision-shape": "warning",
@@ -60,7 +57,7 @@ export const problemLine = (diagnostic: Diagnostic): string =>
 export const isRuleId = (value: string): value is RuleId => Object.hasOwn(rules, value)
 
 export interface Diagnostic {
-  /** Stable rule id, e.g. `maturity-criteria`. Grep for it in specs to learn more. */
+  /** Stable rule id, e.g. `dangling-link`. Grep for it in specs to learn more. */
   readonly rule: RuleId
   readonly severity: Severity
   readonly message: string

@@ -1,4 +1,4 @@
-@id=see-the-architecture @maturity=implemented
+@id=see-the-architecture
 @realized-by:ARCH-architecture-view @realized-by:ARCH-reports @realized-by:ARCH-graph-builder @realized-by:ARCH-code-annotations
 Feature: See the architecture
 
@@ -410,10 +410,10 @@ Feature: See the architecture
         function charge(invoice: Invoice): Promise<boolean>
         """
 
-  Rule: Each element is shown with the work implemented on it and the work still to come, ready first
+  Rule: Each element is shown with the live work on it and the work still to come, ready first
 
     The work on an element is each feature that names it, and each rule still to come of a feature
-    built on it. Ready is designed and all but final: it weighs nearly what implemented does.
+    built on it. Ready is designed and all but final: it weighs nearly what live work does.
 
     Scenario: The work on orders
       Given a file "specs/returns.feature" containing:
@@ -443,7 +443,7 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains:
         """
-        implemented: checkout  Checkout
+        live: checkout  Checkout
         still to come: checkout#an-order-can-be-paid-in-instalments (ready)  An order can be paid in instalments
         still to come: returns (draft)  Returns
         still to come: receipts (idea)  Receipts
@@ -454,7 +454,7 @@ Feature: See the architecture
         """
         ## Work
 
-        - implemented: checkout — Checkout
+        - live: checkout — Checkout
         - still to come: checkout#an-order-can-be-paid-in-instalments (ready) — An order can be paid in instalments
         - still to come: returns (draft) — Returns
         - still to come: receipts (idea) — Receipts
@@ -462,7 +462,7 @@ Feature: See the architecture
 
   Rule: An element that work still to come names, and no code declares yet, is shown as planned
 
-    Once that work is implemented, the element must be in the code.
+    Once that work is live, the element must be in the code.
 
     Scenario Outline: Exports, named by work <named by>
       Given a file "specs/export.feature" containing:
@@ -479,7 +479,7 @@ Feature: See the architecture
       Examples:
         | named by          | maturity        | kind    | reported      |
         | still to come     | @maturity=ready | element | nothing       |
-        | that is built     |                 | missing | dangling-link |
+        | that is live      |                 | missing | dangling-link |
 
     Scenario: A planned element in the view
       Given a file "specs/export.feature" containing:

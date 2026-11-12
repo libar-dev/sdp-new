@@ -1,4 +1,4 @@
-@id=cart-totals @maturity=implemented
+@id=cart-totals
 @realized-by:ARCH-pricing
 Feature: Cart totals include VAT
 

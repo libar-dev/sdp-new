@@ -81,8 +81,6 @@ export interface Scenario extends Annotations {
   readonly pickles: ReadonlyArray<Pickle>
   /** Stable hash of what a handler can observe — names, tags, steps and their arguments; results recorded for another hash are stale. */
   readonly hash: string
-  /** True when the scenario states an observable outcome (has a `Then`). */
-  readonly hasOutcome: boolean
 }
 
 /** A paragraph of a description, its lines joined, at its first line. */
@@ -415,8 +413,7 @@ const readFeature = (
       ...readTags(scenario.tags, "Scenario", links, problems),
       steps: scenario.steps.map((step) => ({ keyword: step.keyword.trim(), text: step.text, line: step.location.line })),
       pickles: compiled,
-      hash: hashPickles(compiled),
-      hasOutcome: scenario.steps.some((step) => step.keywordType === "Outcome")
+      hash: hashPickles(compiled)
     }
   })
 

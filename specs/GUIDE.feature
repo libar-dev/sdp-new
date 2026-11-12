@@ -1,13 +1,14 @@
-@id=GUIDE @kind=guide @maturity=implemented
+@id=GUIDE @kind=guide
 Feature: sdp, shown by running it
 
   What README.md promises a reader and AGENTS.md asks of an agent in this repository, as scenarios
   that run. sdp reads neither file, so what they say counts only where a scenario here pins it.
 
-  Rule: A spec says how far it has come, and its run whether it works
+  Rule: A spec says how far it has come while it is still to come, and once it is live its run says whether it works
 
-    While a feature is still to come, its examples run and fail no run; once it is declared
-    implemented they must pass, and verified is derived from the run, never written.
+    While a feature is still to come, its maturity is the team's judgement, and its examples run and
+    fail no run. Once it is built its maturity is deleted: it is live, its examples must pass, and
+    verified is derived from the run, never written.
 
     Scenario: A feature goes from specified to verified without leaving its file
       Given a file "specs/guest-checkout.feature" containing:
@@ -44,10 +45,10 @@ Feature: sdp, shown by running it
         })
         """
       When I run "sdp run"
-      Then the output contains "guest-checkout is still to come, and every example of it passes: declare it implemented"
+      Then the output contains "guest-checkout is still to come, and every example of it passes: make it live, delete @maturity=specified at specs/guest-checkout.feature:1"
       Given a file "specs/guest-checkout.feature" containing:
         """
-        @id=guest-checkout @maturity=implemented
+        @id=guest-checkout
         Feature: Guest checkout
 
           Shoppers without an account can buy.
@@ -74,7 +75,7 @@ Feature: sdp, shown by running it
     Scenario: A gate that passes once the feature's steps are written
       Given a file "specs/search.feature" containing:
         """
-        @id=search @maturity=implemented
+        @id=search
         Feature: Search
 
           Rule: A product is found by its name
@@ -134,7 +135,7 @@ Feature: sdp, shown by running it
         function vatFor(net: Cents, country: string): Cents
         cart-totals#the-total-of-a-thousand-line-cart-takes-under-2-ms-on-average, through cart-totals
         integer-cents, through cart-totals  Money is integer cents, rounded once
-        implemented: cart-totals  Cart totals include VAT
+        live: cart-totals  Cart totals include VAT
         """
       And the output does not contain "src/cart.ts"
 
@@ -191,9 +192,9 @@ Feature: sdp, shown by running it
       When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
       Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"
 
-  Rule: A feature is in specs/features, and its maturity says whether it is built
+  Rule: A feature is in specs/features, and declares a maturity only while it is still to come
 
-    Rule by rule: a change to a feature is rules of it at the maturity they have reached, so nothing
+    Rule by rule: a change to a live feature is rules of it with a maturity of their own, so nothing
     moves when it is built.
 
     Scenario: Where each spec of this repository is
@@ -203,9 +204,9 @@ Feature: sdp, shown by running it
 
   Rule: Everything that is built is verified, and npm run verify fails when it is not
 
-    A run fails on an example of built work that does not pass; this gate also catches one that did
-    not run, so it runs with every verification, not only at a milestone. A rule built ahead of its
-    feature is built work too.
+    A run fails on a live example that does not pass; this gate also catches one that did not run,
+    so it runs with every verification, not only at a milestone. A live rule beside rules still to
+    come is built work too.
 
     @gate
     Scenario: The features and the rules that are built
@@ -213,11 +214,11 @@ Feature: sdp, shown by running it
       And the query "feature[!toCome][stage!=verified]" returns no results
       And the query "feature <-rule-of- rule[!toCome][stage!=verified]" returns no results
 
-    Scenario: A rule built ahead of its feature holds the gate until its example has passed
+    Scenario: A live rule beside a rule still to come holds the gate until its example has passed
       Given the workspace is a copy of "specs/GUIDE.feature"
       And a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -229,16 +230,20 @@ Feature: sdp, shown by running it
         """
       And a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist @maturity=draft
+        @id=wishlist
         Feature: Wishlist
 
           Shoppers keep what they want for later.
 
-          @maturity=implemented
           Rule: A wishlist keeps what a shopper wants for later
 
             Scenario: Keep a lamp
               Then there are no error diagnostics
+
+          @maturity=draft
+          Rule: A wishlist is shared with a friend
+
+            Friends buy presents from it.
         """
       When I run "sdp run cart"
       Then the exit code is 0

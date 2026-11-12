@@ -7,7 +7,7 @@
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
 import { formatSource } from "../model/Graph.ts"
-import { made } from "../model/Vocabulary.ts"
+import { isValueWord, made } from "../model/Vocabulary.ts"
 import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
@@ -50,7 +50,7 @@ export interface CreateInput {
   readonly title: string
   /** Use this id instead of one made from the title. */
   readonly id?: string | undefined
-  /** A level of the configured ladder (default: the lowest). */
+  /** How far it has come, in the team's judgement: any one word (default: the lowest level of the configured ladder). */
   readonly maturity?: string | undefined
   /** Directory to write to, relative to the workspace root or absolute (default: by kind). */
   readonly dir?: string | undefined
@@ -66,6 +66,8 @@ const unusable = (input: CreateInput): string | undefined =>
     ? `the id ${JSON.stringify(input.id)} cannot name a file: write it without a slash, and choose the directory with --dir`
     : input.dir !== undefined && input.dir.trim() === ""
     ? "--dir needs a directory, relative to the workspace root or absolute"
+    : input.maturity !== undefined && !isValueWord(input.maturity)
+    ? `${JSON.stringify(input.maturity)}: a maturity is one word: write it without a space, @, = or :`
     : undefined
 
 /**
@@ -79,10 +81,6 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
   const project = yield* loadProject(root, { withResults: false })
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  const ladder = project.config.vocabulary.maturity
-  if (input.maturity !== undefined && !ladder.includes(input.maturity)) {
-    return yield* new Refused({ reason: `unknown maturity ${input.maturity}: use one of ${ladder.join(", ")}` })
-  }
   const drafted = newSpec({
     ...input,
     today: DateTime.formatIsoDate(yield* DateTime.now),

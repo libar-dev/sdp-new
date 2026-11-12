@@ -1,7 +1,7 @@
 /**
  * A spec is a Gherkin file whose Feature's tags say what it is: `@id=guest-checkout`, its kind, its
  * attributes and its links. The same format covers an idea written in one line and a fully
- * designed, executable specification: maturity is a property of the content, not of the format.
+ * designed, executable specification: how far it has come is the team's judgement, not a matter of format.
  */
 import { Predicate, Result } from "effect"
 import type { Config } from "../model/Config.ts"
@@ -27,7 +27,7 @@ export interface Spec {
   /** The `Rule:` blocks: what must hold, each with its reason; the scenarios name the rule they are examples of. */
   readonly rules: ReadonlyArray<Rule>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
-  /** The first paragraph: the description the criteria of draft ask for. */
+  /** The first paragraph: who needs what, and why. */
   readonly summary: string
   /** The paragraphs under the Feature. */
   readonly description: ReadonlyArray<Paragraph>

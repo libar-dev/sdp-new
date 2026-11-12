@@ -30,7 +30,8 @@ cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v
 edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
 notes
   key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
-  < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < implemented < failing = in-progress < verified
+  < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < unrun < failing = in-progress < verified,
+    a maturity off the ladder below every rung
   a key also holds the targets of the node's links of that relation: [iteration=IT-beta] agrees with -iteration-> #IT-beta
   rel: * or nothing is any relation, a|b either, a trailing + one or more hops
   + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
@@ -451,12 +452,17 @@ const equals = (value: unknown, expected: string) => String(value).toLowerCase()
 /** A value's rung on a ladder, or -1 when it is not on it. */
 const rung = (ladder: Ladder, value: string) => ladder.findIndex((words) => words.includes(value))
 
+/**
+ * Two values in order: along the attribute's ladder, where a value off it is below every rung, so a
+ * question for what has not come far enough finds it; else as numbers, else as text.
+ */
 const compare = (value: unknown, expected: string, ladder: Ladder | undefined, op: Op): boolean => {
   let diff: number
   const a = Number(value)
   const b = Number(expected)
-  if (ladder && rung(ladder, String(value)) >= 0 && rung(ladder, expected) >= 0) {
-    diff = rung(ladder, String(value)) - rung(ladder, expected)
+  const [have, want] = ladder ? [rung(ladder, String(value)), rung(ladder, expected)] : [-1, -1]
+  if (have >= 0 || want >= 0) {
+    diff = have - want
   } else if (value !== "" && expected !== "" && Number.isFinite(a) && Number.isFinite(b)) {
     diff = a - b
   } else {
@@ -534,11 +540,13 @@ const pathKey = (path: QueryPath) =>
   [path.nodes.join("\u0000"), ...path.edges.map((edge) => `${edge.from}\u0000${edge.rel}\u0000${edge.to}`)].join("\u0001")
 
 /**
- * The stage ladder: the maturity levels, then `failing` and `in-progress` as one rung — a failing
- * spec is no further along than one being automated — then `verified`.
+ * The stage ladder: the maturities of work still to come, then live work that has not run, then
+ * `failing` and `in-progress` as one rung — a failing spec is no further along than one being
+ * automated — then `verified`.
  */
 export const stageLadder = (vocabulary: Vocabulary): Ladder => [
   ...maturityLadder(vocabulary),
+  [made.stages.unrun],
   [made.stages.failing, made.stages.inProgress],
   [made.stages.verified]
 ]

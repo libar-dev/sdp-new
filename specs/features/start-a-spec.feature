@@ -1,4 +1,4 @@
-@id=start-a-spec @maturity=implemented
+@id=start-a-spec
 @realized-by:ARCH-reports @realized-by:ARCH-checker
 Feature: Start a spec
 
@@ -6,8 +6,8 @@ Feature: Start a spec
   file to fill in and to know what to write in it next: `sdp init` writes the configuration and the
   skill that teaches agents to work with sdp, `sdp new` a spec that holds only what stays in it.
 
-  Not a generator of content: a template writes what a spec is, and from specified on a rule and a
-  scenario to fill in; the rest is the author's.
+  Not a generator of content: a template writes what a spec is, at any maturity, and the rest is the
+  author's.
 
   Rule: init starts a workspace where it is run, with a configuration that shows every default and the skill, and overwrites nothing
 
@@ -87,8 +87,8 @@ Feature: Start a spec
 
   Rule: A new feature is written where it stays, and a change has no file
 
-    Nothing moves when a feature is built. A change to it is rules of it at the maturity they have
-    reached, so it has no file of its own, unless a team has a kind of that name.
+    Nothing moves when a feature is built. A change to it is rules of it, each with a maturity of its
+    own until it is built, so it has no file of its own, unless a team has a kind of that name.
 
     Scenario: A feature, written where it stays
       When I run "sdp new feature 'Saved carts'"
@@ -104,7 +104,7 @@ Feature: Start a spec
         next: a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         """
-      And the output contains "next: it stays in this file: once it is built, declare it @maturity=implemented, and a rule still to come after that with a maturity of its own above `Rule:`"
+      And the output contains "next: it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"
 
     Scenario Outline: A change, <where>
       Given a file "sdp.config.yaml" containing:
@@ -128,7 +128,7 @@ Feature: Start a spec
     Scenario: A kind without a template
       When I run "sdp new --help"
       Then the output contains "feature, idea, decision, element, pattern, milestone, plan, phase, iteration, risk"
-      And the output contains "idea (default), draft, specified, ready or implemented"
+      And the output contains "idea (default), draft, specified or ready, or any word of the team's own"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
@@ -178,47 +178,34 @@ Feature: Start a spec
       When I run "sdp -C shop new feature 'Gift cards' --dir requirements"
       Then the output does not contain "note:"
 
-  Rule: A new spec fails the check only for what its author has yet to write
+  Rule: A new spec fails the check only for template text its author has yet to replace
 
-    Scenario: Every template, at its first maturity level and above it
+    At any maturity a feature starts as its tags and its title: what it says next is the author's.
+
+    Scenario: Every template, at its first maturity and at others
       Given specs created from the sdp new templates:
-        | kind      | title         | maturity    |
-        | gizmo     | Sprocket      | idea        |
-        | idea      | Gift wrapping |             |
-        | pattern   | Outbox        |             |
-        | phase     | Elaboration   |             |
-        | milestone | Launch        |             |
-        | risk      | Outage        |             |
-        | feature   | Gift cards    | draft       |
-        | feature   | Returns       | specified   |
-        | feature   | Wishlist      | ready       |
-        | feature   | Exports       | implemented |
-        | decision  | Use Postgres  |             |
+        | kind      | title         | maturity |
+        | gizmo     | Sprocket      | idea     |
+        | idea      | Gift wrapping |          |
+        | pattern   | Outbox        |          |
+        | phase     | Elaboration   |          |
+        | milestone | Launch        |          |
+        | risk      | Outage        |          |
+        | feature   | Gift cards    | draft    |
+        | feature   | Wishlist      | ready    |
+        | feature   | Exports       | someday  |
+        | decision  | Use Postgres  |          |
       When the workspace is checked
       Then sdp reports:
         | rule                 | node         | line |
-        | maturity-criteria    | gift-cards   | 1    |
-        | maturity-criteria    | returns      | 1    |
-        | maturity-criteria    | wishlist     | 1    |
-        | maturity-criteria    | exports      | 1    |
-        | template-placeholder | returns      | 4    |
-        | template-placeholder | wishlist     | 4    |
-        | template-placeholder | exports      | 4    |
         | template-placeholder | use-postgres | 4    |
 
-    Scenario: From specified on, the file has a rule with a scenario to fill in
-      When I run "sdp new feature 'Saved carts' --maturity specified"
+    Scenario: A feature started at ready
+      When I run "sdp new feature 'Saved carts' --maturity ready"
       Then the file "specs/features/saved-carts.feature" is:
         """
-        @id=saved-carts @maturity=specified
+        @id=saved-carts @maturity=ready
         Feature: Saved carts
-
-          Rule: <the rule, in one sentence>
-
-            Scenario: <the main success case>
-              Given <context>
-              When <action>
-              Then <observable outcome>
         """
 
   Rule: Text a template wrote is flagged until it is filled in, once per spec, at the first

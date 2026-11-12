@@ -1,14 +1,13 @@
-@id=check-specs @maturity=implemented
+@id=check-specs
 @realized-by:ARCH-checker @realized-by:ARCH-reports
 Feature: Check specs
 
   Authors and reviewers, people and agents, need every problem in the specs reported at the line to
-  fix, with what to write instead, so that they can fix it without reading sdp's code. And the
-  maturity a spec declares must hold up against what the spec says, so that no status lies: how well
-  something is understood is declared and checked, whether it works is derived from a run.
+  fix, with what to write instead, so that they can fix it without reading sdp's code. And what is
+  built must stay tested: a live rule has an example.
 
-  Not a linter of style or wording: sdp checks what it reads and what a spec claims, and fixes
-  nothing itself.
+  Not a linter of style or wording, nor a judge of how far work still to come has come: sdp checks
+  what it reads and what is live, and fixes nothing itself.
 
   Rule: check reports each diagnostic at the line to fix, down to the severity asked for, and fails only on an error
 
@@ -65,10 +64,7 @@ Feature: Check specs
         | description-comment   | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Why:\n  # not read\n  because.                                                                                                               |
         | scenario-empty        | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Nothing yet                                                                                                           |
         | scenario-outside-rule | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Scenario: S\n    Then it works                                                                                                               |
-        | maturity-value        | error    | specs/reports.feature          | 1    | @id=reports @maturity=someday\nFeature: Reports                                                                                                                               |
-        | maturity-criteria     | error    | specs/reports.feature          | 1    | @id=reports @maturity=specified\nFeature: Reports\n  Analysts export reports.                                                                                                 |
-        | maturity-promotable   | info     | specs/reports.feature          | 1    | @id=reports @maturity=draft\nFeature: Reports\n  Analysts export reports.\n  Rule: R\n    Scenario: Export\n      Then a file is saved                                        |
-        | maturity-missing      | warning  | specs/reports.feature          | 1    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Export\n      Then a file is saved                                                                                    |
+        | untested-rule         | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Rule: R                                                                                                                                       |
         | replacement           | error    | specs/reports.feature          | 3    | @id=reports @maturity=idea\nFeature: Reports\n  @replaces:reports\n  Rule: R                                                                                                  |
         | question-example      | error    | specs/reports.feature          | 5    | @id=reports @maturity=idea\nFeature: Reports\n  @open\n  Rule: Mailed too?\n    Scenario: Mail\n      Then a mail is sent                                                     |
         | decision-shape        | warning  | specs/monthly-releases.feature | 4    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not weekly, because a release takes a week to test.\n  Rule: Consequences                                   |
@@ -86,50 +82,16 @@ Feature: Check specs
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec
 
-  @decided-by:declared-maturity-derived-stage
-  Rule: Each level asks for more of the content, and a claim the content does not support is an error
+  Rule: A live rule has an example, so that what is built stays tested
 
-    idea asks for a name; draft, for a first paragraph that says who wants what, and why; specified,
-    for a scenario that states an outcome.
+    A live rule without one tests nothing, and keeps its feature from verified. A rule still to come
+    may wait for its examples, and an open rule is a question still to come; what an example asserts
+    is the author's.
 
-    Scenario Outline: A name, then a paragraph, then an outcome
+    Scenario Outline: A live feature, and <case>
       Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=export-to-csv @maturity=<claimed>
-        Feature: Export to CSV
-
-        <content>
-        """
-      When the workspace is checked
-      Then sdp reports "<reported>"
-
-      Examples:
-        | claimed   | content                                                                                         | reported          |
-        | idea      |                                                                                                 | nothing           |
-        | draft     |                                                                                                 | maturity-criteria |
-        | draft     | Analysts want data in Excel.                                                                    | nothing           |
-        | specified | Analysts want data in Excel.                                                                    | maturity-criteria |
-        | specified | Analysts want data in Excel.\n\nRule: Every row is exported\nScenario: Export\nWhen I export it | maturity-criteria |
-
-    Scenario: A feature declared in code can claim no more than a name
-      Given a file "src/pay.py" containing:
-        """
-        # @sdp is pay kind=feature maturity=ready
-        def pay(): pass
-        """
-      When the workspace is checked
-      Then sdp reports at least:
-        | rule              | node |
-        | maturity-criteria | pay  |
-
-  Rule: Ready asks for an example of every rule, an outcome in every scenario and no open question
-
-    So a draft's rules are a checked list of what is still to specify.
-
-    Scenario Outline: What a spec may leave until it claims ready
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        @id=export-to-csv @maturity=<claimed>
+        @id=export-to-csv
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -145,167 +107,52 @@ Feature: Check specs
       Then sdp reports "<reported>"
 
       Examples:
-        | claimed   | second                                                                   | reported          |
-        | specified | Rule: Archived rows too                                                  | nothing           |
-        | ready     | Rule: Archived rows too                                                  | maturity-criteria |
-        | ready     | Rule: Archived rows too\n  Scenario: Archive\n    Then they are exported | nothing           |
-        | ready     | Scenario: Import\n  When I import a file                                 | maturity-criteria |
-        | ready     | @open\nRule: Archived rows too?                                          | maturity-criteria |
+        | case                                  | second                                                          | reported      |
+        | a rule without an example             | Rule: Archived rows too                                         | untested-rule |
+        | a rule still to come without one      | @maturity=draft\nRule: Archived rows too                        | nothing       |
+        | a question                            | @open\nRule: Archived rows too?                                 | nothing       |
+        | a rule whose example states no Then   | Rule: Archived rows too\n  Scenario: Archive\n    When I archive | nothing       |
 
-    Scenario: What keeps a spec from ready names the first open question and the first rule without an example
+    Scenario: The rule without an example, at its line
       Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=export-to-csv @maturity=ready
+        @id=export-to-csv
         Feature: Export to CSV
 
-          Analysts want data in Excel.
-
           Rule: Archived rows are exported too
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule          | at                            | message                                                                      |
+        | untested-rule | specs/export-to-csv.feature:4 | export-to-csv#archived-rows-are-exported-too is live, so it needs an example |
+
+  @decided-by:declared-maturity-derived-stage
+  Rule: A maturity is the team's judgement, and check reads neither its value nor the content behind it
+
+    How far work still to come has come is for the team to say, and for a gate of its own to hold
+    to a Definition of Ready: a placeholder paragraph with a token scenario would meet any criterion
+    sdp could check. Any value, written once or twice, says that the work is still to come.
+
+    Scenario Outline: A feature with a rule without an example and a question, at <maturity>
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        @id=export-to-csv @maturity=<maturity>
+        Feature: Export to CSV
+
+          Rule: Every row is exported
 
           @open
           Rule: Which delimiter?
         """
       When the workspace is checked
-      Then sdp reports:
-        | rule              | line | message                                                                                                             |
-        | maturity-criteria | 1    | 1 open question(s), e.g. "Which delimiter?" (line 9); rule "Archived rows are exported too" has no example (line 6) |
-
-  Rule: Implemented work is held to what ready asks, each Rule on its own
-
-    Being built does not excuse a rule from what makes it testable. A Rule that declares a maturity
-    other than its Feature's is also judged on its own examples; an open one is a question still to come.
-
-    Scenario Outline: A feature at <claimed>, and <case>
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        @id=export-to-csv @maturity=<claimed>
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          Rule: Every row is exported
-
-            Scenario: Export
-              Then I get a file
-
-          <second>
-        """
-      When the workspace is checked
-      Then sdp reports "<reported>"
-
-      Examples:
-        | case                                               | claimed     | second                                                                                                                      | reported          |
-        | a rule without an example                          | implemented | Rule: Archived rows too                                                                                                     | maturity-criteria |
-        | a rule still to come                               | implemented | @maturity=draft\nRule: Archived rows too\n\n  Analysts audit them.                                                          | nothing           |
-        | a rule specified without an example                | implemented | @maturity=specified\nRule: Archived rows too                                                                                | maturity-criteria |
-        | a question still to come                           | implemented | @open\nRule: Archived rows too?                                                                                             | nothing           |
-        | a rule built ahead of its feature                  | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    Then they are exported | nothing           |
-        | a rule built ahead, its example without an outcome | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    When I archive         | maturity-criteria |
-
-    Scenario: A feature whose only rule declares the feature's own maturity
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        @id=export-to-csv @maturity=implemented
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          @maturity=implemented
-          Rule: Every row is exported
-
-            Scenario: Export
-              Then I get a file
-        """
-      When the workspace is checked
       Then sdp reports nothing
-
-  Rule: A spec without a maturity is implemented, and check asks for one
-
-    Failing safe: an example nobody marked is enforced, as under Cucumber, and a suite without an id
-    runs as it does there.
-
-    Scenario Outline: A spec <declaring> and an example without a step definition
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        <tags>
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          Rule: Every row is exported
-
-            Scenario: Export
-              Then I get a file
-        """
-      When the workspace is checked
-      Then sdp reports "<reported>"
-      When I run "sdp run"
-      Then the exit code is <exit code>
+      And node "export-to-csv" has attribute toCome = "true"
 
       Examples:
-        | declaring             | tags                              | reported         | exit code |
-        | that declares nothing | @id=export-to-csv                 | maturity-missing | 1         |
-        | that is still to come | @id=export-to-csv @maturity=ready | nothing          | 0         |
-        | named by its path     |                                   | nothing          | 1         |
-
-    Scenario Outline: A spec <declaring>, before its first rule
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        <tags>
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-        """
-      When the workspace is checked
-      Then sdp reports "<reported>"
-
-      Examples:
-        | declaring             | tags              | reported         |
-        | that declares nothing | @id=export-to-csv | maturity-missing |
-        | named by its path     |                   | nothing          |
-
-  Rule: Content ahead of its label is no error, only an info that the spec can be promoted
-
-    Maturity is the team's judgement of how well a thing is understood: a claim below what the
-    content supports is not false, and raising it is the team's call.
-
-    Scenario: A draft whose scenario states an outcome
-      Given a file "specs/export-to-csv.feature" containing:
-        """
-        @id=export-to-csv @maturity=draft
-        Feature: Export to CSV
-
-          Analysts want data in Excel.
-
-          Rule: Every row is exported
-
-            Scenario: Export current rows
-              When I export the report
-              Then I get a CSV file with one line per row
-        """
-      When the workspace is checked
-      Then sdp reports:
-        | rule                | severity | node          |
-        | maturity-promotable | info     | export-to-csv |
-
-  Rule: A level a team adds has no criteria of its own, and takes its place in the order
-
-    sdp reads meaning into its own few words only: what a team's level asks for is the team's to
-    check, with a gate of its own as its Definition of Ready is. sdp reads only the level's place in
-    the order, so that a question compares it with the others.
-
-    Scenario: approved, between draft and specified
-      Given a file "sdp.config.yaml" containing:
-        """
-        vocabulary: { maturity: [idea, draft, approved, specified, ready, implemented] }
-        """
-      And these specs:
-        | tags                                 | Feature       |
-        | @id=export-to-csv @maturity=approved | Export to CSV |
-      When the workspace is checked
-      Then sdp reports nothing
-      When I query "feature[maturity>draft, maturity<specified]"
-      Then the result is "export-to-csv"
+        | maturity             |
+        | ready                |
+        | someday              |
+        | idea @maturity=ready |
 
   Rule: A decision is a title and one to three sentences
 
@@ -344,7 +191,7 @@ Feature: Check specs
         | @id=retire-legacy-billing @kind=decision | Retire legacy billing |
       And a file "specs/ARCH-legacy-billing.feature" containing:
         """
-        @id=ARCH-legacy-billing @maturity=implemented
+        @id=ARCH-legacy-billing
         Feature: Legacy billing
 
           Billing as it was before invoices, kept until the last caller is gone.

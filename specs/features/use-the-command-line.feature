@@ -1,4 +1,4 @@
-@id=use-the-command-line @maturity=implemented
+@id=use-the-command-line
 @realized-by:ARCH-cli @realized-by:ARCH-reports @realized-by:ARCH-workspace
 Feature: Use the command line
 
@@ -174,7 +174,7 @@ Feature: Use the command line
         | new ../x Carts                        | is not a kind: a kind is one word                                            | x/carts.feature                     |
         | new feature Carts --id a/b            | cannot name a file: write it without a slash                                 | specs/features/a/b.feature          |
         | new feature Carts --dir ''            | --dir needs a directory                                                      | carts.feature                       |
-        | new feature Carts --maturity done     | unknown maturity done: use one of idea, draft, specified, ready, implemented | specs/features/carts.feature        |
+        | new feature Carts --maturity 'not yet' | a maturity is one word: write it without a space, @, = or :                 | specs/features/carts.feature        |
         | new element Bad --id 'ARCH-bad other' | would not read back from a tag                                               | .sdp/results.json                   |
         | new element Bad --id ' '              | would not read back from a tag                                               | .sdp/results.json                   |
 
@@ -204,7 +204,7 @@ Feature: Use the command line
     Scenario: On one screen, and as data
       Given a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=implemented
+        @id=cart
         Feature: Cart
 
           Rule: A cart holds each item once

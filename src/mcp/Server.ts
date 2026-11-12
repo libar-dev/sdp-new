@@ -96,7 +96,7 @@ const SdpSnippets = readOnly(Tool.make("sdp_snippets", {
 }))
 
 const SdpCheck = readOnly(Tool.make("sdp_check", {
-  description: "Validate the workspace: tags, links, Gherkin, maturity criteria, the shape of decisions and the plan. Each diagnostic has a rule, a file:line and a hint.",
+  description: "Validate the workspace: tags, links, Gherkin, that every live rule has an example, the shape of decisions and the plan. Each diagnostic has a rule, a file:line and a hint.",
   parameters: Schema.Struct({
     severity: Schema.optional(Schema.Literals(["error", "warning", "info"])).annotate({ description: "Minimum severity (default info: everything)" }),
     json
@@ -171,13 +171,13 @@ const handlers = (root: string) =>
 export const registrations = (root: string) => McpServer.toolkit(SdpToolkit).pipe(Layer.provide(handlers(root)))
 
 export const instructions = [
-  "sdp exposes a software delivery graph: features (each with its requirements, quality ones included, as rules with examples) at any maturity, a feature or a rule up to implemented once it is built, decisions, curated architecture (the elements and patterns architects declared), lifecycle (milestones, iterations, phases), scenarios with execution status, and the code anchored to the architecture.",
+  "sdp exposes a software delivery graph: features (each with its requirements, quality ones included, as rules with examples) still to come at a maturity, or live once built, when they declare none and their examples must pass, decisions, curated architecture (the elements and patterns architects declared), lifecycle (milestones, iterations, phases), scenarios with execution status, and the code anchored to the architecture.",
   "Start with sdp_status, then sdp_query; use sdp_context before working on a spec, sdp_snippets to automate its scenarios and sdp_steps to find a step definition to extend.",
   "An answer that starts with \"incomplete:\" was given from a workspace sdp could not fully read: its notes say what is missing, so do not conclude that something is absent.",
   "Code links to the architecture, not to features. A tag in the doc comment of a declaration, `@sdp is ARCH-orders`, says which code an element is, in every language; in the comment that opens a file, it says the file is, and the rest of the comment describes it. A feature names its element with `realized-by`, so the way from a feature to its code is `feature -realized-by-> element <-is- code`.",
   "What belongs in the architecture is the architects' call: propose an element, a pattern or an `is` annotation, do not add or remove one yourself.",
   `Relations are free-form; sdp's templates use ${relationVocabulary}.`,
-  "A spec is a Gherkin file: `@id=guest-checkout @maturity=implemented` above `Feature:` says what it is, `@decided-by:accounts-are-optional` what it links to, a `Rule:` what must hold and its scenarios the examples — you can also grep them directly.",
+  "A spec is a Gherkin file: `@id=guest-checkout @maturity=ready` above `Feature:` says what it is, `@decided-by:accounts-are-optional` what it links to, a `Rule:` what must hold and its scenarios the examples — you can also grep them directly.",
   "An id names what it is: one with no prefix is a feature's, a decision says its kind with `@kind=`, and elements, patterns, milestones, phases and iterations keep their prefix, as in `ARCH-orders` or `IT-beta`."
 ].join(" ")
 

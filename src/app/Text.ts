@@ -112,7 +112,7 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
  * without one, what the code anchored to it says of itself. Under each piece of code that is it
  * comes its surface: a declaration's shape, or what a file exports. Code that links to it otherwise
  * — that plays a pattern — is followed by the elements that code is. Then the work on it: what is
- * implemented, and what is still to come, ready first. A node no file declares is planned by the
+ * live, and what is still to come, ready first. A node no file declares is planned by the
  * work that names it. A title that only repeats the id, as that of an element declared by its code,
  * is left out.
  */
@@ -126,7 +126,7 @@ export const architecture = ({ anchor, anchors, architecture, drivers, edges, ki
     const anchoring = incoming.filter((e) => e.rel === anchor && code.has(e.from))
     const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : anchoring.map((e) => code.get(e.from)?.attrs.doc)
     const named = title(node.id) === "" ? node.id : `${node.id} — ${node.title}`
-    const { implemented = [], toCome = [] } = work.find((w) => w.node === node.id) ?? {}
+    const { live = [], toCome = [] } = work.find((w) => w.node === node.id) ?? {}
     const by = toCome.length > 0 ? ` by ${toCome.map((item) => item.id).join(", ")}` : ""
     const planned = node.file === null ? `planned${by}: no code declares it yet` : ""
     lines.push("", `${named} (${node.kind})  ${where(node) || planned}`.trimEnd())
@@ -149,7 +149,7 @@ export const architecture = ({ anchor, anchors, architecture, drivers, edges, ki
       const features = [...new Set(driver.through.filter((route) => route.nodes[0] === node.id).map((route) => route.nodes[1]))]
       if (features.length > 0) lines.push(`  ${driver.id}, through ${features.join(", ")}  ${title(driver.id)}`.trimEnd())
     }
-    for (const item of implemented) lines.push(`  implemented: ${item.id}  ${item.title}`)
+    for (const item of live) lines.push(`  live: ${item.id}  ${item.title}`)
     for (const item of toCome) lines.push(`  still to come: ${item.id}${stageOf(item)}  ${item.title}`)
   }
   return lines.join("\n")
@@ -234,7 +234,7 @@ export const runSummary = (report: RunReport | GateReport): string => {
     ...(report.snippets !== undefined
       ? [`\nStep definitions for the undefined steps:\n\n${report.snippets}`]
       : report.summary.undefined > 0
-      ? [c.red("a step of implemented work has no definition: it was renamed or removed, or the work is still to come and its maturity says otherwise; --snippets prints a step definition module")]
+      ? [c.red("a step of a live example has no definition: it was renamed or removed, or the work is still to come and declares no maturity; --snippets prints a step definition module")]
       : undefinedSteps
       ? [c.dim("undefined steps describe behaviour not automated yet; --snippets prints a step definition module for them")]
       : [])

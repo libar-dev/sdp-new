@@ -213,7 +213,9 @@ const checkCommand = Command.make(
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
   })
-).pipe(Command.withDescription("Validate tags, links, Gherkin, maturity criteria and the plan; exit 1 on errors"))
+).pipe(
+  Command.withDescription("Validate tags, links, Gherkin, that every live rule has an example, and the plan; exit 1 on errors")
+)
 
 const stepsCommand = Command.make(
   "steps",
@@ -327,7 +329,7 @@ const newCommand = Command.make(
     id: Flag.String("id").pipe(Flag.withDescription("Use this id instead of one made from the title"), Flag.optional),
     maturity: Flag.String("maturity").pipe(
       Flag.withDescription(
-        "Start at this maturity — idea (default), draft, specified, ready or implemented, or your configured ladder; from specified on the file has a scenario to fill in"
+        "Start at this maturity — idea (default), draft, specified or ready, or any word of the team's own: work still to come declares one, and live work none"
       ),
       Flag.optional
     ),

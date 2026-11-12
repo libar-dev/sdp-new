@@ -86,9 +86,9 @@ export const description = (project: Project, node: GraphNode): ReadonlyArray<st
     })
 }
 
-/** The work on an architectural node: what is built on it, and what is still to come, ready first. */
+/** The work on an architectural node: what is live on it, and what is still to come, ready first. */
 export interface Work {
-  readonly implemented: ReadonlyArray<GraphNode>
+  readonly live: ReadonlyArray<GraphNode>
   readonly toCome: ReadonlyArray<GraphNode>
 }
 
@@ -103,12 +103,12 @@ export const workOn = (project: Project, node: GraphNode): Work => {
   const work = (n: GraphNode | undefined): n is GraphNode =>
     n !== undefined && (hasKind(vocabulary, "feature", n.kind) || n.kind === made.kinds.rule) && !isQuestion(n)
   const naming = [...new Set(graph.in(node.id).map((edge) => edge.from))].map((id) => graph.node(id)).filter(work)
-  const implemented = naming.filter((n) => n.attrs.toCome !== true)
-  const changes = implemented.flatMap((n) => graph.in(n.id).filter((edge) => edge.rel === made.relations.rule).map((edge) => graph.node(edge.from)))
+  const live = naming.filter((n) => n.attrs.toCome !== true)
+  const changes = live.flatMap((n) => graph.in(n.id).filter((edge) => edge.rel === made.relations.rule).map((edge) => graph.node(edge.from)))
     .filter(work).filter((rule) => rule.attrs.toCome === true)
   const rung = (n: GraphNode) => vocabulary.maturity.indexOf(String(attribute(n, "stage")))
   const toCome = [...new Map([...changes, ...naming.filter((n) => n.attrs.toCome === true)].map((n) => [n.id, n])).values()]
-  return { implemented, toCome: toCome.map((n, index) => ({ n, index })).sort((a, b) => rung(b.n) - rung(a.n) || a.index - b.index).map(({ n }) => n) }
+  return { live, toCome: toCome.map((n, index) => ({ n, index })).sort((a, b) => rung(b.n) - rung(a.n) || a.index - b.index).map(({ n }) => n) }
 }
 
 const isQuestion = (node: GraphNode): boolean => {

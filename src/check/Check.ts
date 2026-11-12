@@ -4,138 +4,39 @@
  * fix issues without reading this file. What belongs in the architecture is
  * never checked: declaring it is the architect's call.
  *
- * Maturity criteria make declared maturity honest: a node may claim a level only
- * when its content supports it. They run on every Feature and Rule that declares
- * a maturity, each on its own content — a Rule's is its examples —
- * and on every node declared in code, which has no content beyond its title, so
- * it can claim no more than the first level.
- *
- *   idea         a title (anything goes; capture it before it is lost)
- *   draft        a description of the problem or intent (a Rule's name says what must hold)
- *   specified    at least one scenario stating an outcome (`Then`)
- *   ready        no rule tagged `@open`, every rule has an example, every scenario
- *                states an outcome, gherkin parses
- *   implemented  what ready asks, and so is a spec that declares no maturity
+ * A maturity is the team's judgement of how far work still to come has come, so
+ * neither its value nor the content behind it is checked. What is checked is
+ * what is live — a Feature or a Rule that declares no maturity: a live rule has
+ * an example.
  */
 import { Predicate } from "effect"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
   attribute,
-  criteria,
-  criteriaOf,
   dayOf,
   hasKind,
   hasRelation,
   isPlanKind,
-  isToCome,
   type KindRole,
   made,
   type RelationRole,
   type Vocabulary,
   wordFor
 } from "../model/Vocabulary.ts"
-import type { Project } from "../graph/Build.ts"
+import { type Project, workOf } from "../graph/Build.ts"
 import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
 import { codeNodeId } from "../parse/Annotations.ts"
-import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import { type OpenQuestion, type Spec, suiteId } from "../parse/Spec.ts"
-
-const builtinLevels: ReadonlyArray<string> = Object.values(criteria)
-
-/** What the maturity criteria look at: the content of a Feature or of a Rule, and none of a node declared in code. */
-export interface Content {
-  /** A Feature's first paragraph, or the reason under a Rule, which no level asks for. */
-  readonly summary: string
-  readonly scenarios: ReadonlyArray<Scenario>
-  readonly rules: ReadonlyArray<Rule>
-  readonly openQuestions: ReadonlyArray<OpenQuestion>
-  /** What the content is written under. */
-  readonly under: "Feature" | "Rule"
-  /** Examples of rules ahead of it, judged on their own: they show it has examples, and their problems are reported at their rule. */
-  readonly ahead?: ReadonlyArray<Scenario> | undefined
-}
-
-const noContent: Content = { summary: "", scenarios: [], rules: [], openQuestions: [], under: "Feature" }
+import type { Rule } from "../parse/Gherkin.ts"
+import { type Spec, suiteId } from "../parse/Spec.ts"
 
 const isOpen = (rule: Rule) => rule.tags.includes(made.tags.open)
 
-/**
- * What a Feature claiming `maturity` is judged on: its first paragraph, and the rules at its
- * maturity, with their examples. A rule that declares another maturity is judged on its own; the
- * examples of one ahead of the Feature still show that it has examples. From the implemented rung
- * up, an open rule is a question still to come, not part of what is built.
- */
-export const featureContent = (spec: Spec, vocabulary: Vocabulary, maturity: string): Content => {
-  const built = vocabulary.maturity.includes(maturity) && !isToCome(vocabulary, maturity)
-  const rank = (rung: unknown) => vocabulary.maturity.indexOf(String(rung))
-  const own = (rule: Rule) => attribute(rule, "maturity")
-  const rules = spec.rules.filter((rule) => {
-    const declared = own(rule)
-    return (declared === undefined || declared === maturity || rank(declared) < 0) && !(built && isOpen(rule))
-  })
-  const ids = new Set(rules.map((rule) => rule.id))
-  const scenarios = spec.scenarios.filter((scenario) => scenario.rule === undefined || ids.has(scenario.rule))
-  const aheadRules = new Set(spec.rules.filter((rule) => rank(own(rule)) > rank(maturity) && !isOpen(rule)).map((rule) => rule.id))
-  const ahead = spec.scenarios.filter((scenario) => scenario.rule !== undefined && aheadRules.has(scenario.rule))
-  const lines = new Set([...rules, ...scenarios].map((element) => element.line))
-  return {
-    summary: spec.summary,
-    scenarios,
-    rules,
-    openQuestions: spec.openQuestions.filter((question) => lines.has(question.line)),
-    under: "Feature",
-    ahead
-  }
-}
+/** A spec whose rules are a test suite: not a decision, which holds none, nor the plan, whose scenarios are gates. */
+const isSuite = (spec: Spec, vocabulary: Vocabulary) => !hasKind(vocabulary, "decision", spec.kind) && !isPlanKind(vocabulary, spec.kind)
 
-/** What a Rule that declares its own maturity is judged on: its examples. Its name says what must hold, and a reason is written only where that is not plain. */
-const ruleContent = (spec: Spec, rule: Rule): Content => {
-  const scenarios = spec.scenarios.filter((scenario) => scenario.rule === rule.id)
-  const lines = new Set([rule, ...scenarios].map((element) => element.line))
-  return { summary: rule.description ?? "", scenarios, rules: [rule], openQuestions: spec.openQuestions.filter((question) => lines.has(question.line)), under: "Rule" }
-}
-
-/** Why the rules of `content` are not what ready asks: an open question, a rule without an example, an example without an outcome. */
-const readyReasons = (content: Content): ReadonlyArray<string> => {
-  const reasons: Array<string> = []
-  const open = content.openQuestions
-  if (open.length > 0) reasons.push(`${open.length} open question(s), e.g. "${open[0]!.text}" (line ${open[0]!.line})`)
-  // An open rule is a question, counted above; any other rule is a to-do until it has an example.
-  const bare = content.rules.filter((rule) => !content.scenarios.some((s) => s.rule === rule.id) && !open.some((q) => q.line === rule.line))
-  if (bare.length > 0) reasons.push(`rule "${bare[0]!.name}" has no example (line ${bare[0]!.line})`)
-  const noOutcome = content.scenarios.filter((s) => !s.hasOutcome)
-  if (noOutcome.length > 0) reasons.push(`scenario "${noOutcome[0]!.name}" has no Then step`)
-  return reasons
-}
-
-/** Why `content` does not meet the built-in criteria of `level` (empty when it does, or when it has none). */
-export const unmetCriteria = (content: Content, level: string | undefined): ReadonlyArray<string> => {
-  const reasons: Array<string> = []
-  const index = level === undefined ? -1 : builtinLevels.indexOf(level)
-  if (index >= 1 && content.under === "Feature" && content.summary === "") {
-    reasons.push("no description: write a paragraph on the problem or intent under the Feature")
-  }
-  const shown = [...content.scenarios, ...(content.ahead ?? [])]
-  if (index >= 2 && shown.length === 0) {
-    reasons.push(`no scenarios: add a Scenario that states an outcome under ${content.under === "Rule" ? "it" : "a Rule"}`)
-  }
-  if (index >= 2 && shown.length > 0 && !shown.some((s) => s.hasOutcome)) {
-    reasons.push("no scenario states an outcome: add a Then step")
-  }
-  if (index >= 3) reasons.push(...readyReasons(content))
-  return reasons
-}
-
-/** The highest built-in level whose criteria the content meets. */
-const achievableMaturity = (content: Content): string => {
-  let best: string = builtinLevels[0]!
-  for (const level of builtinLevels) {
-    if (unmetCriteria(content, level).length === 0) best = level
-    else break
-  }
-  return best
-}
+/** The tags that declare a maturity, as written: `@maturity=ready`, or each value of one written twice. */
+export const maturityTags = (maturity: unknown): string => [maturity].flat().map((value) => `@maturity=${String(value)}`).join(" ")
 
 /** What `sdp new` writes for the author to replace. A decision starts as its shape, what it was chosen over, why and at what cost: */
 export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>."
@@ -184,78 +85,19 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
   )
 
-  // What a Feature, a Rule or a node declared in code claims is judged on its own content.
-  for (const node of graph.nodes()) {
-    const maturity = attribute(node, "maturity")
-    if (maturity === undefined) continue
-    const spec = project.specById.get(node.id)
-    const owner = node.kind === made.kinds.rule ? project.specById.get(String(node.attrs.spec)) : undefined
-    const rule = owner?.rules.find((candidate) => candidate.id === node.id)
-    const source = spec ? at(spec) : owner && rule ? at(owner, rule.attrLines.maturity ?? rule.line) : node.source
-    if (!Predicate.isString(maturity) || !vocabulary.maturity.includes(maturity)) {
-      out.push(diagnostic("maturity-value", {
-        message: `${node.id}: unknown maturity "${String(maturity)}"`,
-        node: node.id,
-        source,
-        hint: `use one of: ${vocabulary.maturity.join(", ")}`
-      }))
-      continue
-    }
-    // A rule at its Feature's own maturity is judged with the Feature, not a second time on its own.
-    if (owner && rule && attribute(owner, "maturity") === maturity) continue
-    const content = spec ? featureContent(spec, vocabulary, maturity) : owner && rule ? ruleContent(owner, rule) : noContent
-    const reasons = unmetCriteria(content, criteriaOf(vocabulary, maturity))
-    const above = rule ? "the Rule" : "`Feature:`"
-    if (reasons.length > 0) {
-      out.push(diagnostic("maturity-criteria", {
-        message: `${node.id} claims maturity "${maturity}" but ${reasons.join("; ")}`,
-        node: node.id,
-        source,
-        hint: spec || rule
-          ? `fix the content, or lower it: @maturity=${achievableMaturity(content)} above ${above}${
-            spec && !isToCome(vocabulary, maturity) ? "; a rule still to come declares a maturity of its own" : ""
-          }`
-          : `give it a spec file of its own for content beyond a title, or lower its maturity in the code to ${achievableMaturity(content)}`
-      }))
-    } else {
-      // Only worth mentioning once there is behaviour to look at; idea → draft is noise.
-      const achievable = achievableMaturity(content)
-      if (
-        vocabulary.maturity.indexOf(achievable) > vocabulary.maturity.indexOf(maturity) &&
-        builtinLevels.indexOf(achievable) >= builtinLevels.indexOf(criteria.specified)
-      ) {
-        out.push(diagnostic("maturity-promotable", {
-          message: `${node.id} meets the criteria of "${achievable}" but is marked "${maturity}"`,
-          node: node.id,
-          source,
-          hint: `write @maturity=${achievable} above ${above} if the team agrees`
-        }))
-      }
-    }
-  }
-
-  // A spec that declares no maturity is implemented, from the day it is written: check asks for it,
-  // and holds each of its rules to what ready asks, as a run holds their examples. A decision and
-  // the plan's nodes are no such work.
-  const { implemented } = vocabulary
+  // A live rule is a test, so it has an example: without one, what is built is not tested.
   for (const spec of project.specs) {
-    if (spec.id === suiteId(spec.file) || attribute(spec, "maturity") !== undefined) continue
-    if (hasKind(vocabulary, "decision", spec.kind) || isPlanKind(vocabulary, spec.kind)) continue
-    out.push(diagnostic("maturity-missing", {
-      message: `${spec.id} declares no maturity, so it is ${implemented}: its examples fail a run that they do not pass`,
-      node: spec.id,
-      source: at(spec),
-      hint: `declare how far it has come above \`Feature:\`: @maturity=${implemented} once it is built, a rung below while it is still to come`
-    }))
-    const content = featureContent(spec, vocabulary, implemented)
-    const reasons = readyReasons(content)
-    if (reasons.length === 0) continue
-    out.push(diagnostic("maturity-criteria", {
-      message: `${spec.id} declares no maturity, so it is ${implemented}, but ${reasons.join("; ")}`,
-      node: spec.id,
-      source: at(spec),
-      hint: `write what is missing, or declare how far it has come: @maturity=${achievableMaturity(content)} above \`Feature:\``
-    }))
+    if (spec.id === suiteId(spec.file) || !isSuite(spec, vocabulary)) continue
+    const work = workOf(spec)
+    for (const rule of spec.rules) {
+      if (work.rule(rule).toCome || spec.scenarios.some((scenario) => scenario.rule === rule.id)) continue
+      out.push(diagnostic("untested-rule", {
+        message: `${rule.id} is live, so it needs an example`,
+        node: rule.id,
+        source: at(spec, rule.line),
+        hint: "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
+      }))
+    }
   }
 
   // A question is still to come, whatever maturity it would have: examples under it would be switched off with it.
@@ -272,8 +114,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  // A rule still to come names the implemented rule it replaces, which stays enforced until the edit
-  // that builds the replacement deletes it with the link. So no two rules can replace each other.
+  // A rule still to come names the live rule it replaces, which stays live until the change that
+  // builds the replacement deletes it with the link. So no two rules can replace each other.
   for (const edge of graph.edges().filter((candidate) => hasRelation(vocabulary, "replaces", candidate.rel))) {
     const from = graph.node(edge.from)
     const to = graph.node(edge.to)
@@ -286,7 +128,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       : edge.from === edge.to
       ? `${edge.from} cannot replace itself`
       : from.attrs.toCome !== true
-      ? `${edge.from} is ${vocabulary.implemented}, so what it replaced is gone: the edit that builds a replacement deletes the rule it replaces and this link`
+      ? `${edge.from} is live, so what it replaced is gone: the change that builds a replacement deletes the rule it replaces and this link`
       : to.attrs.toCome === true
       ? `${edge.to} is still to come, so nothing built is replaced`
       : undefined
@@ -295,7 +137,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: ${problem}`,
       node: edge.from,
       source: edge.source,
-      hint: `a rule still to come names the ${vocabulary.implemented} rule it replaces: @${edge.rel}:<feature>#<rule>`
+      hint: `a rule still to come names the live rule it replaces: @${edge.rel}:<feature>#<rule>`
     }))
   }
 
