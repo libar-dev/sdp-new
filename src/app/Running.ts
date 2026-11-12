@@ -13,6 +13,7 @@
  * @sdp plays PAT-answer
  */
 import parseTagExpression from "@cucumber/tag-expressions"
+import { posix } from "node:path"
 import { DateTime, Duration, Effect, FileSystem, Option, Path, Schema } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
@@ -78,13 +79,19 @@ export const ensureReadable = (project: Project): Effect.Effect<void, Unreadable
   return problems.length === 0 ? Effect.void : Effect.fail(new UnreadableSpecs({ problems: problems.map(problemLine) }))
 }
 
+/** Whether a target names a spec's file or a directory it is in, however it is written: `./specs/cart.feature`, or `.` for the root. */
+const targetsFile = (target: string, spec: Spec) => {
+  const file = posix.normalize(target)
+  return file === "." || file === "./" || spec.file === file || spec.file.startsWith(file.endsWith("/") ? file : `${file}/`)
+}
+
 const targetsScenario = (target: string, scenario: Scenario, spec: Spec) =>
-  target === spec.id || target === scenario.id || spec.file === target || spec.file.startsWith(target.endsWith("/") ? target : `${target}/`)
+  target === spec.id || target === scenario.id || targetsFile(target, spec)
 
 const unmatched = (project: Project, targets: ReadonlyArray<string>): ReadonlyArray<string> =>
   targets.filter((target) =>
     !project.specs.some((spec) =>
-      spec.id === target || spec.file === target || spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec))
+      spec.id === target || targetsFile(target, spec) || spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec))
     )
   )
 

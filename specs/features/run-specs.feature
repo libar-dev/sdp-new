@@ -55,11 +55,13 @@ Feature: Run specs as tests
         | data.scenarios | <scenarios> |
 
       Examples:
-        | target               | scenarios                             |
-        | sort                 | sort#sort-by-name, sort#sort-by-price |
-        | sort#sort-by-price   | sort#sort-by-price                    |
-        | specs/search.feature | search#find-a-product-by-name         |
-        | specs/sort           | sort#sort-by-name, sort#sort-by-price |
+        | target                 | scenarios                                                            |
+        | sort                   | sort#sort-by-name, sort#sort-by-price                                |
+        | sort#sort-by-price     | sort#sort-by-price                                                   |
+        | specs/search.feature   | search#find-a-product-by-name                                        |
+        | ./specs/search.feature | search#find-a-product-by-name                                        |
+        | specs/sort             | sort#sort-by-name, sort#sort-by-price                                |
+        | .                      | search#find-a-product-by-name, sort#sort-by-name, sort#sort-by-price |
 
   Rule: An example of work still to come runs, and fails no run
 
