@@ -67,6 +67,23 @@ Feature: Start a spec
         next: a rule that rests on it is written on the spec it constrains, tagged `@decided-by:use-postgres`
         """
 
+    Scenario: A milestone links nothing it ends, and the answer says what to link
+      Given these specs:
+        | tags                | Feature      |
+        | @id=PH-construction | Construction |
+      When I run "sdp new milestone 'Go live'"
+      Then the file "specs/plan/MS-go-live.feature" is:
+        """
+        @id=MS-go-live
+        Feature: Go live
+
+          Rule: The specification graph is consistent
+
+            Scenario: No errors in the specification graph
+              Then there are no error diagnostics
+        """
+      And the output contains "next: set `@closes:` to the phase or the iteration this milestone ends: sdp lifecycle shows them"
+
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in its code like an element, so new writes no file for one, and the answer says how code plays it
 

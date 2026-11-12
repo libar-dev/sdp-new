@@ -188,15 +188,12 @@ const specTemplate = (options: {
       return feature(identity, `  ${decisionPlaceholder}`)
     case "phase":
       return feature(identity)
-    case "milestone": {
-      // It closes the phase when there is just one: a template links no node that does not exist.
-      const phases = graph.ofKind(vocabulary.kinds.phase)
-      const closes = phases.length === 1 ? [`@${wordFor(vocabulary.relations.closes)}:${phases[0]!.id}`] : []
+    case "milestone":
+      // What it ends is the author's to say, not a guess: the answer says to link it.
       return feature(
-        [...identity, ...closes],
+        identity,
         ...rule("The specification graph is consistent", ["Scenario: No errors in the specification graph", "  Then there are no error diagnostics"])
       )
-    }
     case "iteration": {
       // Two weeks long, back to back with the one before.
       const { phase, start } = nextIteration(graph, vocabulary, today)

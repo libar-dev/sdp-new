@@ -85,10 +85,12 @@ Feature: Plan delivery
         """
       Then the exit code is 0
       And the file "fresh/specs/plan/IT-architecture-baseline.feature" contains "@id=IT-architecture-baseline @phase:PH-elaboration"
-      And the file "fresh/specs/plan/MS-architecture-baseline.feature" contains "@id=MS-architecture-baseline @closes:PH-elaboration"
+      And the output contains "next: set `@closes:` to the phase or the iteration this milestone ends"
       When I run "sdp -C fresh lifecycle"
-      Then the output line with "MS-architecture-baseline" contains "Elaboration"
-      And the output line with "MS-architecture-baseline" contains "IT-architecture-baseline"
+      Then the output contains "no timeline to place the milestones on"
+      And the output line with "MS-architecture-baseline" contains "0/1"
+      And the output line with "no milestone" contains "Elaboration"
+      And the output line with "no milestone" contains "IT-architecture-baseline"
 
     Scenario: In the workspace's own words
       Given a file "fresh/sdp.config.yaml" containing:

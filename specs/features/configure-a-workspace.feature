@@ -236,9 +236,10 @@ Feature: Configure a workspace
         """
       Then the exit code is 0
       And the file "specs/plan/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
-      And the file "specs/plan/launch.feature" contains "@id=launch @kind=checkpoint @ends:ERA-elaboration"
+      And the file "specs/plan/launch.feature" contains "@id=launch @kind=checkpoint"
+      And the output contains "next: set `@ends:` to the phase or the iteration this milestone ends"
       And the file "specs/features/wishlist.feature" contains "@id=wishlist @maturity=idea"
-      When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
+      When I run "sdp q 'era <-part-of- sprint' --ids"
       Then the output lines are "IT-baseline"
       When I run "sdp check --json --base none"
       Then the exit code is 0
