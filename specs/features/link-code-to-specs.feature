@@ -98,7 +98,10 @@ Feature: Link code to specs
 
   Rule: A file whose tags sdp cannot read is reported, never guessed
 
-    A guessed annotation is a link nobody wrote, and a lost one a gap nobody sees.
+    A guessed annotation is a link nobody wrote, and a lost one a gap nobody sees. A tag that names
+    an id and something that is no id was meant as a tag; one that names no id at all, as
+    `@sdp implements <ID>` does in a guide, only mentions the form. `annotate()` of
+    `sdp/annotations`, the form tags replaced, is read only to say so.
 
     Scenario: A file that annotates but does not parse is reported, so none of its annotations is lost silently
       Given a file "src/pay.ts" containing:
@@ -117,6 +120,23 @@ Feature: Link code to specs
       Then sdp reports at least:
         | rule                  |
         | annotation-unreadable |
+
+    Scenario Outline: A tag that cannot be read as written: <case>
+      Given a file "src/pay.ts" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule                  | at                | message   | hint   |
+        | annotation-unreadable | src/pay.ts:<line> | <message> | <hint> |
+      When I query "code"
+      Then the result is "nothing"
+
+      Examples:
+        | case                         | code                                                                                                     | line | message                                                   | hint                                                         |
+        | a list with a word that is no id | /** @sdp implements pay, pay? */\nexport const pay = (): number => 0                                   | 1    | "@sdp implements pay, pay?" names pay?, which is no id     | separated by commas                                          |
+        | the retired annotate()       | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: ["pay", "refund"] }) | 4    | annotate() of sdp/annotations is retired, so what it says of pay is not read | in the doc comment of pay: @sdp implements pay, refund |
 
     Scenario: A file that does not parse and does not annotate is none of sdp's business
       Given a file "src/pay.ts" containing:
@@ -231,7 +251,7 @@ Feature: Link code to specs
     Scenario: A call named annotate is code like any other
       Given a file "src/pay.ts" containing:
         """
-        import { annotate } from "sdp/annotations"
+        import { annotate } from "./notes.ts"
 
         export const pay = (): number => 0
         annotate(pay, { implements: "pay" })

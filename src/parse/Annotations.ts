@@ -17,7 +17,7 @@
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
  */
-import { type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
+import { children, type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"
 
 export interface Annotation {
@@ -67,10 +67,11 @@ const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], import
  * @sdp is ARCH-code-annotations
  */
 export const scanCode = (file: string, content: string, anchor: string): CodeScan => {
-  if (!content.includes("@sdp")) return nothing
+  if (!content.includes("@sdp") && !content.includes(retiredModule)) return nothing
   const script = parseScript(file, content)
   if (script === undefined) {
-    return { annotations: scanLines(file, content), unreadable: [], ignored: ignoredLines(content), imports: [] }
+    const { annotations, unreadable } = scanLines(file, content)
+    return { annotations, unreadable, ignored: ignoredLines(content), imports: [] }
   }
   if (script.error) {
     // Unread tags would silently drop out of the graph: say so.
@@ -83,11 +84,51 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
       }]
     }
   }
-  const { annotations, ignored } = readTags(file, content, script)
+  const { annotations, ignored, unreadable } = readTags(file, content, script)
   // Only a module anchored to a node depends on another through what it imports.
   const imports = annotations.some((annotation) => annotation.rel === anchor) ? script.imports() : []
-  return { annotations, unreadable: [], ignored, imports }
+  return { annotations, unreadable: [...unreadable, ...retiredCalls(script)], ignored, imports }
 }
+
+/** The module of `annotate()`, the form of annotation that tags replaced. */
+const retiredModule = "sdp/annotations"
+
+/**
+ * Each call of what a file imports from the retired module, `annotate(pay, { implements: "pay" })`:
+ * nothing reads it any more, so it is reported with the tags that say the same. A function of the
+ * file's own, or of another module, named `annotate` is ordinary code.
+ */
+const retiredCalls = (script: Script): ReadonlyArray<Unread> => {
+  const names = new Set(script.program.body.flatMap((statement) =>
+    statement.type === "ImportDeclaration" && (statement.source as Node).value === retiredModule
+      ? (statement.specifiers as ReadonlyArray<Node>).map((specifier) => (specifier.local as Node).name as string)
+      : []
+  ))
+  if (names.size === 0) return []
+  const calls = (node: Node): ReadonlyArray<Node> => [
+    ...(node.type === "CallExpression" && isNode(node.callee) && node.callee.type === "Identifier" && names.has(node.callee.name as string) ? [node] : []),
+    ...children(node).flatMap(calls)
+  ]
+  return calls(script.program).map((call) => {
+    const [subject, links] = call.arguments as ReadonlyArray<Node | undefined>
+    const name = subject?.type === "Identifier" ? subject.name as string : undefined
+    const tags = isNode(links) && links.type === "ObjectExpression" ? retiredTags(links) : []
+    return {
+      line: script.lineOf(call.start),
+      message: `annotate() of ${retiredModule} is retired, so what it says${name === undefined ? "" : ` of ${name}`} is not read`,
+      hint: `write it as tags in the doc comment of ${name ?? "the declaration"}${tags.length > 0 ? `: ${tags.join("; ")}` : ", `@sdp <relation> <ID>`"}, and delete the call`
+    }
+  })
+}
+
+/** The tags an `annotate()` object says, one per key whose value is an id or a list of ids, as written. */
+const retiredTags = (links: Node): ReadonlyArray<string> =>
+  (links.properties as ReadonlyArray<Node>).flatMap((property) => {
+    const key = isNode(property.key) ? (property.key.name ?? property.key.value) : undefined
+    const value = property.value as Node | undefined
+    const ids = value?.type === "Literal" ? [value.value] : value?.type === "ArrayExpression" ? (value.elements as ReadonlyArray<Node>).map((element) => element?.value) : []
+    return typeof key === "string" && ids.length > 0 && ids.every((id) => typeof id === "string") ? [`@sdp ${key} ${ids.join(", ")}`] : []
+  })
 
 /** A comment's line, after the comment's own `/`, `*` and `!`, that opens with the tag. */
 const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
@@ -100,9 +141,10 @@ type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "retu
  * comment: it documents the module-level declaration that follows it directly, or else, when no
  * code comes before it, opens the file.
  */
-const readTags = (file: string, content: string, script: Script): Pick<CodeScan, "annotations" | "ignored"> => {
+const readTags = (file: string, content: string, script: Script): Pick<CodeScan, "annotations" | "ignored" | "unreadable"> => {
   const annotations: Array<Annotation> = []
   const ignored: Array<Unread> = []
+  const unreadable: Array<Unread> = []
   const { lineOf, program } = script
   const lineStart = (offset: number) => content.lastIndexOf("\n", offset - 1) + 1
   const afterCode = (offset: number) => content.slice(lineStart(offset), offset).trim() !== ""
@@ -121,7 +163,8 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
       comment.value.split(/\r?\n/).flatMap((text, index) => {
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
-        return tag ? [{ ...tag, line: lineOf(comment.start) + index, trailing: index === 0 && afterCode(comment.start) }] : []
+        if (tag && "unread" in tag) unreadable.push({ line: lineOf(comment.start) + index, ...tag.unread })
+        return tag && !("unread" in tag) ? [{ ...tag, line: lineOf(comment.start) + index, trailing: index === 0 && afterCode(comment.start) }] : []
       })
     )
     if (tags.length === 0) continue
@@ -150,7 +193,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
       }
     }
   }
-  return { annotations, ignored }
+  return { annotations, ignored, unreadable }
 }
 
 /** Where a module-level statement starts, its decorators included: `@sealed()` above `export class` is part of the class. */
@@ -213,15 +256,21 @@ const declaration =
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
 
 /** Languages without a parser: comment lines that open with the tag, line by line. */
-const scanLines = (file: string, content: string): ReadonlyArray<Annotation> => {
+const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" | "unreadable"> => {
   const lines = content.split(/\r?\n/)
-  return lines.flatMap((text, index) => {
+  const unreadable: Array<Unread> = []
+  const annotations = lines.flatMap((text, index) => {
     const match = lineMarker.exec(text)
     const tag = match && readTag(match[1]!, match[2]!)
     if (!tag) return []
+    if ("unread" in tag) {
+      unreadable.push({ line: index + 1, ...tag.unread })
+      return []
+    }
     const below = nextSymbol(lines, index)
     return [{ file, line: index + 1, ...tag, symbol: below?.name, symbolLine: below?.line ?? 1 }]
   })
+  return { annotations, unreadable }
 }
 
 const trailing = /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[A-Za-z][\w.:#/-]*(?:,[A-Za-z][\w.:#/-]*)*)(?=\s|$|\*\/|-->)/
@@ -237,8 +286,15 @@ const ignoredLines = (content: string): ReadonlyArray<Unread> =>
       : []
   })
 
-/** The relation, ids and attributes `@sdp <rel> <rest>` says, or undefined when its targets are not ids. */
-const readTag = (rel: string, rest: string) => {
+/**
+ * The relation, ids and attributes `@sdp <rel> <rest>` says. A tag that names an id and something
+ * that is no id was meant as a tag and cannot be read; one that names no id, `@sdp implements <ID>`,
+ * only mentions the form, and is undefined.
+ */
+const readTag = (
+  rel: string,
+  rest: string
+): Pick<Annotation, "rel" | "targets" | "attrs"> | { readonly unread: Omit<Unread, "line"> } | undefined => {
   const tokens = tokenize(rest.replace(/\s*(\*\/|-->|"""|''').*$/, ""))
   const targets: Array<string> = []
   const attrs: Array<readonly [string, unknown]> = []
@@ -247,7 +303,16 @@ const readTag = (rel: string, rest: string) => {
     if (eq > 0) attrs.push([token.slice(0, eq), coerce(unquote(token.slice(eq + 1)))])
     else targets.push(...token.split(",").map((t) => t.trim()).filter(Boolean))
   }
-  if (targets.length === 0 || !targets.every((t) => idToken.test(t))) return undefined
+  const wrong = targets.filter((t) => !idToken.test(t))
+  if (targets.length === wrong.length) return undefined
+  if (wrong.length > 0) {
+    return {
+      unread: {
+        message: `"@sdp ${rel} ${targets.join(", ")}" names ${wrong.join(", ")}, which ${wrong.length === 1 ? "is" : "are"} no id, so the tag is not read`,
+        hint: "write the ids it links to, separated by commas: an id is a letter, then letters, digits and - _ . : # /"
+      }
+    }
+  }
   // Not assigned one by one: `__proto__` is a key like any other.
   return { rel, targets, attrs: Object.fromEntries(attrs) }
 }
