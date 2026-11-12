@@ -104,7 +104,7 @@ export const staleness = (
 /** Which results a view of the graph shows: only those of ordinary scenarios (what a gate sees), or all of them. */
 export type Layer = "ordinary" | "all"
 
-export interface LayeredResults extends EvidenceView {
+interface LayeredResults extends EvidenceView {
   /** Fingerprint of what the ordinary results say: what a gate that reads the graph records as `evidence.results`. */
   readonly ordinary: string
 }

@@ -7,7 +7,7 @@ import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
-import { type Attrs, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
+import { type Attrs, formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
 import { type RunResults, type StepStatus, type Verification, verificationOf } from "../model/Results.ts"
 import { activityRelation, hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Vocabulary, type Words } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
@@ -137,7 +137,7 @@ export const buildProject = (input: ProjectInput): Project => {
     const existing = nodes.get(node.id)
     if (existing) {
       diagnostics.push(diagnostic("duplicate-id", {
-        message: `id ${node.id} is already declared at ${fmt(existing.source)}`,
+        message: `id ${node.id} is already declared at ${formatSource(existing.source) || "?"}`,
         node: node.id,
         source: node.source,
         hint: "ids must be unique across the workspace; rename one of them"
@@ -361,7 +361,7 @@ export const buildProject = (input: ProjectInput): Project => {
     diagnostics.push(diagnostic("link-conflict", {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: ${key} is ${JSON.stringify(conflict.dropped.value)} here but ${
         JSON.stringify(conflict.kept.value)
-      } at ${fmt(conflict.kept.source)}, which is kept`,
+      } at ${formatSource(conflict.kept.source) || "?"}, which is kept`,
       node: edge.from,
       source: conflict.dropped.source,
       hint: `give ${key} one value in every declaration of this link, or declare it once`
@@ -444,5 +444,3 @@ const directoryOf = (file: string) => file.slice(0, Math.max(0, file.lastIndexOf
 
 const compact = (record: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined))
-
-const fmt = (source: SourceRef | undefined) => source ? `${source.file}:${source.line}` : "?"

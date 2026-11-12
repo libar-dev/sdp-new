@@ -119,12 +119,10 @@ const syntaxDiagnostics = (id: string, file: string, errors: ReadonlyArray<Gherk
   )
 
 /** What the Gherkin of a spec reports, as diagnostics of that spec. */
-const gherkinDiagnostics = (id: string, file: string, gherkin: GherkinResult): ReadonlyArray<Diagnostic> => [
-  ...syntaxDiagnostics(id, file, gherkin.errors),
-  ...gherkin.problems.map((problem) =>
+const gherkinDiagnostics = (id: string, file: string, gherkin: GherkinResult): ReadonlyArray<Diagnostic> =>
+  gherkin.problems.map((problem) =>
     diagnostic(problem.rule, { message: problem.message, node: id, source: { file, line: problem.line }, hint: problem.hint })
   )
-]
 
 /**
  * The kind an author gives a node, if any. The kinds sdp makes itself are not an author's to give:

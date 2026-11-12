@@ -89,7 +89,7 @@ export interface LifecycleReport {
 }
 
 /** One discipline's work on a node, planned into an iteration. */
-export interface PlannedActivity {
+interface PlannedActivity {
   readonly discipline: string
   readonly iteration: string
 }
@@ -115,7 +115,7 @@ const iterationsBy = (project: Project, node: GraphNode, matches: (rel: string) 
 }
 
 /** The iterations a node is planned into through the plan relations, each once. */
-export const planIterations = (project: Project, node: GraphNode): ReadonlyArray<string> =>
+const planIterations = (project: Project, node: GraphNode): ReadonlyArray<string> =>
   iterationsBy(project, node, (rel) => hasRelation(project.config.vocabulary, "plan", rel))
 
 /** The disciplines whose work on a node is planned by its own edges, `activity.implementation:C1`. */
@@ -129,7 +129,7 @@ export const plannedDisciplines = (project: Project, node: GraphNode): ReadonlyM
  * iterations those edges name; every other discipline whose kinds include the node's kind is
  * planned into the iterations of its plan relations.
  */
-export const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<PlannedActivity> => {
+const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<PlannedActivity> => {
   const vocabulary = project.config.vocabulary
   const declared = plannedDisciplines(project, node)
   const home = planIterations(project, node)

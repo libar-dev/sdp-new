@@ -90,7 +90,7 @@ export const decisionPlaceholder = "Not <what a reasonable person would have cho
 const placeholderStep = /^<[^<>]+>$/
 
 /** Template text still in a spec, with its line: its description, rule and scenario names and steps. */
-export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
+const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
   const found: Array<{ text: string; line: number }> = []
   for (const paragraph of spec.description) {
     if (paragraph.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: paragraph.line })

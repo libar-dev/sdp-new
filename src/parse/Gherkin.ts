@@ -114,7 +114,6 @@ export interface GherkinProblem {
 export interface GherkinResult {
   readonly scenarios: ReadonlyArray<Scenario>
   readonly rules: ReadonlyArray<Rule>
-  readonly errors: ReadonlyArray<GherkinError>
   readonly problems: ReadonlyArray<GherkinProblem>
 }
 
@@ -149,7 +148,7 @@ export const parseFeatureFile = (content: string, links: LinkKeys): Result.Resul
   })
 }
 
-const empty: GherkinResult = { scenarios: [], rules: [], errors: [], problems: [] }
+const empty: GherkinResult = { scenarios: [], rules: [], problems: [] }
 
 /** Tags a Feature's scenarios inherit from what the spec is, though they are not written on it. */
 const inherited = (feature: Messages.Feature, tags: ReadonlyArray<string>, newId: IdGenerator.NewId): ReadonlyArray<Messages.Tag> =>
@@ -416,7 +415,7 @@ const readFeature = (
     }
   })
 
-  return { scenarios, rules, errors: [], problems: problems.sort((a, b) => a.line - b.line) }
+  return { scenarios, rules, problems: problems.sort((a, b) => a.line - b.line) }
 }
 
 /**

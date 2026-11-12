@@ -16,9 +16,6 @@ Feature: Lifecycle Architecture
 
   Rule: Every risk due at this milestone is retired
 
-    A risk is retired when the work that mitigates it is verified: that is read from the graph, never
-    written.
-
     Scenario: The mitigations of the risks due at MS-LCA
       Then the query "risk ?-due-> #MS-LCA" returns at least 1 result
       And the query "risk ?-due-> #MS-LCA -mitigated-by-> *[stage!=verified]" returns no results

@@ -16,9 +16,6 @@ Feature: Initial Operational Capability
 
   Rule: Every risk due at this milestone is retired
 
-    A risk is retired when the work that mitigates it is verified: that is read from the graph, never
-    written.
-
     Scenario: The mitigations of the risks due at MS-IOC
       Then the query "risk ?-due-> #MS-IOC" returns at least 1 result
       And the query "risk ?-due-> #MS-IOC -mitigated-by-> *[stage!=verified]" returns no results

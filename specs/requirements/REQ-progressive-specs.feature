@@ -6,8 +6,7 @@ Feature: Specifications at every maturity
   A product idea, a half-understood need and a fully designed feature are written in the same
   format: a Gherkin file, read by the official parser as it is. The file grows with understanding —
   a name becomes a description, rules gain examples, open questions become rules — but it never
-  moves to another tool or format, and the scenarios later run as tests, unchanged. Decisions,
-  quality requirements, the plan, milestones and risks are written the same way.
+  moves to another tool or format, and the scenarios later run as tests, unchanged.
 
   Rule: One file says what a spec is, what it links to, what must hold and why, and what is still open
 

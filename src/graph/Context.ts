@@ -245,7 +245,7 @@ const describeStatus = (node: GraphNode) => {
  * Nodes within `depth` hops in either direction along links. Reach ends at a scenario and at the
  * plan's own nodes: what shares an iteration with a node is not its context.
  */
-export const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
+const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const seen = new Set([id])
