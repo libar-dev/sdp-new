@@ -4,6 +4,7 @@ kind: requirement
 title: Executable specifications
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [execution]
 links:
   refines: CAP-living-specs

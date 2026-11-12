@@ -25,6 +25,8 @@ export interface TypedAnnotation extends Annotation {
 export interface TypedAnnotationProblem {
   readonly line: number
   readonly message: string
+  /** How to fix it, when the general advice (write literals) does not apply. */
+  readonly hint?: string | undefined
 }
 
 export interface TypedScan {
@@ -74,7 +76,11 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
     if (!mentionsAnnotationModule.test(content)) return empty
     const error = parsed.errors[0]!
     const line = lineOf(error.labels[0]?.start ?? 0)
-    return { annotations: [], problems: [{ line, message: `the file does not parse, so its annotations cannot be read: ${error.message}` }] }
+    return { annotations: [], problems: [{
+      line,
+      message: `the file does not parse, so its annotations cannot be read: ${error.message}`,
+      hint: "fix the syntax error; until then none of the file's annotations are in the graph"
+    }] }
   }
   const program = parsed.program as unknown as Node & { readonly body: ReadonlyArray<Node> }
 

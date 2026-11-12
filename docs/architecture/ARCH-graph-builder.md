@@ -23,7 +23,7 @@ as nodes.
 | an inline node | A node at the line of its `id`; `declaredIn` names its spec and is an attribute, not an edge. |
 | a link | An edge named by its relation, at the line of its target, with the link's attributes. |
 | a prose link | `-mentions->`, or the typed relation; a spec mentioning itself adds nothing. |
-| an attribute whose value is a node's id | An implicit edge named after the key, marked `implicit`, located at the attribute's line. Values that are not ids stay values; `id`, `kind`, `title`, `summary`, `maturity`, `status`, `stage`, `verification`, `tags`, `file`, `type` and `declaredIn` never link. |
+| an attribute whose value is a node's id — or an entry of a map attribute | An implicit edge named after the key (after its path for a map entry: `activity.implementation`), marked `implicit`, located at the attribute's line. Values that are not ids stay values; `id`, `kind`, `title`, `summary`, `maturity`, `status`, `stage`, `verification`, `tags`, `file`, `type` and `declaredIn` never link. |
 | an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`) — at the declaration's line, with its JSDoc as `doc` for typed annotations — with an edge to each target carrying the annotation's attributes. |
 | `@sdp is <ID>` | Anchors the node in code. Declares it (kind `element` unless given) when no spec does; otherwise adds only the attributes the spec does not set. |
 | an id declared again | A `duplicate-id` error at the later declaration; the first, in path order, is kept. |
@@ -116,6 +116,7 @@ Scenario Outline: An attribute naming a node becomes an implicit edge
     | owner: REQ-pay            | nothing                                             |
     | status: E1                | nothing                                             |
     | tags: [E1]                | nothing                                             |
+    | activity: { implementation: E1, test: [E1, ARCH-orders] } | REQ-pay -activity.implementation-> E1, REQ-pay -activity.test-> E1, REQ-pay -activity.test-> ARCH-orders |
 
 Scenario: Annotated code becomes code nodes linked to what it names
   Given a file "specs/REQ-pay.md" containing:

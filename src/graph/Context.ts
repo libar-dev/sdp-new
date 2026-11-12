@@ -64,7 +64,7 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
       // automated yet comes from matching the current step definitions, so it needs no run.
       const result = project.results?.scenarios[s.id]
       const shown = new Set<string>()
-      if (result && result.hash === s.hash) {
+      if (result && result.hash === s.hash && graph.node(s.id)?.attrs.status !== "stale") {
         for (const step of result.pickles.flatMap((pickle) => pickle.steps)) {
           const executed = step.status === "failed" || step.status === "pending"
           if (!executed && (steps || step.status === "passed" || step.status === "skipped")) continue

@@ -4,6 +4,7 @@ kind: requirement
 title: Command line
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [cli, agents]
 links:
   refines: CAP-agent-collaboration
@@ -210,13 +211,15 @@ and `refines` a capability; an element is `decided-by` decisions, an `instance-o
 `constrained-by` quality requirements. A decision lists no links of its own: what it shapes links
 to it with `decided-by`. Removing the `#` of a suggestion leaves valid YAML. Template text written to
 be replaced — `We will …`, `What is still unknown?`, `Given <context>` — is flagged by `sdp check`
-until it is ([[REQ-check-rules]]). The `ready` template has no open questions: that is what sets a
-ready spec apart from a specified one.
+until it is ([[REQ-check-rules]]). The `ready` template has no open questions — the structural
+difference from a specified spec; whether it is truly ready to build is the team's own Definition of
+Ready, a gate of its own ([[REQ-maturity-gates]]).
 
 `sdp new plan` writes the delivery plan: the four phases (`inception`, `elaboration`,
 `construction`, `transition`) and one two-week example iteration in each (`I1`, `E1`, `C1`, `T1`,
 starting today), as inline nodes. Milestones from the template close `phase: elaboration`; work is
-planned with `iteration: E1` ([[REQ-lifecycle-view]]).
+planned with `iteration: E1`, and other disciplines' work on it with `activity:`
+([[REQ-lifecycle-view]]).
 
 ```sh
 sdp new requirement "Saved carts" --maturity draft
@@ -320,9 +323,10 @@ Scenario Outline: A suggested link, uncommented, is valid YAML in the shared voc
     | element     | ARCH-orders -constrained-by-> NFR-… |
     | pattern     | PAT-orders -decided-by-> DEC-…      |
 
-Scenario: The ready template has no open questions, and says that is what makes it ready
+Scenario: The ready template leaves no open question and points at the team's Definition of Ready
   When I run "sdp new requirement Invoices --maturity ready"
   Then the file "specs/requirements/REQ-invoices.md" contains "a ready spec has no open questions left"
+  And the file "specs/requirements/REQ-invoices.md" contains "Definition of Ready"
   And the file "specs/requirements/REQ-invoices.md" does not contain "What is still unknown?"
 ~~~
 
@@ -386,7 +390,8 @@ Scenario: status counts gate scenarios apart from the others
 Answers a path pattern with the matching nodes: a table by default, `--ids` for one id per line,
 `--paths` for whole paths, `--json`. `sdp q --help` prints the syntax. When nothing matches because
 the pattern names a kind or relation no node or edge has — usually a typo — a note on stderr says
-so and lists those in use.
+so and lists those in use. When a limit cut the search short ([[REQ-graph-query]]), stderr says
+which, even if nothing was found: the answer may be incomplete.
 
 ```sh
 sdp q 'requirement[maturity<ready]'
@@ -409,6 +414,34 @@ Scenario: An empty result names the kinds and relations in use when the pattern 
   Then the exit code is 0
   And the output contains "0 node(s)"
   And the output contains "no relation implemented-by; relations in use: decided-by, iteration, phase, realized-by, verifies"
+
+Scenario: A result cut short by a limit says which, even when it is empty
+  Given a file "docs/chain.md" containing:
+    """
+    ---
+    id: CHAIN
+    kind: plan
+    nodes:
+      - { id: N0, kind: step, links: { next: N1 } }
+      - { id: N1, kind: step, links: { next: N2 } }
+      - { id: N2, kind: step, links: { next: N3 } }
+      - { id: N3, kind: step, links: { next: N4 } }
+      - { id: N4, kind: step, links: { next: N5 } }
+      - { id: N5, kind: step, links: { next: N6 } }
+      - { id: N6, kind: step, links: { next: N7 } }
+      - { id: N7, kind: step, links: { next: N8 } }
+      - { id: N8, kind: step, links: { next: N9 } }
+      - { id: N9, kind: step, links: { next: N10 } }
+      - { id: N10, kind: step, links: { next: N11 } }
+      - { id: N11, kind: step, links: { next: N12 } }
+      - { id: N12, kind: step, links: { next: N13 } }
+      - { id: N13, kind: element, bad: true }
+    ---
+    # A long chain
+    """
+  When I run "sdp q '#N0 -next+-> element[bad]'"
+  Then the output contains "0 node(s)"
+  And the output contains "result cut short: a + edge reaches further than 12 hops"
 ~~~
 
 ### `sdp show <id>`
@@ -497,8 +530,9 @@ Scenario: arch -f json is for scripts
 
 ### `sdp lifecycle`
 
-Phases with their milestone gates, iterations with their planned work by stage, and the
-discipline activity chart computed from the plan, with a one-line legend for its shading. Without
+Phases with their milestone gates (`◀ now` marks the calendar, never achievement), the planned work
+of each iteration, the planned discipline activity chart with a one-line legend for its shading, and
+the evidence — stages and scenario results — shown apart from the plan ([[REQ-lifecycle-view]]). Without
 phases it shows how to declare them, inline, and suggests `sdp new plan`.
 
 ```sh
@@ -512,6 +546,13 @@ Scenario: lifecycle lays out phases, iterations and gates
   And the output contains "MS-beta"
   And the output contains "DISCIPLINE ACTIVITY"
   And the output contains "░ ▒ ▓ █  more work in an iteration, relative to the discipline's busiest; blank: none"
+
+Scenario: lifecycle --json keeps the plan and the evidence apart
+  When I run "sdp lifecycle --json"
+  Then the output is valid JSON
+  And the output contains '"disciplines"'
+  And the output contains '"work"'
+  And the output contains '"evidence"'
 
 Scenario: A plan from the template puts a milestone from the template under its phase
   When I run "sdp -C fresh init"

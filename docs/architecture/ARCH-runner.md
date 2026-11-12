@@ -16,7 +16,9 @@ links:
 # Scenario runner
 
 Matches pickle steps to step definitions (Cucumber Expressions), runs handlers as Effects with
-timeouts, one world per world factory per scenario, and records results keyed by scenario hash.
+timeouts, one world per world factory per scenario — made inside the step that needs it — and runs
+only the selected examples. A step's `signal` aborts on timeout or interruption. Each example's
+result is recorded with the evidence it rests on: fingerprints of the sources it ran against.
 Built-in steps assert against the graph through the query engine and the checker, which is how
 gates and guards execute. Matching is separate from running (`src/run/Match.ts`): `sdp context`,
 `sdp run --snippets` and the MCP tool `sdp_snippets` match steps without executing them. What it

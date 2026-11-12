@@ -91,7 +91,7 @@ export const buildProject = (input: ProjectInput): Project => {
         severity: "warning",
         message: problem.message,
         source: { file: file.path, line: problem.line },
-        hint: "write ids and attributes as literals, e.g. annotate(Graph, { is: \"ARCH-graph\" })"
+        hint: problem.hint ?? "write ids and attributes as literals, e.g. annotate(Graph, { is: \"ARCH-graph\" })"
       })
     }
   }
@@ -263,18 +263,24 @@ export const buildProject = (input: ProjectInput): Project => {
     }
   }
   // Implicit links: an attribute whose value is a known id becomes an edge named after the key
-  // (`iteration: E2` → `-iteration-> E2`). Explicit links are never required for the obvious ones.
+  // (`iteration: E2` → `-iteration-> E2`), and so does each entry of a map attribute, named by its
+  // path (`activity: { implementation: C1 }` → `-activity.implementation-> C1`). Explicit links are
+  // never required for the obvious ones.
   for (const node of [...nodes.values()]) {
     if (node.kind === "scenario" || node.kind === "code") continue
     const spec = specById.get(node.id)
     for (const [key, value] of Object.entries(node.attrs)) {
       if (notLinks.has(key)) continue
-      const values = Array.isArray(value) ? value : [value]
       const line = spec?.attrLines[key]
       const source = node.source && line !== undefined ? { file: node.source.file, line } : node.source
-      for (const v of values) {
-        if (Predicate.isString(v) && v !== node.id && nodes.has(v)) {
-          edges.push({ from: node.id, rel: key, to: v, attrs: { implicit: true }, source })
+      const entries: Array<readonly [string, unknown]> = Predicate.isObject(value) && !Array.isArray(value)
+        ? Object.entries(value).map(([entry, v]) => [`${key}.${entry}`, v] as const)
+        : [[key, value]]
+      for (const [rel, entryValue] of entries) {
+        for (const v of Array.isArray(entryValue) ? entryValue : [entryValue]) {
+          if (Predicate.isString(v) && v !== node.id && nodes.has(v)) {
+            edges.push({ from: node.id, rel, to: v, attrs: { implicit: true }, source })
+          }
         }
       }
     }

@@ -24,7 +24,7 @@ Scenario: Requirements planned for elaboration are ready
   Then the query "requirement|nfr[maturity<ready] ?-iteration-> iteration[phase=elaboration]" returns no results
 
 Scenario: What Elaboration builds is verified
-  Then the query "requirement|nfr[stage!=verified, activity.implementation=E1|E2]" returns no results
+  Then the query "requirement|nfr[stage!=verified] ?-activity.implementation-> iteration[phase=elaboration]" returns no results
 
 Scenario: No high-exposure risk is left open
   Then the query "risk[exposure=high, status=open]" returns no results

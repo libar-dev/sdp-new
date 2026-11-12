@@ -5,6 +5,7 @@ title: Grep-first
 maturity: ready
 quality: usability for agents
 iteration: I1
+activity: { implementation: I1, test: I1 }
 links:
   refines: CAP-agent-collaboration
   decided-by: DEC-0003

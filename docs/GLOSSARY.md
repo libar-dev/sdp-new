@@ -160,7 +160,10 @@ nodes:
     title: Verification
     definition: >-
       The roll-up of a spec's scenario results: none, unrun, undefined, pending, failing or passing.
-      A result whose scenario was edited after it ran is stale and counts as unrun.
+      A result is evidence only while what it ran against is unchanged — the scenario, the
+      configuration, the code, the step definitions and the files they import; for scenarios that
+      read the graph also the specs, and for gates the results they read. Otherwise it is stale
+      (`staleBecause` says why) and counts as unrun.
     links: { specified-by: REQ-executable-specs }
   - id: TERM-stage
     kind: term
@@ -357,7 +360,7 @@ valid and simply carried along.
 | --- | --- |
 | every spec | `file`; `summary`, the first paragraph; `scenarios`, their count; `verification`; `stage`; `openQuestions`, the number unresolved |
 | inline nodes | `declaredIn`, the spec that declares them |
-| scenarios | `spec`, `keyword`, `tags`, `rule`, `steps`, `examples`, `status`, `lastRun`, `hash` |
+| scenarios | `spec`, `keyword`, `tags`, `rule`, `steps`, `examples`, `status`, `staleBecause`, `lastRun`, `hash` |
 | code nodes | `file`, `symbol` |
 | implicit edges | `implicit: true` |
 

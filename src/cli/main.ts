@@ -123,7 +123,7 @@ const queryCommand = Command.make(
     } else if (nodes.length > 0) {
       yield* Console.log(table(nodeRows(nodes)))
     }
-    if (truncated) yield* Console.error(c.yellow("result truncated"))
+    if (truncated) yield* Console.error(c.yellow(`result cut short: ${result.success.limits.join("; ")} — the answer may be incomplete`))
     if (!ids) yield* Console.error(c.dim(`${nodes.length} node(s)`))
     // An empty result because of a misspelt kind or relation should not look like a real "none".
     const note = nodes.length === 0 ? unusedNamesNote(project, expression) : undefined
@@ -389,10 +389,17 @@ const lifecycleCommand = Command.make(
         phases: report.phases.map((p) => ({
           ...nodeJson(p.node),
           milestones: p.milestones.map(nodeJson),
-          iterations: p.iterations.map((i) => ({ ...nodeJson(i.node), stages: i.stages, items: i.items.map((n) => n.id) }))
+          iterations: p.iterations.map((i) => i.node.id)
         })),
+        // Planned activity per discipline, one number per iteration in `iterations` order.
         disciplines: Object.fromEntries(report.disciplines.map((d) => [d.discipline, d.activity])),
         iterations: report.iterations.map((i) => i.id),
+        // Per iteration, also those in no phase: the planned work, and the evidence apart from it.
+        work: report.work.map((i) => ({
+          ...nodeJson(i.node),
+          items: i.items.map((n) => n.id),
+          evidence: { stages: i.stages, scenarios: i.scenarios }
+        })),
         current: report.current?.id,
         currentPhase: report.currentPhase?.id,
         unplanned: report.unplanned.map((n) => n.id)
