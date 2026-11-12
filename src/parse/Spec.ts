@@ -143,13 +143,12 @@ export const writtenKind = (
   return undefined
 }
 
-/** `ARCH-orders` → `element` when the config maps that prefix; otherwise, as `guest-checkout`, a feature. */
-export const inferKind = (id: string, config: Config): string => {
+/** `ARCH-orders` → `element` when the config maps that prefix; an id with no prefix it maps names no kind. */
+export const prefixKind = (id: string, config: Config): string | undefined => {
   const prefix = /^([A-Za-z]+)[-_]/.exec(id)?.[1]
-  if (prefix) {
-    for (const [kind, p] of Object.entries(config.ids)) {
-      if (p.toLowerCase() === prefix.toLowerCase()) return kind
-    }
-  }
-  return wordFor(config.vocabulary.kinds.feature)
+  if (prefix === undefined) return undefined
+  return Object.entries(config.ids).find(([, p]) => p.toLowerCase() === prefix.toLowerCase())?.[0]
 }
+
+/** The kind an id's prefix names; otherwise, as `guest-checkout`, a feature. */
+export const inferKind = (id: string, config: Config): string => prefixKind(id, config) ?? wordFor(config.vocabulary.kinds.feature)

@@ -229,7 +229,6 @@ Feature: See the architecture
       When the workspace is checked
       Then sdp reports nothing
 
-  @maturity=ready
   Rule: Every anchor of an element declares it, and two that disagree on an attribute are reported
 
     An element anchored in several places is one element whichever file is read first: what each

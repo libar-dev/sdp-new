@@ -26,7 +26,7 @@ import {
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Import } from "../parse/Script.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
+import { parseFeatureSpec, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
 export interface SourceFile {
@@ -304,23 +304,58 @@ export const buildProject = (input: ProjectInput): Project => {
       })
     }
   }
+  // Every anchor declares the node it names, in the order of their files: the kind it writes or its
+  // id's prefix names, a title and attributes. What a spec, or else an earlier anchor, gives holds;
+  // a value given differently is reported where it is written.
+  const declaredBy = new Map<string, Map<string, SourceRef>>()
   for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
     for (const target of annotation.targets) {
       const existing = nodes.get(target)
       const { kind: rawKind, title, ...rest } = annotation.attrs
-      const at = (): SourceRef => ({ file: annotation.file, line: annotation.line })
+      const at: SourceRef = { file: annotation.file, line: annotation.line }
       const where = { file: annotation.file, owner: target, line: annotation.line }
-      const kind = existing?.kind ?? writtenKind(rawKind, where, diagnostics) ?? vocabulary.kinds.anchored
-      const { attrs, links } = codeLinks(authored(target, kind, rest, at), vocabulary, where, diagnostics)
-      // A node a spec declares takes from code only the attributes the spec does not set.
-      const added = existing ? Object.fromEntries(Object.entries(attrs).filter(([key]) => !Object.hasOwn(existing.attrs, key))) : attrs
-      nodes.set(
-        target,
-        existing
-          ? { ...existing, attrs: staged(target, kind, { ...existing.attrs, ...added }) }
-          : { id: target, kind, title: Predicate.isString(title) ? title : target, attrs: staged(target, kind, attrs), source: at() }
-      )
-      for (const link of links) edges.push({ from: target, rel: link.rel, to: link.to, source: at() })
+      // The kind sdp gives an anchored node that names none is no kind it declares.
+      const declaredKind = writtenKind(rawKind, where, diagnostics) ?? prefixKind(target, input.config)
+      const kind = existing?.kind ?? declaredKind ?? vocabulary.kinds.anchored
+      const { attrs, links } = codeLinks(authored(target, kind, rest, () => at), vocabulary, where, diagnostics)
+      const declared: Array<readonly [string, unknown]> = [
+        ...(declaredKind === undefined ? [] : [["kind", declaredKind] as const]),
+        ...(Predicate.isString(title) ? [["title", title] as const] : []),
+        ...Object.entries(attrs)
+      ]
+      let sources = declaredBy.get(target)
+      if (sources === undefined) {
+        sources = new Map()
+        declaredBy.set(target, sources)
+        // What a spec declares, at the line it is written.
+        const spec = existing && specById.get(target)
+        for (const key of spec ? ["kind", "title", ...Object.keys(spec.attrs)] : []) {
+          sources.set(key, { file: spec!.file, line: spec!.attrLines[key] ?? 1 })
+        }
+      }
+      if (existing === undefined) {
+        nodes.set(target, { id: target, kind, title: Predicate.isString(title) ? title : target, attrs: staged(target, kind, attrs), source: at })
+      } else {
+        // A title that only repeats the id was given by no one.
+        const given = (key: string): unknown =>
+          key === "kind" ? existing.kind : key === "title" ? (existing.title === target ? undefined : existing.title) : attribute(existing, key)
+        for (const [key, value] of declared) {
+          const kept = given(key)
+          if (kept === undefined || JSON.stringify(kept) === JSON.stringify(value)) continue
+          const first = sources.get(key) ?? existing.source
+          diagnostics.push(diagnostic("declaration-conflict", {
+            message: `${target}: ${key} is ${JSON.stringify(value)} here but ${JSON.stringify(kept)} at ${formatSource(first) || "?"}, which is kept`,
+            node: target,
+            source: at,
+            hint: `give ${key} one value wherever ${target} is declared, or declare it in one place`
+          }))
+        }
+        const added = Object.fromEntries(Object.entries(attrs).filter(([key]) => !Object.hasOwn(existing.attrs, key)))
+        const named = Predicate.isString(title) && given("title") === undefined ? { title } : {}
+        nodes.set(target, { ...existing, ...named, attrs: staged(target, kind, { ...existing.attrs, ...added }) })
+      }
+      for (const [key] of declared) if (!sources.has(key)) sources.set(key, at)
+      for (const link of links) edges.push({ from: target, rel: link.rel, to: link.to, source: at })
     }
   }
 
