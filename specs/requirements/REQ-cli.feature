@@ -301,6 +301,15 @@ Feature: Command line
       And the output contains "next: link it: @affects:REQ-… @mitigated-by:REQ-… @due:MS-…"
       And the output contains "next: it is retired when the work that mitigates it is verified; `@status=tolerated` says we live with it instead"
 
+    Scenario: A phase
+      When I run "sdp new phase Hardening"
+      Then the file "specs/delivery/PH-hardening.feature" is:
+        """
+        @id=PH-hardening
+        Feature: Hardening
+        """
+      And the output contains "next: say under the title what this phase takes on, and why in this order"
+
   Rule: A new spec fails the check only for what its author has yet to write
 
     Scenario: Every template at its first maturity level
@@ -443,12 +452,6 @@ Feature: Command line
   Rule: A new iteration follows the one that ends last, in its phase
 
     Scenario: After an iteration of the same phase
-      When I run "sdp new phase Hardening"
-      Then the file "specs/delivery/PH-hardening.feature" is:
-        """
-        @id=PH-hardening
-        Feature: Hardening
-        """
       Given a file "specs/delivery/E1.feature" containing:
         """
         @id=E1 @kind=iteration @phase:PH-elaboration @start=2026-11-16 @end=2026-11-27
