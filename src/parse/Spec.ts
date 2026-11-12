@@ -143,11 +143,14 @@ export const writtenKind = (
   return undefined
 }
 
-/** `ARCH-orders` → `element` when the config maps that prefix; an id with no prefix it maps names no kind. */
+/**
+ * `ARCH-orders` → `element` when the config maps that prefix, written as it is configured: `it-` and
+ * `ms-` begin words as often as ids. An id with no prefix it maps names no kind.
+ */
 export const prefixKind = (id: string, config: Config): string | undefined => {
   const prefix = /^([A-Za-z]+)[-_]/.exec(id)?.[1]
   if (prefix === undefined) return undefined
-  return Object.entries(config.ids).find(([, p]) => p.toLowerCase() === prefix.toLowerCase())?.[0]
+  return Object.entries(config.ids).find(([, p]) => p === prefix)?.[0]
 }
 
 /** The kind an id's prefix names; otherwise, as `guest-checkout`, a feature. */

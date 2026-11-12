@@ -268,13 +268,13 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
     if (!/^[A-Za-z]+$/.test(prefix)) {
       issues.push({ path: ["ids", kind], issue: `prefix "${prefix}" must be letters only, so that the kind of an id like ${prefix}-x can be inferred` })
     }
-    owners.set(kind, prefix.toLowerCase())
+    owners.set(kind, prefix)
   }
   const byPrefix = new Map<string, Array<string>>()
   for (const [kind, prefix] of owners) byPrefix.set(prefix, [...(byPrefix.get(prefix) ?? []), kind])
   for (const [prefix, kinds] of byPrefix) {
     if (kinds.length > 1) {
-      issues.push({ path: ["ids"], issue: `${kinds.join(" and ")} share the prefix ${prefix.toUpperCase()}, so an id cannot say which kind it is` })
+      issues.push({ path: ["ids"], issue: `${kinds.join(" and ")} share the prefix ${prefix}, so an id cannot say which kind it is` })
     }
   }
   return issues

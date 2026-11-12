@@ -90,11 +90,11 @@ Feature: Configure a workspace
       Then the file "out/results.json" contains '"cart#a-new-cart-is-empty"'
       And node "cart" has attribute verification = "passing"
 
-  Rule: An id's prefix says its kind, in any case, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
+  Rule: An id's prefix says its kind as it is configured, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
     So an id says what it is wherever it is cited, and a team's own prefixes name the specs sdp new
     writes. Most specs are features, and a feature is named by what it says, so its id needs no
-    prefix.
+    prefix. A prefix in another case is a word: an IT asset inventory is no iteration.
 
     Scenario Outline: The default prefixes, and two that are none
       Given these specs:
@@ -109,9 +109,21 @@ Feature: Configure a workspace
         | MS-launch       | milestone |
         | PH-construction | phase     |
         | IT-beta         | iteration |
-        | arch_orders     | element   |
+        | ARCH_orders     | element   |
         | TODO-1          | feature   |
         | checkout        | feature   |
+
+    Scenario Outline: A word that begins like a prefix in another case
+      Given these specs:
+        | tags     | Feature |
+        | @id=<id> | Spec    |
+      Then node "<id>" has attribute kind = "feature"
+
+      Examples:
+        | id                   |
+        | it-asset-inventory   |
+        | ms-teams-integration |
+        | arch_orders          |
 
     Scenario: A prefix of the team's own, beside the defaults
       Given a file "sdp.config.yaml" containing:
