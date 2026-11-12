@@ -11,10 +11,9 @@ import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
-import { attribute, criteria, hasKind, isDerived, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { attribute, criteria, hasKind, isDerived, isDriver, isMention, isPlanKind, made } from "../model/Vocabulary.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
-import { isActive } from "../run/Evidence.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
 import type { Project } from "./Build.ts"
 
@@ -34,7 +33,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   const { id } = node
   const spec = project.specById.get(id)
   const out: Array<string> = []
-  const statusOf = (n: GraphNode) => describeStatus(vocabulary, n)
+  const statusOf = describeStatus
   const describe = (n: GraphNode) => `${n.id} — ${n.title} (${n.kind}${statusOf(n)}) ${formatSource(n.source)}`.trimEnd()
 
   out.push(`# ${node.id} — ${node.title}`, "")
@@ -120,8 +119,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   const reach = neighbourhood(project, id, depth).filter((n) => n.id !== id)
   const isDecision = (n: GraphNode) => hasKind(vocabulary, "decision", n.kind)
   const architecture = reach.filter((n) => hasKind(vocabulary, "architectural", n.kind))
-  // Decisions that no longer apply (superseded, rejected, deprecated) are not context for new work.
-  const decisions = reach.filter((n) => isDecision(n) && isActive(n, vocabulary))
+  const decisions = reach.filter(isDecision)
   const qualities = reach.filter((n) => !isDecision(n) && isDriver(vocabulary, n))
   if (architecture.length > 0) {
     out.push(`## Architecture within ${depth} hops`, "")
@@ -141,7 +139,8 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   if (decisions.length > 0) {
     out.push("## Decisions in reach", "")
     for (const n of decisions) {
-      const decided = decisionText(n, project.specById.get(n.id))
+      // The whole of it: what was chosen over what, and why, is the one thing a decision holds.
+      const decided = (project.specById.get(n.id)?.prose ?? []).map((prose) => prose.text).join(" ")
       out.push(`- ${describe(n)}${decided ? `\n  ${decided}` : ""}`)
     }
     out.push("")
@@ -196,26 +195,20 @@ const measures = (spec: Spec | undefined): ReadonlyArray<string> =>
     return outcomes.length > 0 ? [outcomes.join("; ")] : []
   })
 
-/** What was decided: the `## Decision` (or Outcome) section, else the summary. */
-const decisionText = (node: GraphNode, spec: Spec | undefined): string | undefined => {
-  const section = spec?.sections.find((s) => /^(decision|outcome)\b/i.test(s.heading))?.text ?? ""
-  if (section) return section.length > 280 ? `${section.slice(0, 279).trimEnd()}…` : section
-  return Predicate.isString(node.attrs.summary) ? node.attrs.summary : undefined
-}
-
-const describeStatus = (vocabulary: Vocabulary, node: GraphNode) => {
+const describeStatus = (node: GraphNode) => {
   const maturity = attribute(node, "maturity")
   const stage = attribute(node, "stage")
-  const status = attribute(node, "status")
   const parts = [
     maturity !== undefined ? `maturity: ${String(maturity)}` : undefined,
-    stage !== undefined && stage !== maturity ? `stage: ${String(stage)}` : undefined,
-    hasKind(vocabulary, "decision", node.kind) && status !== undefined ? `status: ${String(status)}` : undefined
+    stage !== undefined && stage !== maturity ? `stage: ${String(stage)}` : undefined
   ].filter(Predicate.isString)
   return parts.length > 0 ? `, ${parts.join(", ")}` : ""
 }
 
-/** Nodes within `depth` hops in either direction along links (never prose mentions), skipping scenario fan-out. */
+/**
+ * Nodes within `depth` hops in either direction along links (never prose mentions). Reach ends at a
+ * scenario and at the plan's own nodes: what shares an iteration with a node is not its context.
+ */
 export const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
@@ -228,7 +221,8 @@ export const neighbourhood = (project: Project, id: string, depth: number): Read
       for (const { edge, other } of graph.neighbours(current)) {
         if (seen.has(other) || isMention(vocabulary, edge)) continue
         seen.add(other)
-        if (graph.node(other)?.kind !== made.kinds.scenario) next.push(other)
+        const kind = graph.node(other)?.kind ?? ""
+        if (kind !== made.kinds.scenario && !isPlanKind(vocabulary, kind)) next.push(other)
       }
     }
     frontier = next

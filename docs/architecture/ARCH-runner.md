@@ -13,7 +13,7 @@ links:
 Matches pickle steps to step definitions (Cucumber Expressions), runs handlers as Effects with
 cooperative timeouts, one world per world factory per scenario — made inside the step that needs
 it — and runs only the selected examples. What it does for authors: [[REQ-executable-specs]]; why
-evidence is shaped the way it is: [[DEC-0011]].
+evidence is shaped the way it is: [[DEC-0010]].
 
 Turns specifications into evidence. The delivery stage of every spec and every milestone gate is
 derived from its results (DEC-0005), so its semantics (undefined vs. failed) are load-bearing.

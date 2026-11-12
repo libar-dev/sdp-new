@@ -45,7 +45,7 @@ const readOnly = <T extends Tool.Any>(tool: T): T =>
 
 const SdpStatus = readOnly(Tool.make("sdp_status", {
   description:
-    "Summary counts: node kinds, relations in use, stages, decision statuses, scenario and gate results, architectural nodes, diagnostics.",
+    "Summary counts: node kinds, relations in use, stages, scenario and gate results, architectural nodes, diagnostics.",
   parameters: Schema.Struct({ json }),
   ...text
 }))

@@ -9,7 +9,7 @@ tags: [graph]
 links:
   refines: CAP-living-specs
   realized-by: [ARCH-graph, ARCH-graph-builder, ARCH-code-annotations, ARCH-vocabulary]
-  decided-by: [DEC-0002, DEC-0003, DEC-0010]
+  decided-by: [DEC-0002, DEC-0003]
 ---
 
 # A free-form system graph
@@ -25,7 +25,7 @@ came from.
 Authors link nodes where they write: in front matter (`links:`, or a key the vocabulary names as a
 link, such as `iteration:`), in prose (`rel:: [[ID]]`), and in code (`annotate(…)` or
 `@sdp <relation> <ID>`, [[ARCH-code-annotations]]). Whether a front matter key links depends on the
-key, never on its value ([[DEC-0010]]), and a link is also an attribute of the node it starts
+key, never on its value ([[ARCH-graph-builder]]), and a link is also an attribute of the node it starts
 from: the key holds the link's targets, and no link shares a name with an attribute. A plain
 `[[ID]]` in prose is a mention: it is recorded, but it is not a link. How each of
 these becomes nodes and edges is the contract of [[ARCH-graph-builder]].

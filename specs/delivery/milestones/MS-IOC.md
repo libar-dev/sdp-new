@@ -3,8 +3,6 @@ id: MS-IOC
 kind: milestone
 title: Initial Operational Capability
 phase: PH-construction
-links:
-  decided-by: DEC-0015
 ---
 
 # Initial Operational Capability
@@ -18,7 +16,7 @@ Scenario: Everything built up to the end of Construction is verified
   Then the query "requirement|nfr ?-activity.implementation-> iteration[phase=PH-construction]" returns at least 1 result
   And the query "requirement|nfr[stage!=verified] ?-activity.implementation-> iteration[phase=PH-inception|PH-elaboration|PH-construction]" returns no results
 
-Scenario: The risks due at this milestone are retired, by verified work
+Scenario: The risks due at this milestone are retired: the work that mitigates them is verified
   Then the query "risk ?-due-> #MS-IOC" returns at least 1 result
   And the query "risk ?-due-> #MS-IOC -mitigated-by-> *[stage!=verified]" returns no results
 

@@ -23,10 +23,10 @@ import {
   criteria,
   hasKind,
   hasRelation,
+  isPlanKind,
   type KindRole,
   made,
-  type RelationRole,
-  type Vocabulary
+  type RelationRole
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
@@ -84,10 +84,7 @@ const placeholderLines = [
   "One sentence capturing the idea.",
   "Who needs what, and why.",
   "Which quality matters, for whom, and why.",
-  "What forces are at play?",
-  "1. **Option A** — pros / cons",
-  "We will …",
-  "What becomes easier or harder.",
+  "Not <what a reasonable person would have chosen>, because <why>.",
   "Responsibility in one or two sentences.",
   "The problem this pattern solves and how",
   "What must be true to pass this milestone."
@@ -171,45 +168,20 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
+  // A decision says what was chosen over what, and why. Anything more has a place of its own.
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
     const spec = project.specById.get(node.id)
-    const status = attribute(node, "status")
-    const statuses = vocabulary.statuses
-    if (!Predicate.isString(status) || !statuses.decision.includes(status)) {
-      out.push(diagnostic("decision-status", {
-        message: `${node.id}: decision status should be one of ${statuses.decision.join(", ")} (got ${String(status)})`,
-        node: node.id,
-        source: node.source,
-        hint: "set `status:` in the front matter"
-      }))
-    }
-    for (const edge of graph.out(node.id).filter((e) => vocabulary.relations.supersedes.includes(e.rel))) {
-      const old = graph.node(edge.to)
-      if (old && hasKind(vocabulary, "decision", old.kind) && attribute(old, "status") !== statuses.superseded) {
-        out.push(diagnostic("decision-supersede", {
-          message: `${node.id} supersedes ${old.id}, but ${old.id} has status ${String(attribute(old, "status"))}`,
-          node: old.id,
-          source: old.source,
-          hint: `set status: ${statuses.superseded} on ${old.id}`
-        }))
-      }
-    }
-    if (status === statuses.superseded && !graph.in(node.id).some((e) => vocabulary.relations.supersedes.includes(e.rel))) {
-      out.push(diagnostic("decision-supersede", {
-        message: `${node.id} is ${statuses.superseded} but no decision supersedes it`,
-        node: node.id,
-        source: node.source,
-        hint: `add \`links: { ${vocabulary.relations.supersedes[0] ?? "supersedes"}: <old id> }\` to the newer decision`
-      }))
-    }
-    if (status === statuses.accepted && spec && !spec.sections.some((s) => /decision|outcome/i.test(s.heading))) {
-      out.push(diagnostic("decision-content", {
-        message: `${node.id} is ${statuses.accepted} but has no "Decision" section`,
-        node: node.id,
-        source: node.source,
-        hint: "state the decision under a `## Decision` heading"
-      }))
-    }
+    // The title is a heading too; a section is any heading below it.
+    const section = spec?.sections.find((heading) => heading.level > 1)
+    const [scenario] = spec?.scenarios ?? []
+    if (!spec || (!section && !scenario)) continue
+    const has = [section && `a section ("${section.heading}")`, scenario && `a scenario ("${scenario.name}")`].filter(Boolean).join(" and ")
+    out.push(diagnostic("decision-shape", {
+      message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
+      node: node.id,
+      source: at(spec, Math.min(section?.line ?? Infinity, scenario?.line ?? Infinity)),
+      hint: "a rule is a scenario on what it constrains, which links here with `decided-by`; a cost is a risk; what is undecided is an open question on the spec it blocks"
+    }))
   }
 
   for (const spec of project.specs) {
@@ -257,7 +229,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
     )
     const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(node.kind))
-    if (planned && !disciplined && !isLifecycleKind(vocabulary, node.kind)) {
+    if (planned && !disciplined && !isPlanKind(vocabulary, node.kind)) {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: kind ${node.kind} belongs to no discipline, so its iteration plans no discipline's work`,
         node: node.id,
@@ -310,7 +282,3 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   return sortDiagnostics(out)
 }
 annotate(check, { is: "ARCH-checker" })
-
-/** The plan's own nodes — phases, iterations, milestones — are not work any discipline does. */
-const isLifecycleKind = (vocabulary: Vocabulary, kind: string) =>
-  hasKind(vocabulary, "phase", kind) || hasKind(vocabulary, "iteration", kind) || hasKind(vocabulary, "milestone", kind)

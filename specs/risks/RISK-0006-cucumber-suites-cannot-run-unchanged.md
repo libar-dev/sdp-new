@@ -1,8 +1,5 @@
 ---
 id: RISK-0006
-kind: risk
-title: Existing Cucumber suites cannot run unchanged
-exposure: medium
 links:
   affects: [REQ-executable-specs, REQ-progressive-specs]
   mitigated-by: REQ-cucumber-compatibility
@@ -17,6 +14,6 @@ they run — friction exactly where executable specifications already exist, and
 teams not to adopt sdp at all.
 
 Due in Elaboration because hooks and parameter types change the step definition API that every
-workspace's step modules are written against ([[REQ-cucumber-compatibility]]).
+workspace's step modules are written against.
 
 **Watch for:** teams that try sdp on an existing suite and give up while adapting its steps.

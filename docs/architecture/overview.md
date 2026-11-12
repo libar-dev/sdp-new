@@ -84,7 +84,7 @@ sdp q 'element -uses+-> element' --paths             # what an element reaches
 
 ## Implementation
 
-TypeScript on Effect 4, run directly by Node.js 24 with no build step ([[DEC-0004]], [[DEC-0012]]), one module
+TypeScript on Effect 4, run directly by Node.js 24 with no build step ([[DEC-0004]], [[NFR-no-build-step]]), one module
 per element:
 
 | Module | Responsibility | Element |

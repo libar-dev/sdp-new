@@ -4,8 +4,7 @@
  * One run over a workspace selects scenarios and their examples, runs the
  * ordinary ones against the graph without results, commits their results,
  * then runs the gates (milestones and `@gate` examples) against a graph that
- * shows the ordinary results and no gate results. Records that no longer
- * apply (superseded, rejected, deprecated) do not run, and a workspace whose
+ * shows the ordinary results and no gate results. A workspace whose
  * scenarios cannot all be read does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
  */
@@ -20,7 +19,7 @@ import { attribute, made } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
-import { fingerprint, isActive, isGate } from "../run/Evidence.ts"
+import { fingerprint, isGate } from "../run/Evidence.ts"
 import { snippetModule } from "../run/Match.ts"
 import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
@@ -116,7 +115,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const { config } = before.project
   // Whether a scenario is a gate is decided by the examples this run selected.
   const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {
-    const chosen = isActive(spec, config.vocabulary) ? selected(scenario, spec) : undefined
+    const chosen = selected(scenario, spec)
     return chosen && isGate(scenario, spec, config.vocabulary, chosen) === gates ? chosen : undefined
   }
   const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))

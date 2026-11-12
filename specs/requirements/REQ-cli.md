@@ -66,7 +66,7 @@ Background:
     nodes:
       - { id: ARCH-index, kind: element, title: Search index, links: { decided-by: DEC-0001 } }
       - { id: ARCH-cache, kind: element, title: Page cache, links: { decided-by: DEC-0001 } }
-      - { id: DEC-0001, kind: decision, title: Use an inverted index, status: accepted }
+      - { id: DEC-0001, kind: decision, title: Use an inverted index }
     ---
     # Architecture
 
@@ -307,7 +307,7 @@ Templates suggest links as comments, in one vocabulary: a requirement is `realiz
 and `refines` a capability; an element is `decided-by` decisions, an `instance-of` patterns and
 `constrained-by` quality requirements. A decision lists no links of its own: what it shapes links
 to it with `decided-by`. Removing the `#` of a suggestion leaves valid YAML. Template text written to
-be replaced — `We will …`, `What is still unknown?`, `Given <context>` — is flagged by `sdp check`
+be replaced — `Not <…>, because <why>.`, `What is still unknown?`, `Given <context>` — is flagged by `sdp check`
 until it is ([[REQ-check-rules]]). The `ready` template has no open questions — the structural
 difference from a specified spec; whether it is truly ready to build is the team's own Definition of
 Ready, which a team writes as a gate ([[REQ-maturity-criteria]]).
@@ -439,7 +439,6 @@ Scenario Outline: A suggested link, uncommented, is valid YAML in the shared voc
     | requirement | REQ-orders -realized-by-> ARCH-…    |
     | requirement | REQ-orders -refines-> CAP-…         |
     | nfr         | NFR-orders -refines-> CAP-…         |
-    | decision    | DEC-0002 -supersedes-> DEC-…        |
     | element     | ARCH-orders -decided-by-> DEC-…     |
     | element     | ARCH-orders -instance-of-> PAT-…    |
     | element     | ARCH-orders -constrained-by-> NFR-… |
@@ -485,7 +484,7 @@ Scenario: types writes the ids annotate() accepts, and check knows when they are
 
 ### `sdp status`
 
-One screen: node and edge counts, kinds, relations, stages, decisions, the results of ordinary
+One screen: node and edge counts, kinds, relations, stages, the results of ordinary
 scenarios and, separately, of gate scenarios (which may be unmet without anything being broken),
 stale results by what changed since they ran ([[REQ-executable-specs]]), how many nodes are of an
 architectural kind, and diagnostics by severity.
@@ -546,18 +545,17 @@ Scenario: q --paths prints each path on one line, every edge as it points
   Then the output lines are "ARCH-index <-realized-by- REQ-search"
 
 Scenario: q lists a node by the status it declares, else by its stage
-  Given a file "docs/DEC-0002.md" containing:
+  Given a file "docs/RISK-0001.md" containing:
     """
     ---
-    id: DEC-0002
-    kind: decision
-    status: proposed
+    id: RISK-0001
+    status: tolerated
     maturity: idea
     ---
-    # Shard the index
+    # The index outgrows memory
     """
-  When I run "sdp q decision"
-  Then the output contains "DEC-0002\tdecision\tproposed"
+  When I run "sdp q risk"
+  Then the output contains "RISK-0001\trisk\ttolerated"
   When I run "sdp q requirement"
   Then the output contains "REQ-search\trequirement\tspecified"
 
@@ -790,7 +788,7 @@ Scenario: A plan from the template puts a milestone from the template under its 
 
 ### `sdp check`
 
-Validates front matter, links, Gherkin, maturity claims, decision records, plan references, code
+Validates front matter, links, Gherkin, maturity claims, the shape of decisions, plan references, code
 annotations and leftover template text ([[REQ-check-rules]]). Each diagnostic is one line — its
 severity, rule id, message and `file:line` — with a hint beneath; `--severity error|warning|info`
 sets the minimum shown, and the last line counts them. Only errors fail the check. With `--json`,
@@ -818,7 +816,7 @@ Scenario Outline: Only errors fail the check
     | { id: REQ-a, links: { depends-on: REQ-gone } }     | dangling-link | 1         |
     | { id: REQ-a, maturity: draft }                     | maturity-criteria  | 1        |
     | { id: REQ-a, links: [REQ-b] }                      | link-syntax    | 1        |
-    | { id: REQ-a, kind: decision, status: accepted }    | decision-content | 0      |
+    | { id: REQ-a, iteration: REQ-a }                    | plan-reference | 0        |
 
 Scenario: check --json prints the diagnostics as data
   Given a file "specs/REQ-a.md" containing:

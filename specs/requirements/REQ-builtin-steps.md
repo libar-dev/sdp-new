@@ -61,8 +61,8 @@ fails, saying that the scenario is a gate. When a result was recorded (`lastRun`
 scenario, so a step that reads it fails in a gate too.
 Like any step, they match by text, whatever the keyword.
 
-This repository uses them for its decision guards ([[DEC-0001]], [[DEC-0002]], [[DEC-0007]]) and its
-milestone gates (for example [[MS-LCA]]).
+This repository uses them for the rules of its plan ([[PLAN]]) and its milestone gates (for
+example [[MS-LCA]]).
 
 ## Scenarios
 
@@ -97,9 +97,10 @@ Background:
     """
     ---
     id: DEC-0001
-    kind: decision
     ---
     # Use an inverted index
+
+    ## Options
     """
 
 Scenario Outline: A built-in step passes when the graph agrees
@@ -142,8 +143,8 @@ Scenario Outline: A built-in step that fails says why
     | the query "element" returns at least 2 results              | returned 1 result(s), expected at least 2        |
     | the query "requirement\|element" returns at most 1 result   | returned 2 result(s), expected at most 1         |
     | every node matching "element" also matches "*[maturity]"    | ARCH-index (element) docs/ARCH-index.md:1        |
-    | there are no warning diagnostics                            | [decision-status] DEC-0001                       |
-    | there are no diagnostics for rule "decision-status"         | DEC-0001: decision status should be one of       |
+    | there are no warning diagnostics                            | [decision-shape] DEC-0001                        |
+    | there are no diagnostics for rule "decision-shape"          | DEC-0001 has a section ("Options")               |
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |
     | the node "REQ-lost" has maturity "ready"                    | no node REQ-lost                                 |
     | the node "REQ-search" has stage "verified"                  | a scenario that asserts on delivery state is a gate |

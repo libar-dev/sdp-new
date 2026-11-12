@@ -30,7 +30,6 @@ export const statusSummary = (project: Project) => {
     relations: Object.fromEntries(graph.relations()),
     /** Counted the way every report counts stages: each node that has one. */
     stages: counted(graph.nodes().flatMap((n) => Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []), stageLadder(vocabulary).flat()),
-    decisions: counted(graph.ofKind(vocabulary.kinds.decision).map((n) => n.attrs.status)),
     scenarios: counted(scenarios.filter((n) => !gates.has(n.id)).map((n) => n.attrs.status), resultOrder),
     /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
     gates: counted(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status), resultOrder),

@@ -23,7 +23,6 @@ Scenario: The work that retires each risk is planned
   Then the query "risk ?-due-> milestone" returns at least 1 result
   And the query "risk ?-due-> milestone -mitigated-by-> * !-iteration-> iteration" returns no results
 
-Scenario: Decisions taken in Inception are accepted
-  Then the query "decision ?-iteration-> iteration[phase=PH-inception]" returns at least 1 result
-  And the query "decision[status!=accepted] ?-iteration-> iteration[phase=PH-inception]" returns no results
+Scenario: Nothing written in Inception is still undecided
+  Then the query "*[openQuestions>0] ?-iteration-> iteration[phase=PH-inception]" returns no results
 ~~~

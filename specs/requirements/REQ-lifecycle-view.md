@@ -9,7 +9,7 @@ tags: [lifecycle]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-lifecycle
-  decided-by: [DEC-0007, DEC-0013]
+  decided-by: DEC-0007
 ---
 
 # Lifecycle view
@@ -32,13 +32,13 @@ the plan — the evidence for that work.
 **What plans work.** Only the plan relations do — `iteration`, unless `vocabulary.relations.plan`
 says otherwise — and only the phase relations (`phase`) put iterations and milestones into a phase
 ([[REQ-configuration]]). They are link keys, so they plan the same whichever way they are written
-and must name declared nodes ([[DEC-0010]]). A `[[E2]]` mention in prose plans nothing, a node is
+and must name declared nodes ([[ARCH-graph-builder]]). A `[[E2]]` mention in prose plans nothing, a node is
 counted once in an iteration however many relations lead there, and the plan's own phases,
 iterations and milestones are not planned work. Every node with a maturity that is planned nowhere
 is listed as unplanned.
 
 **Discipline activity is planned, per piece of work.** A node's `iteration:` plans the work of its
-own kind's discipline — a requirement is written, a decision taken, a release deployed — in that
+own kind's discipline — a requirement is written, an element designed — in that
 iteration. Work of other disciplines on it, and work that falls in other iterations, is planned
 with `activity:`, which maps disciplines to an iteration or a list of them:
 
@@ -111,15 +111,13 @@ Background:
     ---
     # Alpha
     """
-  And a file "docs/DEC-1.md" containing:
+  And a file "docs/ARCH-x.md" containing:
     """
     ---
-    id: DEC-1
-    kind: decision
-    status: accepted
+    id: ARCH-x
     iteration: E1
     ---
-    # A decision
+    # An element
     """
 
 Scenario: Iterations and milestones hang off their phase
@@ -179,7 +177,7 @@ Scenario: An iteration plans each node once, and mentions and the plan's own nod
     # Demo
     """
   When the lifecycle is computed
-  Then iteration "E1" plans "DEC-1, REQ-a, REQ-m"
+  Then iteration "E1" plans "ARCH-x, REQ-a, REQ-m"
   And iteration "E2" plans "nothing"
   And "requirements" activity in iteration "E1" is 2
 
@@ -248,7 +246,7 @@ Scenario Outline: A discipline activity names takes only the iterations listed t
   When the lifecycle is computed
   Then "requirements" activity in iteration "E1" is 1
   And "requirements" activity in iteration "E2" is <in E2>
-  And iteration "E1" plans "DEC-1, REQ-a, REQ-b"
+  And iteration "E1" plans "ARCH-x, REQ-a, REQ-b"
 
   Examples:
     | iterations | in E2 |

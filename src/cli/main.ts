@@ -196,7 +196,7 @@ const vocabularyCommand = Command.make(
   Effect.fn(function*({ json }) {
     yield* print(yield* Reading.vocabulary(yield* workspaceRoot), json, Text.vocabulary)
   })
-).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured"))
+).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, maturity, disciplines — as configured"))
 
 // --- checking and running ---------------------------------------------------
 
@@ -214,7 +214,7 @@ const checkCommand = Command.make(
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
   })
-).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and decision records; exit 1 on errors"))
+).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and the plan; exit 1 on errors"))
 
 const stepsCommand = Command.make(
   "steps",
@@ -348,7 +348,7 @@ const newCommand = Command.make(
     { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
     { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a requirement at maturity idea" },
     { command: "sdp new plan 'Delivery plan'", description: "Phases with an example iteration each" },
-    { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision record" }
+    { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision: a title and a sentence" }
   ])
 )
 

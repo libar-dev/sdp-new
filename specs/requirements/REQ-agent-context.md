@@ -33,13 +33,13 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
    of its description, which says why it matters;
 7. the quality requirements within reach, each with its measure: the outcome (`Then`) steps of its
    scenarios;
-8. the decisions within reach that still apply, each with what was decided — its `## Decision`
-   section — while superseded, rejected and deprecated records are left out;
+8. the decisions within reach, each with its text whole: what was chosen over what, and why;
 9. the code linked by annotations within reach — typed `annotate` calls or `@sdp` comments
    ([[ARCH-code-annotations]]) — each with its `file:line`, symbol and what it links to.
 
 What is within reach is reached through links. A prose mention is listed among the relationships
-but leads no further: it is not a link ([[DEC-0010]]).
+but leads no further: it is not a link ([[REQ-flexible-graph]]). Neither does an iteration, a
+phase or a milestone: what is planned beside a node is not its context.
 
 A bundle made from a workspace that could not be fully read — a spec that does not parse, or,
 when the node has scenarios, a step registration sdp cannot read — is still the whole document,
@@ -78,8 +78,6 @@ Scenario: One call gives an agent the whole picture
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
     # One database transaction per order
     """
@@ -161,31 +159,30 @@ Scenario: A glossary term among the relationships comes with its definition
   And the line after the output line with "TERM-cart — Cart" contains "  definition: The items a shopper has chosen and not yet paid for."
   And the line after the output line with "REQ-checkout -iteration-> C1" contains "  start: 2026-11-16"
 
-Scenario: Only decisions that still apply are included
+Scenario: What is planned into the same iteration is not within reach
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
     id: REQ-checkout
     maturity: idea
-    links:
-      decided-by: [DEC-1, DEC-2]
+    iteration: E1
     ---
     # Checkout
     """
-  And a file "docs/decisions.md" containing:
+  And a file "docs/plan.md" containing:
     """
     ---
-    id: DECISIONS
-    kind: log
+    id: PLAN
+    kind: plan
     nodes:
-      - { id: DEC-1, kind: decision, title: Card payments only, status: rejected }
-      - { id: DEC-2, kind: decision, title: Cards and invoices, status: accepted }
+      - { id: E1, kind: iteration }
+      - { id: ARCH-search, kind: element, iteration: E1 }
     ---
-    # Decisions
+    # Plan
     """
   When I ask for the context of "REQ-checkout"
-  Then the output section "Decisions" contains "DEC-2"
-  And the output section "Decisions" does not contain "DEC-1"
+  Then the output section "Relationships" contains "REQ-checkout -iteration-> E1"
+  And the output does not contain "ARCH-search"
 
 Scenario: Scenario status comes with the step definitions still to write
   Given a file "specs/REQ-cart.md" containing:
@@ -237,7 +234,7 @@ Scenario: A spec below ready says what keeps it from ready
   When I ask for the context of "REQ-checkout"
   Then the output section "Not ready yet" contains "1 open question(s), e.g. \"Do we accept invoices?\" (line 11)"
 
-Scenario: Decisions in reach say what was decided
+Scenario: A decision in reach comes with its text whole
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
@@ -251,22 +248,17 @@ Scenario: Decisions in reach say what was decided
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
-    # Payments provider
+    # One payments provider for cards and invoices
 
-    ## Context
-
-    Card payments need a provider we can trust.
-
-    ## Decision
-
-    We use one provider for cards and invoices.
+    Not a provider for each, although each alone is cheaper: two integrations mean two sets of
+    refunds, chargebacks and reconciliation reports to keep in step, and the finance team reads one
+    statement a month. The price is the higher card fee of the one provider that does both, which
+    we accept until volume makes the difference worth a second integration.
     """
   When I ask for the context of "REQ-checkout"
-  Then the output section "Decisions" contains "We use one provider for cards and invoices."
-  And the output section "Decisions" does not contain "Card payments need a provider"
+  Then the output section "Decisions" contains "Not a provider for each, although each alone is cheaper"
+  And the output section "Decisions" contains "worth a second integration."
 
 Scenario: Quality requirements in reach come with their measure
   Given a file "specs/REQ-checkout.md" containing:

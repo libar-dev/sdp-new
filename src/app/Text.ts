@@ -76,7 +76,6 @@ export const status = (summary: StatusSummary): string => {
     counts("kinds", summary.kinds),
     counts("relations", summary.relations),
     counts("stages", summary.stages),
-    counts("decisions", summary.decisions),
     counts("scenarios", summary.scenarios),
     counts("gates", summary.gates),
     ...(Object.keys(summary.stale).length > 0 ? [`${counts("stale", summary.stale)}  ${c.dim("(sdp run refreshes them)")}`] : []),

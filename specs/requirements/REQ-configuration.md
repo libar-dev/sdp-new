@@ -41,23 +41,22 @@ word ([[ARCH-vocabulary]]). `sdp vocabulary` prints the active profile role by r
 be copied into the configuration and changed there. A role the section names replaces its default;
 `disciplines` merge one by one. Under `made`, the same command lists the words that are not
 configurable because sdp makes them itself: the kinds `scenario`, `code` and `missing`, the
-attributes it derives, the stages beyond the ladder, and the names no link can have ([[DEC-0010]]).
+attributes it derives, the stages beyond the ladder, and the names no link can have ([[ARCH-graph-builder]]).
 
 | Section | What sdp reads its words for |
 | --- | --- |
-| `kinds` | decision records, milestones (their scenarios are gates), phases, iterations, patterns, the kinds that are the architecture, the architectural drivers, and the kind a node anchored in code gets when it names none |
-| `relations` | superseding a decision, planning work into an iteration, putting an iteration or milestone into its phase, the prose mention, a scenario's link to its spec, and the code anchor |
+| `kinds` | decisions, milestones (their scenarios are gates), phases, iterations, patterns, the kinds that are the architecture, the architectural drivers, and the kind a node anchored in code gets when it names none |
+| `relations` | planning work into an iteration, putting an iteration or milestone into its phase, the prose mention, a scenario's link to its spec, and the code anchor |
 | `attributes` | `activity`, a phase's `order`, an iteration's `start` and `end`, and the attribute whose value in `qualities` marks a quality requirement |
-| `statuses` | the statuses a decision may have, which of them are `accepted` and `superseded`, and those that make a record inactive |
 | `maturity` | the authoring ladder, lowest first ([[REQ-maturity-criteria]]) |
 | `disciplines` | the kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
-| `links` | keys of the workspace's own that link like `links:` entries ([[DEC-0010]]) |
+| `links` | keys of the workspace's own that link like `links:` entries ([[ARCH-graph-builder]]) |
 | `words` | `kinds`, `relations` and `attributes` of the workspace's own that nothing in its graph has yet, so that a rule can assert there is none of them without its query being taken for a typo ([[REQ-builtin-steps]]) |
 
 A profile that cannot work is an error naming its path, where it is configured and not later in a
 spec or a query:
 
-- a word that is empty, or a kind, relation or decision-status role left without any word —
+- a word that is empty, or a kind or relation role left without any word —
   renaming a role is free, removing it would switch off what sdp reads through it;
 - an empty ladder, a level listed twice, or a level named like a stage sdp derives (`failing`,
   `in-progress`, `verified`);
@@ -65,11 +64,10 @@ spec or a query:
   or a relation, link key or attribute named like an attribute sdp derives or checks (`stage`,
   `maturity`, `status`, …);
 - the mention, scenario or anchor relation sharing its word with another of them or with a relation
-  authors write as a link key (plan, phase, supersedes, `links`): one edge would be two things;
-- `statuses.accepted` or `statuses.superseded` naming a status that `statuses.decision` does not list.
+  authors write as a link key (plan, phase, `links`): one edge would be two things.
 
 `sdp new` writes what the profile says ([[REQ-cli]]): the template of a kind is that of the role it
-plays, and the keys, kinds and statuses it writes are the workspace's words.
+plays, and the keys and kinds it writes are the workspace's words.
 
 **Id prefixes.** A spec that omits `kind` gets it from its id prefix — case-insensitive, followed
 by `-` or `_` — and a prefix that maps to no kind gives `spec`. `sdp new` names new specs with the same prefixes: decisions and risks are
@@ -90,7 +88,7 @@ their work unless `activity:` says otherwise; how activity is planned and counte
 | --- | --- |
 | business-modeling | capability, goal, actor, business-process, vision, stakeholder |
 | requirements | requirement, nfr, feature, story, use-case, epic |
-| analysis-design | decision, element, pattern |
+| analysis-design | element, pattern |
 | implementation | none |
 | test | none |
 | deployment | release, environment, deployment |
@@ -276,7 +274,7 @@ Scenario: kinds.driver says what is shown next to the architecture
   When I ask for the architecture view
   Then the output contains "ARCH-orders -threatened-by-> RISK-1"
 
-Scenario: kinds.decision gives a team's own word for decisions the decision rules
+Scenario: kinds.decision gives a team's own word for decisions the shape of one
   Given a file "sdp.config.yaml" containing:
     """
     vocabulary: { kinds: { decision: [adr], driver: [adr, nfr] } }
@@ -288,9 +286,11 @@ Scenario: kinds.decision gives a team's own word for decisions the decision rule
     kind: adr
     ---
     # Use Postgres
+
+    ## Options
     """
   When the workspace is checked
-  Then the check reports "decision-status" for "ADR-1"
+  Then the check reports "decision-shape" for "ADR-1"
 
 Scenario: disciplines adds or redefines disciplines
   Given a file "sdp.config.yaml" containing:
@@ -409,14 +409,13 @@ Scenario: sdp new writes what a renamed profile reads
     ids: { adr: ADR, era: ERA }
     vocabulary:
       kinds: { decision: [adr], milestone: [checkpoint], phase: [era], iteration: [sprint], driver: [adr, nfr] }
-      relations: { plan: [sprint], phase: [part-of], supersedes: [replaces], anchor: implements-element }
+      relations: { plan: [sprint], phase: [part-of], anchor: implements-element }
       attributes: { order: position, start: from, end: until }
-      statuses: { decision: [pending, approved, retired], accepted: approved, superseded: retired, inactive: [retired] }
     """
   When I run "sdp new adr 'Use Postgres'"
   Then the output contains "ADR-0001\tdocs/decisions/ADR-0001-use-postgres.md"
-  And the file "docs/decisions/ADR-0001-use-postgres.md" contains "status: pending # pending | approved | retired"
-  And the file "docs/decisions/ADR-0001-use-postgres.md" contains "# replaces: ADR-…"
+  And the file "docs/decisions/ADR-0001-use-postgres.md" contains "id: ADR-0001"
+  And the file "docs/decisions/ADR-0001-use-postgres.md" does not contain "kind:"
   When I run "sdp new plan Roadmap"
   Then the output contains "PLAN-roadmap\tdocs/delivery/PLAN-roadmap.md"
   When I run "sdp new checkpoint Launch"
@@ -426,8 +425,7 @@ Scenario: sdp new writes what a renamed profile reads
   When I run "sdp q 'sprint -part-of-> era[position=2]' --ids"
   Then the output lines are "ERA-elaboration"
   When I run "sdp check"
-  Then the output does not contain "[decision-status]"
-  And the output does not contain "[dangling-link]"
+  Then the output does not contain "[dangling-link]"
   And the output does not contain "[plan-reference]"
   When I run "sdp lifecycle --json"
   Then the output field "data.phases" holds "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition"
@@ -453,7 +451,6 @@ Scenario Outline: A profile that cannot work is rejected where it is wrong
     | vocabulary: { links: [status] }                   | status is an attribute sdp derives or checks itself | at ["vocabulary"]["links"] |
     | vocabulary: { relations: { mention: iteration } } | iteration is also a relation authors write as a link key | at ["vocabulary"]["relations"]["mention"] |
     | vocabulary: { relations: { scenario: is } }       | is is also relations.anchor          | at ["vocabulary"]["relations"]["scenario"] |
-    | vocabulary: { statuses: { accepted: approved } }  | approved is not one of statuses.decision | at ["vocabulary"]["statuses"]["accepted"] |
     | ids: { component: MY-COMP }                       | must be letters only                 | at ["ids"]["component"]       |
     | ids: { story: REQ }                               | requirement and story share the prefix REQ | at ["ids"]              |
 

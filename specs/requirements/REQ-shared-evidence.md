@@ -5,12 +5,12 @@ title: Evidence shared between machines
 maturity: idea
 links:
   refines: CAP-living-specs
-  decided-by: DEC-0011
+  decided-by: DEC-0010
 ---
 
 # Evidence shared between machines
 
-`.sdp/results.json` is evidence about one checkout ([[DEC-0011]]): a colleague, or a reviewer of a
+`.sdp/results.json` is evidence about one checkout ([[DEC-0010]]): a colleague, or a reviewer of a
 pull request, sees `verified` only after running everything again. A team should be able to take
 the evidence a CI run produced — for exactly the inputs it fingerprinted — and read it wherever
 those inputs are the same.

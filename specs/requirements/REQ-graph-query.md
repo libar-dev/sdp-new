@@ -35,7 +35,7 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
 - **Values.** `id`, `kind`, `title` and `source` (`file:line`) are keys like any attribute; `a.b`
   reaches into a nested attribute. A key reads only what the node itself holds — `toString` is no
   attribute of every node — and the targets of the node's links of that relation, so
-  `[realized-by=ARCH-orders]` and `?-realized-by-> #ARCH-orders` agree ([[DEC-0010]]). A bare
+  `[realized-by=ARCH-orders]` and `?-realized-by-> #ARCH-orders` agree ([[ARCH-graph-builder]]). A bare
   `key` asks whether the key is set: missing, `null`,
   `false`, empty text and empty lists are not, so `!key` finds them. Equality and regexes compare
   the value itself, ignoring case — `key=false`, `key=0` and `key=""` find exactly those values —

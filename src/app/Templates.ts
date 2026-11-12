@@ -9,7 +9,8 @@ import { Document, isMap, isNode, isSeq } from "yaml"
 import { type Config, defaults } from "../model/Config.ts"
 import { criteria, hasKind, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
-import { parseMarkdownSpec } from "../parse/Spec.ts"
+import { parseMarkdown } from "../parse/Markdown.ts"
+import { inferKind, parseMarkdownSpec } from "../parse/Spec.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
 
@@ -137,7 +138,7 @@ const addDays = (isoDate: string, days: number) => {
 }
 
 /**
- * The content of a new spec. The words sdp interprets — kinds, relations, attributes, statuses —
+ * The content of a new spec. The words sdp interprets — kinds, relations, attributes —
  * are written as the workspace's vocabulary names them, so what a template writes is what sdp reads.
  */
 const specTemplate = (options: {
@@ -158,45 +159,26 @@ const specTemplate = (options: {
   const phaseKind = wordFor(vocabulary.kinds.phase)
   const phaseId = (name: string) => `${config.ids[phaseKind] ?? "PH"}-${name.toLowerCase()}`
   const phases = ["Inception", "Elaboration", "Construction", "Transition"]
+  // Front matter says only what the file does not say elsewhere: the kind when the id's prefix
+  // does not give it, the title when the heading would not read back as it.
+  const identity: ReadonlyArray<Field> = [
+    ["id", id],
+    ...(inferKind(id, config) === kind ? [] : [["kind", kind] as const]),
+    ...(parseMarkdown(`# ${title}\n`).title === title ? [] : [["title", title] as const])
+  ]
   switch (templateOf(kind, vocabulary)) {
-    case "decision": {
-      const statuses = vocabulary.statuses.decision
+    case "decision":
       return `${
-        frontMatter([
-          ["id", id],
-          ["kind", kind],
-          ["title", title],
-          // A new record starts at the first status the workspace lists.
-          ["status", wordFor(statuses), statuses.join(" | ")],
-          ["category", "architecture", "architecture | product | process | technology | organization | ..."],
-          ["date", today],
-          ["deciders", []]
-        ], [
-          "# What this decision shapes links to it, with `decided-by` on the requirement or element.",
-          "links:",
-          `  # ${wordFor(vocabulary.relations.supersedes)}: ${prefixOf(kind, config)}-…`
+        frontMatter(identity, [
+          "# Only for a choice that is hard to reverse, surprising without context and a real trade-off;",
+          "# any other choice is a sentence in the spec it concerns. What rests on a decision links to it",
+          "# with `decided-by`, its rules are scenarios there, and its price is a risk."
         ])
       }
 # ${title}
 
-## Context
-
-What forces are at play? What makes this a decision worth recording?
-
-## Options
-
-1. **Option A** — pros / cons
-2. **Option B** — pros / cons
-
-## Decision
-
-We will …
-
-## Consequences
-
-What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be guarded automatically.
+Not <what a reasonable person would have chosen>, because <why>.
 `
-    }
     case "element":
       return `${
         frontMatter([["id", id], ["kind", kind], ["title", title]], [

@@ -57,11 +57,11 @@ it, your change is not done.
 
 - A requirement that has left the idea stage is planned in its own front matter: `iteration:`
   says when it is written, `activity: { implementation: C1, test: [C1, T1] }` when it is built
-  and tested ([[DEC-0013]]).
+  and tested ([[REQ-lifecycle-view]]).
 - `sdp lifecycle` marks the current iteration with `*`. Work goes into the iteration in which it
   will be done, never into one that is over.
 - A risk names what it threatens, the work that retires it and the milestone it is due at
-  ([[DEC-0015]]).
+  ([[PLAN]]).
 
 ## Conventions
 
@@ -69,19 +69,19 @@ it, your change is not done.
   document is a spec, guides like this one included.
 - One word for one thing ([[GLOSSARY]]).
 - Node.js 24 runs `.ts` directly: use erasable syntax only (no enums, namespaces, parameter
-  properties), import with `.ts` extensions ([[DEC-0012]]).
+  properties), import with `.ts` extensions ([[NFR-no-build-step]]).
 - Effect 4: `Effect.fn`/`Effect.gen` for IO workflows, `Schema` for external data, services at the
   edge (`FileSystem`, `Path`); keep parsing, graph, query and check pure ([[DEC-0004]]). Effect's
   documentation ships in `node_modules/effect/AGENTS.md` — use it, not memory of Effect 2 or 3.
 - Kinds, relations and attributes are free-form. The few words sdp interprets are roles of the
   vocabulary profile (`src/model/Vocabulary.ts`): ask it, never compare with one of its words as
-  a literal — a guard in [[DEC-0002]] fails the run if you do.
+  a literal — a guard in [[ARCH-vocabulary]] fails the run if you do.
 - Code is linked to the architecture, not to requirements: an `is` annotation says which code an
   element is, and a requirement names its element with `realized-by` ([[DEC-0009]]).
 - What belongs in the architecture is the architects' call ([[DEC-0008]]): do not add or remove an
   element, a pattern or an `is` annotation on your own initiative; propose it instead.
-- While the project is in Inception, a decision that changes is rewritten or deleted, not
-  superseded, and the decision numbers stay without gaps ([[DEC-0016]]).
+- A decision that changes is rewritten or deleted, and the decision numbers stay without gaps
+  ([[REQ-decision-records]]).
 - `.sdp/results.json` is written by `sdp run`; do not edit it by hand.
 
 ## Scenarios
@@ -178,4 +178,20 @@ Scenario: A gate that is due and unmet shows in sdp lifecycle, and sdp gate fail
   And the output line with "MS-objectives" does not contain "not due"
   When I run "sdp gate MS-objectives"
   Then the exit code is 1
+
+Scenario Outline: An id with a prefix is of that prefix's kind, and the other way round
+  Then every node matching "*[id~^<prefix>-[^#]*$]" also matches "<kind>"
+  And every node matching "<kind>" also matches "*[id~^<prefix>-]"
+
+  Examples:
+    | prefix | kind        |
+    | REQ    | requirement |
+    | NFR    | nfr         |
+    | DEC    | decision    |
+    | ARCH   | element     |
+    | PAT    | pattern     |
+    | MS     | milestone   |
+    | CAP    | capability  |
+    | RISK   | risk        |
+    | PH     | phase       |
 ~~~

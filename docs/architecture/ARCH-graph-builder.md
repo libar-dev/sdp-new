@@ -3,7 +3,7 @@ id: ARCH-graph-builder
 kind: element
 title: Graph builder
 links:
-  decided-by: [DEC-0003, DEC-0010]
+  decided-by: DEC-0003
   instance-of: { to: PAT-pipes-and-filters, role: filter }
   uses: [ARCH-spec-parser, ARCH-code-annotations, ARCH-graph, ARCH-vocabulary]
 ---
@@ -21,7 +21,7 @@ as nodes. The words it interprets come from the vocabulary profile ([[ARCH-vocab
 | a spec | A node of its kind at `file:1`, with its attributes and derived facts: `file`, `summary`, `scenarios`, `openQuestions` (unresolved only), and `verification` and `stage` from the results. |
 | a scenario | A `scenario` node at its line that `-verifies->` its spec. |
 | an inline node | A node at the line of its `id`; `declaredIn` names its spec and is an attribute, not an edge. |
-| a link key: an entry of `links:`, a plan or phase relation, an entry of `activity`, a key under `vocabulary.links` | An edge named by its relation (`activity.implementation` for an entry of `activity`), at the line of its target, with the link's attributes ([[DEC-0010]]). Every other key is a value and never links. |
+| a link key: an entry of `links:`, a plan or phase relation, an entry of `activity`, a key under `vocabulary.links` | An edge named by its relation (`activity.implementation` for an entry of `activity`), at the line of its target, with the link's attributes. Every other key is a value and never links: were the value to decide, a reference to a renamed node would turn into text without a word. |
 | a link named like an attribute: one of `stage`, `verification`, `scenarios`, `summary`, `file`, `openQuestions`, `declaredIn`, `maturity`, `status`, or an attribute the node it starts from has | A `link-syntax` error where it is written, and no edge: a link reads as an attribute of its node, so it would pass for that fact. In front matter, in prose (`stage:: [[ID]]`) and in code alike. |
 | a prose link | `-mentions->`, or the typed relation. A spec mentioning itself, or a node a link already joins it to, adds nothing. |
 | an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`) — at the declaration's line, with its JSDoc as `doc` for typed annotations — with an edge to each target carrying the annotation's attributes. |

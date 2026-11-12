@@ -9,7 +9,7 @@ tags: [execution]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-runner
-  decided-by: [DEC-0005, DEC-0001, DEC-0011]
+  decided-by: [DEC-0005, DEC-0001, DEC-0010]
 ---
 
 # Executable specifications
@@ -142,7 +142,7 @@ The statuses of a spec's scenarios roll up into the spec (the first matching row
 `verified` therefore promises exactly this, and nothing wider: **every scenario of the spec
 passed against the fingerprinted inputs below, and none of them has changed since.** It says
 nothing about what sdp was not told of — a service the steps call, the clock, a file read while
-running that `evidence.inputs` does not name ([[DEC-0011]]).
+running that `evidence.inputs` does not name ([[DEC-0010]]).
 
 ### What a result records
 
@@ -225,7 +225,7 @@ anything executes or is recorded ([[REQ-cli]]). Other errors
 `sdp check` reports, such as a dangling link, leave every scenario readable and do not stop a run;
 neither do undefined steps, which are specifications not automated yet.
 
-## Gates and records that no longer apply
+## Gates
 
 `sdp run` executes ordinary scenarios first and **gate scenarios** second — scenarios of milestones
 (`kind: milestone`) and scenarios tagged `@gate` — against a graph rebuilt with the fresh results
@@ -234,9 +234,6 @@ of the ordinary ones (*Layers* above), so a gate can require what the run just v
 ([[REQ-builtin-steps]]). An unmet gate is reported but does not fail `sdp run`, because a future
 milestone is expected to be unmet; `sdp gate <milestone>` ([[REQ-cli]]) evaluates one milestone
 and exits with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp run`.
-
-Specs whose `status` is `superseded`, `rejected` or `deprecated` keep their text but do not run: a
-decision that no longer applies stops guarding anything.
 
 ## Running concurrently
 
@@ -1024,35 +1021,6 @@ Scenario: --snippets prints one module for every undefined step, each expression
 ### Runs
 
 ~~~gherkin
-Scenario Outline: Records that no longer apply do not run
-  Given a file "docs/DEC-0001.md" containing:
-    """
-    ---
-    id: DEC-0001
-    kind: decision
-    status: <status>
-    ---
-    # Release weekly
-
-    ## Decision
-
-    We release every Monday.
-
-    ```gherkin
-    Scenario: Releases are weekly
-      Then the query "release" returns at least 52 results
-    ```
-    """
-  When the workspace is run
-  Then node "DEC-0001#releases-are-weekly" has attribute status = "<scenario>"
-
-  Examples:
-    | status     | scenario |
-    | accepted   | failed   |
-    | superseded | unrun    |
-    | rejected   | unrun    |
-    | deprecated | unrun    |
-
 Scenario: A partial run keeps the results of everything else
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes

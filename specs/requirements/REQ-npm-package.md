@@ -11,7 +11,6 @@ activity:
   deployment: [T1, T2]
 links:
   refines: CAP-living-specs
-  decided-by: DEC-0012
 ---
 
 # Install sdp from npm
@@ -22,13 +21,13 @@ only from a clone of this repository.
 
 Running from TypeScript sources ([[NFR-no-build-step]]) stops at `node_modules`: Node.js does not
 strip types from files there, so an installed copy cannot run the way a clone does. A release
-therefore emits JavaScript and declarations ([[DEC-0012]]); this requirement is building and
+therefore emits JavaScript and declarations; this requirement is building and
 publishing it.
 
 ## Open questions
 
 - [x] Publish compiled JavaScript produced only when packing, and keep running from source in
-  the repository? Yes ([[DEC-0012]]).
+  the repository? Yes: a build between an edit and its effect is output that can be stale.
 - [ ] How is a release shown to behave like the sources that were verified: the scenarios run
   again against the packed package, or a smoke test of it?
 - [ ] Which Node.js versions does the published package support?

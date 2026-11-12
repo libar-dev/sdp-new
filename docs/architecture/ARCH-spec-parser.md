@@ -4,7 +4,7 @@ kind: element
 title: Spec parser
 iteration: I1
 links:
-  decided-by: [DEC-0001, DEC-0010]
+  decided-by: DEC-0001
   instance-of: { to: PAT-pipes-and-filters, role: filter }
   uses: ARCH-vocabulary
 ---
@@ -34,13 +34,13 @@ the checker and the context bundle never read Markdown themselves.
   repeated by an alias, which stands for the anchor's value at the alias's own line; an alias
   inside the value it names or one that names no anchor, a tag JSON has no type for (`!!set`,
   `!!binary`), a number it cannot hold (`.inf`) or a key that is not plain text is an error.
-- **Links** are read from the keys that link ([[DEC-0010]]): the entries of `links:`, and the keys
+- **Links** are read from the keys that link ([[ARCH-graph-builder]]): the entries of `links:`, and the keys
   the vocabulary names — the plan and phase relations, a workspace's own link keys and each
   discipline of `activity`, as `activity.<discipline>`. A key's value is one id, a comma-separated
   or YAML list of ids, or a map with `to` and the link's attributes; each link is at the line of
   its target.
 - **Kinds.** A node has the kind its `kind` gives it, else the kind its id prefix says
-  ([[DEC-0018]]). The kinds sdp makes itself — `scenario`, `code`, `missing` — are not an author's
+  ([[REQ-configuration]]). The kinds sdp makes itself — `scenario`, `code`, `missing` — are not an author's
   to give: one written is a `derived-attribute` error and counts as not written.
 - **The body** is CommonMark, parsed by `mdast-util-from-markdown`. What a renderer shows as code
   — fenced and indented code blocks, code spans — and HTML, comments included, is never read as a
@@ -66,7 +66,9 @@ spec, unless a `Feature:` line opens the first block, and is tagged with the spe
 a `Feature:` line anywhere else is content.
 
 - A scenario's id is `<spec id>#<slug of its name>`, made unique within the file with `-2`, `-3`, …;
-  an unnamed scenario is `#scenario-<position>`.
+  an unnamed scenario is `#scenario-<position>`. Not its position, which every edit above it
+  would change, and not a tag to keep unique by hand: the id survives a move and an edit of its
+  steps, and a renamed scenario is a new one.
 - Outlines compile to one executable example per row, Background steps included.
 - Each scenario carries a hash of what a step handler can observe of it — its examples' names,
   their tags (inherited ones too), step text, doc strings and tables. Editing any of them makes

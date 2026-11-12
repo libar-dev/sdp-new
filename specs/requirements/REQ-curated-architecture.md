@@ -96,6 +96,18 @@ Scenario: An element anchored in code is part of the architecture
   When I ask for the architecture view
   Then the output contains "ARCH-quiet — ARCH-quiet (element)"
 
+Scenario: However much code there is, the architecture is what an architect declared or anchored
+  Given a file "src/orders.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+    export class Orders {}
+    export class OrderMapper {}
+    export class OrderValidator {}
+    annotate(Orders, { is: "ARCH-orders" })
+    """
+  When I query "element|pattern"
+  Then the result is "ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox"
+
 Scenario: What belongs in the architecture is never checked
   When the workspace is checked
   Then the check reports nothing

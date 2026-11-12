@@ -24,7 +24,7 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type GraphNode, tally } from "../model/Graph.ts"
-import { activityRelation, attribute, hasKind, hasRelation, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { activityRelation, attribute, hasKind, hasRelation, isPlanKind, made, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
@@ -72,8 +72,7 @@ export interface PlannedActivity {
 
 /** The plan's own nodes and the nodes sdp makes are not planned work. */
 const isStructural = (vocabulary: Vocabulary, node: GraphNode) =>
-  hasKind(vocabulary, "phase", node.kind) || hasKind(vocabulary, "iteration", node.kind) ||
-  hasKind(vocabulary, "milestone", node.kind) || Object.values(made.kinds).some((kind) => kind === node.kind)
+  isPlanKind(vocabulary, node.kind) || Object.values(made.kinds).some((kind) => kind === node.kind)
 
 /** Scenario statuses that mean it has not been executed (since its last change). */
 const notExecuted = new Set(["unrun", "stale"])
