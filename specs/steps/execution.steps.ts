@@ -5,7 +5,7 @@
  * what agents get from them (MCP tools, context bundles, the rule catalogue).
  * Shares its world with every other module (world.ts).
  */
-import { Duration, Effect, Layer, Path } from "effect"
+import { Duration, Effect } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { isDeepStrictEqual } from "node:util"
@@ -15,8 +15,9 @@ import { builtinSteps } from "../../src/run/Builtin.ts"
 import type { StepResult } from "../../src/run/Results.ts"
 import { runScenarios } from "../../src/run/Runner.ts"
 import { runWorkspace } from "../../src/run/Session.ts"
+import { writeResults } from "../../src/workspace/Workspace.ts"
 import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "../../src/run/Steps.ts"
-import { layerMemory, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, newWorld, reload, type World } from "./world.ts"
 
 // --- scripted step definitions ---------------------------------------------
@@ -35,10 +36,16 @@ interface Received {
   readonly table: ReadonlyArray<ReadonlyArray<string>> | undefined
 }
 
+/** What scripted step definitions record for the outer scenario to assert on. */
+interface Log {
+  readonly received: Array<Received>
+  readonly timeline: Array<{ readonly scenario: string; readonly start: number; readonly end: number }>
+}
+
 type Behaviour = (
   context: StepContext<Record<string, number>, ReadonlyArray<unknown>>,
   expression: string,
-  received: Array<Received>
+  log: Log
 ) => StepOutcome
 
 const failure = (expression: string) => new Error(`deliberate failure in "${expression}"`)
@@ -58,7 +65,13 @@ const behaviours: Record<string, Behaviour> = {
   "returns a rejected Promise": (_, expression) => Promise.reject(failure(expression)),
   "wraps a failing Promise in Effect.tryPromise": (_, expression) => Effect.tryPromise(() => Promise.reject(failure(expression))),
   "takes a second": () => Effect.sleep("1 second"),
-  "records its arguments": ({ args, doc, table }, _, received) => void received.push({ args, doc, table }),
+  "records its arguments": ({ args, doc, table }, _, log) => void log.received.push({ args, doc, table }),
+  "takes a moment": ({ scenario }, _, log) =>
+    Effect.gen(function*() {
+      const start = performance.now()
+      yield* Effect.sleep("50 millis")
+      log.timeline.push({ scenario: scenario.name, start, end: performance.now() })
+    }),
   "adds an item to its world": ({ world }) => {
     world.items = (world.items ?? 0) + 1
   },
@@ -71,7 +84,7 @@ behaviours.pends = behaviours["returns pending()"]!
 /** One step module per module name; modules naming the same world share one world factory. */
 const scriptedSteps = (
   definitions: ReadonlyArray<Scripted>,
-  received: Array<Received> = []
+  log: Log = { received: [], timeline: [] }
 ): ReadonlyArray<StepModule<Record<string, number>>> => {
   const factories = new Map<string, () => Record<string, number>>()
   const factory = (name: string) => {
@@ -81,20 +94,19 @@ const scriptedSteps = (
   const byModule = Map.groupBy(definitions, (d) => d.module)
   return [...byModule].map(([name, list]) =>
     defineSteps(factory(list[0]!.world), ({ Step }) => {
-      for (const { behaviour, expression } of list) Step(expression, (context) => behaviours[behaviour]!(context, expression, received))
+      for (const { behaviour, expression } of list) Step(expression, (context) => behaviours[behaviour]!(context, expression, log))
     }, { name })
   )
 }
 
-interface Execution {
+interface Execution extends Log {
   /** Module and world of `world.definitions[i]`, when a scenario names them. */
   readonly placements: Array<{ readonly module: string; readonly world: string } | undefined>
-  readonly received: Array<Received>
   tools: ReadonlyArray<string>
 }
 
 const execution = (world: World): Execution =>
-  (world.scratch.execution ??= { placements: [], received: [], tools: [] }) as Execution
+  (world.scratch.execution ??= { placements: [], received: [], timeline: [], tools: [] }) as Execution
 
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))
@@ -111,21 +123,27 @@ const define = (world: World, definition: Scripted) => {
 const runInMemory = (world: World, timeout?: Duration.Input) =>
   Effect.gen(function*() {
     const project = yield* reload(world)
-    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world).received)]
+    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world))]
     world.run = yield* runScenarios({ project, modules, timeout })
-    world.files.set(".sdp/results.json", JSON.stringify(world.run))
+    yield* writeResults(memoryRoot, project.config, world.run).pipe(Effect.provide(layerMemoryWorkspace(world.files)))
     yield* reload(world)
   })
 
 /** What `sdp run [targets]` does — selection, ordinary scenarios, then gates — on the in-memory workspace. */
-const runWorkspaceInMemory = (world: World, targets: ReadonlyArray<string> = []) =>
+const runWorkspaceInMemory = (world: World, targets: ReadonlyArray<string> = [], concurrency = 1) =>
   Effect.gen(function*() {
-    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world).received)]
-    const run = yield* runWorkspace(memoryRoot, { modules, selection: { targets } })
+    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world))]
+    const run = yield* runWorkspace(memoryRoot, { modules, selection: { targets }, concurrency })
     world.run = run.results
     world.scratch.gateResults = run.gates
     yield* reload(world)
-  }).pipe(Effect.provide(Layer.merge(layerMemory(world.files), Path.layer)))
+  }).pipe(Effect.provide(layerMemoryWorkspace(world.files)))
+
+const interval = (world: World, scenario: string) => {
+  const found = execution(world).timeline.find((t) => t.scenario === scenario)
+  assert.ok(found, `"${scenario}" recorded no timing; recorded: ${execution(world).timeline.map((t) => t.scenario).join(", ")}`)
+  return found
+}
 
 // --- results ----------------------------------------------------------------
 
@@ -165,6 +183,19 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("the workspace is run", ({ world }) => runWorkspaceInMemory(world))
 
   When("the workspace is run for {string}", ({ args: [targets], world }) => runWorkspaceInMemory(world, targets.split(/\s+/)))
+
+  When("the workspace is run with concurrency {int}", ({ args: [concurrency], world }) => runWorkspaceInMemory(world, [], concurrency))
+
+  Then("the scenarios {string} and {string} overlapped", ({ args: [a, b], world }) => {
+    const [first, second] = [interval(world, a), interval(world, b)]
+    assert.ok(first.start < second.end && second.start < first.end, `"${a}" and "${b}" ran one after the other`)
+  })
+
+  Then("the scenario {string} ran alone", ({ args: [name], world }) => {
+    const alone = interval(world, name)
+    const overlapping = execution(world).timeline.filter((t) => t !== alone && t.start < alone.end && alone.start < t.end)
+    assert.equal(overlapping.length, 0, `"${name}" overlapped ${overlapping.map((t) => `"${t.scenario}"`).join(", ")}`)
+  })
 
   When("the scenarios are run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, Duration.millis(ms)))
 
@@ -213,7 +244,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.gen(function*() {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
       execution(world).tools = (yield* client.listTools()).tools.map((t) => t.name)
-    }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerMemory(world.files), Path.layer))))
+    }).pipe(Effect.scoped, Effect.provide(layerMemoryWorkspace(world.files))))
 
   Then("the MCP tools are {string}", ({ args: [list], world }) => {
     assert.deepEqual([...execution(world).tools].sort(), ids(list))

@@ -4,16 +4,14 @@
  * world with every other module (world.ts); module-local state lives in
  * `world.scratch`.
  */
-import { Effect, Layer, Path, Result } from "effect"
+import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
-import { builtinSteps } from "../../src/run/Builtin.ts"
 import { newId } from "../../src/cli/templates.ts"
 import { formatPath } from "../../src/graph/Query.ts"
 import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
-import { runScenarios } from "../../src/run/Runner.ts"
-import { defineSteps, pending, type StepModule } from "../../src/run/Steps.ts"
-import { layerMemory, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { findFiles, writeResults } from "../../src/workspace/Workspace.ts"
+import { defineSteps } from "../../src/run/Steps.ts"
+import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { findFiles } from "../../src/workspace/Workspace.ts"
 import { ids, load, newWorld, reload, setFile } from "./world.ts"
 
 const outputLine = (output: string, text: string) => {
@@ -69,27 +67,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.gen(function*() {
       const { config } = yield* load(world)
       const files = yield* findFiles(memoryRoot, config.steps, config.exclude).pipe(
-        Effect.provide(Layer.merge(layerMemory(world.files), Path.layer))
+        Effect.provide(layerMemoryWorkspace(world.files))
       )
       assert.deepEqual(files, ids(expected))
-    }))
-
-  When("the scenarios are run and their results saved", ({ world }) =>
-    Effect.gen(function*() {
-      const project = yield* reload(world)
-      const module: StepModule<{}> = defineSteps(() => ({}), ({ Step }) => {
-        for (const { behaviour, expression } of world.definitions) {
-          Step(expression, () => {
-            if (behaviour === "fails") throw new Error(`deliberate failure in "${expression}"`)
-            if (behaviour === "pends") return pending("not yet")
-          })
-        }
-      })
-      world.run = yield* runScenarios({ project, modules: [builtinSteps, module] })
-      yield* writeResults(memoryRoot, project.config, world.run).pipe(
-        Effect.provide(Layer.merge(layerMemory(world.files), Path.layer))
-      )
-      yield* reload(world)
     }))
 
   Then("the results are stored in {string}", ({ args: [path], world }) => {

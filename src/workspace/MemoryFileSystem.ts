@@ -37,6 +37,10 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
 export const layerMemory = (files: Map<string, string>): Layer.Layer<FileSystem.FileSystem> =>
   Layer.succeed(FileSystem.FileSystem, makeMemoryFileSystem(files))
 
+/** Everything the loading pipeline needs to run on an in-memory workspace. */
+export const layerMemoryWorkspace = (files: Map<string, string>): Layer.Layer<FileSystem.FileSystem | Path.Path> =>
+  Layer.merge(layerMemory(files), Path.layer)
+
 /** Load a project from in-memory files, optionally with stored results (as written to `config.results`). */
 export const loadMemoryProject = (files: Map<string, string>, options: { readonly withResults?: boolean } = {}) =>
-  loadProject(memoryRoot, options).pipe(Effect.provide(Layer.merge(layerMemory(files), Path.layer)))
+  loadProject(memoryRoot, options).pipe(Effect.provide(layerMemoryWorkspace(files)))

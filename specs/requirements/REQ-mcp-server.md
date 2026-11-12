@@ -119,7 +119,7 @@ Scenario: The architecture tool returns only what architects marked significant
     {}
     """
   Then the output field "significant" holds "ARCH-orders"
-  And the output field "declaredNotSignificant" holds "ARCH-cache"
+  And the output field "declared" holds "ARCH-cache"
   And the output field "nodes" holds "ARCH-orders, DEC-0001"
 
 Scenario: Every call sees the files as they are now

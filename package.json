@@ -16,9 +16,9 @@
   "scripts": {
     "sdp": "node src/cli/main.ts",
     "typecheck": "tsc --noEmit",
-    "test": "node src/cli/main.ts run",
+    "test": "node src/cli/main.ts run --concurrency 8",
     "check": "node src/cli/main.ts check",
-    "verify": "tsc --noEmit && node src/cli/main.ts check && node src/cli/main.ts run"
+    "verify": "tsc --noEmit && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8"
   },
   "dependencies": {
     "@cucumber/cucumber-expressions": "^20.2.0",

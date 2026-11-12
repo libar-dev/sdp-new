@@ -4,11 +4,9 @@
  * measurements. Running scenarios lives in execution.steps.ts. Shares its world
  * with every other module (world.ts).
  */
-import { Effect, Layer, Path, Result } from "effect"
+import { Effect, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { execFile } from "node:child_process"
-import { promisify } from "node:util"
 import { architectureView, rankCandidates } from "../../src/arch/Architecture.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
 import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
@@ -18,7 +16,7 @@ import { check } from "../../src/check/Check.ts"
 import { registrations } from "../../src/mcp/Server.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
-import { layerMemory, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
@@ -28,25 +26,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Given("an empty workspace", () => {})
 
-  Given("{int} exported abstractions in {string}", ({ args: [count, path], world }) => {
-    world.files.set(path, Array.from({ length: count }, (_, i) => `export class Abstraction${i} {}`).join("\n"))
-  })
-
-  Given("{int} significant element(s), each justified by a decision", ({ args: [count], world }) => {
-    const nodes = Array.from({ length: count }, (_, i) =>
-      `  - { id: ARCH-s${i}, kind: element, significant: true, rationale: "reason ${i}", links: { decided-by: DEC-s${i} } }\n` +
-      `  - { id: DEC-s${i}, kind: decision, status: accepted }`)
-    world.files.set("docs/significant.md", `---\nid: SIGNIFICANT\nkind: view\nnodes:\n${nodes.join("\n")}\n---\n# Significant\n`)
-    world.project = undefined
-  })
-
   When("the workspace is loaded", ({ world }) => Effect.asVoid(reload(world)))
 
   Then("the workspace graph has node {string} of kind {string}", ({ args: [id, kind], world }) =>
     Effect.map(load(world), (project) => assert.equal(node(project, id).kind, kind)))
-
-  Then("the workspace graph has no node {string}", ({ args: [id], world }) =>
-    Effect.map(load(world), (project) => assert.equal(project.graph.node(id), undefined, `${id} should not be a node`)))
 
   Then("node {string} has attribute {word} = {string}", ({ args: [id, key, value], world }) =>
     Effect.map(load(world), (project) => {
@@ -118,11 +101,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the check does not report {string}", ({ args: [rule], world }) => {
     const found = world.diagnostics?.filter((d) => d.rule === rule) ?? []
     assert.equal(found.length, 0, found.map((d) => d.message).join("\n"))
-  })
-
-  Then("the check reports no errors", ({ world }) => {
-    const errors = world.diagnostics?.filter((d) => d.severity === "error") ?? []
-    assert.equal(errors.length, 0, errors.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
   })
 
   Then("the {string} diagnostic has severity {string}", ({ args: [rule, severity], world }) => {
@@ -208,7 +186,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
       world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
       world.scratch.mcpError = result.isError === true
-    }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerMemory(world.files), Path.layer))))
+    }).pipe(Effect.scoped, Effect.provide(layerMemoryWorkspace(world.files))))
 
   // --- quality attributes ---------------------------------------------------
 
@@ -246,15 +224,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the median run completes within {int} ms", ({ args: [budget], world }) => {
     assert.ok(world.durationMs <= budget, `median ${world.durationMs.toFixed(1)} ms exceeds ${budget} ms`)
   })
-
-  When("I run {string} in the repository", ({ args: [command], project, world }) =>
-    Effect.tryPromise(async () => {
-      const [bin, ...argv] = command.split(" ")
-      const { stdout } = await promisify(execFile)(bin === "sdp" ? process.execPath : bin!, bin === "sdp" ? ["src/cli/main.ts", ...argv] : argv, {
-        cwd: project.root
-      })
-      world.output = stdout
-    }))
 
   // These assert against this repository's own graph (ctx.project), not an in-memory one.
   Then("every node of this repository has a source location", ({ project }) => {

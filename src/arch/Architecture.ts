@@ -9,6 +9,7 @@
 import { Predicate } from "effect"
 import type { GraphEdge, GraphNode } from "../model/Graph.ts"
 import type { Project } from "../graph/Build.ts"
+import { nodeJson } from "../graph/Export.ts"
 
 // @sdp is ARCH-architecture-view
 
@@ -109,4 +110,16 @@ export const architectureView = (project: Project): ArchitectureView => {
   }
   const sub = graph.subgraph(keep)
   return { nodes: [...sub.nodes.values()], edges: sub.edges }
+}
+
+/** The curated view as JSON — one shape for `sdp arch --format json` and the MCP tool. */
+export const architectureJson = (project: Project) => {
+  const summary = architectureSummary(project)
+  const view = architectureView(project)
+  return {
+    significant: summary.significant.map((n) => n.id),
+    declared: summary.declared.map((n) => n.id),
+    nodes: view.nodes.map(nodeJson),
+    edges: view.edges.map((e) => ({ from: e.from, rel: e.rel, to: e.to }))
+  }
 }

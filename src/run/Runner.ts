@@ -115,7 +115,8 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
     }
     return {
       name: pickle.name,
-      status: worstStatus(steps.map((s) => s.status)),
+      // No steps means nothing is automated: undefined, like a step without a definition.
+      status: steps.length === 0 ? "undefined" : worstStatus(steps.map((s) => s.status)),
       ...(pickle.exampleLine ? { exampleLine: pickle.exampleLine } : {}),
       steps
     } satisfies PickleResult
@@ -125,29 +126,46 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
     spec.scenarios.filter((scenario) => options.filter?.(scenario, spec) ?? true).map((scenario) => ({ spec, scenario }))
   )
   const runAt = DateTime.formatIso(yield* DateTime.now)
-  const results = yield* Effect.forEach(
-    selected,
-    Effect.fnUntraced(function*({ scenario, spec }) {
-      const started = performance.now()
-      const pickles: Array<PickleResult> = []
-      for (const pickle of scenario.pickles) pickles.push(yield* runPickle(spec, scenario, pickle))
-      const result: ScenarioResult = {
-        id: scenario.id,
-        spec: spec.id,
-        name: scenario.name,
-        file: spec.file,
-        line: scenario.line,
-        status: pickles.length === 0 ? "skipped" : worstStatus(pickles.map((p) => p.status)),
-        hash: scenario.hash,
-        runAt,
-        durationMs: Math.round(performance.now() - started),
-        pickles
-      }
-      if (options.onScenario) yield* options.onScenario(result)
-      return result
-    }),
+  const runOne = Effect.fnUntraced(function*({ scenario, spec }: { readonly spec: Spec; readonly scenario: Scenario }) {
+    const started = performance.now()
+    const pickles: Array<PickleResult> = []
+    for (const pickle of scenario.pickles) pickles.push(yield* runPickle(spec, scenario, pickle))
+    return {
+      id: scenario.id,
+      spec: spec.id,
+      name: scenario.name,
+      file: spec.file,
+      line: scenario.line,
+      status: pickles.length === 0 ? "undefined" : worstStatus(pickles.map((p) => p.status)),
+      hash: scenario.hash,
+      runAt,
+      durationMs: Math.round(performance.now() - started),
+      pickles
+    } satisfies ScenarioResult
+  })
+
+  // Scenarios run concurrently when asked to, except `@serial` ones (timings, shared resources),
+  // which run alone afterwards. Results are reported in order whatever finishes first.
+  const isSerial = ({ scenario }: { readonly scenario: Scenario }) => scenario.pickles.some((p) => p.tags.includes("@serial"))
+  const concurrent = selected.filter((item) => !isSerial(item))
+  const serial = selected.filter(isSerial)
+  const done = new Map<number, ScenarioResult>()
+  let reported = 0
+  const report = Effect.fnUntraced(function*(index: number, result: ScenarioResult) {
+    done.set(index, result)
+    while (done.has(reported)) {
+      if (options.onScenario) yield* options.onScenario(done.get(reported)!)
+      reported++
+    }
+  })
+  const first = yield* Effect.forEach(
+    concurrent,
+    (item, index) => Effect.tap(runOne(item), (result) => report(index, result)),
     { concurrency: options.concurrency ?? 1 }
   )
+  const rest = yield* Effect.forEach(serial, (item, index) => Effect.tap(runOne(item), (result) => report(concurrent.length + index, result)))
+  const byId = new Map([...first, ...rest].map((r) => [r.id, r]))
+  const results = selected.map(({ scenario }) => byId.get(scenario.id)!)
   return { version: 1, runAt, scenarios: Object.fromEntries(results.map((r) => [r.id, r])) } satisfies RunResults
 })
 

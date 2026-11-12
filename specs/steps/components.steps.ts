@@ -6,7 +6,7 @@
  * pipeline. Expectations are data tables whose header names the columns
  * checked, so a scenario states only what it is about.
  */
-import { Effect, Layer, Path, Result } from "effect"
+import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
@@ -15,7 +15,7 @@ import { type Annotation, scanAnnotations } from "../../src/parse/Annotations.ts
 import type { Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
-import { layerMemory, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { loadConfig } from "../../src/workspace/Workspace.ts"
 import { ids, load, newWorld, setFile, type World } from "./world.ts"
 
@@ -215,7 +215,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 // ---------------------------------------------------------------------------
 
 const parse = (world: World, path: string) =>
-  Effect.map(loadConfig(memoryRoot).pipe(Effect.provide(Layer.merge(layerMemory(world.files), Path.layer))), (config) => {
+  Effect.map(loadConfig(memoryRoot).pipe(Effect.provide(layerMemoryWorkspace(world.files))), (config) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
     world.scratch.parsed = path.endsWith(".feature") ? parseFeatureSpec(path, content, config) : parseMarkdownSpec(path, content, config)

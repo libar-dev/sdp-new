@@ -64,6 +64,8 @@ Examples table — and matches each step against every step definition.
 | `ambiguous` | more than one definition matches; the error names them |
 | `skipped` | an earlier step of the same example did not pass |
 
+A scenario without any steps is `undefined` as a whole: nothing in it is automated.
+
 Every step is matched even after one did not pass, so one run reports every missing and ambiguous
 definition; only execution stops. An example's status is the worst of its steps, and a scenario's
 the worst of its examples, in this order: `failed`, `ambiguous`, `undefined`, `pending`, `skipped`,
@@ -103,6 +105,14 @@ with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp
 
 Specs whose `status` is `superseded`, `rejected` or `deprecated` keep their text but do not run: a
 decision that no longer applies stops guarding anything.
+
+## Running concurrently
+
+`sdp run --concurrency <n>` runs up to `n` scenarios at once, which pays off when steps wait on
+processes, files or networks. Scenarios tagged `@serial` — timing measurements, anything sharing a
+resource — always run alone, after the others. Results are reported in scenario order whatever
+finishes first, so output stays stable. The default is one at a time, because step definitions
+written for a sequential run may share state.
 
 ## Scenarios
 
@@ -155,6 +165,25 @@ Scenario: Without step definitions a spec is simply not automated yet
   Then scenario "REQ-cart#add-an-item" has status "undefined"
   And node "REQ-cart" has attribute verification = "undefined"
   And node "REQ-cart" has attribute stage = "ready"
+
+Scenario: A scenario without steps automates nothing
+  Given a file "specs/REQ-later.md" containing:
+    """
+    ---
+    id: REQ-later
+    maturity: draft
+    ---
+    # Later
+
+    Something to specify.
+
+    ```gherkin
+    Scenario: To be written
+    ```
+    """
+  When the scenarios are run
+  Then scenario "REQ-later#to-be-written" has status "undefined"
+  And node "REQ-later" has attribute stage = "draft"
 
 Scenario: A scenario stays undefined until every step has a definition
   Given a step definition "an empty cart" that passes
@@ -399,6 +428,27 @@ Scenario: A partial run keeps the results of everything else
   Then scenario "REQ-wishlist#remember-a-lamp" has status "passed"
   And scenario "REQ-cart#add-an-item" has status "passed"
   And scenario "REQ-wishlist#keep-a-lamp-for-later" has no result
+
+Scenario: Scenarios run concurrently when asked to, except those tagged @serial
+  Given a file "specs/timing.feature" containing:
+    """
+    @id:REQ-timing
+    Feature: Timing
+      Scenario: One
+        Given a slow step
+
+      Scenario: Two
+        Given a slow step
+
+      @serial
+      Scenario: Alone
+        Given a slow step
+    """
+  And a step definition "a slow step" that takes a moment
+  When the workspace is run with concurrency 4
+  Then the scenarios "One" and "Two" overlapped
+  And the scenario "Alone" ran alone
+  And scenario "REQ-timing#alone" has status "passed"
 ~~~
 
 ### Gates

@@ -11,6 +11,7 @@ quality: performance
 B2B customers order hundreds of lines; recalculating the total on every change must feel instant.
 
 ```gherkin
+@serial
 Scenario: Large cart total
   Given a cart with 1000 distinct lines
   When the total is calculated 100 times

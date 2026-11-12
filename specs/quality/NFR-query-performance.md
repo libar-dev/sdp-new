@@ -20,19 +20,19 @@ of nodes.
 ## Scenarios
 
 ~~~gherkin
-@slow
+@slow @serial
 Scenario: Two-hop query on a graph of 20,000 nodes
   Given a generated graph of 20000 nodes and 60000 edges
   When the query "requirement[maturity=ready] -realized-by-> element -decided-by-> decision" runs on it
   Then the median run completes within 250 ms
 
-@slow
+@slow @serial
 Scenario: Negative filter across the whole graph
   Given a generated graph of 20000 nodes and 60000 edges
   When the query "element[significant] !-*- decision" runs on it
   Then the median run completes within 250 ms
 
-@slow
+@slow @serial
 Scenario: Building the graph from 5,000 specs
   Given a generated workspace of 5000 specs
   When the graph is built from it

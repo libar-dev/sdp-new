@@ -64,13 +64,22 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   readonly modules: ReadonlyArray<StepModule<any>>
   readonly selection?: Selection | undefined
   readonly timeout?: Duration.Input | undefined
+  /** Scenarios run at once; `@serial` scenarios always run alone. */
+  readonly concurrency?: number | undefined
   readonly onScenario?: ((result: ScenarioResult) => Effect.Effect<void>) | undefined
 }) {
   const selected = selects(options.selection ?? {})
   const filter = (gates: boolean) => (scenario: Scenario, spec: Spec) =>
     isActive(spec) && isGate(scenario, spec) === gates && selected(scenario, spec)
   const run = (project: Project, gates: boolean) =>
-    runScenarios({ project, modules: options.modules, filter: filter(gates), timeout: options.timeout, onScenario: options.onScenario })
+    runScenarios({
+      project,
+      modules: options.modules,
+      filter: filter(gates),
+      timeout: options.timeout,
+      concurrency: options.concurrency,
+      onScenario: options.onScenario
+    })
 
   let project = yield* loadProject(root)
   const unknown = unmatched(project, options.selection?.targets ?? [])

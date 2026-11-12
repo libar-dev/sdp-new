@@ -6,7 +6,7 @@
 import { NodeStdio } from "@effect/platform-node"
 import { Effect, FileSystem, Layer, Path, Result, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
-import { architectureSummary, architectureView } from "../arch/Architecture.ts"
+import { architectureJson } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
@@ -114,20 +114,7 @@ const handlers = (root: string) =>
             : found.map((d) => `${d.severity} [${d.rule}] ${d.message} ${formatSource(d.source)}${d.hint ? `\n  → ${d.hint}` : ""}`).join("\n")
         }),
       sdp_architecture: () =>
-        Effect.map(load, (project) => {
-          const summary = architectureSummary(project)
-          const view = architectureView(project)
-          return JSON.stringify(
-            {
-              significant: summary.significant.map((n) => n.id),
-              declaredNotSignificant: summary.declared.map((n) => n.id),
-              nodes: view.nodes.map(nodeJson),
-              edges: view.edges.map((e) => `${e.from} -${e.rel}-> ${e.to}`)
-            },
-            null,
-            2
-          )
-        }),
+        Effect.map(load, (project) => JSON.stringify(architectureJson(project), null, 2)),
       sdp_status: () => Effect.map(load, (project) => JSON.stringify(statusSummary(project), null, 2))
     })
   }))

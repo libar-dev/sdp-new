@@ -22,16 +22,16 @@ const cli = join(repository, "src/cli/main.ts")
 // Every command is a fresh Node process; a shared compile cache keeps start-up short.
 const env = { ...process.env, NO_COLOR: "1", NODE_COMPILE_CACHE: join(tmpdir(), "sdp-compile-cache") }
 
-let base: string | undefined
+// Created once (scenarios may run concurrently, so the promise is shared, not the result).
+let base: Promise<string> | undefined
 
 /** A new directory per scenario, all removed when the run exits. */
 const scenarioDirectory = async () => {
-  if (!base) {
-    const created = await mkdtemp(join(tmpdir(), "sdp-cli-"))
+  base ??= mkdtemp(join(tmpdir(), "sdp-cli-")).then((created) => {
     process.once("exit", () => rmSync(created, { recursive: true, force: true }))
-    base = created
-  }
-  return mkdtemp(join(base, "workspace-"))
+    return created
+  })
+  return mkdtemp(join(await base, "workspace-"))
 }
 
 const directoryOf = async (world: World) => world.directory ??= await scenarioDirectory()
@@ -102,6 +102,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("I run {string}", async ({ args: [command], world }) => {
     record(world, await exec(command, await workspace(world)))
+  })
+
+  When("I run {string} in the repository", async ({ args: [command], project, world }) => {
+    record(world, await exec(command, project.root))
   })
 
   When("an MCP client of {string} calls {string} with:", async ({ args: [command, tool], doc, world }) => {

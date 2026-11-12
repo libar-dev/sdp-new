@@ -169,7 +169,7 @@ Scenario: results says where scenario results are kept
     ```
     """
   And a step definition "the cart is empty" that passes
-  When the scenarios are run and their results saved
+  When the scenarios are run
   Then the results are stored in "out/results.json"
   And node "REQ-cart" has attribute verification = "passing"
 

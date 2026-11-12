@@ -7,7 +7,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
-import { architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
+import { architectureJson, architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
@@ -25,6 +25,12 @@ import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.t
 import { agentsTemplate, configTemplate, newSpec } from "./templates.ts"
 
 // @sdp is ARCH-cli
+
+// `sdp … | head` closes the pipe early; that is the reader's choice, not an error.
+process.stdout.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EPIPE") process.exit(process.exitCode ?? 0)
+  throw error
+})
 
 const json = Flag.Boolean("json").pipe(Flag.withDescription("Print machine-readable JSON"), Flag.withDefault(false))
 
@@ -185,6 +191,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   readonly snippets: boolean
   readonly verbose: boolean
   readonly enforceGates: boolean
+  readonly concurrency?: number | undefined
 }) {
   const root = yield* workspaceRoot
   const config = yield* loadConfig(root)
@@ -194,6 +201,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   const run = yield* runWorkspace(root, {
     modules,
     selection: { targets: options.targets, tags: Option.getOrUndefined(options.tags) },
+    concurrency: options.concurrency,
     onScenario: print
   })
 
@@ -225,6 +233,10 @@ const runCommand = Command.make(
     ),
     tags: Flag.String("tags").pipe(Flag.withDescription("Cucumber tag expression, e.g. '@nfr and not @slow'"), Flag.optional),
     snippets: Flag.Boolean("snippets").pipe(Flag.withDescription("Print stubs for undefined steps"), Flag.withDefault(false)),
+    concurrency: Flag.Int("concurrency").pipe(
+      Flag.withDescription("Scenarios to run at once (scenarios tagged @serial always run alone)"),
+      Flag.withDefault(1)
+    ),
     verbose: Flag.Boolean("verbose").pipe(Flag.withDescription("Show passed steps too"), Flag.withDefault(false)),
     json
   },
@@ -272,11 +284,7 @@ const archCommand = Command.make(
       return
     }
     if (format === "json") {
-      return yield* printJson({
-        significant: summary.significant.map((n) => n.id),
-        nodes: view.nodes.map(nodeJson),
-        edges: view.edges
-      })
+      return yield* printJson(architectureJson(project))
     }
     if (format !== "text") {
       process.stdout.write(exportGraph(project.graph.subgraph(view.nodes.map((n) => n.id)), format))

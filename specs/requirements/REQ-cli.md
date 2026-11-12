@@ -384,7 +384,8 @@ Scenario: A clean workspace passes the check
 
 Executes scenarios — all, or those of the given spec ids, scenario ids, files or directories —
 and records the results in `.sdp/results.json`. `--tags` filters with a Cucumber tag expression,
-`--snippets` prints step definition stubs for undefined steps, `--verbose` shows passed steps.
+`--snippets` prints step definition stubs for undefined steps, `--verbose` shows passed steps,
+`--concurrency <n>` runs up to `n` scenarios at once (`@serial` ones alone; [[REQ-executable-specs]]).
 Milestone gates run last, against the fresh results; an unmet gate is reported but does not fail
 the run, because a later milestone is expected to be unmet.
 

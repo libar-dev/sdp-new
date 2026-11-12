@@ -19,11 +19,6 @@ import type { Spec } from "../parse/Spec.ts"
 
 // @sdp is ARCH-checker
 
-export interface GateFailure {
-  readonly level: string
-  readonly reasons: ReadonlyArray<string>
-}
-
 const builtinLevels = ["idea", "draft", "specified", "ready"] as const
 
 /** Why `spec` does not meet `level` (empty when it does). Custom levels have no gate. */
