@@ -45,6 +45,7 @@ Feature: Start a spec
       Examples:
         | kind    | title     | options | file                                  | tags                                    | next                                                                |
         | gizmo   | Sprocket  |         | specs/gizmo/sprocket.feature          | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
+        | plan    | Roadmap   |         | specs/delivery/roadmap.feature        | @id=roadmap @kind=plan                  | a phase is a file of its own                                        |
         | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk @maturity=idea    | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
         | phase   | Hardening |         | specs/delivery/PH-hardening.feature   | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
 
