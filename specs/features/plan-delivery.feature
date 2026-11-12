@@ -300,9 +300,12 @@ Feature: Plan delivery
         | IT-prototype | ARCH-x, alpha |
         | IT-baseline  |               |
 
-  Rule: Only work still to do can be unplanned: what has a maturity and is not verified
+  Rule: Only work still to be specified can be unplanned: what has a maturity below the last of the ladder
 
-    Once a spec is built, its scenarios are the record of it, and a plan of it is history.
+    How far a spec is specified is read from the files, as the plan is: the last level, ready by
+    default, is held to an example for every rule and no open question. Whether it is built is
+    evidence, which any edit can make stale; read into the plan, it would show built work as
+    unplanned until the next run.
 
     Scenario: An unplanned feature and an unplanned element
       Given these specs:
@@ -313,7 +316,7 @@ Feature: Plan delivery
       Then the output line with "unplanned" contains "later"
       And the output line with "unplanned" does not contain "ARCH-cache"
 
-    Scenario: A feature that is built, with no plan
+    Scenario: A feature that is built, with no plan, before its scenarios have run and after
       Given a file "specs/done.feature" containing:
         """
         @id=done @maturity=ready
@@ -330,10 +333,31 @@ Feature: Plan delivery
         | tags                     | Feature |
         | @id=later @maturity=idea | Later   |
       And a step definition "it works" that passes
+      When the lifecycle is computed on "2026-01-20"
+      Then the output line with "unplanned" contains "later"
+      And the output line with "unplanned" does not contain "done"
       When the workspace is run
       And the lifecycle is computed on "2026-01-20"
       Then the output line with "unplanned" contains "later"
       And the output line with "unplanned" does not contain "done"
+
+    Scenario: A specified feature with scenarios, with no plan
+      Given a file "specs/soon.feature" containing:
+        """
+        @id=soon @maturity=specified
+        Feature: Soon
+
+          Something to build next.
+
+          Rule: It is fast
+
+            Scenario: Fast
+              Then it is fast
+
+          Rule: It is cheap
+        """
+      When the lifecycle is computed on "2026-01-20"
+      Then the output line with "unplanned" contains "soon"
 
   Rule: The chart shades each discipline relative to its busiest iteration
 
