@@ -9,7 +9,7 @@ import { strict as assert } from "node:assert"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { delimiter, dirname, join, resolve } from "node:path"
 import { execFile } from "node:child_process"
-import { rmSync } from "node:fs"
+import { realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
 import { produce, settled, type World } from "./world.ts"
@@ -17,11 +17,24 @@ import { produce, settled, type World } from "./world.ts"
 export const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)))
 export const cli = join(repository, "src/cli/main.ts")
 // Every command is a fresh Node process; a shared compile cache keeps start-up short.
+// No repository above the temporary directory is one of a scenario's, whatever the machine has there.
 export const env = {
   ...process.env,
   PATH: [join(repository, "node_modules/.bin"), process.env.PATH].filter(Boolean).join(delimiter),
   NO_COLOR: "1",
-  NODE_COMPILE_CACHE: join(tmpdir(), "sdp-compile-cache")
+  NODE_COMPILE_CACHE: join(tmpdir(), "sdp-compile-cache"),
+  GIT_CEILING_DIRECTORIES: [tmpdir(), realpathSync(tmpdir())].join(delimiter)
+}
+
+/** Git as a scenario's own repository uses it: none of the machine's configuration, and an author for its commits. */
+export const gitEnv = {
+  ...env,
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_AUTHOR_NAME: "sdp",
+  GIT_AUTHOR_EMAIL: "sdp@example.com",
+  GIT_COMMITTER_NAME: "sdp",
+  GIT_COMMITTER_EMAIL: "sdp@example.com"
 }
 
 // Created once (scenarios may run concurrently, so the promise is shared, not the result).

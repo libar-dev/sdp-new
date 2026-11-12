@@ -7,9 +7,11 @@
  * A maturity is the team's judgement of how far work still to come has come, so
  * neither its value nor the content behind it is checked. What is checked is
  * what is live — a Feature or a Rule that declares no maturity: a live rule has
- * an example.
+ * an example, and, against a base revision (`compareWithBase`), nothing live
+ * stops being live without an error.
  */
 import { Predicate } from "effect"
+import { createHash } from "node:crypto"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
@@ -24,11 +26,11 @@ import {
   type Vocabulary,
   wordFor
 } from "../model/Vocabulary.ts"
-import { type Project, workOf } from "../graph/Build.ts"
+import { type Project, type SourceFile, workOf } from "../graph/Build.ts"
 import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
 import { codeNodeId } from "../parse/Annotations.ts"
-import type { Rule } from "../parse/Gherkin.ts"
-import { type Spec, suiteId } from "../parse/Spec.ts"
+import type { Rule, Scenario } from "../parse/Gherkin.ts"
+import { parseFeatureSpec, type Spec, suiteId } from "../parse/Spec.ts"
 
 const isOpen = (rule: Rule) => rule.tags.includes(made.tags.open)
 
@@ -300,4 +302,117 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
   return sortDiagnostics(out)
+}
+
+/** The specs of a base revision, as `sdp check` compares them with the workspace. */
+export interface BaseSpecs {
+  /** The commit, abbreviated, as messages name it. */
+  readonly commit: string
+  /** The feature files at that commit that the workspace's features globs find, relative to its root. */
+  readonly files: ReadonlyArray<SourceFile>
+}
+
+/**
+ * What an example tests: the steps of each of its examples with their arguments, and not its
+ * name, its tags or its rule. A new name for an example or its rule, or a move, keeps it.
+ */
+const testedBy = (scenario: Scenario): string =>
+  createHash("sha1")
+    .update(JSON.stringify(scenario.pickles.map((pickle) => pickle.steps.map((step) => [step.text, step.docString ?? null, step.dataTable ?? null]))))
+    .digest("hex")
+
+/**
+ * The examples of a set of specs, each with what it tests and whether it is live: a gate — a
+ * milestone's scenario, or one tagged `@gate` — is evidence about delivery, and no live test. And
+ * the Features and Rules that have a live example.
+ */
+const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
+  const examples = specs.flatMap((spec) => {
+    const work = workOf(spec)
+    return spec.scenarios.map((scenario) => {
+      const gate = hasKind(vocabulary, "milestone", spec.kind) || scenario.pickles.some((pickle) => pickle.tags.includes(made.tags.gate))
+      return { spec, scenario, gate, live: !gate && !work.example(scenario), tests: testedBy(scenario) }
+    })
+  })
+  const tested = new Set(examples.flatMap(({ live, scenario, spec }) => live ? [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])] : []))
+  return { examples, tested }
+}
+
+/**
+ * Whether anything live at a base revision stops being live in the workspace, as errors: a maturity
+ * or `@open` on a Feature or a Rule that had live examples there (`demotion`), and a live example of
+ * the base that is gone or still to come here (`example-dropped`), unless a rule that replaces its
+ * rule, at the base or here, is live here. An example is known by its id or by what it tests, so a
+ * new name for it or for its rule is no removal; one whose Feature or Rule is reported as demoted
+ * is not reported again. The notes say which files of the base could not be read.
+ */
+export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly notes: ReadonlyArray<string> } => {
+  const parsed = base.files.map((file) => ({ file: file.path, spec: parseFeatureSpec(file.path, file.content, project.config).spec }))
+  const specs = parsed.flatMap(({ spec }) => spec === undefined ? [] : [spec])
+  const { vocabulary } = project.config
+  const before = liveTests(specs, vocabulary)
+  const now = liveTests(project.specs, vocabulary)
+  const at = `the base ${base.commit}`
+  const out: Array<Diagnostic> = []
+
+  const demoted = new Set<string>()
+  const demote = (id: string, spec: Spec, line: number, change: string) => {
+    demoted.add(id)
+    out.push(diagnostic("demotion", {
+      message: `${id} was live at ${at}: ${change}`,
+      node: id,
+      source: { file: spec.file, line },
+      hint: `a live test declares no maturity: delete it. A change to what it does is a rule still to come that replaces it, \`@${wordFor(vocabulary.relations.replaces)}:<feature>#<rule>\`, and deletes it once it is built`
+    }))
+  }
+  for (const spec of project.specs) {
+    const declared = attribute(spec, "maturity")
+    if (declared !== undefined && before.tested.has(spec.id)) {
+      demote(spec.id, spec, spec.attrLines.maturity ?? 1, `${maturityTags(declared)} makes it still to come`)
+    }
+    for (const rule of spec.rules) {
+      if (!before.tested.has(rule.id)) continue
+      const own = attribute(rule, "maturity")
+      if (own !== undefined) demote(rule.id, spec, rule.attrLines.maturity ?? rule.line, `${maturityTags(own)} makes it still to come`)
+      else if (isOpen(rule)) demote(rule.id, spec, rule.line, "@open makes it a question still to come")
+    }
+  }
+
+  // The rules that replace another, by the rule they replace: here, and at the base for those deleted with the link once built.
+  const replacedBy = new Map<string, Set<string>>()
+  for (const spec of [...specs, ...project.specs]) {
+    for (const rule of spec.rules) {
+      for (const link of rule.links.filter((candidate) => hasRelation(vocabulary, "replaces", candidate.rel))) {
+        replacedBy.set(link.to, (replacedBy.get(link.to) ?? new Set()).add(rule.id))
+      }
+    }
+  }
+  const liveRules = new Set(project.specs.flatMap((spec) => {
+    const work = workOf(spec)
+    return spec.rules.filter((rule) => !work.rule(rule).toCome).map((rule) => rule.id)
+  }))
+
+  for (const { scenario, spec, tests } of before.examples.filter((example) => example.live)) {
+    const here = now.examples.filter((example) => example.scenario.id === scenario.id || example.tests === tests)
+    if (here.some((example) => example.live)) continue
+    const rule = scenario.rule
+    if (rule !== undefined && [...replacedBy.get(rule) ?? []].some((replacement) => liveRules.has(replacement))) continue
+    const [still] = here
+    if (still !== undefined && [still.spec.id, still.scenario.rule].some((id) => id !== undefined && demoted.has(id))) continue
+    if (still === undefined && rule !== undefined && demoted.has(rule)) continue
+    const unreplaced = rule === undefined ? "" : `, and no rule that replaces ${rule} is live`
+    const become = still === undefined ? "is gone" : still.gate ? "is a gate here, which fails no run" : "is an example of work still to come"
+    out.push(diagnostic("example-dropped", {
+      message: `${scenario.id}, a live example at ${at}, ${become}${unreplaced}`,
+      node: scenario.id,
+      source: still === undefined ? { file: spec.file, line: scenario.line } : { file: still.spec.file, line: still.scenario.line },
+      hint: still === undefined
+        ? "restore it; to remove what it tests, write a rule still to come that replaces its rule, and delete both in the change that builds it"
+        : "a live test declares no maturity and is no gate: move it back under a live rule, or delete what makes it still to come"
+    }))
+  }
+
+  const unread = parsed.filter(({ spec }) => spec === undefined).map(({ file }) => file)
+  const notes = unread.map((file) => `${file} at ${at} does not parse, so its live examples were not compared`)
+  return { diagnostics: sortDiagnostics(out), notes }
 }

@@ -57,6 +57,7 @@ export const ConfigFile = Schema.Struct({
   })),
   results: Schema.optional(Schema.String),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  base: Schema.optional(Schema.String),
   vocabulary: Schema.optional(VocabularyFile)
 }).check(Schema.makeFilter((file) => configProblems(file)))
 export type ConfigFile = typeof ConfigFile.Type
@@ -77,6 +78,11 @@ export interface Config {
   readonly results: string
   /** Id prefixes used by `sdp new` and to infer a kind, keyed by kind (a record without a prototype). */
   readonly ids: Readonly<Record<string, string>>
+  /**
+   * The git revision `sdp check` compares live tests with, where HEAD meets it; when none is
+   * named, the repository's default branch.
+   */
+  readonly base: string | undefined
   /** The words sdp interprets (ARCH-vocabulary). */
   readonly vocabulary: Vocabulary
 }
@@ -107,6 +113,7 @@ export const defaults: Config = {
   evidence: { inputs: [], env: [] },
   results: ".sdp/results.json",
   ids: record(defaultIds),
+  base: undefined,
   vocabulary: defaultVocabulary
 }
 
@@ -138,6 +145,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     },
     results: file.results ?? defaults.results,
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
+    base: file.base,
     vocabulary: resolveVocabulary(file.vocabulary)
   }
 }

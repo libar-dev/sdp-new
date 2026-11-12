@@ -11,6 +11,7 @@ import type { PlatformError } from "effect/PlatformError"
 import type { QueryError } from "../graph/Query.ts"
 import type { InvalidStepExpressions } from "../run/Runner.ts"
 import type { ResultsLocked } from "../run/Store.ts"
+import type { BaseNotFound } from "../workspace/Revisions.ts"
 import type { ConfigError, SourcesChanged, StepLoadError, WorkspaceNotFound } from "../workspace/Workspace.ts"
 
 /** An id no node has. */
@@ -75,6 +76,7 @@ export type AppError =
   | QueryError
   | UnknownNode
   | Refused
+  | BaseNotFound
   | PlatformError
 
 /** The tag of every `AppError`: one that is missing here does not compile. */
@@ -91,6 +93,7 @@ const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
   QueryError: true,
   UnknownNode: true,
   Refused: true,
+  BaseNotFound: true,
   PlatformError: true
 }
 

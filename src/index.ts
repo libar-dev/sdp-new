@@ -14,7 +14,7 @@
  * modules import "sdp/steps", which loads nothing of this.
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Effect, type FileSystem, type Path } from "effect"
+import { Effect, type FileSystem, Layer, type Path } from "effect"
 import * as Api from "./effect.ts"
 
 export type {
@@ -36,9 +36,9 @@ export type {
 } from "./effect.ts"
 export { describe, isAppError } from "./effect.ts"
 
-/** Runs a use case on the files on disk; aborting `signal` interrupts it, and the promise rejects. */
+/** Runs a use case on the files on disk, and `check` against its git base; aborting `signal` interrupts it, and the promise rejects. */
 const runOnDisk = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>, signal?: AbortSignal) =>
-  Effect.runPromise(effect.pipe(Effect.provide(NodeServices.layer)), { signal })
+  Effect.runPromise(effect.pipe(Effect.provide(Layer.provideMerge(Api.gitRevisions, NodeServices.layer))), { signal })
 
 /** A use case of "sdp/effect" as a function that runs it on the files on disk. */
 const onDisk = <Args extends ReadonlyArray<unknown>, A, E>(

@@ -247,7 +247,8 @@ Feature: Write a spec
   Rule: A rule still to come names the live rule it replaces
 
     The replaced rule stays live until the change that builds its replacement deletes it with the
-    link, so no two rules replace each other. Removing behaviour is written as what happens instead.
+    link, so no two rules replace each other, and sdp check holds that change to its base. Removing
+    behaviour is written as what happens instead.
 
     Scenario Outline: A rule that replaces <case>
       Given a file "specs/cart.feature" containing:

@@ -10,17 +10,18 @@
  */
 import { DateTime, Effect, Result } from "effect"
 import { architectureView, workOn } from "../arch/Architecture.ts"
-import { check as checkProject } from "../check/Check.ts"
+import { check as checkProject, compareWithBase } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { type EdgeRecord, edgeRecord, type GraphRecord, graphRecords, mermaid, type NodeRecord, nodeRecord } from "../graph/Export.ts"
 import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } from "../lifecycle/Lifecycle.ts"
-import { atLeast, type Diagnostic, type RuleId, type Severity } from "../model/Diagnostic.ts"
+import { atLeast, type Diagnostic, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
+import { type BaseRead, Revisions } from "../workspace/Revisions.ts"
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
 import { type Answer, answer } from "./Answer.ts"
 import { Refused, UnknownNode } from "./Errors.ts"
@@ -130,11 +131,25 @@ const diagnosticRecord = (diagnostic: Diagnostic): DiagnosticRecord => ({
   hint: diagnostic.hint ?? null
 })
 
-/** `sdp check`: every diagnostic at least as severe as `severity` (default: all of them). */
-export const check = Effect.fn("check")(function*(root: string, input: { readonly severity?: Severity | undefined } = {}) {
+/** What a comparison with the base found, and a note on what it compared with, or that it compared nothing. */
+const comparedWith = (project: Project, read: BaseRead) => {
+  if ("none" in read) return { diagnostics: [], notes: [`no live test was compared with a base: ${read.none}`] }
+  const { diagnostics, notes } = compareWithBase(project, read.found)
+  return { diagnostics, notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`, ...notes] }
+}
+
+/**
+ * `sdp check`: every diagnostic at least as severe as `severity` (default: all of them), those of
+ * the comparison of live tests with the base revision included: `base`, where HEAD meets it, else
+ * the configuration's, else the default branch. A note says what was compared, or that nothing was.
+ */
+export const check = Effect.fn("check")(function*(root: string, input: { readonly severity?: Severity | undefined; readonly base?: string | undefined } = {}) {
   const project = yield* loadProject(root)
-  const found = checkProject(project).filter((diagnostic) => atLeast(diagnostic.severity, input.severity ?? "info"))
-  return answer(project, found.map(diagnosticRecord))
+  const revisions = yield* Revisions
+  const { diagnostics, notes } = comparedWith(project, yield* revisions.base(root, project.config, input.base ?? project.config.base))
+  const found = sortDiagnostics([...checkProject(project), ...diagnostics])
+    .filter((diagnostic) => atLeast(diagnostic.severity, input.severity ?? "info"))
+  return answer(project, found.map(diagnosticRecord), { notes })
 })
 
 /** `sdp steps`: the step definitions a run would know, read from the step files without running them. */

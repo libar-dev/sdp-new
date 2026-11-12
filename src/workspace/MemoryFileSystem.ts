@@ -4,6 +4,7 @@
  */
 import { Effect, FileSystem, Glob, Layer, Path } from "effect"
 import { systemError } from "effect/PlatformError"
+import { noRevisions, Revisions } from "./Revisions.ts"
 import { loadProject } from "./Workspace.ts"
 
 export const memoryRoot = "/ws"
@@ -53,9 +54,9 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
 export const layerMemory = (files: Map<string, string>): Layer.Layer<FileSystem.FileSystem> =>
   Layer.succeed(FileSystem.FileSystem, makeMemoryFileSystem(files))
 
-/** Everything the loading pipeline needs to run on an in-memory workspace. */
+/** Everything the loading pipeline needs to run on an in-memory workspace, which is in no repository. */
 export const layerMemoryWorkspace = (files: Map<string, string>): Layer.Layer<FileSystem.FileSystem | Path.Path> =>
-  Layer.merge(layerMemory(files), Path.layer)
+  Layer.mergeAll(layerMemory(files), Path.layer, Layer.succeed(Revisions, noRevisions))
 
 /** Load a project from in-memory files, optionally with stored results (as written to `config.results`). */
 export const loadMemoryProject = (files: Map<string, string>, options: { readonly withResults?: boolean } = {}) =>

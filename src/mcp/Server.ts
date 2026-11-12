@@ -96,9 +96,12 @@ const SdpSnippets = readOnly(Tool.make("sdp_snippets", {
 }))
 
 const SdpCheck = readOnly(Tool.make("sdp_check", {
-  description: "Validate the workspace: tags, links, Gherkin, that every live rule has an example, the shape of decisions and the plan. Each diagnostic has a rule, a file:line and a hint.",
+  description: "Validate the workspace: tags, links, Gherkin, that every live rule has an example and nothing live at the git base stopped being live, the shape of decisions and the plan. Each diagnostic has a rule, a file:line and a hint.",
   parameters: Schema.Struct({
     severity: Schema.optional(Schema.Literals(["error", "warning", "info"])).annotate({ description: "Minimum severity (default info: everything)" }),
+    base: Schema.optional(Schema.String).annotate({
+      description: "The git revision to compare live tests with, where HEAD meets it (default: the configuration's base, else the default branch)"
+    }),
     json
   }),
   ...text
@@ -161,7 +164,7 @@ const handlers = (root: string) =>
       sdp_context: ({ depth, id }) => reply(Reading.context(root, { id, depth }), false, document),
       sdp_steps: ({ json, text }) => reply(Reading.steps(root, { text }), json, Text.steps),
       sdp_snippets: ({ id }) => reply(Reading.snippets(root, { id }), false, document),
-      sdp_check: ({ json, severity }) => reply(Reading.check(root, { severity }), json, Text.diagnostics),
+      sdp_check: ({ base, json, severity }) => reply(Reading.check(root, { severity, base }), json, Text.diagnostics),
       sdp_architecture: ({ json }) => reply(Reading.architecture(root), json, Text.architecture),
       sdp_lifecycle: ({ json }) => json ? reply(Reading.lifecycle(root), true, () => "") : reply(Reading.lifecycleChart(root), false, document)
     })

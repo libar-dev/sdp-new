@@ -22,7 +22,7 @@ Feature: Architecture
     That is what lets executable specs run the real pipeline against an in-memory file system.
 
     Scenario: The core does no IO
-      When I run "grep -rlE FileSystem|node:fs src/parse src/model src/graph src/check" in the repository
+      When I run "grep -rlE FileSystem|node:fs|child_process|ChildProcess src/parse src/model src/graph src/check" in the repository
       Then the exit code is 1
 
     Scenario: A workspace in memory reads as one on disk

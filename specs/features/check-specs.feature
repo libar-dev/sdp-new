@@ -4,7 +4,8 @@ Feature: Check specs
 
   Authors and reviewers, people and agents, need every problem in the specs reported at the line to
   fix, with what to write instead, so that they can fix it without reading sdp's code. And what is
-  built must stay tested: a live rule has an example.
+  built must stay tested: a live rule has an example, and nothing live stops being live without an
+  error, so that a test is never turned off in silence.
 
   Not a linter of style or wording, nor a judge of how far work still to come has come: sdp checks
   what it reads and what is live, and fixes nothing itself.
@@ -153,6 +154,190 @@ Feature: Check specs
         | ready                |
         | someday              |
         | idea @maturity=ready |
+
+  Rule: Nothing live stops being live without an error
+
+    Built work cannot go back to work still to come, or a test is turned off in silence, so check
+    compares the specs with a base revision. A maturity or `@open` on a Feature or a Rule whose
+    examples were live there is an error, and so is a live example of the base that is gone or still
+    to come, unless a rule that replaces its rule is live. An example is known by its steps, so a new
+    name for it or for its rule is no removal.
+
+    Background:
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @maturity=ready
+          Rule: A cart holds each item once
+
+            Scenario: Add a lamp twice
+              Then the cart holds 1 lamp
+        """
+      And the files are committed on the branch "main"
+
+    Scenario Outline: Live work changed: <change>
+      Given a file "specs/cart.feature" containing:
+        """
+        <cart>
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+        | data.line | <line>     |
+
+      Examples:
+        | change                                                | exit code | reported                       | line  | cart                                                                                                                                                                                                                            |
+        | A maturity on the live feature                        | 1         | demotion                       | 1     | @id=cart @maturity=ready\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                  |
+        | A maturity on the live rule                           | 1         | demotion                       | 3     | @id=cart\nFeature: Cart\n  @maturity=draft\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                    |
+        | The live rule made a question                         | 1         | demotion                       | 4     | @id=cart\nFeature: Cart\n  @open\n  Rule: A cart holds what was added                                                                                                                                                          |
+        | The live example deleted                              | 1         | example-dropped, untested-rule | 3, 8  | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added                                                                                                                                                                   |
+        | The live rule deleted with its example                | 1         | example-dropped                | 8     | @id=cart\nFeature: Cart\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                                                              |
+        | The live example made a gate                          | 1         | example-dropped                | 5     | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @gate\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                         |
+        | The live example moved under the rule still to come   | 1         | example-dropped, untested-rule | 3, 6  | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add an item\n      Then the cart holds 1 item                                               |
+        | The live example and its rule renamed                 | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart keeps what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 item                                                                                                     |
+        | The live example's steps edited                       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item                                                                          |
+        | The rule still to come built                          | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp |
+        | The rule still to come deleted with its example       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                    |
+
+    Scenario: What a demotion and a dropped example say, and where
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          @maturity=draft
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When I run "sdp check"
+      Then the exit code is 1
+      And the output contains "[demotion] cart#a-cart-holds-what-was-added was live at the base "
+      And the output contains ": @maturity=draft makes it still to come  specs/cart.feature:6"
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+        """
+      When I run "sdp check"
+      Then the exit code is 1
+      And the output contains "[example-dropped] cart#add-an-item, a live example at the base "
+      And the output contains ", is gone, and no rule that replaces cart#a-cart-holds-what-was-added is live  specs/cart.feature:8"
+
+    Scenario Outline: A live rule replaced by a rule still to come, which <replacement>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @maturity=ready @replaces:cart#a-cart-holds-what-was-added
+          Rule: A cart holds each item once
+
+            Scenario: Add a lamp twice
+              Then the cart holds 1 lamp
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          <tags>
+          Rule: A cart holds each item once
+
+            Scenario: Add a lamp twice
+              Then the cart holds 1 lamp
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+
+      Examples:
+        | replacement                                           | tags            | exit code | reported        |
+        | is built in the change that deletes it                |                 | 0         | nothing         |
+        | is still to come in the change that deletes it        | @maturity=ready | 1         | example-dropped |
+
+  Rule: The base is where HEAD meets the default branch, or the revision --base or the configuration names; without one, check says so
+
+    A change is judged against what it started from, not against whatever the default branch has
+    become since. The default branch is origin's HEAD, else main, else master. Outside git there is
+    nothing to compare, and a check that compared nothing says so rather than pass in silence; a base
+    that is named and cannot be read stops the check.
+
+    Background:
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+
+    Scenario Outline: A demotion on a branch, the base named <named>
+      Given the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=ready
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "sdp.config.yaml" containing:
+        """
+        <configuration>
+        """
+      And the files are committed on the branch "change"
+      When I run "<command>"
+      Then the exit code is <exit code>
+      And the output line with "note:" contains "<compared>"
+
+      Examples:
+        | named                                | configuration              | command               | exit code | compared                                                |
+        | by nobody                            | # every key at its default | sdp check             | 1         | (git merge-base HEAD main)                              |
+        | with --base                          | # every key at its default | sdp check --base HEAD | 0         | (git merge-base HEAD HEAD)                              |
+        | in the configuration                 | base: HEAD                 | sdp check             | 0         | (git merge-base HEAD HEAD)                              |
+        | in the configuration, and --base     | base: HEAD                 | sdp check --base main | 1         | (git merge-base HEAD main)                              |
+
+    Scenario Outline: No base: <case>
+      Given the files are <where>
+      When I run "sdp check"
+      Then the exit code is 0
+      And the output contains "note: no live test was compared with a base: <reason>"
+      When I run "sdp check --base main"
+      Then the exit code is 1
+      And the output contains "cannot compare live tests with the base main: <named>"
+
+      Examples:
+        | case                     | where                               | reason                                                   | named                                    |
+        | outside git              | in no git repository                | this workspace is in no git repository                   | this workspace is in no git repository   |
+        | a branch of another name | committed on the branch "trunk"     | the repository has no origin/HEAD, main or master branch | git merge-base HEAD main found no commit |
 
   Rule: A decision is a title and one to three sentences
 

@@ -4,6 +4,7 @@
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
+import { existsSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
 import * as Text from "../../src/app/Text.ts"
@@ -14,7 +15,7 @@ import { describe } from "../../src/app/Errors.ts"
 import { run } from "../../src/app/Running.ts"
 import { promisify } from "node:util"
 import { exitCode, newWorld, output, produce } from "./world.ts"
-import { cli, env, exec, record, workspace } from "./process.ts"
+import { cli, env, exec, gitEnv, record, workspace } from "./process.ts"
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("I run {string}", async ({ args: [command], world }) => {
@@ -44,6 +45,22 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     // What the pipeline shows cannot be judged on a machine that lacks one of its tools.
     if (result.code === 127) throw new Pending({ reason: `a command of the pipeline is not installed: ${result.stderr.trim()}` })
     record(world, (doc ?? "").trim(), result)
+  })
+
+  // The files as given so far, committed on a branch of that name: the first starts the repository,
+  // and each other starts where HEAD is.
+  Given("the files are committed on the branch {string}", async ({ args: [branch], world }) => {
+    const directory = await workspace(world)
+    const start = existsSync(join(directory, ".git")) ? ["checkout", "-q", "-B", branch] : ["init", "-q", "-b", branch]
+    for (const args of [start, ["add", "-A"], ["commit", "-q", "--allow-empty", "-m", branch]]) {
+      await promisify(execFile)("git", args, { cwd: directory, env: gitEnv })
+    }
+  })
+
+  Given("the files are in no git repository", async ({ world }) => {
+    const directory = await workspace(world)
+    const inside = await exec("git rev-parse --is-inside-work-tree", directory)
+    assert.notEqual(inside.code, 0, `${directory} is in a git repository`)
   })
 
   Then("the exit code is {int}", ({ args: [code], world }) => {

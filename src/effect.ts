@@ -8,6 +8,10 @@
  *   import { query } from "sdp/effect"
  *   const found = yield* query(".", { expression: "feature[maturity<ready]" })
  *
+ * `check` compares live tests with the git base only where `gitRevisions` is
+ * provided, which needs the `ChildProcessSpawner` that `NodeServices.layer`
+ * has; elsewhere its note says that nothing was compared.
+ *
  * Programs that do not use Effect import the same use cases from "sdp", which
  * answer with Promises.
  */
@@ -36,3 +40,5 @@ export type { GateInput, GateReport, RunInput, RunReport } from "./app/Running.t
 export type { EdgeRecord, GraphRecord, NodeRecord } from "./graph/Export.ts"
 export type { QueryPath } from "./graph/Query.ts"
 export type { ScenarioResult } from "./model/Results.ts"
+export { BaseNotFound, gitRevisions, Revisions } from "./workspace/Revisions.ts"
+export type { BaseRead, RevisionsReader } from "./workspace/Revisions.ts"

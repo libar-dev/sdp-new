@@ -9,7 +9,7 @@
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Console, Effect, FileSystem, Option, Path } from "effect"
+import { Console, Effect, FileSystem, Layer, Option, Path } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
 import type { Answer } from "../app/Answer.ts"
 import * as Authoring from "../app/Authoring.ts"
@@ -21,6 +21,7 @@ import * as Text from "../app/Text.ts"
 import { jsonLines } from "../graph/Export.ts"
 import { querySyntax } from "../graph/Query.ts"
 import type { ScenarioResult } from "../model/Results.ts"
+import { gitRevisions } from "../workspace/Revisions.ts"
 import { findWorkspaceRoot, sdpVersion } from "../workspace/Workspace.ts"
 
 // `sdp … | head` closes the pipe early; that is the reader's choice, not an error.
@@ -206,15 +207,27 @@ const checkCommand = Command.make(
     severity: Flag.Literals("severity", ["error", "warning", "info"]).pipe(
       Flag.withDescription("Minimum severity to print"),
       Flag.withDefault("info")
+    ),
+    base: Flag.String("base").pipe(
+      Flag.withDescription(
+        "The git revision to compare live tests with, where HEAD meets it (default: `base:` in the configuration, else origin's HEAD, main or master)"
+      ),
+      Flag.optional
     )
   },
-  Effect.fn(function*({ json, severity }) {
-    const found = yield* Reading.check(yield* workspaceRoot, { severity })
+  Effect.fn(function*({ base, json, severity }) {
+    const found = yield* Reading.check(yield* workspaceRoot, { severity, base: Option.getOrUndefined(base) })
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
   })
 ).pipe(
-  Command.withDescription("Validate tags, links, Gherkin, that every live rule has an example, and the plan; exit 1 on errors")
+  Command.withDescription(
+    "Validate tags, links, Gherkin and the plan, and that nothing live at the git base stopped being live; exit 1 on errors"
+  ),
+  Command.withExamples([
+    { command: "sdp check", description: "Everything, compared with where HEAD meets the default branch" },
+    { command: "sdp check --base origin/release", description: "Compared with where HEAD meets another branch" }
+  ])
 )
 
 const stepsCommand = Command.make(
@@ -409,6 +422,6 @@ sdp.pipe(
   Command.run({ version: sdpVersion }),
   // A problem with the user's files or input is one line that names it, not a stack trace.
   Effect.catchIf(isAppError, (e) => fail(describe(e))),
-  Effect.provide(NodeServices.layer),
+  Effect.provide(Layer.provideMerge(gitRevisions, NodeServices.layer)),
   NodeRuntime.runMain
 )
