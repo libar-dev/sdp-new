@@ -658,6 +658,32 @@ Feature: Write step definitions
       And the JSON output has:
         | data.summary.undefined | 1 |
 
+    Scenario: A file that exports again another step file's module, and a module of its own that cannot be read, is reported
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+        })
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        import * as steps from "sdp/steps"
+
+        export { default as cart } from "./cart.steps.ts"
+        const own = steps.defineSteps(() => ({}), ({ Given }) => {
+          Given("an empty cart", () => {})
+        })
+        export default { ...own }
+        """
+      When I run "sdp steps 'an empty cart'"
+      Then the exit code is 2
+      And the output contains "not read: specs/steps/shop.steps.ts:1: no defineSteps(…) call at the top level of this step file"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "matches 2 definitions"
+
     Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
       Given a file "specs/steps/cart.steps.ts" containing:
         """

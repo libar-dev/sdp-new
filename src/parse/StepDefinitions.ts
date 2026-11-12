@@ -9,8 +9,8 @@
  * loop, after a statement that may return, through another name or a helper,
  * with a computed expression, by a `defineSteps` renamed or not exported, as
  * the export of another call — is
- * reported, never guessed: only `sdp run`, which imports the module, knows it. A file that only
- * exports again what another step file exports registers nothing of its own: a run counts each
+ * reported, never guessed: only `sdp run`, which imports the module, knows it. A file whose every
+ * export is again what another step file exports registers nothing of its own: a run counts each
  * module once, and that module is read in its own file.
  */
 import { CucumberExpression, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
@@ -195,13 +195,12 @@ export const scanStepDefinitions = (file: string, content: string, stepFiles: Re
   const called = new Set(callsOf(program, defineSteps).map((call) => call.callee))
   const aliases = references(program, defineSteps).filter((reference) => !called.has(reference))
   for (const alias of aliases) unreadable(alias, "defineSteps is renamed or passed on here, so the steps it defines cannot be read without running the file")
-  // `export { steps } from "./cart.steps.ts"`: what another step file exports, read there.
-  const again = program.body.filter((statement) =>
-    statement.type === "ExportAllDeclaration" || (statement.type === "ExportNamedDeclaration" && statement.source)
-  )
-  const fromStepFiles = again.length > 0 && again.every((statement) => {
-    const from = (statement.source as { value: string }).value
-    return /^\.\.?\//.test(from) && stepFiles.has(posix.join(posix.dirname(file), from))
+  // `export { steps } from "./cart.steps.ts"`: what another step file exports, read there. A file
+  // registers nothing of its own only when every export a run loads comes from another step file.
+  const loads = program.body.filter((statement) => statement.type.startsWith("Export") && statement.exportKind !== "type")
+  const fromStepFiles = loads.length > 0 && loads.every((statement) => {
+    const from = (statement.source as { value: string } | null | undefined)?.value
+    return from !== undefined && /^\.\.?\//.test(from) && stepFiles.has(posix.join(posix.dirname(file), from))
   })
   if (modules === 0 && problems.length === 0 && !fromStepFiles) {
     problems.push({
