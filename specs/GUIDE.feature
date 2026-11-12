@@ -183,6 +183,22 @@ Feature: sdp, shown by running it
       And the query "change[file!~^specs/incoming/]" returns no results
       And the query "change !-changes-> *[file~^specs/features/]" returns no results
 
+  Rule: Every feature that is built is verified, and npm run verify fails when one is not
+
+    Undefined is not failed for work still to come, but a built feature whose step definition was
+    renamed or deleted would otherwise stop being tested without a word. So this gate runs with
+    every verification, not only at a milestone.
+
+    @gate
+    Scenario: The features in specs/features
+      Then the query "feature[file~^specs/features/]" returns at least 1 result
+      And the query "feature[file~^specs/features/][stage!=verified]" returns no results
+
+    Scenario: The build asks for this gate, and for no milestone's
+      When I run "grep verify package.json" in the repository
+      Then the output contains "gate GUIDE"
+      And the output does not contain "gate MS-"
+
   Rule: Architecture is a decision, a rule of a spec, or what sdp shows from the code's annotations
 
     A rule this repository's code keeps is in specs/ARCHITECTURE.feature. An element is the code

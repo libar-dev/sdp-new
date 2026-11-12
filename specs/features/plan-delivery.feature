@@ -447,10 +447,6 @@ Feature: Plan delivery
       Then node "MS-objectives#every-feature-is-in-an-iteration" has attribute status = "failed"
       And sdp status counts the stages "idea:2"
 
-    Scenario: The build of sdp itself enforces no gate
-      When I run "grep verify package.json" in the repository
-      Then the output does not contain "gate"
-
   Rule: sdp gate --record writes @met on a milestone whose gate passes as the workspace is when it is written, and on no other
 
     Met is recorded once, not read from the calendar or from today's results: a date would fail

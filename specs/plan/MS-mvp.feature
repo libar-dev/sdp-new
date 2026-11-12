@@ -7,11 +7,6 @@ Feature: Minimum viable product
   repositories, and the package installable. Its obligations are named here, by the ids they keep
   once built, so that no plan tag decides what MVP is.
 
-  Rule: Everything built is verified
-
-    Scenario: The features
-      Then the query "feature[file~^specs/features/][stage!=verified]" returns no results
-
   Rule: The features it needs are built
 
     Scenario: Running existing Cucumber suites, and installing from npm
