@@ -5,7 +5,8 @@
  *
  * @sdp is ARCH-code-annotations
  */
-import { Predicate } from "effect"
+import { Option, Predicate, Schema } from "effect"
+import { isBuiltin } from "node:module"
 
 /** A file as read, by its path from the workspace's root. */
 export interface File {
@@ -71,12 +72,24 @@ export const extendedBy = (file: File): ReadonlyArray<string> => {
  * map it to — the configurations it extends included, relative to `baseUrl` when one is set — or the
  * file it names under that `baseUrl`; a `#` name the file the `imports` of the nearest `package.json`
  * map it to; and a package of the workspace — one whose `package.json` is among `configs` — the file
- * its `exports` map the name to, else its `types` or its `main`, else its index. Each is a code file
- * of the workspace or none: a name that means none is a library's. What sdp cannot follow, though it
+ * its `exports` map the name to, else its `types` or its `main`, else its index; a package by an
+ * alias a package.json declares for it, as the package manager links it. Each is a code file of the
+ * workspace or none: a library a package.json declares, a module of Node.js, a name with a scheme
+ * (`node:`, `virtual:`) and a file that is not code mean none. What sdp cannot follow, though it
  * could name the workspace's code, comes back with where it is written.
  */
 export const readModules = (configs: ReadonlyArray<File>, files: ReadonlySet<string>): Modules => {
   const byPath = new Map(configs.map((file) => [file.path, file]))
+  const packages = packagesOf(configs)
+  const manifests = new Map<string, typeof PackageJson.Type | undefined>()
+  /** A package.json as sdp reads it; undefined when it does not parse. */
+  const manifest = (path: string) => {
+    if (!manifests.has(path)) {
+      const read = readConfig(byPath.get(path)?.content ?? "{}", decodePackageJson)
+      manifests.set(path, "value" in read ? read.value : undefined)
+    }
+    return manifests.get(path)
+  }
   const unresolved: Array<Unresolved> = []
   const reported = new Set<string>()
   const report = (source: Unresolved["source"], message: string, hint: string) => {
@@ -138,24 +151,26 @@ export const readModules = (configs: ReadonlyArray<File>, files: ReadonlySet<str
       ...Predicate.isObject(own.paths) ? { paths: own.paths, pathsFrom: directoryOf(path) } : {}
     }
   }
-  const governing = new Map<string, Options & { readonly configDir: string }>()
+  const governing = new Map<string, Options & { readonly configDir: string; readonly project?: string }>()
   /** The options of the `tsconfig.json` nearest a directory, at it or above it. */
   const optionsFor = (directory: string) => {
     const known = governing.get(directory)
     if (known !== undefined) return known
     const nearest = upFrom(directory).map((above) => joinPath(above, tsconfigFile)).find((path) => byPath.has(path))
-    const found = nearest === undefined ? { configDir: "" } : { ...options(nearest, directoryOf(nearest), new Set()), configDir: directoryOf(nearest) }
+    const found: Options & { readonly configDir: string; readonly project?: string } = nearest === undefined
+      ? { configDir: "" }
+      : { ...options(nearest, directoryOf(nearest), new Set()), configDir: directoryOf(nearest), project: nearest }
     governing.set(directory, found)
     return found
   }
 
   /** What a map of names — `exports`, `imports` — gives `name`: through the conditions TypeScript knows, the first of a list that gives one. */
-  const mapped = (map: Readonly<Record<string, unknown>>, name: string, manifest: string, at: Unresolved["source"] & { readonly specifier: string }): string | undefined => {
+  const mapped = (map: { readonly [name: string]: Target }, name: string, manifest: string, at: Unresolved["source"] & { readonly specifier: string }): string | undefined => {
     const key = matchKey(Object.keys(map), name)
-    const target = (value: unknown): string | undefined => {
-      if (Predicate.isString(value)) return value.replaceAll("*", key!.star)
-      if (Array.isArray(value)) return value.map(target).find(Predicate.isString)
-      if (!Predicate.isObject(value)) return undefined
+    const target = (value: Target): string | undefined => {
+      if (typeof value === "string") return value.replaceAll("*", key!.star)
+      if (isArray(value)) return value.map(target).find(Predicate.isString)
+      if (value === null) return undefined
       const known = Object.keys(value).filter((condition) => conditions.has(condition))
       if (known.length === 0) {
         report(
@@ -164,50 +179,71 @@ export const readModules = (configs: ReadonlyArray<File>, files: ReadonlySet<str
           `add a "types" or a "default" condition to ${manifest}`
         )
       }
-      return known.map((condition) => target(value[condition])).find(Predicate.isString)
+      return known.map((condition) => target(value[condition]!)).find(Predicate.isString)
     }
-    return key === undefined ? undefined : target(map[key.key])
+    return key === undefined ? undefined : target(map[key.key]!)
   }
 
-  let packages: ReadonlyMap<string, ReadonlyArray<string>> | undefined
-  /** The packages of the workspace by name: the directories of the configuration's `package.json` outside any node_modules. */
-  const workspacePackages = () => {
-    if (packages !== undefined) return packages
-    const named = new Map<string, Array<string>>()
-    for (const path of byPath.keys()) {
-      if (baseName(path) !== packageFile || path.split("/").includes("node_modules")) continue
-      const name = json(path)?.name
-      if (Predicate.isString(name)) named.set(name, [...named.get(name) ?? [], directoryOf(path)])
-    }
-    packages = named
-    return named
-  }
-  const packageExport = (file: string, specifier: string, line: number): string | undefined => {
-    const { name, subpath } = packageName(specifier)
-    const directories = workspacePackages().get(name) ?? []
-    if (directories.length > 1) {
-      report({ file, line }, `"${specifier}" names ${directories.length} packages of the workspace, in ${directories.map((directory) => directory || ".").join(" and ")}, so it is not resolved`, "give each package of the workspace a name of its own")
-      return undefined
-    }
-    const [directory] = directories
-    if (directory === undefined) return undefined
-    const manifest = joinPath(directory, packageFile)
-    const { exports, main, types, typings } = json(manifest) ?? {}
+  /** The code file a package of the workspace means by `subpath`, if any. */
+  const packageExport = (directory: string, specifier: string, subpath: string, line: number, file: string): string | undefined => {
+    const path = joinPath(directory, packageFile)
+    const { exports, main, types, typings } = manifest(path) ?? {}
     if (exports !== undefined && exports !== null) {
-      const map = Predicate.isObject(exports) && Object.keys(exports).some((key) => key.startsWith(".")) ? exports : { ".": exports }
-      const target = mapped(map, subpath === "" ? "." : `./${subpath}`, manifest, { file, line, specifier })
+      const map = !isArray(exports) && typeof exports === "object" && Object.keys(exports).some((key) => key.startsWith(".")) ? exports : { ".": exports }
+      const target = mapped(map, subpath === "" ? "." : `./${subpath}`, path, { file, line, specifier })
       return target === undefined ? undefined : fileAt(joinPath(directory, target), false)
     }
     if (subpath !== "") return fileAt(joinPath(directory, subpath), false)
     const entry = [types, typings, main].find(Predicate.isString)
     return entry === undefined ? fileAt(directory, true) : fileAt(joinPath(directory, entry), false)
   }
+
+  /**
+   * What a name that is neither relative nor `#` means as a package: the code file of a package of
+   * the workspace, if any, or no code for a library's module, one of Node.js or a file that is not
+   * code; undefined for a name that is none of these.
+   */
+  const packageOf = (file: string, specifier: string, line: number): { readonly module?: string | undefined } | undefined => {
+    if (isBuiltin(specifier) || /^[a-z][a-z0-9+.-]*:/i.test(specifier)) return {}
+    const { name, subpath } = packageName(specifier)
+    const linked = aliasOf(file, name) ?? name
+    const directories = packages.named.get(linked) ?? []
+    if (directories.length > 1) {
+      report({ file, line }, `"${specifier}" names ${directories.length} packages of the workspace, in ${directories.map((directory) => directory || ".").join(" and ")}, so it is not resolved`, "give each package of the workspace a name of its own")
+      return {}
+    }
+    if (directories.length === 1) return { module: packageExport(directories[0]!, specifier, subpath, line, file) }
+    if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return {}
+    return undefined
+  }
+
+  /** The package a dependency of the package.json files at or above `file` names under another name (`"tax": "npm:@shop/tax@1"`). */
+  const aliasOf = (file: string, name: string): string | undefined => {
+    for (const directory of upFrom(directoryOf(file))) {
+      const read = byPath.has(joinPath(directory, packageFile)) ? manifest(joinPath(directory, packageFile)) : undefined
+      for (const dependencies of read === undefined ? [] : dependencyLists(read)) {
+        const linked = aliasPattern.exec(dependencies[name] ?? "")?.[1]
+        if (linked !== undefined) return linked
+      }
+    }
+    return undefined
+  }
+
   const packageImport = (file: string, specifier: string, line: number): string | undefined => {
     const scope = upFrom(directoryOf(file)).map((directory) => joinPath(directory, packageFile)).find((path) => byPath.has(path))
-    const imports = scope === undefined ? undefined : json(scope)?.imports
-    const target = Predicate.isObject(imports) ? mapped(imports, specifier, scope!, { file, line, specifier }) : undefined
+    const imports = scope === undefined ? undefined : manifest(scope)?.imports
+    const key = imports === undefined ? undefined : matchKey(Object.keys(imports), specifier)
+    if (key === undefined) {
+      report(
+        { file, line },
+        `"${specifier}" is not mapped by the imports of ${scope ?? "a package.json at or above it"}, so it is not resolved`,
+        `map it in the imports of ${scope ?? "a package.json"}`
+      )
+      return undefined
+    }
+    const target = mapped(imports!, specifier, scope!, { file, line, specifier })
     if (target === undefined) return undefined
-    return /^\.\.?\//.test(target) ? fileAt(joinPath(directoryOf(scope!), target), false) : packageExport(file, target, line)
+    return /^\.\.?\//.test(target) ? fileAt(joinPath(directoryOf(scope!), target), false) : packageOf(file, target, line)?.module
   }
 
   const resolve = (file: string, specifier: string, line: number): string | undefined => {
@@ -215,14 +251,35 @@ export const readModules = (configs: ReadonlyArray<File>, files: ReadonlySet<str
     const settings = optionsFor(directoryOf(file))
     const key = settings.paths === undefined ? undefined : matchKey(Object.keys(settings.paths), specifier)
     const targets = key === undefined ? [] : [settings.paths![key.key]].flat().filter(Predicate.isString).map((target) => target.replace("*", key.star))
-    for (const path of targets) {
+    let mappedTo: string | undefined
+    for (const target of targets) {
       const base = settings.baseUrl ?? settings.pathsFrom ?? ""
-      const found = fileAt(path.startsWith("${configDir}") ? joinPath(settings.configDir, path.slice(12)) : joinPath(base, path), false)
+      const path = target.startsWith("${configDir}") ? joinPath(settings.configDir, target.slice(12)) : joinPath(base, target)
+      const found = fileAt(path, false)
       if (found !== undefined) return found
+      if (namesNoCode(path)) return undefined
+      mappedTo ??= path
     }
     const under = settings.baseUrl === undefined ? undefined : fileAt(joinPath(settings.baseUrl, specifier), false)
     if (under !== undefined) return under
-    return specifier.startsWith("#") ? packageImport(file, specifier, line) : packageExport(file, specifier, line)
+    if (specifier.startsWith("#")) return packageImport(file, specifier, line)
+    const found = packageOf(file, specifier, line)
+    if (found !== undefined) return found.module
+    const unread = packages.unread.map((path) => `; ${path} does not parse, and could declare it`).join("")
+    if (mappedTo !== undefined) {
+      report(
+        { file, line },
+        `"${specifier}" is mapped by the paths of ${settings.project} to ${mappedTo}, which is no code file, and is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved${unread}`,
+        `map it to a code file in the paths of ${settings.project}`
+      )
+    } else {
+      report(
+        { file, line },
+        `"${specifier}" is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved${unread}`,
+        `declare ${packageName(specifier).name} in the dependencies of package.json, or map it in the paths of a tsconfig.json`
+      )
+    }
+    return undefined
   }
   return { resolve, unresolved }
 }
@@ -304,5 +361,81 @@ const upFrom = (directory: string): ReadonlyArray<string> => {
 }
 
 const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
+
+const Strings = Schema.Array(Schema.String)
+
+/** A target of `exports` or `imports`: a path, conditions that each map to one, fallbacks, or `null`, which excludes the name. */
+type Target = string | null | ReadonlyArray<Target> | { readonly [condition: string]: Target }
+const Target: Schema.Codec<Target> = Schema.Union([
+  Schema.String,
+  Schema.Null,
+  Schema.Array(Schema.suspend((): Schema.Codec<Target> => Target)),
+  Schema.Record(Schema.String, Schema.suspend((): Schema.Codec<Target> => Target))
+])
+
+const Dependencies = Schema.Record(Schema.String, Schema.String)
+
+/** What sdp reads of a package.json. */
+const PackageJson = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  exports: Schema.optional(Target),
+  imports: Schema.optional(Schema.Record(Schema.String, Target)),
+  types: Schema.optional(Schema.String),
+  typings: Schema.optional(Schema.String),
+  main: Schema.optional(Schema.String),
+  dependencies: Schema.optional(Dependencies),
+  devDependencies: Schema.optional(Dependencies),
+  peerDependencies: Schema.optional(Dependencies),
+  optionalDependencies: Schema.optional(Dependencies),
+  workspaces: Schema.optional(Schema.Union([Strings, Schema.Struct({ packages: Schema.optional(Strings) })]))
+})
+
+const decodePackageJson = Schema.decodeUnknownOption(PackageJson)
+
+const dependencyLists = (read: typeof PackageJson.Type): ReadonlyArray<{ readonly [name: string]: string }> =>
+  [read.dependencies, read.devDependencies, read.peerDependencies, read.optionalDependencies].filter((list) => list !== undefined)
+
+/** A dependency declared as another package, by npm or by the workspace: `npm:@shop/tax@1.0.0`, `workspace:@shop/tax@*`. */
+const aliasPattern = /^(?:npm|workspace):((?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*)(?:@|$)/i
+
+/** The package of TypeScript declarations that declares a library's types: `@types/node-fetch`, `@types/babel__core`. */
+const typesPackage = (name: string) => `@types/${name.startsWith("@") ? name.slice(1).replace("/", "__") : name}`
+
+/** A tsconfig.json or package.json as `decode` reads it, or what kept sdp from reading it, as what follows "which". */
+const readConfig = <A>(content: string, decode: (input: unknown) => Option.Option<A>): { readonly value: A } | { readonly unread: string } => {
+  const read = readJson(content)
+  if ("error" in read) return { unread: "does not parse" }
+  return Option.match(decode(read.value), {
+    onNone: () => ({ unread: "holds a setting of a type TypeScript does not read" }),
+    onSome: (value) => ({ value })
+  })
+}
+
+/** The packages of the workspace by name — each package.json outside a node_modules that names one — with the dependencies they declare, and those that do not parse. */
+const packagesOf = (files: ReadonlyArray<File>) => {
+  const named = new Map<string, Array<string>>()
+  const declared = new Set<string>()
+  const unread: Array<string> = []
+  for (const file of files) {
+    if (baseName(file.path) !== packageFile || file.path.split("/").includes("node_modules")) continue
+    const read = readConfig(file.content, decodePackageJson)
+    if (!("value" in read)) {
+      unread.push(file.path)
+      continue
+    }
+    const { name } = read.value
+    if (name !== undefined) named.set(name, [...named.get(name) ?? [], directoryOf(file.path)])
+    for (const dependencies of dependencyLists(read.value)) for (const dependency of Object.keys(dependencies)) declared.add(dependency)
+  }
+  return { named, declared, unread } as const
+}
+
+/** Whether a path names a file that is not code, by an extension that is not one of code: a stylesheet, an image, JSON. */
+const namesNoCode = (path: string) => {
+  const extension = /\.[^./]*$/.exec(baseName(path))?.[0]
+  return extension !== undefined && !swappedExtensions.has(extension)
+}
+
+const isArray = (value: unknown): value is ReadonlyArray<any> => Array.isArray(value)
 
 const directoryOf = (file: string) => file.slice(0, Math.max(0, file.lastIndexOf("/")))
