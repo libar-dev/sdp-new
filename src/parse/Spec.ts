@@ -67,7 +67,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
   diagnostics.push(...gherkinDiagnostics(id, file, gherkin))
   // A scenario is an example of a rule. A file named by its path is a suite sdp runs as it is.
   const outside = gherkin.scenarios.filter((scenario) => scenario.rule === undefined)
-  if (outside.length > 0 && id !== fallbackId && config.rules === "required") {
+  if (outside.length > 0 && id !== fallbackId) {
     diagnostics.push(diagnostic("scenario-outside-rule", {
       message: `${id}: "${outside[0]!.name}" is an example of no rule${outside.length > 1 ? `, nor are ${outside.length - 1} more` : ""}`,
       node: id,

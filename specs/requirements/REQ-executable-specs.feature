@@ -49,7 +49,8 @@ Feature: Executable specifications
         """
         @id=REQ-later @maturity=idea
         Feature: Later
-          Scenario: To be written
+          Rule: An idea is written down first
+            Scenario: To be written
         """
       When the workspace is run
       Then node "REQ-later#to-be-written" has attribute status = "undefined"
@@ -82,11 +83,12 @@ Feature: Executable specifications
         """
         @id=REQ-wishlist
         Feature: Wishlist
-          Scenario: Keep a lamp
-            Given an empty cart
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp
+              Given an empty cart
 
-          Scenario: Share the list
-            Given a friend to share with
+            Scenario: Share the list
+              Given a friend to share with
         """
       And a step definition "an empty cart" that passes
       When the workspace is run
@@ -207,8 +209,9 @@ Feature: Executable specifications
         """
         @id=REQ-catalogue
         Feature: Catalogue
-          Scenario: The cart is specified
-            Then the query "#REQ-cart" returns 1 result
+          Rule: The catalogue knows the cart
+            Scenario: The cart is specified
+              Then the query "#REQ-cart" returns 1 result
         """
       When the workspace is run
       And these specs:
@@ -223,8 +226,9 @@ Feature: Executable specifications
         """
         @id=MS-beta
         Feature: Beta
-          Scenario: The cart works
-            Then the node "REQ-cart" has stage "verified"
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "REQ-cart" has stage "verified"
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
@@ -342,8 +346,9 @@ Feature: Executable specifications
         """
         @id=REQ-wishlist
         Feature: Wishlist
-          Scenario: Keep a lamp
-            Given a lamp to keep
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp
+              Given a lamp to keep
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
@@ -515,14 +520,15 @@ Feature: Executable specifications
         """
         @id=REQ-shop
         Feature: Shop
-          Scenario: One lamp
-            When I add a lamp
-            Then the cart holds 1 item
+          Rule: The cart counts each lamp added
+            Scenario: One lamp
+              When I add a lamp
+              Then the cart holds 1 item
 
-          Scenario: Two lamps
-            When I add a lamp
-            And I add a lamp
-            Then the cart holds 2 items
+            Scenario: Two lamps
+              When I add a lamp
+              And I add a lamp
+              Then the cart holds 2 items
         """
       And the step definitions:
         | module   | world      | expression                   | behaviour                     |
@@ -613,12 +619,13 @@ Feature: Executable specifications
         """
         @id=REQ-wishlist
         Feature: Wishlist
-          Scenario: Keep a lamp for later
-            Given an empty cart
-            When I add a lamp
-            And I keep it for later
-            Then the wishlist holds 1 item
-            But the cart holds 1 item
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given an empty cart
+              When I add a lamp
+              And I keep it for later
+              Then the wishlist holds 1 item
+              But the cart holds 1 item
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
@@ -802,16 +809,18 @@ Feature: Executable specifications
         """
         @id=REQ-wishlist
         Feature: Wishlist
-          Scenario: Keep a lamp for later
-            Then the query "#REQ-cart" returns 1 result
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Then the query "#REQ-cart" returns 1 result
         """
       When the workspace is run
       And a file "specs/wishlist.feature" containing:
         """
         @id=REQ-wishlist
         Feature: Wishlist
-          Scenario: Remember a lamp
-            Then the query "#REQ-cart" returns 1 result
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Remember a lamp
+              Then the query "#REQ-cart" returns 1 result
         """
       And the workspace is run with "REQ-wishlist"
       Then node "REQ-wishlist#remember-a-lamp" has attribute status = "passed"
@@ -823,8 +832,9 @@ Feature: Executable specifications
         """
         @id=REQ-wishlist
         Feature: Wishlist
-          Scenario: Keep a lamp for later
-            Given a wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given a wishlist
         """
       And a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that takes a moment
@@ -877,14 +887,15 @@ Feature: Executable specifications
         """
         @id=REQ-timing
         Feature: Timing
-          Scenario: One
-            Given a first step
+          Rule: Every step finishes
+            Scenario: One
+              Given a first step
 
-          Scenario: Two
-            Given a step
+            Scenario: Two
+              Given a step
 
-          Scenario: Three
-            Given a step
+            Scenario: Three
+              Given a step
         """
       And a step definition "a step" that passes
       And a step definition "a first step" that <first step>
@@ -901,15 +912,16 @@ Feature: Executable specifications
         """
         @id=REQ-timing
         Feature: Timing
-          Scenario: One
-            Given a slow step
+          Rule: Every step finishes
+            Scenario: One
+              Given a slow step
 
-          Scenario: Two
-            Given a slow step
+            Scenario: Two
+              Given a slow step
 
-          @serial
-          Scenario: Alone
-            Given a slow step
+            @serial
+            Scenario: Alone
+              Given a slow step
         """
       And a step definition "a slow step" that takes a moment
       When the workspace is run with "--concurrency 4"
@@ -922,18 +934,19 @@ Feature: Executable specifications
         """
         @id=REQ-payment
         Feature: Payment
-          Scenario Outline: Pay by <method>
-            Given a payment by <method>
+          Rule: A payment is made by card or by invoice
+            Scenario Outline: Pay by <method>
+              Given a payment by <method>
 
-            @fast
-            Examples:
-              | method |
-              | card   |
+              @fast
+              Examples:
+                | method |
+                | card   |
 
-            @slow
-            Examples:
-              | method  |
-              | invoice |
+              @slow
+              Examples:
+                | method  |
+                | invoice |
         """
       And a step definition "a payment by card" that passes
       And a step definition "a payment by invoice" that fails
@@ -948,20 +961,21 @@ Feature: Executable specifications
         """
         @id=REQ-timing
         Feature: Timing
-          Scenario: One
-            Given a slow step
+          Rule: Every step finishes
+            Scenario: One
+              Given a slow step
 
-          Scenario Outline: Two <mode>
-            Given a slow step
+            Scenario Outline: Two <mode>
+              Given a slow step
 
-            Examples:
-              | mode     |
-              | together |
+              Examples:
+                | mode     |
+                | together |
 
-            @serial
-            Examples:
-              | mode  |
-              | alone |
+              @serial
+              Examples:
+                | mode  |
+                | alone |
         """
       And a step definition "a slow step" that takes a moment
       When the workspace is run with "--concurrency 4 --tags 'not @serial'"
@@ -979,8 +993,9 @@ Feature: Executable specifications
         """
         @id=MS-beta
         Feature: Beta
-          Scenario: The cart works
-            Then the node "REQ-cart" has stage "verified"
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "REQ-cart" has stage "verified"
         """
 
     Scenario: A gate sees the results of the scenarios that ran before it
@@ -1013,17 +1028,18 @@ Feature: Executable specifications
         """
         @id=REQ-release
         Feature: Release
-          Scenario Outline: The cart is <state>
-            Then the node "REQ-cart" has <attribute> "<state>"
+          Rule: The cart is released once it is verified
+            Scenario Outline: The cart is <state>
+              Then the node "REQ-cart" has <attribute> "<state>"
 
-            Examples: As authored
-              | attribute | state |
-              | maturity  | ready |
+              Examples: As authored
+                | attribute | state |
+                | maturity  | ready |
 
-            @gate
-            Examples: After the ordinary scenarios
-              | attribute | state    |
-              | stage     | verified |
+              @gate
+              Examples: After the ordinary scenarios
+                | attribute | state    |
+                | stage     | verified |
         """
       When the workspace is run with "--tags 'not @gate'"
       Then the step 'the node "REQ-cart" has maturity "ready"' has status "passed"
@@ -1037,8 +1053,9 @@ Feature: Executable specifications
         """
         @id=REQ-audit
         Feature: Audit
-          Scenario: Look at the graph
-            Then the graph shows no results
+          Rule: An audit sees the graph as it is written
+            Scenario: Look at the graph
+              Then the graph shows no results
         """
       And a step definition "the graph shows no results" that finds every scenario unrun
       When the workspace is run
@@ -1051,8 +1068,9 @@ Feature: Executable specifications
         """
         @id=REQ-progress
         Feature: Progress
-          Scenario: Delivery state
-            Then <step>
+          Rule: Progress is delivery state
+            Scenario: Delivery state
+              Then <step>
         """
       When the workspace is run
       Then the step '<step>' has status "failed"
@@ -1074,11 +1092,12 @@ Feature: Executable specifications
         """
         @id=MS-audit
         Feature: Audit
-          Scenario: Look at the results
-            Then the graph shows what the results say and no more
+          Rule: An audit sees what the results say
+            Scenario: Look at the results
+              Then the graph shows what the results say and no more
 
-          Scenario: Ask when the cart last ran
-            Then the query "scenario[lastRun]" returns at least 1 result
+            Scenario: Ask when the cart last ran
+              Then the query "scenario[lastRun]" returns at least 1 result
         """
       And a step definition "the graph shows what the results say and no more" that finds statuses without run details
       When the workspace is run
@@ -1091,8 +1110,9 @@ Feature: Executable specifications
         """
         @id=MS-alpha
         Feature: Alpha
-          Scenario: Nothing fails
-            Then the query "scenario[status=failed]" returns no results
+          Rule: No scenario fails
+            Scenario: Nothing fails
+              Then the query "scenario[status=failed]" returns no results
         """
       When the workspace is run
       And the workspace is run

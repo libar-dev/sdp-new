@@ -128,31 +128,6 @@ Feature: Workspace configuration
         | decision    | Use Postgres     | ADR-0001             |
         | nfr         | Checkout latency | NFR-checkout-latency |
 
-  Rule: rules says whether every scenario of a spec must be an example of a rule
-
-    Until the scenarios of a workspace are grouped under the rules they illustrate, it can say that
-    they need not be yet.
-
-    Scenario: A scenario outside every rule, while rules are required and once they are optional
-      Given a file "specs/REQ-cart.feature" containing:
-        """
-        @id=REQ-cart
-        Feature: Cart
-
-          Scenario: A new cart is empty
-            Then the cart is empty
-        """
-      When the workspace is checked
-      Then sdp reports at least:
-        | rule                  | at                       |
-        | scenario-outside-rule | specs/REQ-cart.feature:4 |
-      Given a file "sdp.config.yaml" containing:
-        """
-        rules: optional
-        """
-      When the workspace is checked
-      Then sdp does not report "scenario-outside-rule"
-
   @decided-by:DEC-0002
   Rule: The vocabulary says which of the team's words play the roles sdp interprets, and every command reads them
 
