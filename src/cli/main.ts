@@ -1,33 +1,26 @@
 /**
- * `sdp` — the command line. Every read command prints greppable text by
- * default and JSON with `--json`, so people and agents use the same tool.
+ * `sdp` — the command line. A thin transport: each command parses its flags,
+ * calls one use case of the application layer (`src/app/`) and prints the
+ * answer — as text by default, as the JSON envelope with `--json`. Notes go to
+ * stderr, and an incomplete answer exits with 2 (REQ-cli).
  */
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import { annotate } from "sdp/annotations"
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"
+import { Console, Effect, FileSystem, Option, Path } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
-import { architectureJson, architectureView, renderArchitecture } from "../arch/Architecture.ts"
-import { check } from "../check/Check.ts"
-import { contextBundle } from "../graph/Context.ts"
-import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
-import { formatPath, parseQuery, queryProject, querySyntax, stageLadder, unknownWords } from "../graph/Query.ts"
-import { statusSummary } from "../graph/Status.ts"
-import { idsDeclaration } from "../graph/Types.ts"
-import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
-import { atLeast } from "../model/Diagnostic.ts"
-import { formatSource } from "../model/Graph.ts"
-import { renderVocabulary, vocabularyJson } from "../model/Vocabulary.ts"
-import { builtinSteps } from "../run/Builtin.ts"
-import { isGate } from "../run/Evidence.ts"
-import { listSteps, readSteps, snippetModule, stepProblems } from "../run/Match.ts"
+import type { Answer } from "../app/Answer.ts"
+import * as Authoring from "../app/Authoring.ts"
+import { describe } from "../app/Errors.ts"
+import * as Reading from "../app/Reading.ts"
+import * as Running from "../app/Running.ts"
+import { templateKinds } from "../app/Templates.ts"
+import * as Text from "../app/Text.ts"
+import { jsonLines } from "../graph/Export.ts"
+import { querySyntax } from "../graph/Query.ts"
 import type { ScenarioResult } from "../model/Results.ts"
-import { summarize } from "../run/Runner.ts"
-import { ensureReadable, runWorkspace } from "../run/Session.ts"
-import { findWorkspaceRoot, loadConfig, loadProject, loadSteps } from "../workspace/Workspace.ts"
-import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
-import { agentsTemplate, configTemplate, newSpec, templateKinds } from "./templates.ts"
+import { findWorkspaceRoot } from "../workspace/Workspace.ts"
 
 annotate(import.meta, { is: "ARCH-cli" })
 
@@ -37,7 +30,10 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
   throw error
 })
 
-const json = Flag.Boolean("json").pipe(Flag.withDescription("Print machine-readable JSON"), Flag.withDefault(false))
+const json = Flag.Boolean("json").pipe(
+  Flag.withDescription("Print the answer as JSON: { complete, notes, data }"),
+  Flag.withDefault(false)
+)
 
 const sdp = Command.make("sdp").pipe(
   Command.withSharedFlags({
@@ -59,74 +55,51 @@ const workspaceRoot = Effect.gen(function*() {
   return Option.isSome(root) ? path.resolve(root.value) : yield* findWorkspaceRoot(process.cwd())
 })
 
+/** The command did not do what it was asked: a check with errors, a failed scenario, input it refuses. */
+const failed = 1
+/** The command answered, but from a workspace it could not fully read or a search it could not finish. */
+const incomplete = 2
+
 const fail = (message: string) =>
   Effect.gen(function*() {
-    yield* Console.error(c.red(message))
-    process.exitCode = 1
+    yield* Console.error(Text.c.red(message))
+    process.exitCode = failed
   })
 
-const printJson = (value: unknown) => Console.log(JSON.stringify(value, null, 2))
+/**
+ * Prints an answer: its data as text — or, with `--json`, the envelope — on stdout, so the lines
+ * stay clean for a pipe, and what the reader should know about it on stderr. An incomplete answer
+ * exits with 2 whatever the output mode, unless the command already failed.
+ */
+const print = Effect.fnUntraced(function*<A>(answer: Answer<A>, asJson: boolean, text: (data: A) => string) {
+  const body = asJson ? JSON.stringify(answer, null, 2) : text(answer.data)
+  if (body !== "") yield* Console.log(body)
+  for (const remark of Text.remarks(answer)) yield* Console.error(Text.c.yellow(remark))
+  if (!answer.complete) process.exitCode ||= incomplete
+})
 
-// --- graph ------------------------------------------------------------------
+// --- reading the graph ------------------------------------------------------
 
-const graphCommand = Command.make(
-  "graph",
-  {
-    format: Flag.Literals("format", graphFormats).pipe(Flag.withAlias("f"), Flag.withDescription("Output format"), Flag.withDefault("jsonl")),
-    write: Flag.Boolean("write").pipe(
-      Flag.withDescription("Write .sdp/graph.jsonl and .sdp/graph.tsv for grep/jq instead of printing"),
-      Flag.withDefault(false)
-    ),
-    select: Flag.String("query").pipe(Flag.withAlias("q"), Flag.withDescription("Only nodes matched by this query"), Flag.optional)
-  },
-  Effect.fn(function*({ format, select, write }) {
-    const root = yield* workspaceRoot
-    const project = yield* loadProject(root)
-    let graph = project.graph
-    if (Option.isSome(select)) {
-      const result = queryProject(project, select.value)
-      if (Result.isFailure(result)) return yield* fail(result.failure.message)
-      graph = graph.subgraph(result.success.paths.flatMap((path) => path.nodes))
-    }
-    if (write) {
-      const fs = yield* FileSystem.FileSystem
-      const path = yield* Path.Path
-      yield* fs.makeDirectory(path.join(root, ".sdp"), { recursive: true })
-      yield* fs.writeFileString(path.join(root, ".sdp/graph.jsonl"), exportGraph(graph, "jsonl", project.config.vocabulary))
-      yield* fs.writeFileString(path.join(root, ".sdp/graph.tsv"), exportGraph(graph, "tsv", project.config.vocabulary))
-      yield* Console.log(`wrote .sdp/graph.jsonl and .sdp/graph.tsv (${graph.nodes().length} nodes, ${graph.edges().length} edges)`)
-      return
-    }
-    process.stdout.write(exportGraph(graph, format, project.config.vocabulary))
+const statusCommand = Command.make(
+  "status",
+  { json },
+  Effect.fn(function*({ json }) {
+    yield* print(yield* Reading.status(yield* workspaceRoot), json, Text.status)
   })
-).pipe(Command.withDescription("Export the whole system graph (jsonl, json, tsv, dot, mermaid)"))
-
-// --- query ------------------------------------------------------------------
+).pipe(Command.withDescription("One-screen summary of the delivery state"))
 
 const queryCommand = Command.make(
   "query",
   {
     expression: Argument.String("expression").pipe(Argument.withDescription("SDPQ, e.g. 'requirement[maturity=ready] -realized-by-> *'")),
-    paths: Flag.Boolean("paths").pipe(Flag.withDescription("Print matched paths instead of end nodes"), Flag.withDefault(false)),
+    paths: Flag.Boolean("paths").pipe(Flag.withDescription("Print the paths that led to the nodes, one per line"), Flag.withDefault(false)),
     ids: Flag.Boolean("ids").pipe(Flag.withDescription("Print only ids, one per line"), Flag.withDefault(false)),
     json
   },
   Effect.fn(function*({ expression, ids, json, paths }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const result = queryProject(project, expression)
-    if (Result.isFailure(result)) return yield* fail(`query error: ${result.failure.message}`)
-    const { nodes, truncated } = result.success
-    if (json) return yield* printJson(paths ? result.success.paths : nodes.map(nodeJson))
-    if (paths) {
-      for (const p of result.success.paths) yield* Console.log(formatPath(p))
-    } else if (ids) {
-      for (const n of nodes) yield* Console.log(n.id)
-    } else if (nodes.length > 0) {
-      yield* Console.log(table(nodeRows(project.config.vocabulary, nodes)))
-    }
-    if (truncated) yield* Console.error(c.yellow(`result cut short: ${result.success.limits.join("; ")} — the answer may be incomplete`))
-    if (!ids) yield* Console.error(c.dim(`${nodes.length} node(s)`))
-    for (const note of unknownWords(project, Result.getOrThrow(parseQuery(expression)))) yield* Console.error(c.yellow(`note: ${note}`))
+    const found = yield* Reading.query(yield* workspaceRoot, { expression, paths })
+    yield* print(found, json, (data) => ids ? data.nodes.map((node) => node.id).join("\n") : Text.query(data))
+    if (!ids && !json) yield* Console.error(Text.c.dim(`${found.data.nodes.length} node(s)`))
   })
 ).pipe(
   Command.withAlias("q"),
@@ -135,43 +108,31 @@ const queryCommand = Command.make(
   Command.withExamples([
     { command: "sdp q 'requirement[maturity<ready]'", description: "Requirements not ready yet" },
     { command: "sdp q 'element !-*- decision'", description: "Elements without a decision" },
-    { command: "sdp q '#DEC-0002 <-*- *'", description: "Everything that points at a decision" }
+    { command: "sdp q '#DEC-0002 <-*- *' --json | jq -r '.data.nodes[].id'", description: "Everything that points at a decision, as data" }
   ])
 )
 
-// --- show / context ---------------------------------------------------------
+const id = Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout"))
 
 const showCommand = Command.make(
   "show",
-  { id: Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout")), json },
+  { id, json },
   Effect.fn(function*({ id, json }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const node = project.graph.node(id)
-    if (!node) return yield* fail(`no node ${id}`)
-    const out = project.graph.out(id)
-    const inc = project.graph.in(id)
-    if (json) return yield* printJson({ node: nodeJson(node), out, in: inc })
-    yield* Console.log(`${c.bold(node.id)}  ${node.kind}  ${node.title}  ${c.dim(formatSource(node.source))}`)
-    for (const [k, v] of Object.entries(node.attrs)) yield* Console.log(`  ${k}: ${JSON.stringify(v)}`)
-    for (const e of out) yield* Console.log(`  -${e.rel}-> ${e.to}  ${c.dim(project.graph.node(e.to)?.title ?? "")}`)
-    for (const e of inc) yield* Console.log(`  <-${e.rel}- ${e.from}  ${c.dim(project.graph.node(e.from)?.title ?? "")}`)
+    yield* print(yield* Reading.show(yield* workspaceRoot, { id }), json, Text.show)
   })
 ).pipe(Command.withDescription("Show one node with its attributes and edges"))
 
 const contextCommand = Command.make(
   "context",
   {
-    id: Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout")),
+    id,
     depth: Flag.Int("depth").pipe(
-      Flag.withDescription("Hops to search for architecture, quality requirements and decisions"),
+      Flag.withDescription("Hops to search for architecture, quality requirements and decisions, 1 to 6"),
       Flag.withDefault(2)
     )
   },
   Effect.fn(function*({ depth, id }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    if (!project.graph.node(id)) return yield* fail(`no node ${id}`)
-    // The step definitions as read from the step files show which steps are not automated yet: nothing runs.
-    yield* Console.log(contextBundle(project, id, depth, readSteps(project)))
+    yield* print(yield* Reading.context(yield* workspaceRoot, { id, depth }), false, (document) => document)
   })
 ).pipe(
   Command.withDescription(
@@ -179,7 +140,56 @@ const contextCommand = Command.make(
   )
 )
 
-// --- check ------------------------------------------------------------------
+const select = Flag.String("query").pipe(Flag.withAlias("q"), Flag.withDescription("Only the nodes and edges along the paths this query matches"), Flag.optional)
+const mermaid = Flag.Boolean("mermaid").pipe(Flag.withDescription("Print a Mermaid flowchart instead"), Flag.withDefault(false))
+
+const graphCommand = Command.make(
+  "graph",
+  { select, mermaid },
+  Effect.fn(function*({ mermaid, select }) {
+    const root = yield* workspaceRoot
+    const input = { select: Option.getOrUndefined(select) }
+    if (mermaid) return yield* print(yield* Reading.diagram(root, input), false, (diagram) => diagram.trimEnd())
+    yield* print(yield* Reading.graph(root, input), false, (records) => jsonLines(records).trimEnd())
+  })
+).pipe(
+  Command.withDescription("The graph as plain data: one JSON record per line, every node and then every edge"),
+  Command.withExamples([
+    { command: "sdp graph | grep '\"rel\":\"decided-by\"'", description: "Every decided-by edge, with where it is declared" },
+    { command: "sdp graph | jq -r 'select(.type == \"node\" and .attrs.maturity == \"ready\") | .id'", description: "The ids of the ready nodes" },
+    { command: "sdp graph --mermaid -q 'element -decided-by-> decision'", description: "A diagram of part of the graph" }
+  ])
+)
+
+const archCommand = Command.make(
+  "arch",
+  { json, mermaid },
+  Effect.fn(function*({ json, mermaid }) {
+    const root = yield* workspaceRoot
+    if (mermaid) return yield* print(yield* Reading.diagram(root, "architecture"), false, (diagram) => diagram.trimEnd())
+    yield* print(yield* Reading.architecture(root), json, Text.architecture)
+  })
+).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it"))
+
+const lifecycleCommand = Command.make(
+  "lifecycle",
+  { json },
+  Effect.fn(function*({ json }) {
+    const root = yield* workspaceRoot
+    if (json) return yield* print(yield* Reading.lifecycle(root), true, () => "")
+    yield* print(yield* Reading.lifecycleChart(root), false, (chart) => chart.trimEnd())
+  })
+).pipe(Command.withDescription("Phases, iterations, milestone gates and discipline activity (RUP view)"))
+
+const vocabularyCommand = Command.make(
+  "vocabulary",
+  { json },
+  Effect.fn(function*({ json }) {
+    yield* print(yield* Reading.vocabulary(yield* workspaceRoot), json, Text.vocabulary)
+  })
+).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured"))
+
+// --- checking and running ---------------------------------------------------
 
 const checkCommand = Command.make(
   "check",
@@ -191,80 +201,36 @@ const checkCommand = Command.make(
     )
   },
   Effect.fn(function*({ json, severity }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const diagnostics = check(project).filter((d) => atLeast(d.severity, severity))
-    if (diagnostics.some((d) => d.severity === "error")) process.exitCode = 1
-    if (json) return yield* printJson(diagnostics)
-    for (const d of diagnostics) yield* Console.log(formatDiagnostic(d))
-    const count = (s: string) => diagnostics.filter((d) => d.severity === s).length
-    yield* Console.log(c.dim(`${count("error")} error(s), ${count("warning")} warning(s), ${count("info")} info`))
+    const found = yield* Reading.check(yield* workspaceRoot, { severity })
+    if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
+    yield* print(found, json, Text.diagnostics)
   })
 ).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity gates and decision records; exit 1 on errors"))
 
-// --- run / gate -------------------------------------------------------------
-
-const executeRun = Effect.fn("executeRun")(function*(options: {
-  readonly targets: ReadonlyArray<string>
-  readonly tags: Option.Option<string>
-  readonly json: boolean
-  readonly snippets: boolean
-  readonly verbose: boolean
-  readonly enforceGates: boolean
-  readonly concurrency?: number | undefined
-}) {
-  const root = yield* workspaceRoot
-  const config = yield* loadConfig(root)
-  const steps = yield* loadSteps(root, config)
-  for (const file of steps.empty) {
-    yield* Console.error(c.yellow(`warning: ${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``))
-  }
-  const print = (r: ScenarioResult) => options.json ? Effect.void : Console.log(formatScenario(r, { verbose: options.verbose }))
-  const run = yield* runWorkspace(root, {
-    modules: [builtinSteps, ...steps.modules],
-    imports: steps.imports,
-    selection: { targets: yield* fromHere(root, options.targets), tags: Option.getOrUndefined(options.tags) },
-    concurrency: options.concurrency,
-    onScenario: print
+const stepsCommand = Command.make(
+  "steps",
+  {
+    text: Argument.String("text").pipe(
+      Argument.withDescription("Only definitions whose expression contains this text, or that match it as a step"),
+      Argument.optional
+    ),
+    json
+  },
+  Effect.fn(function*({ json, text }) {
+    const listed = yield* Reading.steps(yield* workspaceRoot, { text: Option.getOrUndefined(text) })
+    yield* print(listed, json, Text.steps)
+    if (!json) yield* Console.error(Text.c.dim(`${listed.data.length} step definition(s)`))
   })
-
-  const { gates, scenarios } = run
-  const counts = summarize(scenarios)
-  const gateCounts = summarize(gates)
-  // A gate that is not met yet is information, not a broken build; `sdp gate <id>` enforces it:
-  // a milestone is met only when it has gate scenarios and every one of them passed.
-  const failed = options.enforceGates
-    ? gates.length === 0 || gateCounts.passed < gates.length
-    : counts.failed + counts.ambiguous > 0
-  if (failed) process.exitCode = 1
-  const snippets = [...scenarios, ...gates].flatMap((r) => r.examples.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
-  const module = options.snippets && snippets.length > 0 ? snippetModule(snippets, steps.files) : undefined
-  if (options.json) {
-    return yield* printJson({
-      summary: counts,
-      gates: gateCounts,
-      stale: run.stale,
-      scenarios: [...scenarios, ...gates],
-      ...(module ? { snippets: module } : {})
-    })
-  }
-  const describe = (c: Readonly<Record<string, number>>) =>
-    Object.entries(c).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s}`).join(", ") || "none"
-  if (scenarios.length > 0 || gates.length === 0) yield* Console.log(`\n${scenarios.length} scenario(s): ${describe(counts)}`)
-  if (gates.length > 0) yield* Console.log(`${gates.length} gate scenario(s): ${describe(gateCounts)}`)
-  const unselected = [...scenarios, ...gates].flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
-  if (unselected > 0) {
-    yield* Console.log(c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`))
-  }
-  const stale = Object.values(run.stale).reduce((sum, n) => sum + n, 0)
-  if (stale > 0) {
-    yield* Console.log(c.yellow(`stale: ${stale} earlier result(s) no longer count (${describe(run.stale)}); run them again`))
-  }
-  if (module) {
-    yield* Console.log(`\nStep definitions for the undefined steps:\n\n${module}`)
-  } else if (snippets.length > 0) {
-    yield* Console.log(c.dim("undefined steps describe behaviour not automated yet; --snippets prints a step definition module for them"))
-  }
-})
+).pipe(
+  Command.withDescription(
+    "List step definitions, built-in ones included, one per line: file:line, keyword, expression. Read from the step files without running them"
+  ),
+  Command.withExamples([
+    { command: "sdp steps", description: "Every step definition" },
+    { command: "sdp steps cart", description: "Definitions that mention the cart: extend one instead of adding a near-duplicate" },
+    { command: "sdp steps 'the cart holds 3 items'", description: "The definition this step would run" }
+  ])
+)
 
 /** Targets that are paths relative to the current directory, made relative to the workspace root. */
 const fromHere = Effect.fnUntraced(function*(root: string, targets: ReadonlyArray<string>) {
@@ -277,6 +243,16 @@ const fromHere = Effect.fnUntraced(function*(root: string, targets: ReadonlyArra
       const inside = path.relative(root, path.resolve(cwd, target))
       return exists && !inside.startsWith("..") && !path.isAbsolute(inside) ? inside || "." : target
     }))
+})
+
+/** Prints a run: each scenario as its result is known, then the summary; a run that did not pass exits with 1. */
+const printRun = Effect.fnUntraced(function*<R extends Running.RunReport, E, S>(
+  run: (onScenario: (result: ScenarioResult) => Effect.Effect<void>) => Effect.Effect<Answer<R>, E, S>,
+  options: { readonly json: boolean; readonly verbose: boolean }
+) {
+  const ran = yield* run((result) => options.json ? Effect.void : Console.log(Text.scenario(result, options)))
+  if (!ran.data.passed) process.exitCode = failed
+  yield* print(ran, options.json, Text.runSummary)
 })
 
 const runCommand = Command.make(
@@ -298,151 +274,35 @@ const runCommand = Command.make(
     verbose: Flag.Boolean("verbose").pipe(Flag.withDescription("Show passed steps too"), Flag.withDefault(false)),
     json
   },
-  Effect.fn(function*(input) {
-    yield* executeRun({ ...input, enforceGates: false })
+  Effect.fn(function*({ concurrency, json, snippets, tags, targets, verbose }) {
+    const root = yield* workspaceRoot
+    const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency }
+    yield* printRun((onScenario) => Running.run(root, { ...input, onScenario }), { json, verbose })
   })
 ).pipe(Command.withDescription("Execute scenarios and record results (.sdp/results.json)"))
 
 const gateCommand = Command.make(
   "gate",
-  { milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta")), json },
-  Effect.fn(function*({ json, milestone }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    yield* ensureReadable(project)
-    const node = project.graph.node(milestone)
-    if (!node) return yield* fail(`no node ${milestone}`)
-    const spec = project.specById.get(milestone)
-    if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, project.config.vocabulary))) {
-      return yield* fail(`${milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`)
-    }
-    if (!json) yield* Console.log(`${c.bold(node.id)} ${node.title}`)
-    yield* executeRun({ targets: [milestone], tags: Option.none(), json, snippets: false, verbose: false, enforceGates: true })
-  })
-).pipe(Command.withDescription("Evaluate a milestone's gate scenarios against the current graph"))
-
-// --- steps ------------------------------------------------------------------
-
-const stepsCommand = Command.make(
-  "steps",
   {
-    text: Argument.String("text").pipe(
-      Argument.withDescription("Only definitions whose expression contains this text, or that match it as a step"),
-      Argument.optional
+    milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta"), Argument.optional),
+    due: Flag.Boolean("due").pipe(
+      Flag.withDescription("Instead of one milestone: those of the current phase and of every phase before it"),
+      Flag.withDefault(false)
     ),
     json
   },
-  Effect.fn(function*({ json, text }) {
-    const project = yield* loadProject(yield* workspaceRoot, { withResults: false })
-    const steps = listSteps(project, Option.getOrUndefined(text))
-    if (json) return yield* printJson(steps)
-    for (const step of steps) yield* Console.log(`${step.file}:${step.line}\t${step.keyword}\t${step.expression}`)
-    yield* Console.error(c.dim(`${steps.length} step definition(s)`))
-    for (const problem of stepProblems(project)) yield* Console.error(c.yellow(`not read: ${problem}`))
+  Effect.fn(function*({ due, json, milestone }) {
+    const root = yield* workspaceRoot
+    const input = { milestone: Option.getOrUndefined(milestone), due }
+    yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
   })
 ).pipe(
-  Command.withDescription(
-    "List step definitions, built-in ones included, one per line: file:line, keyword, expression. Read from the step files without running them"
-  ),
+  Command.withDescription("Evaluate gate scenarios against the current graph; exit 0 only when every one of them passed"),
   Command.withExamples([
-    { command: "sdp steps", description: "Every step definition" },
-    { command: "sdp steps cart", description: "Definitions that mention the cart: extend one instead of adding a near-duplicate" },
-    { command: "sdp steps 'the cart holds 3 items'", description: "The definition this step would run" }
+    { command: "sdp gate MS-beta", description: "Is this milestone met?" },
+    { command: "sdp gate --due", description: "Are the milestones met that the calendar says are due? (for CI)" }
   ])
 )
-
-// --- arch / lifecycle / status ----------------------------------------------
-
-const archCommand = Command.make(
-  "arch",
-  {
-    format: Flag.Literals("format", ["text", "mermaid", "dot", "json"]).pipe(
-      Flag.withAlias("f"),
-      Flag.withDescription("Output format"),
-      Flag.withDefault("text")
-    )
-  },
-  Effect.fn(function*({ format }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const view = architectureView(project)
-    if (format === "json") {
-      return yield* printJson(architectureJson(project))
-    }
-    if (format !== "text") {
-      process.stdout.write(exportGraph(project.graph.subgraph(view.nodes.map((n) => n.id)), format, project.config.vocabulary))
-      return
-    }
-    process.stdout.write(renderArchitecture(project))
-  })
-).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it"))
-
-const lifecycleCommand = Command.make(
-  "lifecycle",
-  { json },
-  Effect.fn(function*({ json }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const report = lifecycle(project, DateTime.formatIsoDate(yield* DateTime.now))
-    if (json) {
-      return yield* printJson({
-        phases: report.phases.map((p) => ({
-          ...nodeJson(p.node),
-          milestones: p.milestones.map(nodeJson),
-          iterations: p.iterations.map((i) => i.node.id)
-        })),
-        // Planned activity per discipline, one number per iteration in `iterations` order.
-        disciplines: Object.fromEntries(report.disciplines.map((d) => [d.discipline, d.activity])),
-        iterations: report.iterations.map((i) => i.id),
-        // Per iteration, also those in no phase: the planned work, and the evidence apart from it.
-        work: report.work.map((i) => ({
-          ...nodeJson(i.node),
-          items: i.items.map((n) => n.id),
-          evidence: { stages: i.stages, scenarios: i.scenarios }
-        })),
-        current: report.current?.id,
-        currentPhase: report.currentPhase?.id,
-        unplanned: report.unplanned.map((n) => n.id)
-      })
-    }
-    yield* Console.log(renderLifecycle(report))
-  })
-).pipe(Command.withDescription("Phases, iterations, milestone gates and discipline activity (RUP view)"))
-
-const statusCommand = Command.make(
-  "status",
-  { json },
-  Effect.fn(function*({ json }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const summary = statusSummary(project)
-    const stageOrder = stageLadder(project.config.vocabulary).flat()
-    if (json) return yield* printJson(summary)
-    const line = (label: string, m: Record<string, number>, order?: ReadonlyArray<string>, none = "—") => {
-      const keys = order ? [...order.filter((k) => k in m), ...Object.keys(m).filter((k) => !order.includes(k))] : Object.keys(m)
-      return `${c.bold(label.padEnd(13))} ${keys.map((k) => `${k} ${m[k]}`).join(" · ") || none}`
-    }
-    const results = ["passed", "failed", "pending", "undefined", "unrun", "stale"]
-    yield* Console.log(`${c.bold("graph".padEnd(13))} ${summary.nodes} nodes, ${summary.edges} edges, ${summary.specFiles} spec files`)
-    yield* Console.log(line("kinds", summary.kinds))
-    yield* Console.log(line("relations", summary.relations))
-    yield* Console.log(line("stages", summary.stages, stageOrder))
-    yield* Console.log(line("decisions", summary.decisions))
-    yield* Console.log(line("scenarios", summary.scenarios, results))
-    yield* Console.log(line("gates", summary.gates, results))
-    if (Object.keys(summary.stale).length > 0) yield* Console.log(`${line("stale", summary.stale)}  ${c.dim("(sdp run refreshes them)")}`)
-    yield* Console.log(
-      `${c.bold("architecture".padEnd(13))} ${summary.architecture} node(s) of an architectural kind`
-    )
-    yield* Console.log(line("check", summary.diagnostics, ["error", "warning", "info"], "no diagnostics"))
-  })
-).pipe(Command.withDescription("One-screen summary of the delivery state"))
-
-const vocabularyCommand = Command.make(
-  "vocabulary",
-  { json },
-  Effect.fn(function*({ json }) {
-    const config = yield* loadConfig(yield* workspaceRoot)
-    if (json) return yield* printJson(vocabularyJson(config.vocabulary))
-    yield* Console.log(renderVocabulary(config.vocabulary))
-  })
-).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured"))
 
 // --- authoring --------------------------------------------------------------
 
@@ -467,38 +327,17 @@ const newCommand = Command.make(
   },
   Effect.fn(function*({ dir, id, kind, maturity, title }) {
     const root = yield* workspaceRoot
-    const project = yield* loadProject(root, { withResults: false })
-    const fs = yield* FileSystem.FileSystem
-    const path = yield* Path.Path
-    const ladder = project.config.vocabulary.maturity
-    if (Option.isSome(maturity) && !ladder.includes(maturity.value)) {
-      return yield* fail(`unknown maturity ${maturity.value}: use one of ${ladder.join(", ")}`)
-    }
-    const result = newSpec({
+    const created = yield* Authoring.create(root, {
       kind,
       title,
-      maturity: Option.getOrUndefined(maturity),
-      today: DateTime.formatIsoDate(yield* DateTime.now),
-      config: project.config,
-      existing: project.graph.nodes().map((n) => n.id),
       id: Option.getOrUndefined(id),
+      maturity: Option.getOrUndefined(maturity),
       dir: Option.getOrUndefined(dir)
     })
-    if (Result.isFailure(result)) return yield* fail(result.failure)
-    const created = result.success
-    // An id only a dangling link names is waiting for exactly this node.
-    const existing = project.graph.node(created.id)
-    if (existing && existing.kind !== "missing") return yield* fail(`id ${created.id} already exists at ${formatSource(existing.source)}`)
-    const target = path.resolve(root, created.file)
-    yield* fs.makeDirectory(path.dirname(target), { recursive: true })
-    // Compared as real paths: an absolute --dir may reach the workspace through a symbolic link.
-    const relative = path.relative(yield* fs.realPath(root), path.join(yield* fs.realPath(path.dirname(target)), path.basename(target)))
-    const inside = !relative.startsWith("..") && !path.isAbsolute(relative)
-    const shown = inside ? relative : target
-    if (yield* fs.exists(target)) return yield* fail(`${shown} already exists`)
-    yield* fs.writeFileString(target, created.content)
-    yield* Console.log(`${created.id}\t${shown}`)
-    if (!inside) yield* Console.error(c.yellow(`note: ${shown} is outside the workspace ${root}, so it is not part of its graph`))
+    yield* Console.log(`${created.id}\t${created.file}`)
+    if (!created.inside) {
+      yield* Console.error(Text.c.yellow(`note: ${created.file} is outside the workspace ${root}, so it is not part of its graph`))
+    }
   })
 ).pipe(
   Command.withDescription(
@@ -518,21 +357,12 @@ const initCommand = Command.make(
   Effect.fn(function*() {
     // A new workspace starts here (or at -C), never in a workspace further up.
     const { root: given } = yield* sdp
-    const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const root = path.resolve(Option.getOrElse(given, () => "."))
-    const write = Effect.fnUntraced(function*(file: string, content: string) {
-      const target = path.join(root, file)
-      if (yield* fs.exists(target)) return yield* Console.log(c.dim(`exists  ${file}`))
-      yield* fs.makeDirectory(path.dirname(target), { recursive: true })
-      yield* fs.writeFileString(target, content)
-      yield* Console.log(`created ${file}`)
-    })
-    yield* write("sdp.config.yaml", configTemplate)
-    yield* write(".sdp/.gitignore", "# regenerate with `sdp graph --write`; commit results.json if you want verified status in git\ngraph.*\n")
-    yield* write("AGENTS.sdp.md", agentsTemplate)
+    for (const { created, file } of yield* Authoring.init(path.resolve(Option.getOrElse(given, () => ".")))) {
+      yield* Console.log(created ? `created ${file}` : Text.c.dim(`exists  ${file}`))
+    }
     yield* Console.log(
-      c.dim("next: sdp new idea \"My first idea\"  ·  sdp new plan \"Delivery plan\"  ·  point your AGENTS.md or CLAUDE.md at AGENTS.sdp.md")
+      Text.c.dim("next: sdp new idea \"My first idea\"  ·  sdp new plan \"Delivery plan\"  ·  point your AGENTS.md or CLAUDE.md at AGENTS.sdp.md")
     )
   })
 ).pipe(Command.withDescription("Create sdp.config.yaml and an agent guide (AGENTS.sdp.md, itself a spec) in the workspace"))
@@ -541,16 +371,8 @@ const typesCommand = Command.make(
   "types",
   {},
   Effect.fn(function*() {
-    const root = yield* workspaceRoot
-    const project = yield* loadProject(root, { withResults: false })
-    const fs = yield* FileSystem.FileSystem
-    const path = yield* Path.Path
-    const file = path.join(root, project.config.types)
-    const declaration = idsDeclaration(project)
-    yield* fs.makeDirectory(path.dirname(file), { recursive: true })
-    yield* fs.writeFileString(file, declaration)
-    const count = declaration.split("\n").filter((line) => line.startsWith("    \"")).length
-    yield* Console.log(`wrote ${project.config.types} (${count} ids): annotate() now accepts exactly these`)
+    const written = yield* Authoring.types(yield* workspaceRoot)
+    yield* Console.log(`wrote ${written.file} (${written.ids} ids): annotate() now accepts exactly these`)
   })
 ).pipe(Command.withDescription("Write the id declarations that type annotate() in TypeScript (sdp/annotations)"))
 
@@ -584,17 +406,20 @@ sdp.pipe(
     mcpCommand
   ]),
   Command.run({ version: "0.1.0" }),
-  // Problems with the user's files are reported as one line naming the file, not as a stack trace.
+  // A problem with the user's files or input is one line that names it, not a stack trace.
   Effect.catchTags({
-    ConfigError: (e) => fail(`${e.file}: invalid configuration: ${e.message.replace(/\s*\n\s*/g, " ")}`),
-    StepLoadError: (e) => fail(`${e.file}: could not load step definitions: ${e.message}`),
-    InvalidStepExpressions: (e) => fail(e.message),
-    InvalidTags: (e) => fail(e.message),
-    ResultsLocked: (e) => fail(e.message),
-    UnknownTargets: (e) => fail(e.message),
-    UnreadableSpecs: (e) => fail(e.message),
-    WorkspaceNotFound: (e) => fail(e.message),
-    PlatformError: (e) => fail(e.message)
+    ConfigError: (e) => fail(describe(e)),
+    StepLoadError: (e) => fail(describe(e)),
+    InvalidStepExpressions: (e) => fail(describe(e)),
+    InvalidTags: (e) => fail(describe(e)),
+    ResultsLocked: (e) => fail(describe(e)),
+    UnknownTargets: (e) => fail(describe(e)),
+    UnreadableSpecs: (e) => fail(describe(e)),
+    WorkspaceNotFound: (e) => fail(describe(e)),
+    QueryError: (e) => fail(describe(e)),
+    UnknownNode: (e) => fail(describe(e)),
+    Refused: (e) => fail(describe(e)),
+    PlatformError: (e) => fail(describe(e))
   }),
   Effect.provide(NodeServices.layer),
   NodeRuntime.runMain

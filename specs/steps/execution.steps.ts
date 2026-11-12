@@ -15,7 +15,7 @@ import { registrations } from "../../src/mcp/Server.ts"
 import { rules } from "../../src/model/Diagnostic.ts"
 import type { ScenarioResult, StepResult } from "../../src/model/Results.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
-import { runWorkspace } from "../../src/run/Session.ts"
+import { runWorkspace } from "../../src/app/Running.ts"
 import { readResults } from "../../src/run/Store.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, newWorld, reload, type World } from "./world.ts"
@@ -371,8 +371,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(world.scratch.mcpError, true, `expected a tool error, got:\n${world.output}`)
   })
 
+  // The field may be a path into the JSON: "data.nodes".
   Then("the output field {string} holds {string}", ({ args: [field, list], world }) => {
-    const value: unknown = JSON.parse(world.output)[field]
+    const value: unknown = field.split(".").reduce((json, key) => json?.[key], JSON.parse(String(world.scratch.stdout ?? world.output)))
     assert.ok(Array.isArray(value), `${field} is not a list in:\n${world.output}`)
     const actual = value.map((v: unknown) => typeof v === "object" && v !== null && "id" in v ? String(v.id) : String(v))
     assert.deepEqual(actual.sort(), ids(list))

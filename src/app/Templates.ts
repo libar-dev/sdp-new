@@ -3,11 +3,14 @@
  * matter is built as data and written by the YAML library, so a title is always a title, whatever
  * it looks like to YAML; only fixed text — suggestions to uncomment — is written as is.
  */
+import { annotate } from "sdp/annotations"
 import { Result } from "effect"
 import { Document, isMap, isNode, isSeq } from "yaml"
 import { type Config, defaults } from "../model/Config.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { parseMarkdownSpec } from "../parse/Spec.ts"
+
+annotate(import.meta, { is: "ARCH-reports" })
 
 export const directoryFor: Record<string, string> = {
   requirement: "specs/requirements",
@@ -325,7 +328,9 @@ YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form o
 - Everything about one node before you change it: \`sdp context REQ-guest-checkout\`
 - The architecture (every element and pattern architects declared): \`sdp arch\`
 - Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
-- Line-oriented dumps for grep/jq: \`sdp graph --write\` → .sdp/graph.jsonl, .sdp/graph.tsv
+- The graph as plain data, one JSON record per line: \`sdp graph | grep …\`, \`sdp graph | jq …\`
+- Every read command answers as JSON with \`--json\`: \`{ complete, notes, data }\`. Exit code 2
+  and \`complete: false\` mean sdp could not read everything: do not conclude that something is absent
 
 To change behaviour, change its spec first: the Gherkin scenarios are the acceptance tests.
 \`sdp context <id>\` lists the steps that have no definition yet, \`sdp run <id> --snippets\`

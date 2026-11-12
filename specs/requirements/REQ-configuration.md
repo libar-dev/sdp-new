@@ -367,8 +367,8 @@ Scenario: sdp vocabulary prints the profile in force
     """
   When I run "sdp vocabulary --json"
   Then the output is valid JSON
-  And the output field "links" holds "owner"
-  And the output field "maturity" holds "idea, draft, specified, ready"
+  And the output field "data.links" holds "owner"
+  And the output field "data.maturity" holds "idea, draft, specified, ready"
   When I run "sdp vocabulary"
   Then the output line with "decision" contains "adr"
 

@@ -228,6 +228,15 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 }
 annotate(lifecycle, { is: "ARCH-lifecycle" })
 
+/**
+ * The milestones that are due: those of the current phase and of every phase before it. The
+ * calendar decides, never achievement; a report without a date treats every milestone as due.
+ */
+export const dueMilestones = (report: LifecycleReport): ReadonlyArray<GraphNode> => {
+  const current = report.phases.findIndex((phase) => phase.node.id === report.currentPhase?.id)
+  return report.phases.filter((_, index) => !report.dated || index <= current).flatMap((phase) => phase.milestones)
+}
+
 const shades = [" ", "░", "▒", "▓", "█"]
 
 const counts = (record: Readonly<Record<string, number>>) =>
@@ -244,14 +253,14 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   }
   const currentIndex = report.phases.findIndex((p) => p.node.id === report.currentPhase?.id)
   const label = (it: GraphNode) => it.id === report.current?.id ? `${it.id}*` : it.id
+  const dueIds = new Set(dueMilestones(report).map((milestone) => milestone.id))
   out.push("PHASES  (◀ now and * are where today falls; a milestone is met only when its gate passes)")
   report.phases.forEach((phase, index) => {
     const its = phase.iterations.map((i) => label(i.node)).join(" ") || "—"
     const now = index === currentIndex ? "◀ now" : ""
     out.push(`  ${pad(phase.node.title, 14)} ${pad(its, 14)}${now}`)
-    // Undated reports treat every gate as due; before the plan starts, none is.
-    const due = !report.dated || index <= currentIndex
     for (const m of phase.milestones) {
+      const due = dueIds.has(m.id)
       const v = String(m.attrs.verification ?? "none")
       const mark = !due ? "·" : v === "passing" ? "✔" : v === "failing" ? "✘" : "…"
       // The calendar has moved past the phase; that does not make its milestone met.

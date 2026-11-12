@@ -203,18 +203,3 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
 
 /** The profile as plain data, in the shape of the `vocabulary:` configuration section. */
 export const vocabularyJson = (vocabulary: Vocabulary) => ({ ...vocabulary, disciplines: Object.fromEntries(vocabulary.disciplines) })
-
-/** The profile as text: one line per role, `role  word, word`. */
-export const renderVocabulary = (vocabulary: Vocabulary): string => {
-  const lines: Array<string> = []
-  const words = (value: unknown) => Array.isArray(value) ? value.join(", ") || "—" : String(value)
-  for (const [section, value] of Object.entries(vocabularyJson(vocabulary))) {
-    if (Array.isArray(value)) {
-      lines.push(`${section.padEnd(20)} ${words(value)}`)
-      continue
-    }
-    lines.push(section)
-    for (const [role, its] of Object.entries(value)) lines.push(`  ${role.padEnd(18)} ${words(its)}`)
-  }
-  return lines.join("\n") + "\n"
-}

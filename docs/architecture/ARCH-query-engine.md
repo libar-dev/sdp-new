@@ -37,7 +37,8 @@ across workspaces, and it carries the interactive-latency requirement.
   result too, since a match may lie beyond the limit. A `?` or `!` filter is cut short only when
   its search hit the hop limit without finding a neighbour; one it found decides the filter.
   Callers that draw conclusions from a result refuse a truncated one: the built-in steps fail
-  ([[REQ-builtin-steps]]), `sdp q` and the MCP server say so ([[REQ-mcp-server]]).
+  ([[REQ-builtin-steps]]); every other answer made from it is marked incomplete ([[REQ-cli]],
+  [[REQ-mcp-server]]).
 
 Code: `src/graph/Query.ts`.
 

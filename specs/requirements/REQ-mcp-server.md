@@ -18,16 +18,32 @@ on stdio. Each call reads the workspace afresh — the step files too, where a t
 an agent sees its own edits immediately. Agents with a shell can do everything through
 the CLI or plain grep instead; MCP is optional.
 
+Each tool is the use case of the command of the same name ([[REQ-cli]]): the same code answers
+both, so a tool and its command never differ in what they accept, in their limits or in what they
+make of a workspace that cannot be fully read.
+
 | Tool | Arguments | Answers with |
 | --- | --- | --- |
-| `sdp_status` | — | summary counts as JSON: kinds, relations, stages, decision statuses, scenario results, nodes of an architectural kind, diagnostics |
-| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when the pattern names a word the workspace does not know, a note with the closest word it does; when a limit cut evaluation short ([[ARCH-query-engine]]), a first line that says so and names the limit, even if nothing matched |
-| `sdp_show` | `id` | the node as JSON with its outgoing and incoming edges |
-| `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle ([[REQ-agent-context]]) |
-| `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one ([[REQ-executable-specs]]) |
-| `sdp_check` | optional minimum `severity` (`warning`) | diagnostics with rule, `file:line` and hint ([[REQ-check-rules]]) |
-| `sdp_architecture` | — | the architecture as JSON: every element and pattern with the decisions and quality requirements linked to it, as the view's nodes and edges ([[REQ-curated-architecture]]) |
+| `sdp_status` | — | summary counts: kinds, relations, stages, decision statuses, scenario results, nodes of an architectural kind, diagnostics |
+| `sdp_query` | `expression`, optional `paths` | the nodes the pattern leads to, one per line (id, kind, status or stage, title, `file:line`, separated by tabs), or the paths that led to them ([[REQ-graph-query]]) |
+| `sdp_show` | `id` | the node with its attributes and its outgoing and incoming edges |
+| `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle, as Markdown ([[REQ-agent-context]]) |
+| `sdp_steps` | optional `text` | the step definitions a run would know, one per line (`file:line`, keyword, expression) — all of them, or those whose expression contains the text or that match it as a step ([[REQ-executable-specs]]) |
+| `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one |
+| `sdp_check` | optional minimum `severity` (default `info`: everything) | diagnostics with rule, `file:line` and hint ([[REQ-check-rules]]) |
+| `sdp_architecture` | — | every element and pattern with what its spec says it is for and its links, the decisions and quality requirements among them ([[REQ-curated-architecture]]) |
 | `sdp_lifecycle` | — | phases with their milestone gates, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
+
+**Text or data.** A tool answers with the text its command prints. Every tool but the two that
+answer with a document — `sdp_context` and `sdp_snippets` — also takes `json: true` and then
+answers with the envelope the command prints with `--json`: `{ complete, notes, data }`, its data
+made of the same records ([[REQ-graph-export]]).
+
+**Complete or not.** A tool has no stderr and no exit code, so what the command says there comes
+first in a text answer: a line starting `incomplete:` when the answer may miss something — a spec
+could not be read, a query was cut short by a limit ([[ARCH-query-engine]]) — and a `note:` line
+for each thing the reader should know, such as a word in a query that the workspace does not
+know. An answer with nothing in it says `nothing`, so "none" is never an empty reply.
 
 Every tool only reads files, and answers the same when asked twice: the tools are annotated
 read-only, idempotent, non-destructive and closed-world, so clients can call them without asking
@@ -36,13 +52,13 @@ the step files statically ([[REQ-executable-specs]]), so inspecting a checkout a
 trust yet executes nothing of it. Running scenarios is `sdp run`, on the command line.
 
 Mistakes come back as tool errors that an agent can read and act on, not as protocol failures: a
-malformed query returns the parser's message together with the query syntax, and an unknown id
-says so. Arguments are checked against each tool's schema before it runs: a misspelt argument or
-an out-of-range value is rejected as invalid parameters, naming the argument, instead of being
-silently ignored. The server's instructions suggest where to start: `sdp_status`, then `sdp_query`, and
-`sdp_context` before working on a spec. They say how code links to the graph: typed `annotate`
-calls in TypeScript and JavaScript first, `@sdp` comments in other languages
-([[ARCH-code-annotations]]).
+malformed query returns the parser's message together with the query syntax, an unknown id says
+so and names the closest one, a depth out of range says what the range is. Arguments are checked
+against each tool's schema before it runs: a misspelt argument is rejected as invalid parameters,
+naming the argument, instead of being silently ignored. The server's instructions suggest where to
+start: `sdp_status`, then `sdp_query`, and `sdp_context` before working on a spec. They say how
+code links to the graph: typed `annotate` calls in TypeScript and JavaScript first, `@sdp`
+comments in other languages ([[ARCH-code-annotations]]).
 
 ## Scenarios
 
@@ -63,10 +79,10 @@ Background:
 
 Scenario: The server offers one tool per question, every one of them read-only
   When an agent lists the MCP tools
-  Then the MCP tools are "sdp_architecture, sdp_check, sdp_context, sdp_lifecycle, sdp_query, sdp_show, sdp_snippets, sdp_status"
+  Then the MCP tools are "sdp_architecture, sdp_check, sdp_context, sdp_lifecycle, sdp_query, sdp_show, sdp_snippets, sdp_status, sdp_steps"
   And every MCP tool is marked "readOnlyHint, idempotentHint"
 
-Scenario Outline: Every tool answers from the workspace
+Scenario Outline: Every tool answers from the workspace, as its command does
   When an agent calls the MCP tool "<tool>" with:
     """
     <arguments>
@@ -75,32 +91,74 @@ Scenario Outline: Every tool answers from the workspace
 
   Examples:
     | tool             | arguments                                             | answer                                             |
-    | sdp_status       | {}                                                    | "requirement": 1                                   |
+    | sdp_status       | {}                                                    | stages        draft 1                              |
     | sdp_query        | { "expression": "requirement[maturity=draft]" }       | REQ-a\trequirement\tdraft\tAlpha\tspecs/REQ-a.md:1 |
     | sdp_query        | { "expression": "requirement -*-> *", "paths": true } | REQ-a -depends-on-> REQ-gone                       |
-    | sdp_show         | { "id": "REQ-a" }                                     | "rel": "depends-on"                                |
+    | sdp_query        | { "expression": "requirement[maturity=ready]" }       | nothing                                            |
+    | sdp_query        | { "expression": "requirement -depend-on-> *" }        | note: no relation depend-on; closest: depends-on   |
+    | sdp_show         | { "id": "REQ-a" }                                     | -depends-on-> REQ-gone                             |
     | sdp_context      | { "id": "REQ-a" }                                     | # REQ-a — Alpha                                    |
+    | sdp_steps        | { "text": "returns no results" }                      | \tThen\tthe query {string} returns no results      |
     | sdp_check        | {}                                                    | error [dangling-link] REQ-a -depends-on-> REQ-gone |
-    | sdp_architecture | {}                                                    | "nodes": []                                        |
+    | sdp_architecture | {}                                                    | Architecture: 0 node(s)                            |
     | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
     | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
-    | sdp_query        | { "expression": "requirement -depend-on-> *" }        | note: no relation depend-on; closest: depends-on   |
 
-Scenario Outline: A query result cut short by a limit says so, even when it is empty
-  Given a chain of 14 nodes linked by "next"
-  And 25 nodes, each linked to all the others by "knows"
-  When an agent calls the MCP tool "sdp_query" with:
+Scenario Outline: Asked for JSON, a tool answers with the envelope its command prints
+  When an agent calls the MCP tool "<tool>" with:
     """
     <arguments>
     """
-  Then the output contains '<first line>'
+  Then the output is valid JSON
+  And the output contains '"complete": true'
+  And the output contains '<data>'
 
   Examples:
-    | arguments                                                                 | first line                                                                                   |
-    | { "expression": "#N1 -next+-> #N14" }                                     | no matches, cut short (a + edge reaches further than 12 hops): the answer may be incomplete |
-    | { "expression": "#N1 -next+-> *" }                                        | 12 node(s), cut short (a + edge reaches further than 12 hops)                               |
-    | { "expression": "member -knows-> member -knows-> member" }                | 25 node(s), cut short (a step has more than 10000 paths)                                    |
-    | { "expression": "member -knows-> member -knows-> member", "paths": true } | 10000 path(s), cut short (a step has more than 10000 paths)                                 |
+    | tool             | arguments                                         | data                         |
+    | sdp_status       | { "json": true }                                  | "requirement": 1             |
+    | sdp_query        | { "expression": "requirement", "json": true }     | "file": "specs/REQ-a.md"     |
+    | sdp_show         | { "id": "REQ-a", "json": true }                   | "rel": "depends-on"          |
+    | sdp_steps        | { "text": "returns no results", "json": true }    | "keyword": "Then"            |
+    | sdp_check        | { "json": true }                                  | "rule": "dangling-link"      |
+    | sdp_architecture | { "json": true }                                  | "architecture": []           |
+    | sdp_lifecycle    | { "json": true }                                  | "phases": []                 |
+
+Scenario Outline: An answer that may miss something says so first
+  Given a chain of 14 nodes linked by "next"
+  And 25 nodes, each linked to all the others by "knows"
+  And a file "specs/REQ-broken.md" containing:
+    """
+    ---
+    id: REQ-broken
+    links: [REQ-a
+    ---
+    # Broken
+    """
+  When an agent calls the MCP tool "<tool>" with:
+    """
+    <arguments>
+    """
+  Then the line after the output line with "incomplete: this answer may miss something" contains "note: "
+  And the output contains '<note>'
+
+  Examples:
+    | tool        | arguments                                                                 | note                                                    |
+    | sdp_query   | { "expression": "#N1 -next+-> #N14" }                                     | note: cut short: a + edge reaches further than 12 hops |
+    | sdp_query   | { "expression": "member -knows-> member -knows-> member", "paths": true } | note: cut short: a step has more than 10000 paths       |
+    | sdp_query   | { "expression": "requirement" }                                           | note: not read: specs/REQ-broken.md:3 [front-matter]    |
+    | sdp_show    | { "id": "REQ-a" }                                                         | note: not read: specs/REQ-broken.md:3 [front-matter]    |
+    | sdp_context | { "id": "REQ-a" }                                                         | note: not read: specs/REQ-broken.md:3 [front-matter]    |
+    | sdp_status  | {}                                                                        | note: not read: specs/REQ-broken.md:3 [front-matter]    |
+
+Scenario: As JSON, the envelope says that the answer may miss something
+  Given a chain of 14 nodes linked by "next"
+  When an agent calls the MCP tool "sdp_query" with:
+    """
+    { "expression": "#N1 -next+-> #N14", "json": true }
+    """
+  Then the output is valid JSON
+  And the output contains '"complete": false'
+  And the output contains '"cut short: a + edge reaches further than 12 hops"'
 
 Scenario: The instructions describe typed annotations first, comments for other languages
   When an agent reads the MCP server's instructions
@@ -123,7 +181,7 @@ Scenario Outline: An unknown id is a tool error
     { "id": "REQ-lost" }
     """
   Then the MCP tool reports an error
-  And the output contains "no node REQ-lost"
+  And the output contains "no node REQ-lost; closest: REQ-a"
 
   Examples:
     | tool         |
@@ -140,11 +198,12 @@ Scenario Outline: A misspelt or out-of-range argument is rejected
   And the output contains '<problem>'
 
   Examples:
-    | tool        | arguments                               | problem                |
-    | sdp_context | { "id": "REQ-a", "depht": 3 }           | ["depht"]              |
-    | sdp_context | { "id": "REQ-a", "depth": 9 }           | ["depth"]              |
-    | sdp_query   | { "expression": "requirement", "ids": true } | ["ids"]           |
-    | sdp_status  | { "verbose": true }                     | ["verbose"]            |
+    | tool        | arguments                               | problem                                  |
+    | sdp_context | { "id": "REQ-a", "depht": 3 }           | ["depht"]                                |
+    | sdp_context | { "id": "REQ-a", "depth": 9 }           | depth must be a whole number from 1 to 6 |
+    | sdp_context | { "id": "REQ-a", "depth": 1.5 }         | depth must be a whole number from 1 to 6 |
+    | sdp_query   | { "expression": "requirement", "ids": true } | ["ids"]                             |
+    | sdp_status  | { "verbose": true }                     | ["verbose"]                              |
 
 Scenario: Snippets list the steps still to automate, with a module to save
   Given a file "specs/REQ-b.md" containing:
@@ -195,9 +254,10 @@ Scenario: The architecture tool returns the declared architecture and what shape
     """
   When an agent calls the MCP tool "sdp_architecture" with:
     """
-    {}
+    { "json": true }
     """
-  Then the output field "nodes" holds "ARCH-cache, ARCH-orders, DEC-0001"
+  Then the output field "data.architecture" holds "ARCH-cache, ARCH-orders"
+  And the output field "data.drivers" holds "DEC-0001"
 
 Scenario: Every call sees the files as they are now
   When an agent calls the MCP tool "sdp_query" with:
@@ -215,8 +275,8 @@ Scenario: Every call sees the files as they are now
     """
     { "expression": "requirement" }
     """
-  Then the output contains "2 node(s)"
-  And the output contains "REQ-b"
+  Then the output contains "REQ-a\t"
+  And the output contains "REQ-b\t"
 
 Scenario Outline: A tool that matches steps reads the step files and runs nothing of them
   Given a file "specs/REQ-b.md" containing:

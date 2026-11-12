@@ -9,9 +9,9 @@ import { strict as assert } from "node:assert"
 import { existsSync } from "node:fs"
 import { readFile } from "node:fs/promises"
 import { join } from "node:path"
-import { newId } from "../../src/cli/templates.ts"
+import { newId } from "../../src/app/Templates.ts"
 import type { Project } from "../../src/graph/Build.ts"
-import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
+import { graphRecords, type GraphRecord, jsonLines } from "../../src/graph/Export.ts"
 import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
@@ -147,14 +147,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(misses.length, 0, `not found: ${misses.join(", ")}`)
   })
 
-  When("it exports the graph as {word}", ({ args: [format], world }) => {
-    world.output = exportGraph(repository(world).graph, format as GraphFormat, repository(world).config.vocabulary)
+  When("it exports the graph", ({ world }) => {
+    world.output = jsonLines(graphRecords(repository(world).graph))
   })
 
-  Then("every line of the export ends with a file and line", ({ world }) => {
-    const lines = world.output.trimEnd().split("\n")
-    const offenders = lines.filter((line) => !/\t[^\t]+:\d+$/.test(line))
-    assert.equal(offenders.length, 0, `${offenders.length} of ${lines.length} lines:\n${offenders.slice(0, 10).join("\n")}`)
+  Then("every record of the export names the file and line it came from", ({ world }) => {
+    const records = world.output.trimEnd().split("\n").map((line): GraphRecord => JSON.parse(line))
+    const offenders = records.filter((record) =>
+      record.type === "node" ? record.file === null || record.line === null : record.declared.length === 0
+    )
+    assert.equal(offenders.length, 0, `${offenders.length} of ${records.length} records:\n${offenders.slice(0, 10).map((r) => JSON.stringify(r)).join("\n")}`)
   })
 
   Given("this repository has no build output", ({ project }) => {

@@ -639,7 +639,7 @@ export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<str
 }
 
 /** The known word nearest to `word` by edit distance, if any is near enough to be what was meant. */
-const closest = (word: string, known: Iterable<string>): string | undefined => {
+export const closest = (word: string, known: Iterable<string>): string | undefined => {
   let best: string | undefined
   let bestDistance = Math.max(2, Math.ceil(word.length / 2)) + 1
   for (const candidate of [...known].sort()) {

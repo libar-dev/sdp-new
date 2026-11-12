@@ -1,22 +1,40 @@
 /**
- * The programmatic API: load a workspace, build and query its graph, run its
- * scenarios. Step modules import "sdp/steps" and annotated code
- * "sdp/annotations" instead: those load nothing of this.
+ * The programmatic API: the use cases the command line and the MCP server
+ * call, with the shapes they print. Each takes the workspace root and returns
+ * an Effect that needs a `FileSystem` and a `Path` (`NodeServices.layer` from
+ * `@effect/platform-node`, or `layerMemory` for a workspace held in memory):
+ *
+ *   import { query } from "sdp"
+ *   const found = await Effect.runPromise(query(".", { expression: "requirement[maturity<ready]" }).pipe(Effect.provide(NodeServices.layer)))
+ *   found.complete    // false when the answer may miss something; found.notes say why
+ *   found.data.nodes  // the records `sdp graph` prints
+ *
+ * Step modules import "sdp/steps" and annotated code "sdp/annotations"
+ * instead: those load nothing of this.
  */
 export { annotate } from "./annotations.ts"
 export type { Declaration, Id, IdOf, Ids, Links } from "./annotations.ts"
-export { buildProject } from "./graph/Build.ts"
-export type { Project, SourceFile } from "./graph/Build.ts"
-export { parseQuery, query, runQuery } from "./graph/Query.ts"
-export { check } from "./check/Check.ts"
-export { architectureView } from "./arch/Architecture.ts"
-export { lifecycle } from "./lifecycle/Lifecycle.ts"
-export { contextBundle } from "./graph/Context.ts"
-export { exportGraph } from "./graph/Export.ts"
-export { runWorkspace } from "./run/Session.ts"
-export { listSteps, makeMatcher, snippetModule, stepDefinitions, unmatchedSteps } from "./run/Match.ts"
-export type { Matcher, UnmatchedStep } from "./run/Match.ts"
-export { findWorkspaceRoot, loadProject, loadSteps } from "./workspace/Workspace.ts"
+export type { Answer } from "./app/Answer.ts"
+export { create, init, types } from "./app/Authoring.ts"
+export { type AppError, describe } from "./app/Errors.ts"
+export {
+  architecture,
+  check,
+  context,
+  diagram,
+  graph,
+  lifecycle,
+  lifecycleChart,
+  query,
+  show,
+  snippets,
+  status,
+  steps,
+  vocabulary
+} from "./app/Reading.ts"
+export type { ArchitectureData, DiagnosticRecord, QueryData, ShowData } from "./app/Reading.ts"
+export { gate, run } from "./app/Running.ts"
+export type { GateReport, RunReport } from "./app/Running.ts"
+export type { EdgeRecord, GraphRecord, NodeRecord } from "./graph/Export.ts"
+export type { QueryPath } from "./graph/Query.ts"
 export { layerMemory, memoryRoot } from "./workspace/MemoryFileSystem.ts"
-export { Graph } from "./model/Graph.ts"
-export type { GraphEdge, GraphNode } from "./model/Graph.ts"

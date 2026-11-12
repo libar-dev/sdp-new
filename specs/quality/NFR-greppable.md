@@ -32,10 +32,10 @@ Scenario: Grepping for an id finds the file that declares it
 
 Scenario: Every exported fact names the file and line it came from
   Given an agent that explores this repository with grep
-  When it exports the graph as tsv
-  Then every line of the export ends with a file and line
+  When it exports the graph
+  Then every record of the export names the file and line it came from
 
-Scenario Outline: Line-oriented exports keep one fact per line, whatever the text
+Scenario: The export keeps one fact per line, whatever the text
   Given a file "specs/REQ-a.md" containing:
     """
     ---
@@ -54,11 +54,6 @@ Scenario Outline: Line-oriented exports keep one fact per line, whatever the tex
     ---
     # X
     """
-  When the graph is exported as <format>
+  When the graph is exported
   Then the output has one line per node and edge
-
-  Examples:
-    | format |
-    | jsonl  |
-    | tsv    |
 ~~~

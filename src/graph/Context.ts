@@ -28,11 +28,10 @@ export interface ContextSteps {
 }
 
 /** Everything needed to work on one node, as one Markdown document: spec, links, readiness, scenarios, curated architecture, decisions, code. */
-export const contextBundle = (project: Project, id: string, depth = 2, steps?: ContextSteps): string | undefined => {
+export const contextBundle = (project: Project, node: GraphNode, depth = 2, steps?: ContextSteps): string => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
-  const node = graph.node(id)
-  if (!node) return undefined
+  const { id } = node
   const spec = project.specById.get(id)
   const out: Array<string> = []
   const statusOf = (n: GraphNode) => describeStatus(vocabulary, n)

@@ -73,9 +73,10 @@ per element:
 | `src/check/` | Rules over the built project | ARCH-checker |
 | `src/arch/` | The architecture view | ARCH-architecture-view |
 | `src/lifecycle/` | Phases, iterations, gates and discipline activity | ARCH-lifecycle |
-| `src/graph/Context.ts`, `Export.ts`, `Status.ts` | Context bundles, exports, status summary | ARCH-reports |
-| `src/cli/` | `effect/cli` commands | ARCH-cli |
-| `src/mcp/` | `effect/ai` MCP server | ARCH-mcp |
+| `src/graph/Context.ts`, `Export.ts`, `Status.ts` | Context bundles, the graph as records, status summary | ARCH-reports |
+| `src/app/` | The application layer: one use case per command — reading the graph, running scenarios, authoring — each returning an answer of plain records or a typed error; the envelope of an answer, how it reads as text, and the templates | ARCH-reports, until the architects give it an element of its own |
+| `src/cli/` | `effect/cli` commands: parse flags, call a use case, print the answer | ARCH-cli |
+| `src/mcp/` | `effect/ai` MCP server: check arguments, call the same use case, return the answer | ARCH-mcp |
 
 Effect is used where it pays: services (`FileSystem`, `Path`) at the edge, so the identical
 pipeline runs against memory in executable specs; `Schema` for the config file and stored results;

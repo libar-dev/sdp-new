@@ -7,9 +7,10 @@
 import { Effect, Predicate, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { renderArchitecture } from "../../src/arch/Architecture.ts"
+import * as Reading from "../../src/app/Reading.ts"
+import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
-import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
+import { graphRecords, jsonLines, mermaid } from "../../src/graph/Export.ts"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
@@ -123,20 +124,26 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- architecture ---------------------------------------------------------
 
   When("I ask for the architecture view", ({ world }) =>
-    Effect.map(load(world), (project) => {
-      world.output = renderArchitecture(project)
-    }))
+    Effect.map(Reading.architecture(memoryRoot), (answer) => {
+      world.output = Text.architecture(answer.data)
+    }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
 
   // --- context, exports, lifecycle, MCP ------------------------------------
 
+  // The bundle as it is before any step file is read: what a run recorded is all it knows of the steps.
   When("I ask for the context of {string}", ({ args: [id], world }) =>
     Effect.map(load(world), (project) => {
-      world.output = contextBundle(project, id) ?? ""
+      world.output = contextBundle(project, node(project, id))
     }))
 
-  When("the graph is exported as {word}", ({ args: [format], world }) =>
+  When("the graph is exported", ({ world }) =>
     Effect.map(load(world), (project) => {
-      world.output = exportGraph(project.graph, format as GraphFormat, project.config.vocabulary)
+      world.output = jsonLines(graphRecords(project.graph))
+    }))
+
+  When("the graph is drawn as a Mermaid flowchart", ({ world }) =>
+    Effect.map(load(world), (project) => {
+      world.output = mermaid(project.graph, project.config.vocabulary)
     }))
 
   // `\t` and `\n` in the expected text stand for a tab and a line break.
@@ -196,6 +203,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
       world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
+      world.scratch.stdout = world.output
       world.scratch.mcpError = result.isError === true
     }).pipe(
       Effect.catch((error) =>

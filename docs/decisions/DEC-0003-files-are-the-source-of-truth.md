@@ -25,8 +25,8 @@ second copy of the truth, migrations, and invisibility to grep and git.
 
 ## Decision
 
-Option 3. Every command parses the workspace and builds the graph from scratch; `sdp graph --write`
-dumps it as JSONL/TSV for tools that prefer a file. Scenario results are the only persisted state,
+Option 3. Every command parses the workspace and builds the graph from scratch; `sdp graph`
+prints it as one JSON record per line for tools that prefer plain data. Scenario results are the only persisted state,
 in `.sdp/results.json`, recorded with each scenario's hash and fingerprints of what it ran against,
 so any change to the scenario, the code, the step definitions, the toolchain, the declared inputs
 or (for graph assertions) the specs invalidates them ([[DEC-0011]]).

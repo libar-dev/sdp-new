@@ -111,10 +111,10 @@ Scenario: Specify behaviour before it is automated
 | `sdp check` | Diagnostics with rule ids, `file:line` and a hint; exit 1 on errors |
 | `sdp steps [text]` | Step definitions, built-in ones included, one per line with `file:line`; read from the step files, never run |
 | `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last and never fail the run |
-| `sdp gate <milestone>` | Evaluate one milestone's gate (or a spec's `@gate` scenarios); exit 1 if unmet |
-| `sdp arch [-f mermaid\|dot\|json]` | The architecture: every element and pattern with its decisions and quality requirements |
+| `sdp gate <milestone>` · `sdp gate --due` | Evaluate one milestone's gate (or a spec's `@gate` scenarios), or those of the current and earlier phases; exit 1 if unmet |
+| `sdp arch [--json] [--mermaid]` | The architecture: every element and pattern with its decisions and quality requirements |
 | `sdp lifecycle` | Phases, gates, planned work and discipline activity per iteration, and the evidence apart |
-| `sdp graph [-f jsonl\|tsv\|json\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
+| `sdp graph [-q pattern] [--mermaid]` | The graph as plain data: one JSON record per line, for grep and jq |
 | `sdp vocabulary [--json]` | The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured |
 | `sdp types` | Write the id declarations that type `annotate()` from `sdp/annotations` in TypeScript |
 | `sdp new <kind> <title>` · `sdp init` | Authoring helpers; templates for requirement, idea, nfr, decision, element, pattern, milestone and plan (`sdp new --help`) |

@@ -16,8 +16,8 @@ files, so they never disagree, and every fact they return carries the `file:line
 1. **Files and grep.** Ids are literal text: `grep -rn REQ-graph-query .` finds the spec, its
    mentions, code annotations and step results; `grep -rn "@sdp" src/` lists every code link
    ([[NFR-greppable]]).
-2. **Line-oriented dumps.** `.sdp/graph.jsonl` and `.sdp/graph.tsv`, one fact per line, for jq and
-   awk.
+2. **The graph as plain data.** `sdp graph` prints one JSON record per line, for grep, jq and
+   scripts ([[REQ-graph-export]]).
 3. **The CLI.** `sdp q` ([[REQ-graph-query]]), `sdp show`, `sdp check`, `sdp run` and
    `sdp status` print JSON with `--json`; `sdp context` prints one Markdown document
    ([[REQ-cli]]).
