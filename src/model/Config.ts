@@ -275,12 +275,18 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
     }
     owners.set(kind, prefix)
   }
-  const byPrefix = new Map<string, Array<string>>()
-  for (const [kind, prefix] of owners) byPrefix.set(prefix, [...(byPrefix.get(prefix) ?? []), kind])
-  for (const [prefix, kinds] of byPrefix) {
-    if (kinds.length > 1) {
-      issues.push({ path: ["ids"], issue: `${kinds.join(" and ")} share the prefix ${prefix}, so an id cannot say which kind it is` })
-    }
+  // An id's prefix is matched in its case, but prefixes alike but for their case are one to whoever reads an id.
+  const byPrefix = new Map<string, Array<readonly [kind: string, prefix: string]>>()
+  for (const [kind, prefix] of owners) byPrefix.set(prefix.toLowerCase(), [...(byPrefix.get(prefix.toLowerCase()) ?? []), [kind, prefix]])
+  for (const sharing of byPrefix.values()) {
+    if (sharing.length < 2) continue
+    const [prefix, ...cases] = [...new Set(sharing.map(([, written]) => written))]
+    issues.push({
+      path: ["ids"],
+      issue: `${sharing.map(([kind]) => kind).join(" and ")} share the prefix ${prefix}${
+        cases.length > 0 ? `, as ${cases.join(" and ")}, so an id would say its kind only by its case` : ", so an id cannot say which kind it is"
+      }`
+    })
   }
   return issues
 }

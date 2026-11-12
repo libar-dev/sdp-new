@@ -829,6 +829,17 @@ Feature: Plan delivery
         | @activity.testing:IT-prototype                                                | "testing", which is not a discipline |
         | @kind=risk @iteration:IT-prototype                                            | belongs to no discipline             |
 
+    Scenario: A link whose prefix is another case of the plan's says so
+      Given these specs:
+        | tags                                                                  | Feature  |
+        | @id=it-sprint-1                                                       | Sprint 1 |
+        | @id=beta @maturity=idea @iteration:it-sprint-1 @iteration:it-sprint-2 | Beta     |
+      When the workspace is checked
+      Then sdp reports:
+        | rule           | at                   | message                                          | hint                                                                        |
+        | dangling-link  | specs/beta.feature:1 | beta -iteration-> it-sprint-2                    | the prefix of kind iteration is `IT-`, written as configured: `IT-sprint-2` |
+        | plan-reference | specs/beta.feature:1 | beta: iteration "it-sprint-1" names no iteration | the prefix of kind iteration is `IT-`, written as configured: `IT-sprint-1` |
+
     Scenario: A feature planned into what the plan declares
       Given these specs:
         | tags                                                                                                                                                              | Feature |

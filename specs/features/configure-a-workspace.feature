@@ -323,25 +323,26 @@ Feature: Configure a workspace
       And loading the workspace fails with '<path>'
 
       Examples:
-        | config                                           | problem                                            | path                                        |
-        | feature: ["specs/**/*.feature"]                  | excess property                                    | at ["feature"]                              |
-        | features: specs/**/*.feature                     | Expected array                                     | at ["features"]                             |
-        | vocabulary: { maturity: [] }                     | needs at least one level                           | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, ready, idea] }    | idea repeats                                       | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, verified] }       | verified is a stage sdp derives                    | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                             | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                       | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { implemented: done }                | excess property                                    | at ["vocabulary"]["implemented"]            |
-        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                    | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                             | at ["vocabulary"]["relations"]["anchor"]    |
-        | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                     | at ["vocabulary"]["kinds"]["decision"]      |
-        | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                | at ["vocabulary"]["kinds"]["milestone"]     |
-        | vocabulary: { attributes: { activity: stage } }  | stage is an attribute sdp derives or checks itself | at ["vocabulary"]["attributes"]["activity"] |
-        | vocabulary: { relations: { anchor: iteration } } | iteration is also a relation of the plan           | at ["vocabulary"]["relations"]["anchor"]    |
-        | vocabulary: { relations: { scenario: is } }      | is is also relations.anchor                        | at ["vocabulary"]["relations"]["scenario"]  |
-        | vocabulary: { relations: { scenario: rule-of } } | rule-of is a relation sdp makes itself             | at ["vocabulary"]["relations"]["scenario"]  |
-        | vocabulary: { relations: { plan: [in sprint] } } | `in sprint` cannot be the key of a tag             | at ["vocabulary"]["relations"]["plan"]      |
-        | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                 | at ["vocabulary"]["kinds"]["phase"]         |
-        | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
-        | ids: { component: ARCH }                         | element and component share the prefix ARCH        | at ["ids"]                                  |
-        | ids: { scenario: SC }                            | scenario is a kind sdp makes itself                | at ["ids"]["scenario"]                      |
+        | config                                           | problem                                              | path                                        |
+        | feature: ["specs/**/*.feature"]                  | excess property                                      | at ["feature"]                              |
+        | features: specs/**/*.feature                     | Expected array                                       | at ["features"]                             |
+        | vocabulary: { maturity: [] }                     | needs at least one level                             | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, ready, idea] }    | idea repeats                                         | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, verified] }       | verified is a stage sdp derives                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                               | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                         | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { implemented: done }                | excess property                                      | at ["vocabulary"]["implemented"]            |
+        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                               | at ["vocabulary"]["relations"]["anchor"]    |
+        | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                       | at ["vocabulary"]["kinds"]["decision"]      |
+        | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                  | at ["vocabulary"]["kinds"]["milestone"]     |
+        | vocabulary: { attributes: { activity: stage } }  | stage is an attribute sdp derives or checks itself   | at ["vocabulary"]["attributes"]["activity"] |
+        | vocabulary: { relations: { anchor: iteration } } | iteration is also a relation of the plan             | at ["vocabulary"]["relations"]["anchor"]    |
+        | vocabulary: { relations: { scenario: is } }      | is is also relations.anchor                          | at ["vocabulary"]["relations"]["scenario"]  |
+        | vocabulary: { relations: { scenario: rule-of } } | rule-of is a relation sdp makes itself               | at ["vocabulary"]["relations"]["scenario"]  |
+        | vocabulary: { relations: { plan: [in sprint] } } | `in sprint` cannot be the key of a tag               | at ["vocabulary"]["relations"]["plan"]      |
+        | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                   | at ["vocabulary"]["kinds"]["phase"]         |
+        | ids: { component: MY-COMP }                      | must be letters only                                 | at ["ids"]["component"]                     |
+        | ids: { component: ARCH }                         | element and component share the prefix ARCH          | at ["ids"]                                  |
+        | ids: { component: Arch }                         | element and component share the prefix ARCH, as Arch | at ["ids"]                                  |
+        | ids: { scenario: SC }                            | scenario is a kind sdp makes itself                  | at ["ids"]["scenario"]                      |

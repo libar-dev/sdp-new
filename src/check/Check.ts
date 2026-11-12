@@ -32,7 +32,7 @@ import { type Project, type SourceFile, workOf } from "../graph/Build.ts"
 import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
 import { codeNodeId } from "../parse/Annotations.ts"
 import type { Pickle, Rule, Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, type Spec, suiteId } from "../parse/Spec.ts"
+import { parseFeatureSpec, prefixCaseHint, type Spec, suiteId } from "../parse/Spec.ts"
 
 const isOpen = (rule: Rule) => rule.tags.includes(made.tags.open)
 
@@ -246,9 +246,9 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${node.id}: ${rel} "${target}" names no ${what}`,
         node: node.id,
         source,
-        hint: known.length > 0
+        hint: prefixCaseHint(target, project.config) ?? (known.length > 0
           ? `use one of the declared ${what} ids: ${known.join(", ")}`
-          : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``
+          : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``)
       }))
     }
     const activityKey = vocabulary.attributes.activity

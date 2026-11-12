@@ -159,5 +159,16 @@ export const prefixKind = (id: string, config: Config): string | undefined => {
   return Object.entries(config.ids).find(([, p]) => p === prefix)?.[0]
 }
 
+/**
+ * What to write for an id that begins with a configured prefix in another case, `it-sprint-1` for
+ * `IT-`: as written it names no node of that kind. Undefined when the id begins with no such prefix.
+ */
+export const prefixCaseHint = (id: string, config: Config): string | undefined => {
+  const written = /^([A-Za-z]+)[-_]/.exec(id)?.[1]
+  const [kind, prefix] = Object.entries(config.ids)
+    .find(([, configured]) => configured !== written && configured.toLowerCase() === written?.toLowerCase()) ?? []
+  return prefix && `the prefix of kind ${kind} is \`${prefix}-\`, written as configured: \`${prefix}${id.slice(prefix.length)}\``
+}
+
 /** The kind an id's prefix names; otherwise, as `guest-checkout`, a feature. */
 export const inferKind = (id: string, config: Config): string => prefixKind(id, config) ?? wordFor(config.vocabulary.kinds.feature)

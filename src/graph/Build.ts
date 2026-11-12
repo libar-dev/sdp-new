@@ -25,7 +25,7 @@ import {
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Import } from "../parse/Script.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
+import { parseFeatureSpec, prefixCaseHint, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
 export interface SourceFile {
@@ -426,9 +426,9 @@ export const buildProject = (input: ProjectInput): Project => {
       : hasRelation(vocabulary, "closes", edge.rel)
       ? { what: "phase or iteration", ids: [...phases, ...iterations] }
       : undefined
-    return known && known.ids.length > 0
+    return prefixCaseHint(edge.to, input.config) ?? (known && known.ids.length > 0
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
-      : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
+      : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`)
   }
   // Live work may name what it replaced in the change that deletes it: what the link names is the
   // base's, which the comparison with the base reads from the specs, and the graph has no node of it.
