@@ -379,7 +379,8 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
 /**
  * Each example of the base paired with one example of the workspace at most, and no example of
  * the workspace with two: the same example unchanged, then the same id, edited, then the same steps
- * under another name or in another place. Rows of one outline pair in their order.
+ * under another name or in another place. Rows of one outline pair in their order, a live row with a
+ * live one before any other.
  */
 const pairExamples = (before: ReadonlyArray<Example>, now: ReadonlyArray<Example>): ReadonlyMap<Example, Example> => {
   const free = new Set(now)
@@ -387,7 +388,10 @@ const pairExamples = (before: ReadonlyArray<Example>, now: ReadonlyArray<Example
   const index = (key: (example: Example) => string) => {
     const by = new Map<string, Array<Example>>()
     for (const example of now) by.set(key(example), [...by.get(key(example)) ?? [], example])
-    return (example: Example) => (by.get(key(example)) ?? []).find((candidate) => free.has(candidate))
+    return (example: Example) => {
+      const candidates = (by.get(key(example)) ?? []).filter((candidate) => free.has(candidate))
+      return candidates.find((candidate) => candidate.live === example.live) ?? candidates[0]
+    }
   }
   const passes: ReadonlyArray<(example: Example) => Example | undefined> = [
     index((example) => `${example.scenario.id}\u0000${example.tests}`),

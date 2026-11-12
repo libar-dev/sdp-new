@@ -286,6 +286,32 @@ Feature: Check specs
         | an outline's rows in another order         | 0         | nothing         | nothing         | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario Outline: Add items\n      Then the cart holds <count> items\n      Examples:\n        \| count \|\n        \| 2 \|\n        \| 1 \|\n    Scenario: Add a lamp\n      Then the cart holds a lamp\n    Scenario: Add a desk\n      Then the cart holds a desk\n |
         | an example edited into one that is deleted | 1         | example-dropped | cart#add-a-desk | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario Outline: Add items\n      Then the cart holds <count> items\n      Examples:\n        \| count \|\n        \| 1 \|\n        \| 2 \|\n    Scenario: Add a lamp\n      Then the cart holds a desk\n                                                             |
 
+    Scenario: An unchanged outline whose gated row, written first, tests what its ordinary row tests
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario Outline: Add items
+              Then the cart holds <count> items
+
+              @gate
+              Examples:
+                | count |
+                | 1     |
+
+              Examples:
+                | count |
+                | 1     |
+        """
+      And the files are committed on the branch "main"
+      When I run "sdp check --json"
+      Then the exit code is 0
+
     Scenario Outline: A live rule replaced in the change that deletes it, by <replacement>
       Given a file "specs/cart.feature" containing:
         """
