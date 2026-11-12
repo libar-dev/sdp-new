@@ -214,7 +214,7 @@ const checkCommand = Command.make(
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
   })
-).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and the plan; exit 1 on errors"))
+).pipe(Command.withDescription("Validate tags, links, Gherkin, maturity criteria and the plan; exit 1 on errors"))
 
 const stepsCommand = Command.make(
   "steps",

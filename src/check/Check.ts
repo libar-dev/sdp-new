@@ -118,7 +118,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const at = (spec: Spec, line = 1) => ({ file: spec.file, line })
-  /** Where an attribute of `node` is written: its line in a spec's front matter, else the node's own line. */
+  /** Where an attribute of `node` is written: the line of its tag or front matter key in a spec, else the node's own line. */
   const writtenAt = (node: GraphNode, key: string): SourceRef | undefined => {
     const spec = project.specById.get(node.id)
     return spec ? at(spec, spec.attrLines[key] ?? 1) : node.source
