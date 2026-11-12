@@ -41,6 +41,11 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 What is within reach is reached through links. A prose mention is listed among the relationships
 but leads no further: it is not a link ([[DEC-0010]]).
 
+A bundle made from a workspace that could not be fully read — a spec that does not parse, or,
+when the node has scenarios, a step registration sdp cannot read — is still the whole document,
+marked incomplete the way every answer is ([[REQ-cli]], *Answers*): the notes name what is
+missing, and the command exits with 2.
+
 ## Scenarios
 
 ~~~gherkin
@@ -358,8 +363,10 @@ Scenario: A registration that cannot be read is named, so its step is not mistak
     })
     """
   When I run "sdp context REQ-cart"
-  Then the output section "Scenarios" contains "undefined: Given an empty cart"
+  Then the exit code is 2
+  And the output section "Scenarios" contains "undefined: Given an empty cart"
   And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: the expression of this Given definition is computed"
   When I run "sdp steps cart"
-  Then the output contains "not read: specs/steps/cart.steps.ts:5"
+  Then the exit code is 2
+  And the output contains "note: not read: specs/steps/cart.steps.ts:5"
 ~~~

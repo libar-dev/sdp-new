@@ -46,6 +46,7 @@ export const querySyntax = `node (edge node)*
         < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
         a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
   edge  -rel-> | <-rel- | -rel-   rel: * or empty for any but mentions, a|b alternatives (*|mentions for all), trailing + for one or more hops
+        + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
         prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
 examples
   requirement[maturity<ready]
