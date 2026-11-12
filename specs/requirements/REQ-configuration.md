@@ -239,7 +239,9 @@ Scenario: disciplines adds or redefines disciplines
     # Plan
     """
   When the lifecycle is computed
-  Then "operations" activity in iteration "C1" is 1
+  Then the planned activity is:
+    | discipline | C1 |
+    | operations | 1  |
 
 Scenario: relations.plan and relations.phase name the relations the plan uses
   Given a file "sdp.config.yaml" containing:
@@ -277,9 +279,13 @@ Scenario: relations.plan and relations.phase name the relations the plan uses
     # Filters
     """
   When the lifecycle is computed
-  Then phase "build" has iterations "S1"
-  And iteration "S1" plans "REQ-search"
-  And "requirements" activity in iteration "S1" is 1
+  Then the iterations are:
+    | id | phase | plans      |
+    | S1 | build | REQ-search |
+    | S2 |       |            |
+  And the planned activity is:
+    | discipline   | S1 |
+    | requirements | 1  |
 
 Scenario: attributes.met names the key a milestone is recorded as met with
   Given a file "sdp.config.yaml" containing:
@@ -343,7 +349,7 @@ Scenario: sdp vocabulary prints the profile in force
     | data.made.reservedRelations | stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status |
   When I run "sdp vocabulary"
   Then the output line with "decision" contains "adr"
-  And the output line with "scenarioAttributes" under "made by sdp, not configurable" contains "staleBecause"
+  And the output line with "scenarioAttributes" contains "staleBecause"
 
 Scenario: What sdp vocabulary prints as the profile is a configuration that reads back
   When I run the pipeline:

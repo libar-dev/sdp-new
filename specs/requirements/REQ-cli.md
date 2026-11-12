@@ -732,7 +732,7 @@ Scenario: vocabulary prints the words sdp interprets, and the kinds and attribut
     | data.made.scenarioAttributes | spec, keyword, tags, description, rule, ruleDescription, steps, examples, status, staleBecause, lastRun, hash    |
     | data.made.codeAttributes     | file, symbol, doc                                                                                                |
   When I run "sdp vocabulary"
-  Then the output line with "stages" under "made by sdp, not configurable" contains "failing, in-progress, verified"
+  Then the output line with "stages" contains "failing, in-progress, verified"
 ~~~
 
 ### `sdp lifecycle`

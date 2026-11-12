@@ -9,7 +9,6 @@ import { strict as assert } from "node:assert"
 import { readdir, readFile } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { parseSync } from "oxc-parser"
-import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defaultVocabulary, vocabularyWords } from "../../src/model/Vocabulary.ts"
@@ -211,13 +210,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.map(load(world), (project) => {
       const stages = statusSummary(project).stages
       assert.equal(counted(stages), expected)
-    }))
-
-  Then("the lifecycle evidence of {string} counts the stages {string}", ({ args: [iteration, expected], world }) =>
-    Effect.map(load(world), (project) => {
-      const work = lifecycle(project).work.find((it) => it.node.id === iteration)
-      assert.ok(work, `no iteration ${iteration}`)
-      assert.equal(counted(work.stages), expected)
     }))
 })
 

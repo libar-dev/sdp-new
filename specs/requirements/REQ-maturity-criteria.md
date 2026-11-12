@@ -266,7 +266,10 @@ Scenario: Every report counts stages the same way, and failing ranks with in-pro
   And a step definition "the guard holds" that passes
   When the workspace is run
   Then sdp status counts the stages "draft:1 failing:1 verified:1"
-  And the lifecycle evidence of "I1" counts the stages "draft:1 failing:1 verified:1"
+  When the lifecycle is computed
+  Then the iterations are:
+    | id | stages                      |
+    | I1 | draft:1 failing:1 verified:1 |
   When I query "*[stage>ready]"
   Then the result is "NFR-fast, REQ-a"
   When I query "*[stage<verified]"

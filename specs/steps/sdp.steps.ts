@@ -16,7 +16,6 @@ import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
 import { graphRecords, jsonLines } from "../../src/graph/Export.ts"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
-import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
@@ -177,25 +176,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const lines = output(world).trimEnd().split("\n")
       assert.equal(lines.length, project.graph.nodes().length + project.graph.edges().length)
     }))
-
-  When("the lifecycle is computed", ({ world }) =>
-    Effect.map(load(world), (project) => {
-      world.lifecycle = lifecycle(project)
-    }))
-
-  Then("phase {string} has iterations {string}", ({ args: [phase, list], world }) => {
-    const p = world.lifecycle?.phases.find((x) => x.node.id === phase)
-    assert.ok(p, `no phase ${phase}`)
-    assert.deepEqual(p.iterations.map((i) => i.node.id), list.split(",").map((s) => s.trim()))
-  })
-
-  Then("{string} activity in iteration {string} is {int}", ({ args: [discipline, iteration, expected], world }) => {
-    const report = world.lifecycle!
-    const column = report.iterations.findIndex((i) => i.id === iteration)
-    const row = report.disciplines.find((d) => d.discipline === discipline)
-    assert.ok(column >= 0 && row, `no ${discipline} × ${iteration}`)
-    assert.equal(row.activity[column], expected)
-  })
 
   // A tool error and a rejected call (invalid arguments) both count as the tool reporting an error.
   When("an agent calls the MCP tool {string} with:", ({ args: [tool], doc, world }) =>

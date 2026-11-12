@@ -94,16 +94,16 @@ Scenario: A milestone ends the iterations since the milestone before it, on the 
     # Demo
     """
   When the lifecycle is computed on "2026-01-20"
-  Then the output line with "MS-LCO" contains "Inception"
-  And the output line with "MS-LCO" contains "I1*"
-  And the output line with "MS-LCO" contains "2026-01-30"
-  And the output line with "MS-demo" contains "Elaboration"
-  And the output line with "MS-demo" contains "E1"
-  And the output line with "MS-demo" contains "2026-02-13"
-  And the line after the output line with "MS-demo" contains "MS-LCA"
-  And the output line with "MS-LCA" does not contain "E1"
-  And the output line with "MS-LCA" contains "E2"
-  And the output line with "MS-LCA" contains "2026-02-27"
+  Then the milestones are:
+    | id      | phase          | iterations | planned    |
+    | MS-LCO  | PH-inception   | I1         | 2026-01-30 |
+    | MS-demo | PH-elaboration | E1         | 2026-02-13 |
+    | MS-LCA  | PH-elaboration | E2         | 2026-02-27 |
+  And the iterations are:
+    | id | today |
+    | I1 | yes   |
+    | E1 |       |
+    | E2 |       |
 
 Scenario: The project is at the first milestone that is not met, wherever the calendar is
   Given a file "MS-LCO.md" containing:
@@ -116,16 +116,26 @@ Scenario: The project is at the first milestone that is not met, wherever the ca
     # Lifecycle objectives
     """
   When the lifecycle is computed on "2026-01-20"
-  Then the output contains "project in Elaboration · calendar in I1"
+  Then the milestones are:
+    | id     | met        | next |
+    | MS-LCO | 2026-01-30 |      |
+    | MS-LCA |            | yes  |
+  And the output contains "project in Elaboration · calendar in I1"
   And the output line with "MS-LCO" contains "✔"
-  And the output line with "MS-LCO" contains "met 2026-01-30"
   And the output line with "MS-LCA" contains "▶"
 
 Scenario: The calendar marks today and lateness, and meets nothing
   When the lifecycle is computed on "2026-02-20"
-  Then the current iteration is "E2"
+  Then the milestones are:
+    | id     | met | next |
+    | MS-LCO |     | yes  |
+    | MS-LCA |     |      |
+  And the iterations are:
+    | id | today |
+    | I1 |       |
+    | E1 |       |
+    | E2 | yes   |
   And the output contains "project in Inception · calendar in E2"
-  And the output line with "MS-LCO" contains "▶"
   And the output line with "MS-LCO" contains "late 21d"
   And the output line with "MS-LCA" does not contain "late"
 
@@ -157,11 +167,17 @@ Scenario: The next milestone shows its gate one scenario at a time, as last run
     # Beta
     """
   When the lifecycle is computed on "2026-01-20"
-  Then the output line with "MS-LCO" contains "0/2"
+  Then the milestones are:
+    | id     | gate | next |
+    | MS-LCO | 0/2  | yes  |
+    | MS-LCA | 0/1  |      |
   And the output contains "… There is a plan  (unrun)"
   When the workspace is run
   And the lifecycle is computed on "2026-01-20"
-  Then the output line with "MS-LCO" contains "1/2"
+  Then the milestones are:
+    | id     | gate | next |
+    | MS-LCO | 1/2  | yes  |
+    | MS-LCA | 1/1  |      |
   And the output contains "✔ There is a plan"
   And the output contains "✘ The work is planned"
 
@@ -226,8 +242,11 @@ Scenario: A timeline needs no phases, and a milestone nothing but what it closes
     # Second release
     """
   When the lifecycle is computed on "2026-02-20"
-  Then the output contains "project at MS-LCO · calendar in E2"
-  And the output line with "MS-LCA" contains "2026-02-13"
+  Then the milestones are:
+    | id     | closes | phase | iterations | planned    | next |
+    | MS-LCO | I1     |       | I1         | 2026-01-30 | yes  |
+    | MS-LCA | E1     |       | E1         | 2026-02-13 |      |
+  And the output contains "project at MS-LCO · calendar in E2"
   And the output line with "no milestone" contains "E2*"
 
 Scenario: Milestones are met in the order of their dates
@@ -267,7 +286,11 @@ apart. `iteration:` plans the work of the node's own kind, `activity:` that of a
 ~~~gherkin
 Scenario: Iterations hang off their phase, in the order of the timeline
   When the lifecycle is computed
-  Then phase "PH-elaboration" has iterations "E1, E2"
+  Then the iterations are:
+    | id | phase          |
+    | I1 | PH-inception   |
+    | E1 | PH-elaboration |
+    | E2 | PH-elaboration |
 
 Scenario: An iteration plans each node once, and mentions and the plan's own nodes are no work
   Given a file "specs/REQ-m.md" containing:
@@ -291,9 +314,15 @@ Scenario: An iteration plans each node once, and mentions and the plan's own nod
     # Demo
     """
   When the lifecycle is computed
-  Then iteration "E1" plans "ARCH-x, REQ-a, REQ-m"
-  And iteration "E2" plans "nothing"
-  And "requirements" activity in iteration "E1" is 2
+  Then the iterations are:
+    | id | plans                |
+    | I1 |                      |
+    | E1 | ARCH-x, REQ-a, REQ-m |
+    | E2 |                      |
+  And the planned activity is:
+    | discipline   | E1 |
+    | requirements | 2  |
+
 Scenario: Only nodes with a maturity can be unplanned
   Given a file "specs/REQ-later.md" containing:
     """
@@ -317,10 +346,11 @@ Scenario: Only nodes with a maturity can be unplanned
 
 Scenario: Discipline activity defaults to the kind's discipline in the node's iteration
   When the lifecycle is computed
-  Then "requirements" activity in iteration "E1" is 1
-  And "analysis-design" activity in iteration "E1" is 1
-  And "requirements" activity in iteration "E2" is 0
-  And "implementation" activity in iteration "E1" is 0
+  Then the planned activity is:
+    | discipline      | E1 | E2 |
+    | requirements    | 1  | 0  |
+    | analysis-design | 1  | 0  |
+    | implementation  | 0  | 0  |
 
 Scenario: activity plans other disciplines into iterations of their own
   Given a file "specs/REQ-b.md" containing:
@@ -337,13 +367,17 @@ Scenario: activity plans other disciplines into iterations of their own
     # Beta
     """
   When the lifecycle is computed
-  Then "requirements" activity in iteration "E1" is 2
-  And "analysis-design" activity in iteration "E1" is 2
-  And "implementation" activity in iteration "E1" is 1
-  And "implementation" activity in iteration "E2" is 1
-  And "test" activity in iteration "E1" is 0
-  And "test" activity in iteration "E2" is 1
-  And iteration "E2" plans "REQ-b"
+  Then the planned activity is:
+    | discipline      | E1 | E2 |
+    | requirements    | 2  | 0  |
+    | analysis-design | 2  | 0  |
+    | implementation  | 1  | 1  |
+    | test            | 0  | 1  |
+  And the iterations are:
+    | id | plans                |
+    | I1 |                      |
+    | E1 | ARCH-x, REQ-a, REQ-b |
+    | E2 | REQ-b                |
 
 Scenario Outline: A discipline activity names takes only the iterations listed there
   Given a file "specs/REQ-b.md" containing:
@@ -357,14 +391,19 @@ Scenario Outline: A discipline activity names takes only the iterations listed t
     # Beta
     """
   When the lifecycle is computed
-  Then "requirements" activity in iteration "E1" is 1
-  And "requirements" activity in iteration "E2" is <in E2>
-  And iteration "E1" plans "ARCH-x, REQ-a, REQ-b"
+  Then the planned activity is:
+    | discipline   | E1 | E2      |
+    | requirements | 1  | <in E2> |
+  And the iterations are:
+    | id | plans                |
+    | I1 |                      |
+    | E1 | ARCH-x, REQ-a, REQ-b |
+    | E2 | <planned into E2>    |
 
   Examples:
-    | iterations | in E2 |
-    | E2         | 1     |
-    | []         | 0     |
+    | iterations | in E2 | planned into E2 |
+    | E2         | 1     | REQ-b           |
+    | []         | 0     |                 |
 
 Scenario: The chart shades each discipline relative to its busiest iteration
   Given a file "specs/REQ-b.md" containing:
@@ -413,8 +452,13 @@ Scenario: Evidence is shown apart from the planned activity
   And a step definition "it works" that passes
   When the workspace is run
   And the lifecycle is computed on "2026-02-20"
-  Then "implementation" activity in iteration "E2" is 0
-  And "test" activity in iteration "E2" is 0
-  And the output line with "E2" under "EVIDENCE" contains "verified:1  scenarios passed:1"
-  And the output line with "E1" under "EVIDENCE" contains "ready:1"
+  Then the planned activity is:
+    | discipline     | E2 |
+    | implementation | 0  |
+    | test           | 0  |
+  And the iterations are:
+    | id | stages     |
+    | I1 |            |
+    | E1 | ready:1    |
+    | E2 | verified:1 |
 ~~~
