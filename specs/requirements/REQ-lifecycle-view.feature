@@ -41,7 +41,10 @@ Feature: Lifecycle view
             Then the query "element" returns at least 1 result
       """
 
-  Rule: The timeline is the iterations in the order of their dates, each under its phase
+  Rule: The timeline is the iterations in the order they end, each under its phase
+
+    A milestone is dated by the end of what it closes, and milestones are met in the order of their
+    dates: so an iteration inside a longer one comes before it.
 
     Scenario: Inception's iteration, then Elaboration's two
       When the lifecycle is computed
@@ -50,6 +53,21 @@ Feature: Lifecycle view
         | I1 | PH-inception   |
         | E1 | PH-elaboration |
         | E2 | PH-elaboration |
+
+    Scenario: An iteration inside a longer one ends first, and its milestone is the one to meet first
+      Given these specs:
+        | tags                                                     | Feature |
+        | @id=X1 @kind=iteration @start=2026-01-05 @end=2026-03-27 | Long    |
+        | @id=X2 @kind=iteration @start=2026-01-12 @end=2026-01-23 | Short   |
+        | @id=MS-long @closes:X1                                   | Long    |
+        | @id=MS-short @closes:X2                                  | Short   |
+      When the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id       | planned    | next |
+        | MS-short | 2026-01-23 | yes  |
+        | MS-LCO   | 2026-01-30 |      |
+        | MS-LCA   | 2026-02-27 |      |
+        | MS-long  | 2026-03-27 |      |
 
   Rule: A milestone closes a phase or an iteration, and ends every iteration since the milestone before it
 

@@ -917,7 +917,9 @@ Feature: Command line
       Then the output lines are "MS-alpha"
       When I run "sdp lifecycle --json"
       Then the JSON output has:
-        | data.position.milestone | MS-beta |
+        | data.position.milestone | MS-beta  |
+        | data.milestones.0.id    | MS-alpha |
+        | data.milestones.0.gate  | null     |
 
     Scenario: gate --record writes nothing when the milestone changed while its gate ran
       Given a file "specs/MS-alpha.feature" containing:

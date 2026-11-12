@@ -2,7 +2,8 @@
  * The delivery lifecycle. The milestone is the one concept it stands on: a
  * node whose scenarios are its gate and whose `met` records that the gate
  * passed. Where the project is follows from the files alone — the first
- * milestone that is not met — and the calendar only marks today and lateness.
+ * milestone that is not met, in the order of their dates — and the calendar
+ * only marks today and lateness.
  * All of it is plain graph data, read through the words of the workspace's
  * vocabulary profile:
  *
@@ -55,8 +56,11 @@ export interface MilestoneReport {
   readonly planned: string | undefined
   /** The day it was recorded as met. */
   readonly met: string | undefined
-  /** Its gate: each of its scenarios with the status of its last run. */
-  readonly gate: ReadonlyArray<{ readonly name: string; readonly status: string }>
+  /**
+   * Its gate: each of its scenarios with the status of its last run — while it is not met. Once met
+   * it is closed, and what its gate would say now is no longer asked.
+   */
+  readonly gate: ReadonlyArray<{ readonly name: string; readonly status: string }> | undefined
 }
 
 export interface LifecycleReport {
@@ -72,7 +76,7 @@ export interface LifecycleReport {
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
-  /** Every iteration, in the order of the timeline: by its first day. */
+  /** Every iteration, in the order of the timeline: by its last day, then its first. */
   readonly iterations: ReadonlyArray<GraphNode>
   /** The planned work and its evidence for each of `iterations`, in the same order. */
   readonly work: ReadonlyArray<IterationReport>
@@ -152,8 +156,10 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   const target = (node: GraphNode, role: "phase" | "closes") =>
     graph.out(node.id).flatMap((edge) => hasRelation(vocabulary, role, edge.rel) ? [graph.node(edge.to)] : []).find(Predicate.isNotUndefined)
 
-  const iterations = graph.ofKind(vocabulary.kinds.iteration).slice()
-    .sort((a, b) => (day(a, start) ?? "").localeCompare(day(b, start) ?? "") || a.id.localeCompare(b.id))
+  // By the last day first: a milestone is dated by the end of what it closes, and met in that order.
+  const iterations = graph.ofKind(vocabulary.kinds.iteration).slice().sort((a, b) =>
+    (day(a, end) ?? "").localeCompare(day(b, end) ?? "") || (day(a, start) ?? "").localeCompare(day(b, start) ?? "") || a.id.localeCompare(b.id)
+  )
   const position = new Map(iterations.map((iteration, index) => [iteration.id, index]))
   const phaseOf = (iteration: GraphNode) => {
     const phase = target(iteration, "phase")
@@ -225,6 +231,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   const milestones = closing.map(({ at, closes, node, phase }): MilestoneReport => {
     const stretch = at < beyond ? iterations.slice(covered + 1, at + 1) : []
     if (at < beyond) covered = Math.max(covered, at)
+    const met = metOn(vocabulary, node)
     return {
       node,
       closes,
@@ -232,8 +239,8 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
       iterations: stretch,
       work: unique(stretch.flatMap((iteration) => [...itemsOf.get(iteration.id)!])),
       planned: day(iterations[at], end),
-      met: metOn(vocabulary, node),
-      gate: scenariosOf(node)
+      met,
+      gate: met === undefined ? scenariosOf(node) : undefined
     }
   })
 
@@ -308,7 +315,7 @@ export const renderLifecycle = (report: LifecycleReport): string => {
 
   /** How a milestone stands: when it was met and how far from its date, or how much of its gate passes and how late it is. */
   const standing = (milestone: MilestoneReport) => {
-    const { gate, met, planned } = milestone
+    const { gate = [], met, planned } = milestone
     if (met !== undefined) {
       const off = planned === undefined ? 0 : daysBetween(planned, met)
       return `met ${met}${off === 0 ? "" : ` (${off > 0 ? "+" : ""}${off}d)`}`
@@ -341,7 +348,7 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   for (const { cells, mark, milestone } of rows) {
     out.push(`  ${mark} ${cells.map((cell, column) => pad(cell, widths[column]! + 1)).join(" ").trimEnd()}`)
     if (milestone === undefined || milestone !== next) continue
-    for (const { name, status } of milestone.gate) {
+    for (const { name, status } of milestone.gate ?? []) {
       out.push(`        ${gateMarks[status] ?? "…"} ${name}${Object.hasOwn(gateMarks, status) ? "" : `  (${status})`}`)
     }
   }

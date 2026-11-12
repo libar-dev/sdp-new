@@ -27,7 +27,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     }))
 
   // The milestones in the order of the timeline: id, closes, phase, iterations, planned, met,
-  // gate (passed/all) and next (yes for the one the project is at).
+  // gate (passed/all, empty once met) and next (yes for the one the project is at).
   Then("the milestones are:", ({ table, world }) => {
     const report = computed(world)
     const rows = report.milestones.map((milestone): Row => ({
@@ -37,7 +37,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       iterations: milestone.iterations.map((iteration) => iteration.id).join(", "),
       planned: milestone.planned ?? "",
       met: milestone.met ?? "",
-      gate: `${milestone.gate.filter((scenario) => scenario.status === "passed").length}/${milestone.gate.length}`,
+      gate: milestone.gate ? `${milestone.gate.filter((scenario) => scenario.status === "passed").length}/${milestone.gate.length}` : "",
       next: milestone === report.next ? "yes" : ""
     }))
     assertRows("milestones", rows, table, "in order")

@@ -222,7 +222,8 @@ const lifecycleData = (report: LifecycleReport) => ({
     /** The last day of what it closes. */
     planned: milestone.planned ?? null,
     met: milestone.met ?? null,
-    gate: {
+    /** As last run, while it is not met; once met, `null`: a closed gate is no longer asked. */
+    gate: milestone.gate === undefined ? null : {
       passed: milestone.gate.filter((scenario) => scenario.status === "passed").length,
       total: milestone.gate.length,
       unmet: milestone.gate.filter((scenario) => scenario.status !== "passed").map((scenario) => scenario.name)
