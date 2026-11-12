@@ -292,7 +292,9 @@ Feature: Run specs as tests
 
     Only on complete, current evidence: every example of the rule or feature ran in this run or
     still counts, at least one of them in this run, and none of its rules is open or without an
-    example. It is a note of the run, not of `sdp check`, since the evidence is one checkout's.
+    example. A feature is named with each of its rules that declares a maturity of its own, so that
+    following the notes leaves none of it still to come. It is a note of the run, not of `sdp check`,
+    since the evidence is one checkout's.
 
     Background:
       Given a file "specs/steps/wishlist.steps.ts" containing:
@@ -326,6 +328,52 @@ Feature: Run specs as tests
       When I run "sdp run wishlist#keep-a-desk"
       Then the exit code is 0
       And the output contains "note: wishlist is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:1"
+
+    Scenario: A feature whose every example passes, with a rule at a maturity of its own
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=ready
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+          @maturity=specified
+          Rule: A wishlist is shared with a friend
+
+            Scenario: Share the list
+              Then the wishlist holds a desk
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "note: wishlist is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:1"
+      And the output contains "note: wishlist#a-wishlist-is-shared-with-a-friend is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:11"
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=implemented
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+          @maturity=implemented
+          Rule: A wishlist is shared with a friend
+
+            Scenario: Share the list
+              Then the wishlist holds a desk
+        """
+      When I run "sdp check"
+      Then the exit code is 0
+      When I run "sdp q 'scenario[!toCome]' --ids"
+      Then the output lines are "wishlist#keep-a-lamp, wishlist#share-the-list"
 
     Scenario: A rule whose examples pass, in a feature that has a rule still without one, and a question
       Given a file "specs/wishlist.feature" containing:
