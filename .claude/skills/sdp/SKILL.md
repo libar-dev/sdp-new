@@ -26,8 +26,14 @@ architecture and the delivery plan are plain Markdown files with YAML front matt
 - **Specs instead of prose.** A claim that can be structured or checked is a link or a scenario,
   not a paragraph. When you would write "X depends on Y" or "this must never happen", write the
   link or the scenario. A scenario's name is the rule it pins, so write it as the rule — and when
-  a sentence becomes a scenario, delete the sentence: promote, do not copy. What stays outside the
-  fences is the intent, in a few sentences; a reason goes to the decision the spec links to.
+  a sentence becomes a scenario, delete the sentence: promote, do not copy.
+- **A rule and its reason are written in the Gherkin.** What several examples illustrate is a
+  `Rule:` — its name says what must hold, the lines under it why, and its examples follow in the
+  same fence, where the rule ends. One scenario's reason goes under its `Scenario:` line. Outside
+  the fences a spec keeps only its intent, in a few sentences.
+- **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
+  context and a real trade-off is recorded: a title and one to three sentences on what was chosen
+  over what. Any other choice is a sentence where it applies.
 - **Evidence, not status.** Scenarios are the tests. `stage: verified` is derived from a run and
   goes stale when what it ran against changes; it is an error to write it by hand.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
@@ -39,9 +45,10 @@ The graph already knows which requirement an element realises, which decision co
 which file implements it, each with its `file:line`. Asking it gets you to the right three files
 faster than grepping for a guess.
 
-- **One node, everything around it:** `sdp context <id>` — the names of its scenarios with their
-  status and the steps still undefined, then the spec, its links, the architecture and decisions
-  in reach, the code. Read this before changing anything the node covers.
+- **One node, everything around it:** `sdp context <id>` — its rules with their reasons, the
+  names of its scenarios with their status and the steps still undefined, then the spec, its
+  links, the architecture and decisions in reach, the code. Read this before changing anything
+  the node covers.
 - **From a requirement to its code:** `sdp q '#REQ-x -realized-by-> element <-is- code' --ids`.
   From an element: `sdp q '#ARCH-x <-is- code'`. A query answers with the last node of the
   pattern; `--paths` shows the route. Syntax and examples: `sdp q --help`.
@@ -58,7 +65,8 @@ faster than grepping for a guess.
   `{type, from, rel, to, attrs, declared: [{file, line}]}`. `sdp graph -q '<pattern>'` exports
   only what a query matches.
 - **Orientation:** `sdp arch` (the architecture with its decisions and the code that is it),
-  `sdp lifecycle` (phases, iterations, milestones), `sdp status` (one screen).
+  `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
+  iteration), `sdp status` (one screen).
 
 Plain grep is still right for one thing: an id is literal text wherever it is declared or linked,
 so `grep -rn <id> .` finds every mention.
@@ -92,7 +100,9 @@ a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without 
   `activity: { implementation: C1, test: [C1, T1] }` when it is built and tested.
 - `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
   iteration in which it will be done, never into one that is over.
-- A milestone's scenarios are its gate; `sdp gate <milestone>` says whether it is met.
+- A milestone's scenarios are its gate. `sdp gate <milestone>` says whether it passes, and
+  `--record` writes `met: <date>` into the milestone when it does: the project is at the first
+  milestone without one. Recording is the team's act, never a side effect.
 
 ## More
 

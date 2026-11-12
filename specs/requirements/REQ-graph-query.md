@@ -25,7 +25,6 @@ A query returns nodes or paths and nothing more: counting and grouping are jq's
 ## Scenarios
 
 ~~~gherkin
-~~~gherkin
 Background:
   Given a file "model.md" containing:
     """
