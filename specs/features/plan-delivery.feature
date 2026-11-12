@@ -108,8 +108,7 @@ Feature: Plan delivery
 
     A milestone is dated by the end of what it closes, and milestones are met in the order of their
     dates: so an iteration inside a longer one comes before it, and one needs no first day to have
-    its place. An iteration without a last day is planned work all the same, after the timeline: it
-    dates no milestone, and is ended by the milestone that closes it, or else its phase.
+    its place. An iteration without a last day is planned work all the same, after the timeline.
 
     Scenario: Inception's iteration, then Elaboration's two
       When the lifecycle is computed
@@ -134,31 +133,46 @@ Feature: Plan delivery
         | MS-architecture | 2026-02-27 |      |
         | MS-long         | 2026-03-27 |      |
 
-    Scenario: No first day keeps an iteration off the timeline; an end that is no date, and no end, do
+    Scenario: Without a first day an iteration keeps its place; without a last day that is a date it has none, and check says why
       Given these specs:
         | tags                                                                    | Feature   |
         | @id=IT-prototype @phase:PH-elaboration @end=2026-02-13                  | Prototype |
         | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-30 | Baseline  |
         | @id=IT-hardening @phase:PH-elaboration                                  | Hardening |
-        | @id=MS-hardened @closes:IT-hardening                                    | Hardened  |
+        | @id=IT-release @phase:PH-elaboration @start=2026-04-31                  | Release   |
       When the lifecycle is computed
       Then the iterations are:
         | id           | phase          |
         | IT-scope     | PH-inception   |
         | IT-prototype | PH-elaboration |
         | IT-hardening | PH-elaboration |
+        | IT-release   | PH-elaboration |
         | IT-baseline  | PH-elaboration |
-      And the milestones are:
-        | id              | phase          | iterations                | planned    | next |
-        | MS-objectives   | PH-inception   | IT-scope                  | 2026-01-30 | yes  |
-        | MS-architecture | PH-elaboration | IT-prototype, IT-baseline | 2026-02-13 |      |
-        | MS-hardened     | PH-elaboration | IT-hardening              |            |      |
-      And the output does not contain "no milestone"
       When the workspace is checked
       Then sdp reports:
-        | rule      | at                             | message                                                                                |
-        | plan-date | specs/IT-baseline.feature:1    | IT-baseline: end is "2026-02-30", which is not a date, so the timeline leaves it out   |
-        | plan-date | specs/IT-hardening.feature:1   | IT-hardening: start is not written and end is not written, so the timeline leaves it out |
+        | rule      | at                           | message                                                                                                   |
+        | plan-date | specs/IT-baseline.feature:1  | IT-baseline: end is "2026-02-30", which is not a date, so the timeline leaves it out                      |
+        | plan-date | specs/IT-hardening.feature:1 | IT-hardening: end is not written, so the timeline leaves it out                                           |
+        | plan-date | specs/IT-release.feature:1   | IT-release: end is not written, so the timeline leaves it out; start is "2026-04-31", which is not a date |
+
+  Rule: An iteration without a last day is ended by the milestone that closes it, or else by its phase's
+
+    It has no place on the timeline, so it is in no stretch between two milestones: the milestone
+    that closes it ends it, and failing that the one that closes its phase.
+
+    Scenario: IT-hardening closed by a milestone of its own, IT-polish by its phase's
+      Given these specs:
+        | tags                                   | Feature   |
+        | @id=IT-hardening @phase:PH-elaboration | Hardening |
+        | @id=IT-polish @phase:PH-elaboration    | Polish    |
+        | @id=MS-hardened @closes:IT-hardening   | Hardened  |
+      When the lifecycle is computed
+      Then the milestones are:
+        | id              | phase          | iterations                           | planned    | next |
+        | MS-objectives   | PH-inception   | IT-scope                             | 2026-01-30 | yes  |
+        | MS-architecture | PH-elaboration | IT-prototype, IT-baseline, IT-polish | 2026-02-27 |      |
+        | MS-hardened     | PH-elaboration | IT-hardening                         |            |      |
+      And the output does not contain "no milestone"
 
   Rule: A milestone closes a phase or an iteration, and ends every iteration since the milestone before it
 
@@ -280,6 +294,26 @@ Feature: Plan delivery
         | met        | off |
         | 2026-02-03 | +4d |
         | 2026-01-28 | -2d |
+
+  Rule: An iteration without a first day is never today's, and lifecycle names each one today could be in
+
+    Today is in an iteration from its first day to its last. Without a first day, sdp cannot say
+    whether today falls in it, and says so rather than show a plan with no iteration today.
+
+    Scenario: Two iterations dated only by their ends, on a day before both end
+      Given these specs:
+        | tags                                                                    | Feature   |
+        | @id=IT-scope @phase:PH-inception @end=2026-01-30                        | Scope     |
+        | @id=IT-prototype @phase:PH-elaboration @end=2026-02-13                  | Prototype |
+      When the lifecycle is computed on "2026-01-20"
+      Then the iterations are:
+        | id           | today |
+        | IT-scope     |       |
+        | IT-prototype |       |
+        | IT-baseline  |       |
+      And the output contains "no iteration today: IT-scope, IT-prototype have no first day"
+      When the lifecycle is computed on "2026-02-20"
+      Then the output contains "calendar in IT-baseline"
 
   Rule: Off the timeline, the project is at a milestone not met only when no other is; otherwise the heading names those off it, and why
 

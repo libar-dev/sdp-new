@@ -201,19 +201,24 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   }
 
   // An iteration's last day places it on the timeline, and its first day only lets today be in it,
-  // so a first day not written is no mistake while one that is no date is. One diagnostic for an
-  // iteration, naming each day it lacks.
+  // so a first day not written is no mistake while one that is no date is, and neither is why the
+  // timeline leaves an iteration out. One diagnostic for an iteration, naming each day that is wrong.
   for (const node of graph.ofKind(vocabulary.kinds.iteration)) {
     const { end, start } = vocabulary.attributes
     const offTimeline = dayOf(node, end) === undefined
-    if (!offTimeline && (dayOf(node, start) !== undefined || attribute(node, start) === undefined)) continue
-    const lacking = [start, end].filter((key) => dayOf(node, key) === undefined)
-    const what = lacking.map((key) => {
+    const startNoDay = attribute(node, start) !== undefined && dayOf(node, start) === undefined
+    if (!offTimeline && !startNoDay) continue
+    const wrong = (key: string) => {
       const written = attribute(node, key)
       return written === undefined ? `${key} is not written` : `${key} is ${JSON.stringify(written)}, which is not a date`
-    })
+    }
+    const what = [
+      ...(offTimeline ? [`${wrong(end)}, so the timeline leaves it out`] : []),
+      ...(startNoDay ? [offTimeline ? wrong(start) : `${wrong(start)}, so today is never in it`] : [])
+    ]
+    const lacking = [...(offTimeline ? [end] : []), ...(startNoDay ? [start] : [])]
     out.push(diagnostic("plan-date", {
-      message: `${node.id}: ${what.join(" and ")}, so ${offTimeline ? "the timeline leaves it out" : "today is never in it"}`,
+      message: `${node.id}: ${what.join("; ")}`,
       node: node.id,
       source: writtenAt(node, lacking.find((key) => attribute(node, key) !== undefined) ?? lacking[0]!),
       hint: `write ${lacking.map((key) => `\`@${key}=YYYY-MM-DD\``).join(" and ")}`

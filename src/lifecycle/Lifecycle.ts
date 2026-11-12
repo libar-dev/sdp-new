@@ -380,7 +380,17 @@ export const renderLifecycle = (report: LifecycleReport): string => {
     : unmet.length === 0
     ? "every milestone is met"
     : `not on the timeline: ${unmet.map((milestone) => milestone.node.id).join(", ")} — they close nothing dated`
-  const calendar = today === undefined ? undefined : current ? `calendar in ${current.id}` : "no iteration today"
+  // Today is in an iteration only from its first day: those it could be in but for a first day are named.
+  const { end: endKey, start: startKey } = report.vocabulary.attributes
+  const firstless = today === undefined || current !== undefined ? [] : report.iterations.filter((it) => {
+    const last = dayOf(it, endKey)
+    return last !== undefined && today <= last && dayOf(it, startKey) === undefined
+  })
+  const calendar = today === undefined
+    ? undefined
+    : current
+    ? `calendar in ${current.id}`
+    : `no iteration today${firstless.length === 0 ? "" : `: ${firstless.map((it) => it.id).join(", ")} ${firstless.length === 1 ? "has" : "have"} no first day`}`
   const heading = [today, position, calendar].filter(Predicate.isNotUndefined).join(" · ")
 
   /** How a milestone stands: when it was met and how far from its date, or how much of its gate passes and how late it is. */
