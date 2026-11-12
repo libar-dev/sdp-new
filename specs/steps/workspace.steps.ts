@@ -107,7 +107,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   Given("a generated graph of {int} nodes and {int} edges", ({ args: [nodeCount, edgeCount], world }) => {
-    const kinds = ["requirement", "element", "decision", "scenario", "code"]
+    const kinds = ["feature", "element", "decision", "scenario", "code"]
     const nodes: Array<GraphNode> = Array.from({ length: nodeCount }, (_, i) => ({
       id: `N${i}`,
       kind: kinds[i % kinds.length]!,

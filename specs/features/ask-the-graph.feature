@@ -13,12 +13,12 @@ Feature: Ask the graph
 
   Background:
     Given these specs:
-      | tags                                                                                     | Feature           |
-      | @id=REQ-checkout @maturity=ready @checkout @web @due=2026-12-01 @realized-by:ARCH-orders | Checkout          |
-      | @id=REQ-refunds @maturity=idea @estimate=8 @due=2027-03-01 @realized-by:ARCH-billing     | Refunds           |
-      | @id=ARCH-orders @public=true @depends-on:ARCH-billing                                    | Order service, v2 |
-      | @id=ARCH-billing @public=false @depends-on:ARCH-ledger                                   | Billing           |
-      | @id=ARCH-ledger @owner.team=core @depends-on:ARCH-orders                                 | Ledger [legacy]   |
+      | tags                                                                                 | Feature           |
+      | @id=checkout @maturity=ready @checkout @web @due=2026-12-01 @realized-by:ARCH-orders | Checkout          |
+      | @id=refunds @maturity=idea @estimate=8 @due=2027-03-01 @realized-by:ARCH-billing     | Refunds           |
+      | @id=ARCH-orders @public=true @depends-on:ARCH-billing                                | Order service, v2 |
+      | @id=ARCH-billing @public=false @depends-on:ARCH-ledger                               | Billing           |
+      | @id=ARCH-ledger @owner.team=core @depends-on:ARCH-orders                             | Ledger [legacy]   |
 
   Rule: A question is one line: the nodes to start from, then the links to follow
 
@@ -42,17 +42,17 @@ Feature: Ask the graph
       Then the query is rejected with "<reason>"
 
       Examples:
-        | query                                      | reason                   |
-        |                                            | empty query              |
-        | requirement]                               | unbalanced               |
-        | *[title="open                              | unbalanced               |
-        | requirement realized-by element            | expected an edge         |
-        | requirement <-realized-by-> element        | expected an edge         |
-        | requirement -realized-by-> -depends-on-> * | expected a node selector |
-        | requirement[maturity=ready]x               | could not parse filters  |
-        | requirement[=ready]                        | invalid condition        |
-        | requirement[!maturity=ready]               | only negates bare keys   |
-        | *[title~(]                                 | invalid regex            |
+        | query                                  | reason                   |
+        |                                        | empty query              |
+        | feature]                               | unbalanced               |
+        | *[title="open                          | unbalanced               |
+        | feature realized-by element            | expected an edge         |
+        | feature <-realized-by-> element        | expected an edge         |
+        | feature -realized-by-> -depends-on-> * | expected a node selector |
+        | feature[maturity=ready]x               | could not parse filters  |
+        | feature[=ready]                        | invalid condition        |
+        | feature[!maturity=ready]               | only negates bare keys   |
+        | *[title~(]                             | invalid regex            |
 
   Rule: A node is picked by its kind, its id, or anything it holds
 
@@ -65,14 +65,14 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                     | result                                                            |
-        | requirement\|element      | REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
-        | *                         | REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
-        | #ARCH-orders\|REQ-refunds | ARCH-orders, REQ-refunds                                          |
-        | #ARCH-unknown             | nothing                                                           |
-        | gizmo                     | nothing                                                           |
-        | element -feeds-> *        | nothing                                                           |
-        | element[colour=red]       | nothing                                                           |
+        | query                 | result                                                    |
+        | feature\|element      | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
+        | *                     | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
+        | #ARCH-orders\|refunds | ARCH-orders, refunds                                      |
+        | #ARCH-unknown         | nothing                                                   |
+        | gizmo                 | nothing                                                   |
+        | element -feeds-> *    | nothing                                                   |
+        | element[colour=red]   | nothing                                                   |
 
     Scenario Outline: Every condition holds, in one group or in several
       When I query "<query>"
@@ -109,31 +109,31 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                               | result                    |
-        | element[public=TRUE]                | ARCH-orders               |
-        | element[title~^bill]                | ARCH-billing              |
-        | requirement[tags=web]               | REQ-checkout              |
-        | requirement[tags!=web]              | REQ-refunds               |
-        | requirement[maturity=ready\|idea]   | REQ-checkout, REQ-refunds |
-        | requirement[maturity!=ready\|draft] | REQ-refunds               |
-        | element[title!~^(billing\|ledger)]  | ARCH-orders               |
-        | element[title~^[bl]]                | ARCH-billing, ARCH-ledger |
-        | element[title~\[legacy\]]           | ARCH-ledger               |
-        | *[title="Order service, v2"]        | ARCH-orders               |
-        | *[title~"service, v[0-9]"]          | ARCH-orders               |
+        | query                              | result                    |
+        | element[public=TRUE]               | ARCH-orders               |
+        | element[title~^bill]               | ARCH-billing              |
+        | feature[tags=web]                  | checkout                  |
+        | feature[tags!=web]                 | refunds                   |
+        | feature[maturity=ready\|idea]      | checkout, refunds         |
+        | feature[maturity!=ready\|draft]    | refunds                   |
+        | element[title!~^(billing\|ledger)] | ARCH-orders               |
+        | element[title~^[bl]]               | ARCH-billing, ARCH-ledger |
+        | element[title~\[legacy\]]          | ARCH-ledger               |
+        | *[title="Order service, v2"]       | ARCH-orders               |
+        | *[title~"service, v[0-9]"]         | ARCH-orders               |
 
     Scenario Outline: Less and greater order maturity, then numbers, then text, so ISO dates order
       When I query "<query>"
       Then the result is "<result>"
 
       Examples:
-        | query                        | result       |
-        | requirement[maturity>idea]   | REQ-checkout |
-        | requirement[maturity<=idea]  | REQ-refunds  |
-        | requirement[estimate>5]      | REQ-refunds  |
-        | requirement[estimate<100]    | REQ-refunds  |
-        | requirement[due<2027-01-01]  | REQ-checkout |
-        | requirement[due>=2027-03-01] | REQ-refunds  |
+        | query                    | result   |
+        | feature[maturity>idea]   | checkout |
+        | feature[maturity<=idea]  | refunds  |
+        | feature[estimate>5]      | refunds  |
+        | feature[estimate<100]    | refunds  |
+        | feature[due<2027-01-01]  | checkout |
+        | feature[due>=2027-03-01] | refunds  |
 
     Scenario Outline: What a node holds, and not the names every object has
       When I query "<query>"
@@ -141,11 +141,11 @@ Feature: Ask the graph
 
       Examples:
         | query                                 | result                                 |
-        | *[id~^req-]                           | REQ-checkout, REQ-refunds              |
-        | *[kind=requirement]                   | REQ-checkout, REQ-refunds              |
+        | *[id~^arch-]                          | ARCH-orders, ARCH-billing, ARCH-ledger |
+        | *[kind=feature]                       | checkout, refunds                      |
         | *[source=specs/ARCH-orders.feature:1] | ARCH-orders                            |
         | *[owner.team=core]                    | ARCH-ledger                            |
-        | requirement[realized-by=ARCH-orders]  | REQ-checkout                           |
+        | feature[realized-by=ARCH-orders]      | checkout                               |
         | element[toString]                     | nothing                                |
         | element[owner.constructor]            | nothing                                |
         | element[!constructor]                 | ARCH-orders, ARCH-billing, ARCH-ledger |
@@ -157,27 +157,27 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                                                | result                                |
-        | #ARCH-billing -depends-on-> *                        | ARCH-ledger                           |
-        | #ARCH-billing <-depends-on- *                        | ARCH-orders                           |
-        | #ARCH-billing -depends-on- *                         | ARCH-ledger, ARCH-orders              |
-        | #ARCH-billing <-depends-on\|realized-by- *           | ARCH-orders, REQ-refunds              |
-        | #REQ-checkout -realized-by-> * -depends-on-> element | ARCH-billing                          |
-        | #REQ-checkout -realized-by->                         | ARCH-orders                           |
-        | #ARCH-billing <-- *                                  | ARCH-orders, REQ-refunds              |
-        | #ARCH-billing -*- *                                  | ARCH-ledger, ARCH-orders, REQ-refunds |
-        | #ARCH-ledger -*-> *                                  | ARCH-orders                           |
+        | query                                            | result                            |
+        | #ARCH-billing -depends-on-> *                    | ARCH-ledger                       |
+        | #ARCH-billing <-depends-on- *                    | ARCH-orders                       |
+        | #ARCH-billing -depends-on- *                     | ARCH-ledger, ARCH-orders          |
+        | #ARCH-billing <-depends-on\|realized-by- *       | ARCH-orders, refunds              |
+        | #checkout -realized-by-> * -depends-on-> element | ARCH-billing                      |
+        | #checkout -realized-by->                         | ARCH-orders                       |
+        | #ARCH-billing <-- *                              | ARCH-orders, refunds              |
+        | #ARCH-billing -*- *                              | ARCH-ledger, ARCH-orders, refunds |
+        | #ARCH-ledger -*-> *                              | ARCH-orders                       |
 
     Scenario Outline: As far as links lead, and back to the start when a cycle leads there
       When I query "<query>"
       Then the result is "<result>"
 
       Examples:
-        | query                                       | result                                 |
-        | #ARCH-orders -depends-on+-> *               | ARCH-billing, ARCH-ledger, ARCH-orders |
-        | #ARCH-orders <-depends-on+- *               | ARCH-billing, ARCH-ledger, ARCH-orders |
-        | #ARCH-orders -depends-on+-> #ARCH-orders    | ARCH-orders                            |
-        | #REQ-checkout -realized-by+-> #REQ-checkout | nothing                                |
+        | query                                    | result                                 |
+        | #ARCH-orders -depends-on+-> *            | ARCH-billing, ARCH-ledger, ARCH-orders |
+        | #ARCH-orders <-depends-on+- *            | ARCH-billing, ARCH-ledger, ARCH-orders |
+        | #ARCH-orders -depends-on+-> #ARCH-orders | ARCH-orders                            |
+        | #checkout -realized-by+-> #checkout      | nothing                                |
 
   Rule: A link can filter instead: keep the nodes that have such a neighbour, or those that have none
 
@@ -186,12 +186,12 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                                                        | result       |
-        | element ?<-realized-by- requirement[maturity=ready]          | ARCH-orders  |
-        | element !<-realized-by- *                                    | ARCH-ledger  |
-        | element !-depends-on+-> #ARCH-orders                         | nothing      |
-        | requirement ?-realized-by-> element[public] -realized-by-> * | ARCH-orders  |
-        | element ?-depends-on-> #ARCH-ledger                          | ARCH-billing |
+        | query                                                    | result       |
+        | element ?<-realized-by- feature[maturity=ready]          | ARCH-orders  |
+        | element !<-realized-by- *                                | ARCH-ledger  |
+        | element !-depends-on+-> #ARCH-orders                     | nothing      |
+        | feature ?-realized-by-> element[public] -realized-by-> * | ARCH-orders  |
+        | element ?-depends-on-> #ARCH-ledger                      | ARCH-billing |
 
   Rule: The answer is the nodes the question ends on, or every route to them as it exists
 
@@ -199,20 +199,20 @@ Feature: Ask the graph
     reached as far as links lead is a shortest one.
 
     Scenario: Several routes to a node are one node and as many routes
-      When I query "requirement -realized-by-> element -depends-on+-> *"
+      When I query "feature -realized-by-> element -depends-on+-> *"
       Then the result is "ARCH-billing, ARCH-ledger, ARCH-orders"
       And the paths are:
-        | REQ-checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing                                                     |
-        | REQ-checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger                           |
-        | REQ-checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders |
-        | REQ-refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger                                                      |
-        | REQ-refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders                            |
-        | REQ-refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders -depends-on-> ARCH-billing |
+        | checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing                                                     |
+        | checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger                           |
+        | checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders |
+        | refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger                                                      |
+        | refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders                            |
+        | refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders -depends-on-> ARCH-billing |
 
     Scenario: A link followed against its direction is shown as it points
       When I query "#ARCH-ledger <-depends-on- element <-realized-by- *"
       Then the paths are:
-        | ARCH-ledger <-depends-on- ARCH-billing <-realized-by- REQ-refunds |
+        | ARCH-ledger <-depends-on- ARCH-billing <-realized-by- refunds |
 
     Scenario: Two links between the same nodes, several relations, and a cycle
       Given these specs:
@@ -252,16 +252,16 @@ Feature: Ask the graph
 
     Scenario: A node per line, only the ids, or the routes
       Given these specs:
-        | tags                                      | Feature                   |
-        | @id=RISK-memory @status=tolerated         | The index outgrows memory |
-      When I run "sdp q '#REQ-checkout -realized-by-> element'"
+        | tags                                                   | Feature                   |
+        | @id=index-outgrows-memory @kind=risk @status=tolerated | The index outgrows memory |
+      When I run "sdp q '#checkout -realized-by-> element'"
       Then the exit code is 0
       And the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
       And the output contains "1 node(s)"
-      When I run "sdp q 'requirement|risk'"
+      When I run "sdp q 'feature|risk'"
       Then the exit code is 0
-      And the output contains "REQ-checkout\trequirement\tready"
-      And the output contains "RISK-memory\trisk\ttolerated"
+      And the output contains "checkout\tfeature\tready"
+      And the output contains "index-outgrows-memory\trisk\ttolerated"
       When I run "sdp q 'element' --ids"
       Then the exit code is 0
       And the output lines are "ARCH-orders, ARCH-billing, ARCH-ledger"
@@ -270,14 +270,14 @@ Feature: Ask the graph
       And the output lines are "ARCH-ledger <-depends-on- ARCH-billing"
 
     Scenario: As data, with the routes when asked
-      When I run "sdp q '#REQ-checkout -realized-by-> element' --paths --json"
+      When I run "sdp q '#checkout -realized-by-> element' --paths --json"
       Then the exit code is 0
       And the JSON output has:
         | complete              | true                      |
         | data.nodes            | ARCH-orders               |
         | data.nodes.file       | specs/ARCH-orders.feature |
-        | data.paths.nodes      | REQ-checkout, ARCH-orders |
-        | data.paths.edges.from | REQ-checkout              |
+        | data.paths.nodes      | checkout, ARCH-orders     |
+        | data.paths.edges.from | checkout                  |
         | data.paths.edges.rel  | realized-by               |
 
   Rule: One node can be looked up with every link it has, and the title at the other end
@@ -287,21 +287,21 @@ Feature: Ask the graph
       Then the exit code is 0
       And the output contains 'public: false'
       And the output contains "-depends-on-> ARCH-ledger  Ledger [legacy]"
-      And the output contains "<-realized-by- REQ-refunds  Refunds"
+      And the output contains "<-realized-by- refunds  Refunds"
       When I run "sdp show ARCH-billing --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.node.id          | ARCH-billing                       |
-        | data.out.to           | ARCH-ledger                        |
-        | data.in.from          | ARCH-orders, REQ-refunds           |
-        | data.in.declared.file | specs/ARCH-orders.feature, specs/REQ-refunds.feature |
+        | data.node.id          | ARCH-billing                                     |
+        | data.out.to           | ARCH-ledger                                      |
+        | data.in.from          | ARCH-orders, refunds                             |
+        | data.in.declared.file | specs/ARCH-orders.feature, specs/refunds.feature |
 
   Rule: A word the workspace does not know is pointed out, with the closest one it knows
 
     A question still gets its answer, with a note; a lookup of an id nothing declares is refused.
 
     Scenario: A misspelt relation and attribute in a question, and a misspelt id
-      When I run "sdp q 'requirement -realised-by-> element[titel]'"
+      When I run "sdp q 'feature -realised-by-> element[titel]'"
       Then the exit code is 0
       And the output contains "0 node(s)"
       And the output contains "note: no relation realised-by; closest: realized-by"
@@ -379,10 +379,10 @@ Feature: Ask the graph
     written to disk: a dump cannot say that it is stale or incomplete.
 
     Scenario Outline: A node, a node nothing declares, and a link stated in two places
-      Given a file "specs/REQ-a.feature" containing:
+      Given a file "specs/alpha.feature" containing:
         """
-        @id=REQ-a @maturity=idea @realized-by:ARCH-ledger
-        @depends-on:REQ-gone @realized-by:ARCH-ledger
+        @id=alpha @maturity=idea @realized-by:ARCH-ledger
+        @depends-on:gone @realized-by:ARCH-ledger
         Feature: Alpha "with quotes" and a \ backslash
 
           Rule: Alpha comes first
@@ -399,11 +399,11 @@ Feature: Ask the graph
 
       Examples:
         | record                                                                                                                                                                                                         |
-        | {"type":"node","id":"REQ-gone","kind":"missing","title":"REQ-gone","file":null,"line":null,"attrs":{}}                                                                                                         |
-        | {"type":"edge","from":"REQ-a","rel":"realized-by","to":"ARCH-ledger","attrs":{},"declared":[{"file":"specs/REQ-a.feature","line":1},{"file":"specs/REQ-a.feature","line":2}]}                                  |
-        | {"type":"node","id":"REQ-a#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/REQ-a.feature","line":5,"attrs":{"spec":"REQ-a","description":"Its reason runs |
+        | {"type":"node","id":"gone","kind":"missing","title":"gone","file":null,"line":null,"attrs":{}}                                                                                                                 |
+        | {"type":"edge","from":"alpha","rel":"realized-by","to":"ARCH-ledger","attrs":{},"declared":[{"file":"specs/alpha.feature","line":1},{"file":"specs/alpha.feature","line":2}]}                                  |
+        | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"spec":"alpha","description":"Its reason runs |
         | over two lines.","scenarios":1,"verification":"unrun"}} |
-        | {"type":"edge","from":"REQ-a#first","rel":"verifies","to":"REQ-a#alpha-comes-first","attrs":{},"declared":[{"file":"specs/REQ-a.feature","line":10}]}                                                          |
+        | {"type":"edge","from":"alpha#first","rel":"verifies","to":"alpha#alpha-comes-first","attrs":{},"declared":[{"file":"specs/alpha.feature","line":10}]}                                                          |
         | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"specs/ARCH-ledger.feature","line":1,"attrs":{"owner":{"team":"core"},"file":"specs/ARCH-ledger.feature","scenarios":0,"verification":"none"}}                 |
 
     Scenario: Every node first, then every link
@@ -425,9 +425,9 @@ Feature: Ask the graph
 
       Examples:
         | query                                                          | answer       | tool                                                                                                                                                                                                                                                                       |
-        | requirement[maturity=ready]                                    | REQ-checkout | jq -r 'select(.type == "node" and .kind == "requirement" and .attrs.maturity == "ready") \| .id'                                                                                                                                                                           |
-        | #ARCH-billing <-realized-by- *                                 | REQ-refunds  | jq -r 'select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-billing") \| .from'                                                                                                                                                                              |
-        | requirement[maturity=ready] -realized-by-> element -depends-on-> element | ARCH-billing | jq -rs '(map(select(.type == "node")) \| INDEX(.id)) as $n \| map(select(.type == "edge")) as $e \| $e[] \| select(.rel == "realized-by" and $n[.from].attrs.maturity == "ready") \| .to as $x \| $e[] \| select(.rel == "depends-on" and .from == $x) \| .to' |
+        | feature[maturity=ready]                                        | checkout     | jq -r 'select(.type == "node" and .kind == "feature" and .attrs.maturity == "ready") \| .id'                                                                                                                                                                               |
+        | #ARCH-billing <-realized-by- *                                 | refunds      | jq -r 'select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-billing") \| .from'                                                                                                                                                                              |
+        | feature[maturity=ready] -realized-by-> element -depends-on-> element | ARCH-billing | jq -rs '(map(select(.type == "node")) \| INDEX(.id)) as $n \| map(select(.type == "edge")) as $e \| $e[] \| select(.rel == "realized-by" and $n[.from].attrs.maturity == "ready") \| .to as $x \| $e[] \| select(.rel == "depends-on" and .from == $x) \| .to' |
         | element !<-realized-by- *                                      | ARCH-ledger  | node -e 'const r = require("fs").readFileSync(0, "utf8").trim().split("\\n").map(JSON.parse); const to = new Set(r.filter((x) => x.rel === "realized-by").map((x) => x.to)); for (const x of r) if (x.kind === "element" && !to.has(x.id)) console.log(x.id)' |
 
     Scenario: Where a link is declared is one grep away, in this repository too
@@ -435,7 +435,7 @@ Feature: Ask the graph
         """
         sdp graph | grep '"rel":"realized-by"' | grep '"to":"ARCH-billing"' | jq -r '.declared[] | "\(.file):\(.line)"'
         """
-      Then the output lines are "specs/REQ-refunds.feature:1"
+      Then the output lines are "specs/refunds.feature:1"
       And every node and link of this repository is at a file and line that exist
       And the line of every link of this repository contains the id it links to
 
@@ -443,17 +443,17 @@ Feature: Ask the graph
 
     Scenario: Only the nodes and the links the routes walk
       Given these specs:
-        | tags                                  | Feature |
-        | @id=REQ-c @uses:REQ-d @avoids:REQ-d   | C       |
-        | @id=REQ-d                             | D       |
-      When I run "sdp graph -q '#REQ-c -uses-> #REQ-d'"
+        | tags                                          | Feature   |
+        | @id=coupons @uses:discounts @avoids:discounts | Coupons   |
+        | @id=discounts                                 | Discounts |
+      When I run "sdp graph -q '#coupons -uses-> #discounts'"
       Then the exit code is 0
-      And the output contains '"from":"REQ-c","rel":"uses","to":"REQ-d"'
+      And the output contains '"from":"coupons","rel":"uses","to":"discounts"'
       And the output does not contain '"rel":"avoids"'
-      And the output does not contain "REQ-checkout"
+      And the output does not contain "checkout"
 
     Scenario: The same routes as a Mermaid flowchart
-      When I run "sdp graph --mermaid -q 'requirement -realized-by-> element'"
+      When I run "sdp graph --mermaid -q 'feature -realized-by-> element'"
       Then the exit code is 0
       And the output contains "flowchart LR"
       And the output contains '["ARCH-orders<br/><small>Order service, v2</small>"]'
@@ -471,7 +471,7 @@ Feature: Ask the graph
 
       Examples:
         | query                                                                    |
-        | requirement[maturity=ready] -realized-by-> element -decided-by-> decision |
+        | feature[maturity=ready] -realized-by-> element -decided-by-> decision    |
         | element !-*- decision                                                    |
 
     @slow @serial
