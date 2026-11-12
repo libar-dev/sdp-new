@@ -194,13 +194,18 @@ Feature: See the architecture
         | import { Receipt } from "./mailer.ts"           | nothing     |
         | import { Receipt, Cents } from "./mailer.ts"    | nothing     |
         | import { Receipt, Mailer } from "./mailer.ts"   | ARCH-mailer |
+        | const { Mailer } = require("./mailer.ts")       | ARCH-mailer |
 
     Scenario Outline: A name means the file TypeScript resolves it to, whether or not that file anchors an element
-      Given a file "src/<unanchored>" containing:
+      Given a file "<config>" containing:
+        """
+        <says>
+        """
+      And a file "<unanchored>" containing:
         """
         export const rate = 0.2
         """
-      And a file "src/<anchored>" containing:
+      And a file "<anchored>" containing:
         """
         /** @sdp is ARCH-tax */
         export const rate = 0.25
@@ -216,11 +221,73 @@ Feature: See the architecture
       Then the result is "<imports>"
 
       Examples:
-        | unanchored | anchored     | name     | imports  |
-        | tax.ts     | tax/index.ts | ./tax    | nothing  |
-        | tax.ts     | tax.js       | ./tax.js | nothing  |
-        | tax.js     | tax.tsx      | ./tax.js | ARCH-tax |
-        | tax.ts     | tax/index.ts | ./tax/   | ARCH-tax |
+        | config                    | says                                                                                                     | unanchored            | anchored                  | name      | imports  |
+        | package.json              | { "name": "shop" }                                                                                       | src/tax.ts            | src/tax/index.ts          | ./tax     | nothing  |
+        | package.json              | { "name": "shop" }                                                                                       | src/tax.ts            | src/tax.js                | ./tax.js  | nothing  |
+        | package.json              | { "name": "shop" }                                                                                       | src/tax.js            | src/tax.tsx               | ./tax.js  | ARCH-tax |
+        | package.json              | { "name": "shop" }                                                                                       | src/tax.ts            | src/tax/index.ts          | ./tax/    | ARCH-tax |
+        | tsconfig.json             | {\n  // the aliases of the code\n  "compilerOptions": { "paths": { "@/*": ["./src/*"] } },\n}          | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
+        | tsconfig.json             | { "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["*"] } } }                                 | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
+        | package.json              | { "name": "shop", "imports": { "#tax": "./src/tax.ts" } }                                                | lib/tax.ts            | src/tax.ts                | #tax      | ARCH-tax |
+        | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
+        | package.json              | { "name": "shop" }                                                                                       | lib/tax.ts            | src/tax.ts                | tax       | nothing  |
+
+    Scenario: A tsconfig.json maps names as the configuration it extends does, from where that configuration is
+      Given a file "config/tsconfig.base.json" containing:
+        """
+        { "compilerOptions": { "paths": { "@/*": ["../src/*"] } } }
+        """
+      And a file "tsconfig.json" containing:
+        """
+        { "extends": "./config/tsconfig.base.json" }
+        """
+      And a file "src/tax.ts" containing:
+        """
+        /** @sdp is ARCH-tax */
+        export const rate = 0.25
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { rate } from "@/tax"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      When I query "#ARCH-billing -imports-> *"
+      Then the result is "ARCH-tax"
+
+    Scenario Outline: What sdp cannot follow, though it could name the workspace's code, is reported, and the answer is incomplete: <case>
+      Given a file "<config>" containing:
+        """
+        <says>
+        """
+      And a file "packages/tax/package.json" containing:
+        """
+        <tax>
+        """
+      And a file "packages/tax/src/index.ts" containing:
+        """
+        /** @sdp is ARCH-tax */
+        export const rate = 0.25
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { rate } from "@shop/tax"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      When I run "sdp q '#ARCH-billing -imports-> *' --ids"
+      Then the exit code is 2
+      And the output contains 'note: not read: <at> [import-unresolved] <message>'
+      And the output lines are "<imports>"
+
+      Examples:
+        | case                                                      | config           | says                                  | tax                                                         | imports  | at               | message                                                                                    |
+        | what the tsconfig.json extends is not installed          | tsconfig.json    | { "extends": "@tsconfig/strictest" }  | { "name": "@shop/tax", "exports": "./src/index.ts" }         | ARCH-tax | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither in the workspace nor installed |
+        | the tsconfig.json does not parse                          | tsconfig.json    | { "compilerOptions": { "paths": } }   | { "name": "@shop/tax", "exports": "./src/index.ts" }         | ARCH-tax | tsconfig.json:1  | tsconfig.json does not parse                                                               |
+        | a package exported only under conditions TypeScript lacks | package.json     | { "name": "shop" }                    | { "name": "@shop/tax", "exports": { "browser": "./src/index.ts" } } | nothing  | src/billing.ts:1 | "@shop/tax" is mapped by packages/tax/package.json only under the conditions browser       |
+        | two packages of the workspace with one name               | src/package.json | { "name": "@shop/tax" }               | { "name": "@shop/tax", "exports": "./src/index.ts" }         | nothing  | src/billing.ts:1 | "@shop/tax" names 2 packages of the workspace                                              |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 

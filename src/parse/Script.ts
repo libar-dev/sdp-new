@@ -35,7 +35,7 @@ export interface Script {
   readonly lineOf: (offset: number) => number
   /**
    * The modules the file imports or re-exports a value from, `import … = require()` among them, or
-   * loads with `import()`: an import of types alone loads no code, and an `import()` of a computed
+   * loads with `import()` or `require()`: an import of types alone loads no code, and a computed
    * name names no module.
    */
   readonly imports: () => ReadonlyArray<Import>
@@ -84,7 +84,7 @@ export const parseScript = (file: string, content: string): Script | undefined =
     comments: parsed.comments,
     error: error && { line: lineOf(error.labels[0]?.start ?? 0), message: error.message },
     lineOf,
-    imports: () => valueImports(program, parsed.module.dynamicImports.length > 0, lineOf),
+    imports: () => valueImports(program, parsed.module.dynamicImports.length > 0 || content.includes("require"), lineOf),
     types: () => typeExports(program)
   }
 }
@@ -137,11 +137,17 @@ const valueSources = (statement: Node): ReadonlyArray<Source> => {
   }
 }
 
-/** The names `import()` loads within `node`. */
+/** The names `import()` and `require()` load within `node`. */
 const dynamicSources = (node: Node): ReadonlyArray<Source> => [
   ...(node.type === "ImportExpression" && isNode(node.source) ? [{ source: node.source }] : []),
+  ...(isRequire(node) ? [{ source: (node.arguments as ReadonlyArray<Node>)[0]! }] : []),
   ...children(node).flatMap(dynamicSources)
 ]
+
+/** `require(name)` of CommonJS. */
+const isRequire = (node: Node): boolean =>
+  node.type === "CallExpression" && isNode(node.callee) && node.callee.type === "Identifier" && node.callee.name === "require" &&
+  (node.arguments as ReadonlyArray<Node>).length === 1
 
 const valueImports = (program: Script["program"], dynamic: boolean, lineOf: (offset: number) => number): ReadonlyArray<Import> => {
   const named = [...program.body.flatMap(valueSources), ...(dynamic ? dynamicSources(program) : [])]

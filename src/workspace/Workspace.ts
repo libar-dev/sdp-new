@@ -9,7 +9,7 @@ import { Effect, FileSystem, Path, Schema } from "effect"
 import { createRequire, registerHooks } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
-import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
+import { buildProject, extendedBy, moduleConfigFiles, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
@@ -121,6 +121,19 @@ const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<s
   )
 })
 
+/** The configuration that says what the names code imports mean: `moduleConfigFiles`, and what they extend, as far as it is found. */
+const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: ReadonlyArray<string>) {
+  const read = new Map<string, SourceFile>()
+  const asked = new Set<string>()
+  for (let wanted = moduleConfigFiles(code); wanted.length > 0;) {
+    for (const path of wanted) asked.add(path)
+    const found = yield* readFiles(root, wanted)
+    for (const file of found) read.set(file.path, file)
+    wanted = [...new Set(found.flatMap(extendedBy))].filter((path) => !asked.has(path))
+  }
+  return [...read.values()]
+})
+
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */
 const lockfileNames = ["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]
 
@@ -176,6 +189,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const under = config.features.map(globBase).filter((base) => base !== "").map((base) => `${base}/**/*.md`)
   const markdownFiles = yield* findFiles(root, [...beside, ...under], config.exclude)
   const codeFiles = yield* readAll(root, codePaths)
+  const moduleConfigs = yield* readModuleConfigs(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
   const stored = yield* readResults(root, config)
   const recorded = Object.entries(stored?.imports ?? {})
@@ -199,7 +213,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   }
   const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
+  const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, moduleConfigs, stepFiles, evidence: view })
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
 })
