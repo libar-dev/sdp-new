@@ -20,465 +20,464 @@ points at a greppable `file:line`.
 It is architecture because it defines the one specification format: a change here changes what
 every spec file in every workspace means — the highest cost of change in the system.
 
-## Scenarios
-
-### Front matter
-
 ~~~gherkin
-Scenario: Identity, attributes and the summary are read from the file; an alias stands for its anchor's value
-  Given a file "specs/REQ-guest-checkout.md" containing:
-    """
-    ---
-    id: REQ-guest-checkout
-    maturity: draft
-    tags: "checkout, @web mobile"
-    estimate: 3
-    owner: &team { team: payments }
-    reviewer: *team
-    links: { refines: CAP-sales }
-    ---
-    # Guest checkout
+Rule: Front matter is YAML that holds JSON data, and every fact in it keeps its line
 
-    > Draft: wording not final.
+  Identity, attributes, links and inline nodes are read from its keys. What cannot be read is an
+  error at the line it is written on, and drops only that: the parser never guesses and never throws
+  on content.
 
-    Shoppers without an account
-    can buy with `cards`.
+  Scenario: Identity, attributes and the summary are read from the file; an alias stands for its anchor's value
+    Given a file "specs/REQ-guest-checkout.md" containing:
+      """
+      ---
+      id: REQ-guest-checkout
+      maturity: draft
+      tags: "checkout, @web mobile"
+      estimate: 3
+      owner: &team { team: payments }
+      reviewer: *team
+      links: { refines: CAP-sales }
+      ---
+      # Guest checkout
 
-    More detail.
-    """
-  When "specs/REQ-guest-checkout.md" is parsed
-  Then the parsed spec has kind "requirement"
-  And the parsed spec has title "Guest checkout"
-  And the parsed spec has summary "Shoppers without an account can buy with `cards`."
-  And the parsed spec has exactly these attributes:
-    | key      | value                 |
-    | maturity | draft                 |
-    | tags     | checkout, web, mobile |
-    | estimate | 3                     |
-    | owner    | {"team":"payments"}   |
-    | reviewer | {"team":"payments"}   |
-  And sdp reports nothing
+      > Draft: wording not final.
 
-Scenario Outline: The title falls back to the first top-level heading, then the id
-  Given a file "specs/REQ-basket.md" containing:
-    """
-    ---
-    id: REQ-basket
-    <front matter>
-    ---
-    <body>
-    """
-  When "specs/REQ-basket.md" is parsed
-  Then the parsed spec has title "<title>"
+      Shoppers without an account
+      can buy with `cards`.
 
-  Examples:
-    | front matter    | body             | title      |
-    | title: Checkout | # Basket         | Checkout   |
-    | maturity: idea  | # Basket         | Basket     |
-    | maturity: idea  | ## Basket        | REQ-basket |
-    | maturity: idea  | Just a sentence. | REQ-basket |
+      More detail.
+      """
+    When "specs/REQ-guest-checkout.md" is parsed
+    Then the parsed spec has kind "requirement"
+    And the parsed spec has title "Guest checkout"
+    And the parsed spec has summary "Shoppers without an account can buy with `cards`."
+    And the parsed spec has exactly these attributes:
+      | key      | value                 |
+      | maturity | draft                 |
+      | tags     | checkout, web, mobile |
+      | estimate | 3                     |
+      | owner    | {"team":"payments"}   |
+      | reviewer | {"team":"payments"}   |
+    And sdp reports nothing
 
-Scenario Outline: Markdown without a usable id is not a spec, and no problem
-  Given a file "specs/notes.md" containing:
-    """
-    ---
-    <front matter>
-    ---
-    # Notes
-    """
-  When "specs/notes.md" is parsed
-  Then the file is not a spec
-  And sdp reports nothing
+  Scenario Outline: The title falls back to the first top-level heading, then the id
+    Given a file "specs/REQ-basket.md" containing:
+      """
+      ---
+      id: REQ-basket
+      <front matter>
+      ---
+      <body>
+      """
+    When "specs/REQ-basket.md" is parsed
+    Then the parsed spec has title "<title>"
 
-  Examples:
-    | front matter     |
-    | layout: post     |
-    | id: ""           |
-    | # a comment only |
+    Examples:
+      | front matter    | body             | title      |
+      | title: Checkout | # Basket         | Checkout   |
+      | maturity: idea  | # Basket         | Basket     |
+      | maturity: idea  | ## Basket        | REQ-basket |
+      | maturity: idea  | Just a sentence. | REQ-basket |
 
-Scenario: Front matter with a kind but no id is plainly meant as a spec, and is an error
-  Given a file "specs/DEC-cache.md" containing:
-    """
-    ---
-    kind: decision
-    ---
-    # Cache product pages
-    """
-  When "specs/DEC-cache.md" is parsed
-  Then the file is not a spec
-  And sdp reports:
-    | rule       | severity | line | message                            |
-    | missing-id | error    | 1    | declares kind "decision" but no id |
+  Scenario Outline: Markdown without a usable id is not a spec, and no problem
+    Given a file "specs/notes.md" containing:
+      """
+      ---
+      <front matter>
+      ---
+      # Notes
+      """
+    When "specs/notes.md" is parsed
+    Then the file is not a spec
+    And sdp reports nothing
 
-Scenario Outline: Front matter that cannot be read is reported at its line, and leaves the file out of the graph
-  Given a file "specs/REQ-basket.md" containing:
-    """
-    ---
-    id: REQ-basket
-    <front matter>
-    <end>
-    # Basket
-    """
-  When "specs/REQ-basket.md" is parsed
-  Then the file is not a spec
-  And sdp reports:
-    | rule         | severity | line   | message   |
-    | front-matter | error    | <line> | <message> |
+    Examples:
+      | front matter     |
+      | layout: post     |
+      | id: ""           |
+      | # a comment only |
 
-  Examples:
-    | front matter   | end            | line | message                                        |
-    | title: [Basket | ---            | 3    | must be sufficiently indented and end with a ] |
-    | id: REQ-cart   | ---            | 3    | Map keys must be unique                        |
-    | title: Basket  | maturity: idea | 1    | front matter is not closed with ---            |
+  Scenario: Front matter with a kind but no id is plainly meant as a spec, and is an error
+    Given a file "specs/DEC-cache.md" containing:
+      """
+      ---
+      kind: decision
+      ---
+      # Cache product pages
+      """
+    When "specs/DEC-cache.md" is parsed
+    Then the file is not a spec
+    And sdp reports:
+      | rule       | severity | line | message                            |
+      | missing-id | error    | 1    | declares kind "decision" but no id |
 
-Scenario Outline: Front matter holds JSON data: an alias inside itself or to no anchor, a tag or number JSON has no type for, a key that is not text are errors
-  Given a file "specs/REQ-basket.md" containing:
-    """
-    ---
-    id: REQ-basket
-    <front matter>
-    ---
-    # Basket
-    """
-  When "specs/REQ-basket.md" is parsed
-  Then the file is not a spec
-  And sdp reports:
-    | rule         | severity | line | message   |
-    | front-matter | error    | 3    | <message> |
+  Scenario Outline: Front matter that cannot be read is reported at its line, and leaves the file out of the graph
+    Given a file "specs/REQ-basket.md" containing:
+      """
+      ---
+      id: REQ-basket
+      <front matter>
+      <end>
+      # Basket
+      """
+    When "specs/REQ-basket.md" is parsed
+    Then the file is not a spec
+    And sdp reports:
+      | rule         | severity | line   | message   |
+      | front-matter | error    | <line> | <message> |
 
-  Examples:
-    | front matter             | message                                   |
-    | owner: &x { self: *x }   | the alias *x repeats a value it is inside |
-    | links: &x [*x]           | the alias *x repeats a value it is inside |
-    | owner: *nobody           | the alias *nobody names no anchor         |
-    | estimate: .inf           | .inf is not a JSON number                 |
-    | ? [team, lead] : Ada     | a key must be plain text                  |
-    | owners: !!set { a, b }   | !!set has no JSON type                    |
-    | logo: !!binary aGVsbG8=  | !!binary has no JSON type                 |
+    Examples:
+      | front matter   | end            | line | message                                        |
+      | title: [Basket | ---            | 3    | must be sufficiently indented and end with a ] |
+      | id: REQ-cart   | ---            | 3    | Map keys must be unique                        |
+      | title: Basket  | maturity: idea | 1    | front matter is not closed with ---            |
 
-Scenario: A link is one id, a comma-separated or YAML list, or a map with to and attributes, each at the line of its target
-  Given a file "specs/REQ-cart.md" containing:
-    """
-    ---
-    id: REQ-cart
-    links:
-      uses: ARCH-cart-store
-      realized-by: ARCH-cart
-      refines: CAP-sales, CAP-retention
-      depends-on: [REQ-pricing, REQ-stock]
-      constrained-by: { to: NFR-latency, note: p95 }
-      guarded-by:
-        - DEC-0001
-        - { to: DEC-0002, since: 2026 }
-    ---
-    # Cart
-    """
-  When "specs/REQ-cart.md" is parsed
-  Then the parsed spec has links:
-    | rel            | to              | line | attributes |
-    | uses           | ARCH-cart-store | 4    |            |
-    | realized-by    | ARCH-cart       | 5    |            |
-    | refines        | CAP-sales       | 6    |            |
-    | refines        | CAP-retention   | 6    |            |
-    | depends-on     | REQ-pricing     | 7    |            |
-    | depends-on     | REQ-stock       | 7    |            |
-    | constrained-by | NFR-latency     | 8    | note="p95" |
-    | guarded-by     | DEC-0001        | 10   |            |
-    | guarded-by     | DEC-0002        | 11   | since=2026 |
-  And sdp reports nothing
+  Scenario Outline: Front matter holds JSON data: an alias inside itself or to no anchor, a tag or number JSON has no type for, a key that is not text are errors
+    Given a file "specs/REQ-basket.md" containing:
+      """
+      ---
+      id: REQ-basket
+      <front matter>
+      ---
+      # Basket
+      """
+    When "specs/REQ-basket.md" is parsed
+    Then the file is not a spec
+    And sdp reports:
+      | rule         | severity | line | message   |
+      | front-matter | error    | 3    | <message> |
 
-Scenario: Every key, map entry and link target is at the line it is written on
-  Given a file "specs/REQ-cart.md" containing:
-    """
-    ---
-    id: REQ-cart
-    note: shares a store with ARCH-cart-store
-    store: &store ARCH-cart-store
-    "activity":
-      test: [C1, T1]
-    iteration:
-      - E1
-      - E2
-    links:
-      uses: *store
-      calls:
-        - ARCH-pricing
-      guarded-by:
-        since: 2026
-        to: DEC-0001
-    nodes:
-      - id: ARCH-cart-store
-        links:
-          stores:
-            to: ARCH-db
-    ---
-    # Cart
-    """
-  When "specs/REQ-cart.md" is parsed
-  Then the parsed spec has links:
-    | rel           | to              | line |
-    | uses          | ARCH-cart-store | 11   |
-    | calls         | ARCH-pricing    | 13   |
-    | guarded-by    | DEC-0001        | 16   |
-    | iteration     | E1              | 8    |
-    | iteration     | E2              | 9    |
-    | activity.test | C1              | 6    |
-    | activity.test | T1              | 6    |
-  And the parsed spec has attribute lines:
-    | key           | line |
-    | note          | 3    |
-    | store         | 4    |
-    | activity      | 5    |
-    | activity.test | 6    |
-    | iteration     | 7    |
-  And the parsed spec has inline nodes:
-    | id              | line | links             | link lines |
-    | ARCH-cart-store | 18   | -stores-> ARCH-db | 21         |
+    Examples:
+      | front matter             | message                                   |
+      | owner: &x { self: *x }   | the alias *x repeats a value it is inside |
+      | links: &x [*x]           | the alias *x repeats a value it is inside |
+      | owner: *nobody           | the alias *nobody names no anchor         |
+      | estimate: .inf           | .inf is not a JSON number                 |
+      | ? [team, lead] : Ada     | a key must be plain text                  |
+      | owners: !!set { a, b }   | !!set has no JSON type                    |
+      | logo: !!binary aGVsbG8=  | !!binary has no JSON type                 |
 
-Scenario Outline: links or nodes of the wrong shape is an error at its line, and drops only what could not be read
-  Given a file "specs/REQ-cart.md" containing:
-    """
-    ---
-    id: REQ-cart
-    maturity: idea
-    <front matter>
-    ---
-    # Cart
-    """
-  When "specs/REQ-cart.md" is parsed
-  Then sdp reports:
-    | rule   | severity | line | message   |
-    | <rule> | error    | 4    | <message> |
+  Scenario: A link is one id, a comma-separated or YAML list, or a map with to and attributes, each at the line of its target
+    Given a file "specs/REQ-cart.md" containing:
+      """
+      ---
+      id: REQ-cart
+      links:
+        uses: ARCH-cart-store
+        realized-by: ARCH-cart
+        refines: CAP-sales, CAP-retention
+        depends-on: [REQ-pricing, REQ-stock]
+        constrained-by: { to: NFR-latency, note: p95 }
+        guarded-by:
+          - DEC-0001
+          - { to: DEC-0002, since: 2026 }
+      ---
+      # Cart
+      """
+    When "specs/REQ-cart.md" is parsed
+    Then the parsed spec has links:
+      | rel            | to              | line | attributes |
+      | uses           | ARCH-cart-store | 4    |            |
+      | realized-by    | ARCH-cart       | 5    |            |
+      | refines        | CAP-sales       | 6    |            |
+      | refines        | CAP-retention   | 6    |            |
+      | depends-on     | REQ-pricing     | 7    |            |
+      | depends-on     | REQ-stock       | 7    |            |
+      | constrained-by | NFR-latency     | 8    | note="p95" |
+      | guarded-by     | DEC-0001        | 10   |            |
+      | guarded-by     | DEC-0002        | 11   | since=2026 |
+    And sdp reports nothing
 
-  Examples:
-    | front matter                            | rule        | message                                  |
-    | links: ARCH-cart                        | link-syntax | links must be a map or a list            |
-    | links: [ARCH-cart]                      | link-syntax | a link in a list needs rel and to        |
-    | links: [{ to: ARCH-cart }]              | link-syntax | a link in a list needs rel and to        |
-    | links: { uses: { note: no target } }    | link-syntax | uses: {"note":"no target"} has no target |
-    | links: { uses: true }                   | link-syntax | uses: true has no target                 |
-    | nodes: { REQ-a: { kind: requirement } } | inline-node | nodes must be a list                     |
-    | nodes: [REQ-a]                          | inline-node | an entry under nodes needs an id         |
-    | nodes: [{ id: "  " }]                   | inline-node | an entry under nodes needs an id         |
-    | nodes: [{ id: 7, kind: requirement }]   | inline-node | an entry under nodes needs an id         |
+  Scenario: Every key, map entry and link target is at the line it is written on
+    Given a file "specs/REQ-cart.md" containing:
+      """
+      ---
+      id: REQ-cart
+      note: shares a store with ARCH-cart-store
+      store: &store ARCH-cart-store
+      "activity":
+        test: [C1, T1]
+      iteration:
+        - E1
+        - E2
+      links:
+        uses: *store
+        calls:
+          - ARCH-pricing
+        guarded-by:
+          since: 2026
+          to: DEC-0001
+      nodes:
+        - id: ARCH-cart-store
+          links:
+            stores:
+              to: ARCH-db
+      ---
+      # Cart
+      """
+    When "specs/REQ-cart.md" is parsed
+    Then the parsed spec has links:
+      | rel           | to              | line |
+      | uses          | ARCH-cart-store | 11   |
+      | calls         | ARCH-pricing    | 13   |
+      | guarded-by    | DEC-0001        | 16   |
+      | iteration     | E1              | 8    |
+      | iteration     | E2              | 9    |
+      | activity.test | C1              | 6    |
+      | activity.test | T1              | 6    |
+    And the parsed spec has attribute lines:
+      | key           | line |
+      | note          | 3    |
+      | store         | 4    |
+      | activity      | 5    |
+      | activity.test | 6    |
+      | iteration     | 7    |
+    And the parsed spec has inline nodes:
+      | id              | line | links             | link lines |
+      | ARCH-cart-store | 18   | -stores-> ARCH-db | 21         |
 
-Scenario: Inline nodes are declared under nodes, each at the line of its id, which is a trimmed, non-empty string
-  Given a file "specs/plan.md" containing:
-    """
-    ---
-    id: PLAN
-    kind: plan
-    links:
-    nodes:
-      - { id: E10, kind: iteration }
-      - { id: " E1 ", kind: iteration, phase: elaboration }
-      - id: ARCH-cache
-        title: Page cache
-        links: [{ rel: serves, to: ARCH-api, protocol: http }]
-      - { title: Nameless }
-    ---
-    # Plan
-    """
-  When "specs/plan.md" is parsed
-  Then the parsed spec has inline nodes:
-    | id         | kind      | title      | line | attributes          | links              | link lines |
-    | E10        | iteration | E10        | 6    |                     |                    |            |
-    | E1         | iteration | E1         | 7    | phase="elaboration" | -phase-> elaboration | 7        |
-    | ARCH-cache | element   | Page cache | 8    |                     | -serves-> ARCH-api | 10         |
-  And sdp reports:
-    | rule        | severity | line | message                          |
-    | inline-node | error    | 11   | an entry under nodes needs an id |
+  Scenario Outline: links or nodes of the wrong shape is an error at its line, and drops only what could not be read
+    Given a file "specs/REQ-cart.md" containing:
+      """
+      ---
+      id: REQ-cart
+      maturity: idea
+      <front matter>
+      ---
+      # Cart
+      """
+    When "specs/REQ-cart.md" is parsed
+    Then sdp reports:
+      | rule   | severity | line | message   |
+      | <rule> | error    | 4    | <message> |
 
+    Examples:
+      | front matter                            | rule        | message                                  |
+      | links: ARCH-cart                        | link-syntax | links must be a map or a list            |
+      | links: [ARCH-cart]                      | link-syntax | a link in a list needs rel and to        |
+      | links: [{ to: ARCH-cart }]              | link-syntax | a link in a list needs rel and to        |
+      | links: { uses: { note: no target } }    | link-syntax | uses: {"note":"no target"} has no target |
+      | links: { uses: true }                   | link-syntax | uses: true has no target                 |
+      | nodes: { REQ-a: { kind: requirement } } | inline-node | nodes must be a list                     |
+      | nodes: [REQ-a]                          | inline-node | an entry under nodes needs an id         |
+      | nodes: [{ id: "  " }]                   | inline-node | an entry under nodes needs an id         |
+      | nodes: [{ id: 7, kind: requirement }]   | inline-node | an entry under nodes needs an id         |
+
+  Scenario: Inline nodes are declared under nodes, each at the line of its id, which is a trimmed, non-empty string
+    Given a file "specs/plan.md" containing:
+      """
+      ---
+      id: PLAN
+      kind: plan
+      links:
+      nodes:
+        - { id: E10, kind: iteration }
+        - { id: " E1 ", kind: iteration, phase: elaboration }
+        - id: ARCH-cache
+          title: Page cache
+          links: [{ rel: serves, to: ARCH-api, protocol: http }]
+        - { title: Nameless }
+      ---
+      # Plan
+      """
+    When "specs/plan.md" is parsed
+    Then the parsed spec has inline nodes:
+      | id         | kind      | title      | line | attributes          | links              | link lines |
+      | E10        | iteration | E10        | 6    |                     |                    |            |
+      | E1         | iteration | E1         | 7    | phase="elaboration" | -phase-> elaboration | 7        |
+      | ARCH-cache | element   | Page cache | 8    |                     | -serves-> ARCH-api | 10         |
+    And sdp reports:
+      | rule        | severity | line | message                          |
+      | inline-node | error    | 11   | an entry under nodes needs an id |
 ~~~
 
-### The body
-
-CommonMark: what a renderer shows as code or hides is never read as a scenario, a link or a question.
-
 ~~~gherkin
-Scenario: Prose links are mentions or typed, and never inside code
-  Given a file "specs/REQ-refunds.md" containing:
-    """
-    ---
-    id: REQ-refunds
-    ---
-    # Refunds
+Rule: The body is CommonMark: what a renderer shows as code, or hides, is never read
 
-    Follows [[DEC-0001]] and [[DEC-0002|the refund policy]].
-    realized-by:: [[ARCH-orders]], [[ARCH-payments]]
-    Write `[[DEC-0009]]` to link a decision.
+  A scenario, a link or an open question is read only where a reader of the rendered page would see
+  one.
 
-    ```text
-    [[DEC-0008]]
-    ```
-    """
-  When "specs/REQ-refunds.md" is parsed
-  Then the parsed spec has prose links:
-    | to            | rel         | line |
-    | DEC-0001      | mentions    | 6    |
-    | DEC-0002      | mentions    | 6    |
-    | ARCH-orders   | realized-by | 7    |
-    | ARCH-payments | realized-by | 7    |
+  Scenario: Prose links are mentions or typed, and never inside code
+    Given a file "specs/REQ-refunds.md" containing:
+      """
+      ---
+      id: REQ-refunds
+      ---
+      # Refunds
 
-Scenario: What a renderer shows as code or HTML, or hides in a link's destination, is not read as a scenario, a link or a question
-  Given a file "specs/REQ-docs.md" containing:
-    """
-    ---
-    id: REQ-docs
-    ---
-    # Docs
+      Follows [[DEC-0001]] and [[DEC-0002|the refund policy]].
+      realized-by:: [[ARCH-orders]], [[ARCH-payments]]
+      Write `[[DEC-0009]]` to link a decision.
 
-        [[INDENTED]]
-        ## Open questions
-        - an indented question
-
-    <!-- [[COMMENTED]]
-    ## Open questions
-    - a commented question
-    -->
-
-    ``a span with [[SPANNED]] and ` inside``
-
-    ```text
-    ```not-a-closer
-    ```gherkin
-    Scenario: Documentation
-      Then nothing runs
-    ```
-
-    ~~~~markdown
-    ~~~gherkin
-    Scenario: Inside a longer fence
-      Then nothing runs
-    ~~~
-    ~~~~
-
-    Visible: [[VISIBLE]].
-
-    [Shown: [[LINKED]]](https://example.com/[[DESTINATION]] "[[TITLED]]") ![[[ALT]]](logo.png)
-
-    [reference]: https://example.com/[[DEFINED]]
-    """
-  When "specs/REQ-docs.md" is parsed
-  Then the parsed spec has scenarios:
-    | id |
-  And the parsed spec has open questions:
-    | question |
-  And the parsed spec has prose links:
-    | to      | line |
-    | VISIBLE | 31   |
-    | LINKED  | 33   |
-
-Scenario: Gherkin in a quote or a list item is read, and CRLF and tabs count as CommonMark counts them
-  Given a file "specs/REQ-pay.md" containing:
-    """
-    ---
-    id: REQ-pay
-    ---
-    # Pay
-
-    →[[INDENTED]]
-
-    > ```gherkin
-    > Scenario: Quoted
-    >   Then it runs
-    > ```
-
-    - ```gherkin
-      Scenario: Listed
-        Then it runs
+      ```text
+      [[DEC-0008]]
       ```
-    """
-  When "specs/REQ-pay.md" is parsed with CRLF line endings and → as a tab
-  Then the parsed spec has scenarios:
-    | id             | line |
-    | REQ-pay#quoted | 9    |
-    | REQ-pay#listed | 14   |
-  And the executable steps of "REQ-pay#listed" are:
-    | keyword | text    | line |
-    | Then    | it runs | 15   |
-  And the parsed spec has prose links:
-    | to |
+      """
+    When "specs/REQ-refunds.md" is parsed
+    Then the parsed spec has prose links:
+      | to            | rel         | line |
+      | DEC-0001      | mentions    | 6    |
+      | DEC-0002      | mentions    | 6    |
+      | ARCH-orders   | realized-by | 7    |
+      | ARCH-payments | realized-by | 7    |
 
-Scenario: Code, comments and an empty fence are not a description, so they give no summary
-  Given a file "specs/REQ-csv.md" containing:
-    """
-    ---
-    id: REQ-csv
-    maturity: draft
-    ---
-    # Export to CSV
+  Scenario: What a renderer shows as code or HTML, or hides in a link's destination, is not read as a scenario, a link or a question
+    Given a file "specs/REQ-docs.md" containing:
+      """
+      ---
+      id: REQ-docs
+      ---
+      # Docs
 
-    ```text
-    ```
-    <!-- Analysts want data in Excel. -->
-    """
-  When "specs/REQ-csv.md" is parsed
-  Then the parsed spec has summary ""
-  When the workspace is checked
-  Then sdp reports at least:
-    | rule              | node    |
-    | maturity-criteria | REQ-csv |
+          [[INDENTED]]
+          ## Open questions
+          - an indented question
 
-Scenario: Open questions are the list items under their heading, nested ones included, up to the next heading of its level; a checked or struck one is resolved
-  Given a file "specs/REQ-checkout.md" containing:
-    """
-    ---
-    id: REQ-checkout
-    ---
-    # Checkout
+      <!-- [[COMMENTED]]
+      ## Open questions
+      - a commented question
+      -->
 
-    - a list item, not a question
+      ``a span with [[SPANNED]] and ` inside``
 
-    ## Open questions
-    - [ ] Do we verify the email address?
-    - [x] Can guests save their cart? No.
-    - ~~Do we need a captcha?~~
-    - Which payment providers?
-      - Do we take wallets?
+      ```text
+      ```not-a-closer
+      ```gherkin
+      Scenario: Documentation
+        Then nothing runs
+      ```
 
-    ### For legal
-    - Do we keep receipts for ten years?
+      ~~~~markdown
+      ~~~gherkin
+      Scenario: Inside a longer fence
+        Then nothing runs
+      ~~~
+      ~~~~
 
-    ## Rules
-    - not a question either
-    """
-  When "specs/REQ-checkout.md" is parsed
-  Then the parsed spec has open questions:
-    | question                           | resolved | line |
-    | Do we verify the email address?    | no       | 9    |
-    | Can guests save their cart? No.    | yes      | 10   |
-    | ~~Do we need a captcha?~~          | yes      | 11   |
-    | Which payment providers?           | no       | 12   |
-    | Do we take wallets?                | no       | 13   |
-    | Do we keep receipts for ten years? | no       | 16   |
+      Visible: [[VISIBLE]].
 
-Scenario Outline: Open question, Questions, Unresolved questions and TBD introduce open questions too
-  Given a file "specs/REQ-checkout.md" containing:
-    """
-    ---
-    id: REQ-checkout
-    ---
-    # Checkout
+      [Shown: [[LINKED]]](https://example.com/[[DESTINATION]] "[[TITLED]]") ![[[ALT]]](logo.png)
 
-    ## <heading>
-    - Who signs off?
-    """
-  When "specs/REQ-checkout.md" is parsed
-  Then the parsed spec has open questions:
-    | question       | resolved |
-    | Who signs off? | no       |
+      [reference]: https://example.com/[[DEFINED]]
+      """
+    When "specs/REQ-docs.md" is parsed
+    Then the parsed spec has scenarios:
+      | id |
+    And the parsed spec has open questions:
+      | question |
+    And the parsed spec has prose links:
+      | to      | line |
+      | VISIBLE | 31   |
+      | LINKED  | 33   |
 
-  Examples:
-    | heading              |
-    | Open question        |
-    | Questions            |
-    | Unresolved questions |
-    | TBD                  |
+  Scenario: Gherkin in a quote or a list item is read, and CRLF and tabs count as CommonMark counts them
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
 
+      →[[INDENTED]]
+
+      > ```gherkin
+      > Scenario: Quoted
+      >   Then it runs
+      > ```
+
+      - ```gherkin
+        Scenario: Listed
+          Then it runs
+        ```
+      """
+    When "specs/REQ-pay.md" is parsed with CRLF line endings and → as a tab
+    Then the parsed spec has scenarios:
+      | id             | line |
+      | REQ-pay#quoted | 9    |
+      | REQ-pay#listed | 14   |
+    And the executable steps of "REQ-pay#listed" are:
+      | keyword | text    | line |
+      | Then    | it runs | 15   |
+    And the parsed spec has prose links:
+      | to |
+
+  Scenario: Code, comments and an empty fence are not a description, so they give no summary
+    Given a file "specs/REQ-csv.md" containing:
+      """
+      ---
+      id: REQ-csv
+      maturity: draft
+      ---
+      # Export to CSV
+
+      ```text
+      ```
+      <!-- Analysts want data in Excel. -->
+      """
+    When "specs/REQ-csv.md" is parsed
+    Then the parsed spec has summary ""
+    When the workspace is checked
+    Then sdp reports at least:
+      | rule              | node    |
+      | maturity-criteria | REQ-csv |
+
+  Scenario: Open questions are the list items under their heading, nested ones included, up to the next heading of its level; a checked or struck one is resolved
+    Given a file "specs/REQ-checkout.md" containing:
+      """
+      ---
+      id: REQ-checkout
+      ---
+      # Checkout
+
+      - a list item, not a question
+
+      ## Open questions
+      - [ ] Do we verify the email address?
+      - [x] Can guests save their cart? No.
+      - ~~Do we need a captcha?~~
+      - Which payment providers?
+        - Do we take wallets?
+
+      ### For legal
+      - Do we keep receipts for ten years?
+
+      ## Rules
+      - not a question either
+      """
+    When "specs/REQ-checkout.md" is parsed
+    Then the parsed spec has open questions:
+      | question                           | resolved | line |
+      | Do we verify the email address?    | no       | 9    |
+      | Can guests save their cart? No.    | yes      | 10   |
+      | ~~Do we need a captcha?~~          | yes      | 11   |
+      | Which payment providers?           | no       | 12   |
+      | Do we take wallets?                | no       | 13   |
+      | Do we keep receipts for ten years? | no       | 16   |
+
+  Scenario Outline: Open question, Questions, Unresolved questions and TBD introduce open questions too
+    Given a file "specs/REQ-checkout.md" containing:
+      """
+      ---
+      id: REQ-checkout
+      ---
+      # Checkout
+
+      ## <heading>
+      - Who signs off?
+      """
+    When "specs/REQ-checkout.md" is parsed
+    Then the parsed spec has open questions:
+      | question       | resolved |
+      | Who signs off? | no       |
+
+    Examples:
+      | heading              |
+      | Open question        |
+      | Questions            |
+      | Unresolved questions |
+      | TBD                  |
 ~~~
-
-### Gherkin
 
 ~~~gherkin
 Rule: The fences of a file are one feature
@@ -798,24 +797,26 @@ Rule: The text under a Rule or a Scenario is kept as its description
       | No goods leave without one. | Nothing ships unpaid.           | stays the same |
 ~~~
 
-### Feature files
-
 ~~~gherkin
-Scenario Outline: A feature file is identified by its tags, else by its path
-  Given a file "features/search.feature" containing:
-    """
-    <tags>
-    Feature: Product search
-      Scenario: Search by name
-        Then I see lamps
-    """
-  When "features/search.feature" is parsed
-  Then the parsed spec has id "<id>"
-  And the parsed spec has kind "<kind>"
+Rule: A feature file is a spec too
 
-  Examples:
-    | tags                           | id                              | kind        |
-    | @id:REQ-search @maturity:ready | REQ-search                      | requirement |
-    | @id:SEARCH-1 @kind:story @web  | SEARCH-1                        | story       |
-    | @web                           | feature:features/search.feature | feature     |
+  Classic Gherkin joins the graph as it is: its tags say what front matter says in Markdown.
+
+  Scenario Outline: A feature file is identified by its tags, else by its path
+    Given a file "features/search.feature" containing:
+      """
+      <tags>
+      Feature: Product search
+        Scenario: Search by name
+          Then I see lamps
+      """
+    When "features/search.feature" is parsed
+    Then the parsed spec has id "<id>"
+    And the parsed spec has kind "<kind>"
+
+    Examples:
+      | tags                           | id                              | kind        |
+      | @id:REQ-search @maturity:ready | REQ-search                      | requirement |
+      | @id:SEARCH-1 @kind:story @web  | SEARCH-1                        | story       |
+      | @web                           | feature:features/search.feature | feature     |
 ~~~
