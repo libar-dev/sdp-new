@@ -3,7 +3,7 @@ id: REQ-graph-query
 kind: requirement
 title: Path-pattern queries
 maturity: ready
-iteration: C1
+iteration: I1
 tags: [graph, agents]
 links:
   refines: CAP-agent-collaboration
@@ -17,28 +17,34 @@ links:
 People and agents ask the graph questions with SDPQ: one-line path patterns that borrow Cypher's
 ASCII-art edges ([[DEC-0006]]). The same language is used on the command line (`sdp q`), by MCP
 clients, and inside scenarios, which is how milestone gates, decision guards and architecture
-rules are written.
+rules are written. The syntax is a public contract: specs in every workspace embed it.
 
 ```text
-query     := node (edge node)*
-node      := (kind | kind|kind | * | #ID | #ID|ID) [cond, ...]*
-cond      := key | !key | key=a|b | key!=a | key~regex | key!~regex | key<v | key<=v | key>v | key>=v
-edge      := [!|?] ( -rel-> | <-rel- | -rel- )        rel := * | name(|name)* [+]
+query  := node (edge node)* [edge]
+node   := (kind(|kind)* | * | #ID(|ID)*) ([cond(, cond)*])*
+cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v | key<=v | key>v | key>=v
+edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
 ```
 
-- A query starts from every node matching the first selector and follows each edge step to the
-  next one. The result is the set of end nodes, or with `--paths` the paths that reached them.
-- `-rel->` follows outgoing edges, `<-rel-` incoming ones, `-rel-` either. `*` matches any relation,
-  `a|b` either, and a trailing `+` follows the relation transitively (up to 12 hops).
-- `!` keeps the nodes **without** a matching neighbour and `?` those **with** one; neither moves.
-- `key` holds when the attribute is present and not `false` or empty; `!key` when it is not.
-  Conditions see attributes and also `id`, `kind`, `title` and `source` (`file:line`); `a.b` reaches
-  into a nested attribute.
-- Equality and regular expressions ignore case. An array matches when any element does. Numbers,
-  ISO dates and the maturity, stage and verification ladders compare in order. Quote values that
-  contain spaces or commas.
-- A malformed query is rejected with a message saying what is wrong. Results stop at 10,000 paths,
-  and say so.
+- **Nodes.** A query starts from every node matching its first selector. `#ID` selects by id (an
+  unknown id selects nothing). All conditions must hold, whether written in one `[…]` group,
+  separated by commas, or in several groups.
+- **Values.** `id`, `kind`, `title` and `source` (`file:line`) are keys like any attribute; `a.b`
+  reaches into a nested attribute. Equality and regexes ignore case. A list matches when any of its
+  elements does. `false`, empty and missing values count as absent: `!key` and `key!=v` match them,
+  ordering never does. `<` and `>` compare along the maturity, stage and verification ladders,
+  then as numbers, then as text — so ISO dates order correctly. `|` separates alternatives except
+  in a regex; quote a value, in single or double quotes, when it contains a comma or a literal `|`.
+  A regex may contain brackets.
+- **Edges.** `-rel->` follows outgoing edges, `<-rel-` incoming ones, `-rel-` both. `*` or nothing
+  matches any relation, `a|b` either. A trailing `+` follows the relation one or more hops without
+  revisiting nodes. An edge at the end of a query leads to any node.
+- **Filters.** `?edge node` keeps the current nodes that have such a neighbour, `!edge node` those
+  that have none; neither moves.
+- **Results.** The result is the distinct end nodes; with `--paths`, every route that reached them,
+  each hop with its direction and a closure hop written `-rel+->`. Evaluation is bounded, and a
+  result cut short says so ([[ARCH-query-engine]]).
+- **Errors.** A malformed query is rejected with a reason before anything runs.
 
 ```sh
 sdp q 'requirement[maturity<ready]'
@@ -61,61 +67,107 @@ Background:
     id: MODEL
     kind: model
     nodes:
-      - { id: REQ-a, kind: requirement, maturity: ready, tags: [checkout, payments], priority: 10, links: { realized-by: ARCH-orders } }
-      - { id: REQ-b, kind: requirement, maturity: draft, priority: 9, links: { realized-by: ARCH-billing } }
-      - { id: REQ-c, kind: requirement, maturity: idea }
-      - { id: ARCH-orders, kind: element, title: Orders, significant: true, rationale: transaction boundary, links: { decided-by: DEC-1, depends-on: ARCH-db } }
-      - { id: ARCH-billing, kind: element, title: Billing, significant: true, rationale: regulated, links: { depends-on: ARCH-orders } }
-      - { id: ARCH-db, kind: element, title: Order database }
-      - { id: DEC-1, kind: decision, status: accepted }
-      - { id: E1, kind: iteration, start: "2026-11-23" }
-      - { id: C1, kind: iteration, start: "2027-01-04" }
+      - { id: REQ-checkout, kind: requirement, maturity: ready, tags: [checkout, web], due: "2026-12-01", links: { realized-by: ARCH-orders } }
+      - { id: REQ-refunds, kind: requirement, maturity: idea, estimate: 8, due: "2027-03-01", links: { realized-by: ARCH-billing } }
+      - { id: ARCH-orders, kind: element, title: "Order service, v2", significant: true, links: { depends-on: ARCH-billing } }
+      - { id: ARCH-billing, kind: element, title: Billing, significant: false, links: { depends-on: ARCH-ledger } }
+      - { id: ARCH-ledger, kind: element, title: "Ledger [legacy]", owner: { team: core }, links: { depends-on: ARCH-orders } }
     ---
-    # A small model
+    # Model
     """
 
-Scenario Outline: Path patterns select nodes
+Scenario Outline: Selectors name kinds or ids
   When I query "<query>"
   Then the result is "<result>"
 
   Examples:
-    | query                                         | result                    |
-    | requirement                                   | REQ-a, REQ-b, REQ-c       |
-    | #REQ-a\|REQ-c                                 | REQ-a, REQ-c              |
-    | requirement[maturity=ready]                   | REQ-a                     |
-    | requirement[maturity=READY]                   | REQ-a                     |
-    | requirement[maturity=ready\|draft]            | REQ-a, REQ-b              |
-    | requirement[maturity!=idea]                   | REQ-a, REQ-b              |
-    | requirement[maturity<ready]                   | REQ-b, REQ-c              |
-    | requirement[maturity>=draft]                  | REQ-a, REQ-b              |
-    | requirement[!maturity]                        | nothing                   |
-    | requirement[tags=payments]                    | REQ-a                     |
-    | requirement[priority>9]                       | REQ-a                     |
-    | iteration[start>=2027-01-01]                  | C1                        |
-    | element[title~bill]                           | ARCH-billing              |
-    | element[title!~bill]                          | ARCH-orders, ARCH-db      |
-    | element[title='Order database']               | ARCH-db                   |
-    | *[rationale]                                  | ARCH-orders, ARCH-billing |
-    | requirement -realized-by-> element            | ARCH-orders, ARCH-billing |
-    | element[significant] !-decided-by-> decision  | ARCH-billing              |
-    | element ?-decided-by-> *                      | ARCH-orders               |
-    | #ARCH-db <-depends-on- *                      | ARCH-orders               |
-    | #ARCH-orders -depends-on- *                   | ARCH-db, ARCH-billing     |
-    | #ARCH-orders -decided-by\|depends-on-> *      | DEC-1, ARCH-db            |
-    | #ARCH-billing -depends-on+-> *                | ARCH-orders, ARCH-db      |
-    | #DEC-1 <-*- * <-realized-by- requirement      | REQ-a                     |
+    | query                       | result                                                                   |
+    | requirement\|element        | REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger        |
+    | *                           | MODEL, REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
+    | #ARCH-orders\|REQ-refunds   | ARCH-orders, REQ-refunds                                                 |
+    | #ARCH-unknown               | nothing                                                                  |
+    | #ARCH-orders[significant]   | ARCH-orders                                                              |
+    | #ARCH-billing[significant]  | nothing                                                                  |
 
-Scenario: Paths show how each result was reached
-  When I query "requirement -realized-by-> element -decided-by-> decision"
-  Then one of the paths is "REQ-a -realized-by-> ARCH-orders -decided-by-> DEC-1"
-
-Scenario Outline: Malformed queries explain themselves
-  When I query "<query>"
-  Then the query is rejected with "<message>"
+Scenario Outline: Conditions compare attribute values
+  When I query '<query>'
+  Then the result is "<result>"
 
   Examples:
-    | query            | message          |
-    | requirement[     | unbalanced       |
-    | requirement => x | expected an edge |
-    | *[title~(]       | invalid regex    |
+    | query                               | result                    |
+    | element[significant]                | ARCH-orders               |
+    | element[!significant]               | ARCH-billing, ARCH-ledger |
+    | element[significant, title~order]   | ARCH-orders               |
+    | element[significant][title~order]   | ARCH-orders               |
+    | requirement[tags=web]               | REQ-checkout              |
+    | requirement[tags!=web]              | REQ-refunds               |
+    | requirement[maturity=ready\|idea]   | REQ-checkout, REQ-refunds |
+    | requirement[maturity!=ready\|draft] | REQ-refunds               |
+    | requirement[maturity>idea]          | REQ-checkout              |
+    | requirement[maturity<=idea]         | REQ-refunds               |
+    | requirement[estimate>5]             | REQ-refunds               |
+    | requirement[estimate<100]           | REQ-refunds               |
+    | requirement[due<2027-01-01]         | REQ-checkout              |
+    | requirement[due>=2027-03-01]        | REQ-refunds               |
+    | element[title=BILLING]              | ARCH-billing              |
+    | element[title~^bill]                | ARCH-billing              |
+    | element[title!~^(billing\|ledger)]  | ARCH-orders               |
+    | element[title~^[bl]]                | ARCH-billing, ARCH-ledger |
+    | element[title~\[legacy\]]           | ARCH-ledger               |
+    | *[title="Order service, v2"]        | ARCH-orders               |
+    | *[title~"service, v[0-9]"]          | ARCH-orders               |
+    | *[id~^req-]                         | REQ-checkout, REQ-refunds |
+    | *[source=model.md:7]                | ARCH-orders               |
+    | *[owner.team=core]                  | ARCH-ledger               |
+
+Scenario Outline: Edges follow relations in either direction
+  When I query "<query>"
+  Then the result is "<result>"
+
+  Examples:
+    | query                                                             | result                                |
+    | #ARCH-billing -depends-on-> *                                     | ARCH-ledger                           |
+    | #ARCH-billing <-depends-on- *                                     | ARCH-orders                           |
+    | #ARCH-billing -depends-on- *                                      | ARCH-ledger, ARCH-orders              |
+    | #ARCH-billing <-depends-on\|realized-by- *                        | ARCH-orders, REQ-refunds              |
+    | #ARCH-billing <-- *                                               | ARCH-orders, REQ-refunds              |
+    | #ARCH-billing -*- *                                               | ARCH-ledger, ARCH-orders, REQ-refunds |
+    | #ARCH-orders -depends-on+-> *                                     | ARCH-billing, ARCH-ledger             |
+    | #ARCH-orders <-depends-on+- *                                     | ARCH-billing, ARCH-ledger             |
+    | #REQ-checkout -realized-by-> * -depends-on-> element              | ARCH-billing                          |
+    | #REQ-checkout -realized-by->                                      | ARCH-orders                           |
+    | element ?<-realized-by- requirement[maturity=ready]               | ARCH-orders                           |
+    | element !<-realized-by- *                                         | ARCH-ledger                           |
+    | requirement ?-realized-by-> element[significant] -realized-by-> * | ARCH-orders                           |
+
+Scenario: The result is the distinct end nodes; the paths keep every route
+  When I query "requirement -realized-by-> element -depends-on+-> *"
+  Then the result is "ARCH-billing, ARCH-ledger, ARCH-orders"
+  And the paths are:
+    | REQ-checkout -realized-by-> ARCH-orders -depends-on+-> ARCH-billing |
+    | REQ-checkout -realized-by-> ARCH-orders -depends-on+-> ARCH-ledger  |
+    | REQ-refunds -realized-by-> ARCH-billing -depends-on+-> ARCH-ledger  |
+    | REQ-refunds -realized-by-> ARCH-billing -depends-on+-> ARCH-orders  |
+
+Scenario: A path records the direction of every hop
+  When I query "#ARCH-ledger <-depends-on- element <-realized-by- *"
+  Then the paths are:
+    | ARCH-ledger <-depends-on- ARCH-billing <-realized-by- REQ-refunds |
+
+Scenario Outline: Malformed queries are rejected with a reason
+  When I query '<query>'
+  Then the query is rejected with "<reason>"
+
+  Examples:
+    | query                                      | reason                   |
+    |                                            | empty query              |
+    | requirement]                               | unbalanced               |
+    | *[title="open                              | unbalanced               |
+    | requirement realized-by element            | expected an edge         |
+    | requirement <-realized-by-> element        | expected an edge         |
+    | requirement -realized-by-> -depends-on-> * | expected a node selector |
+    | requirement[maturity=ready]x               | could not parse filters  |
+    | requirement[=ready]                        | invalid condition        |
+    | requirement[!maturity=ready]               | only negates bare keys   |
+    | *[title~(]                                 | invalid regex            |
 ~~~

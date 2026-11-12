@@ -4,7 +4,6 @@ kind: risk
 title: Gherkin feels heavy for non-developers
 status: open
 exposure: medium
-iteration: I1
 links:
   affects: REQ-progressive-specs
   mitigated-by: REQ-web-explorer

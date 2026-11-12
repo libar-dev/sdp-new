@@ -7,19 +7,17 @@ category: architecture
 date: 2026-11-12
 deciders: [product, architecture]
 iteration: I1
-links:
-  affects: [REQ-curated-architecture, ARCH-architecture-view, MS-LCA]
 ---
 
 # Architectural significance is the architect's call
 
 ## Context
 
-Only a small share of a system's abstractions and patterns shape its architecture — perhaps one in
-ten, as an illustration rather than a measure. Architecture descriptions fail when they list
-everything, because the few elements that carry quality attributes, are expensive to change or
-constrain many others get buried among design detail. Which elements those are is a judgement that
-depends on the system's drivers and risks; no count or ratio decides it.
+Only a small share of a system's abstractions and patterns shape its architecture. Architecture
+descriptions fail when they list everything, because the few elements that carry quality
+attributes, are expensive to change or constrain many others get buried among design detail.
+Which elements those are is a judgement that depends on the system's drivers and risks; no count
+or ratio decides it.
 
 ## Options
 

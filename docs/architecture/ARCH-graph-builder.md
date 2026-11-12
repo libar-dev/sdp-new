@@ -3,6 +3,7 @@ id: ARCH-graph-builder
 kind: element
 title: Graph builder
 links:
+  decided-by: DEC-0003
   instance-of: { to: PAT-pipes-and-filters, role: filter }
   feeds: ARCH-graph
 ---
@@ -28,8 +29,8 @@ as nodes.
 | an id declared again | A `duplicate-id` error at the later declaration; the first, in path order, is kept. |
 | a reference to an unknown id | A `missing` node without a source, and a `dangling-link` error at the reference. |
 
-The configuration decides what is read: the spec, feature and code globs, and the id prefixes that
-kinds are inferred from.
+What is read, and the id prefixes that kinds are inferred from, is configured
+([[REQ-configuration]]).
 
 Code: `src/graph/Build.ts`.
 
@@ -234,29 +235,4 @@ Scenario: Unknown ids become missing nodes, with an error at each reference
     | DEC-0042              | missing     |                     |
     | ARCH-worker           | missing     |                     |
     | REQ-sink              | missing     |                     |
-
-Scenario: The configuration selects the spec files and the id prefixes
-  Given a file "sdp.config.yaml" containing:
-    """
-    specs: ["product/**/*.md"]
-    ids: { requirement: STORY }
-    """
-  And a file "product/STORY-12.md" containing:
-    """
-    ---
-    id: STORY-12
-    ---
-    # Saved carts
-    """
-  And a file "notes/REQ-old.md" containing:
-    """
-    ---
-    id: REQ-old
-    ---
-    # Not selected
-    """
-  When the workspace is loaded
-  Then the workspace graph has exactly these nodes:
-    | id       | kind        |
-    | STORY-12 | requirement |
 ~~~

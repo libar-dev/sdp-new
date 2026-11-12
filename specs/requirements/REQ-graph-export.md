@@ -3,11 +3,11 @@ id: REQ-graph-export
 kind: requirement
 title: Graph exports
 maturity: ready
-iteration: C2
+iteration: I1
 tags: [agents]
 links:
   refines: CAP-agent-collaboration
-  realized-by: ARCH-graph
+  realized-by: ARCH-reports
   decided-by: DEC-0003
 ---
 

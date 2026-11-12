@@ -3,7 +3,7 @@ id: REQ-configuration
 kind: requirement
 title: Workspace configuration
 maturity: ready
-iteration: E1
+iteration: I1
 tags: [configuration]
 links:
   refines: CAP-living-specs
@@ -35,8 +35,8 @@ the offending key.
 Lists replace their default, except `exclude`, which extends it; `ids` and `lifecycle.disciplines`
 merge key by key.
 
-**Id prefixes.** A spec that omits `kind` gets it from its id prefix; a prefix that maps to no
-kind gives `spec`. `sdp new` names new specs with the same prefixes: decisions and risks are
+**Id prefixes.** A spec that omits `kind` gets it from its id prefix — case-insensitive, followed
+by `-` or `_` — and a prefix that maps to no kind gives `spec`. `sdp new` names new specs with the same prefixes: decisions and risks are
 numbered (`DEC-0007`), everything else takes a slug of its title (`REQ-guest-checkout`). A kind has
 one prefix, so moving requirements to `US-` makes `REQ-` ids plain specs unless they declare their
 kind.
@@ -45,15 +45,16 @@ kind.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Prefix | `REQ` | `NFR` | `DEC` | `ARCH` | `PAT` | `MS` | `CAP` | `RISK` |
 
-**Disciplines.** The RUP disciplines and the kinds whose planned nodes count as their work:
+**Disciplines.** The RUP disciplines and the kinds whose planned nodes count as their work; how
+activity is counted is [[REQ-lifecycle-view]]'s:
 
 | Discipline | Kinds |
 | --- | --- |
 | business-modeling | capability, goal, actor, business-process, vision, stakeholder |
 | requirements | requirement, nfr, feature, story, use-case, epic |
 | analysis-design | decision, element, pattern |
-| implementation | none by default; planned specs that are in progress or verified count |
-| test | none by default; executed scenarios of planned specs count |
+| implementation | none |
+| test | none |
 | deployment | release, environment, deployment |
 
 ## Scenarios
@@ -119,6 +120,30 @@ Scenario Outline: Each key shapes what the graph holds
     | ids      | sdp.config.yaml | ids: { requirement: US }                            | requirement                    | US-signup                          |
     | maturity | sdp.config.yaml | maturity: [idea, draft, specified, approved, ready] | requirement[maturity<approved] | REQ-scratch                        |
     | json     | sdp.config.json | { "exclude": ["notes/**"] }                         | requirement                    | REQ-login, REQ-search              |
+
+Scenario Outline: Without a declared kind, the id prefix decides
+  Given a file "specs/spec.md" containing:
+    """
+    ---
+    id: <id>
+    ---
+    """
+  When the workspace is loaded
+  Then the workspace graph has node "<id>" of kind "<kind>"
+
+  Examples:
+    | id                  | kind        |
+    | REQ-guest-login     | requirement |
+    | NFR-latency         | nfr         |
+    | DEC-0001            | decision    |
+    | ARCH-orders         | element     |
+    | PAT-outbox          | pattern     |
+    | MS-LCO              | milestone   |
+    | CAP-online-sales    | capability  |
+    | RISK-vendor-lock-in | risk        |
+    | req_guest_login     | requirement |
+    | TODO-1              | spec        |
+    | checkout            | spec        |
 
 Scenario Outline: The id prefixes name new specs
   Given a file "sdp.config.yaml" containing:

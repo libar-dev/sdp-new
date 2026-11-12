@@ -4,8 +4,6 @@ title: Represent money as integer cents
 status: accepted
 category: architecture
 date: 2026-10-01
-links:
-  affects: [ARCH-pricing]
 ---
 
 # Represent money as integer cents

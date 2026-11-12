@@ -4,10 +4,9 @@ kind: risk
 title: Rebuilding the graph on every command does not scale
 status: open
 exposure: low
-iteration: I1
 links:
   affects: CAP-agent-collaboration
-  mitigated-by: NFR-query-performance
+  mitigated-by: [NFR-query-performance, NFR-large-workspace]
 ---
 
 # Rebuilding the graph on every command does not scale
@@ -19,8 +18,8 @@ call could become slow enough that agents stop asking and start guessing.
 ## Mitigation
 
 [[NFR-query-performance]] measures building and querying generated workspaces in every `sdp run`,
-so a regression fails the build. It runs in memory: reading many files from disk is not measured
-yet. If it becomes the bottleneck, parsed files can be cached by content hash — a derived cache,
-never a second source of truth.
+so a regression fails the build. It runs in memory; reading a large workspace from disk is
+[[NFR-large-workspace]], planned for Elaboration because a cache of parsed files, if one is
+needed, changes the derived index ([[PAT-derived-index]]).
 
 **Watch for:** `sdp status` taking more than a second on a real repository.

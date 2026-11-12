@@ -6,65 +6,43 @@ significant: true
 rationale: >-
   Defines the one specification format (DEC-0001). A change here changes what every spec file in
   every workspace means — the highest cost of change in the system.
-iteration: E1
+iteration: I1
 links:
   decided-by: DEC-0001
   instance-of: { to: PAT-pipes-and-filters, role: filter }
-  feeds: ARCH-graph
+  feeds: ARCH-graph-builder
 ---
 
 # Spec parser
 
-Turns one file into one spec: identity, attributes, links, prose links, open questions and
-executable scenarios, plus a diagnostic for anything it cannot read. It is a pure function of the
-file's content and the configuration, and it keeps the line of every fact, so each node, edge and
-diagnostic built from it points at a greppable `file:line`. Annotations in code are read by
-[[ARCH-code-annotations]].
+Turns one file into one spec in the format [[REQ-progressive-specs]] defines: identity,
+attributes, links, prose links, open questions and executable scenarios, plus a diagnostic for
+anything it cannot read. It is a pure function of the file's content and the configuration, and it
+keeps the line of every fact, so each node, edge and diagnostic built from it points at a greppable
+`file:line`. Annotations in code are read by [[ARCH-code-annotations]].
 
 ## Markdown
 
-A Markdown file is a spec when its YAML front matter has a non-empty `id`. The scanner reads the
-file line by line; it does not render Markdown.
-
-| Written | Read as |
-| --- | --- |
-| `id`, `kind`, `title` | Identity. Without `kind`, the configured id prefix decides (`REQ-` → `requirement`, case-insensitive, `-` or `_`), else `spec`. Without `title`, the first `#` heading, else the id. |
-| any other key | An attribute. `tags` becomes a list without `@`, from a list or a comma- or space-separated string. |
-| `links:` | Links, in every shape below, each at the line where its target is written. |
-| `nodes:` | Inline nodes, each at the line of its `id`; its links are at that line too. |
-| the first paragraph | The summary, joining its lines; lists, quotes, tables and comments are skipped; at most 280 characters. |
-| `[[ID]]`, `[[ID\|label]]` | A prose mention; `rel:: [[ID]], [[ID]]` are typed prose links. Inside code spans and fences they are text. |
-| list items under *Open questions*, *Questions*, *Unresolved* or *TBD* | Open questions, until the next heading of the same or a higher level; `[x]` and ~~struck~~ items are resolved. |
-
-```yaml
-links:
-  refines: CAP-sales                              # one target
-  calls: ARCH-pricing, ARCH-tax                   # several, comma-separated
-  uses: [ARCH-cart, ARCH-cart-store]              # a list
-  constrained-by: { to: NFR-latency, note: p95 }  # a target with attributes
-```
-
-A list of records works too: `links: [{ rel: uses, to: ARCH-cart, note: sync }]`.
+- **Scanning.** The file is read line by line; Markdown is never rendered. A link is at the line
+  where its target is written, an inline node and its links at the line of its `id`.
+- **Attributes.** `tags` becomes a list without `@`, from a list or a comma- or space-separated
+  string; every other value is kept as YAML parsed it.
+- **Summary.** The first paragraph, its lines joined; lists, quotes, tables and comments before it
+  are skipped; at most 280 characters.
+- **Open questions** run until the next heading of the same or a higher level.
 
 ## Gherkin
 
-All ```` ```gherkin ```` blocks of a file (also `feature` and `cucumber`, and `~~~` fences) form
-one Feature named after the spec and tagged with its tags and kind, compiled by the official
-Cucumber parser. Every scenario, step and example row keeps its line in the Markdown file. A
-`Feature:` line opening the first block names the feature instead, still tagged with the spec's
-tags and kind; a `Feature:` line anywhere else is content.
+The blocks are joined into one Gherkin document for the Cucumber parser, and every scenario, step
+and example row is mapped back to its line in the Markdown file. The Feature is named after the
+spec, unless a `Feature:` line opens the first block, and is tagged with the spec's tags and kind;
+a `Feature:` line anywhere else is content.
 
 - A scenario's id is `<spec id>#<slug of its name>`, made unique within the file with `-2`, `-3`, …;
   an unnamed scenario is `#scenario-<position>`.
 - Outlines compile to one executable example per row, Background steps included.
 - Each scenario carries a hash of its executable content — its name, step text, doc strings and
   tables. Editing them makes earlier results stale; editing prose around them does not.
-
-## Feature files
-
-A `.feature` file is a spec as well. `@id:`, `@kind:` and other `@key:value` tags on the Feature are
-its identity and attributes, plain tags its tags; without `@id:` it is identified by its path
-(`feature:<path>`, kind `feature`).
 
 ## Diagnostics
 
@@ -130,30 +108,6 @@ Scenario Outline: The title falls back to the first top-level heading, then the 
     | maturity: idea  | # Basket         | Basket     |
     | maturity: idea  | ## Basket        | REQ-basket |
     | maturity: idea  | Just a sentence. | REQ-basket |
-
-Scenario Outline: Without a declared kind, the id prefix decides
-  Given a file "specs/spec.md" containing:
-    """
-    ---
-    id: <id>
-    ---
-    """
-  When "specs/spec.md" is parsed
-  Then the parsed spec has kind "<kind>"
-
-  Examples:
-    | id                  | kind        |
-    | REQ-guest-login     | requirement |
-    | NFR-latency         | nfr         |
-    | DEC-0001            | decision    |
-    | ARCH-orders         | element     |
-    | PAT-outbox          | pattern     |
-    | MS-LCO              | milestone   |
-    | CAP-online-sales    | capability  |
-    | RISK-vendor-lock-in | risk        |
-    | req_guest_login     | requirement |
-    | TODO-1              | spec        |
-    | checkout            | spec        |
 
 Scenario Outline: Markdown without an id is not a spec
   Given a file "docs/notes.md" containing:

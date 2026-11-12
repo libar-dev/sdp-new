@@ -3,7 +3,7 @@ id: REQ-progressive-specs
 kind: requirement
 title: Specifications at every maturity
 maturity: ready
-iteration: E1
+iteration: I1
 tags: [spec-format]
 links:
   refines: CAP-living-specs
@@ -54,31 +54,40 @@ Scenario: Guest pays by card
 ```
 `````
 
-- A Markdown file is a spec when its front matter has an `id`. `id`, `kind`, `title`, `links` and
-  `nodes` have fixed meanings; every other key is an attribute ([[GLOSSARY]] lists the conventional
-  ones). How front matter, prose and code turn into nodes and edges is [[REQ-flexible-graph]].
-- `kind` is free text; when omitted it is inferred from the id prefix (`REQ-` → requirement, see
-  [[REQ-configuration]]).
-- Behaviour is standard Gherkin in fenced `gherkin` blocks (```` ``` ```` or `~~~`, the latter when
-  a scenario quotes a fenced block). All blocks of one file form one Feature, compiled by the
-  official Cucumber parser; every scenario keeps the line it was written on.
-- Classic `.feature` files are specs too; their metadata travels in `@key:value` tags
-  (`@id:REQ-x @maturity:ready`), so existing suites join the graph without conversion.
+- **A spec** is a Markdown file whose front matter has a non-empty `id`. `id`, `kind`, `title`,
+  `links` and `nodes` have fixed meanings; every other key is an attribute ([[GLOSSARY]] lists the
+  ones sdp reads). `kind` is free text, inferred from the id prefix when omitted (`REQ-` →
+  requirement, [[REQ-configuration]]); `title` defaults to the first `#` heading, else the id.
+- **Links** in front matter map a relation to one target, several, or a target with attributes:
 
-## Why Markdown with embedded Gherkin
+  ```yaml
+  links:
+    refines: CAP-sales                              # one target
+    calls: ARCH-pricing, ARCH-tax                   # several, comma-separated
+    uses: [ARCH-cart, ARCH-cart-store]              # a list
+    constrained-by: { to: NFR-latency, note: p95 }  # a target with attributes
+  ```
 
-Gherkin is kept as the *behaviour* notation inside a richer container rather than as the whole
-format. [[DEC-0001]] compares the alternatives (plain `.feature` files, Gauge-style Markdown,
-Cucumber's Markdown dialect, EARS, a TypeScript DSL, YAML records, formal methods); in short:
+  A list of records works too: `links: [{ rel: uses, to: ARCH-cart, note: sync }]`. An attribute
+  whose value is a node id links as well (`iteration: C2`). `nodes:` declares inline nodes, for
+  things too small for a file of their own.
+- **Prose** mentions a node with `[[ID]]` or `[[ID|label]]`, or links it with a named relation:
+  `realized-by:: [[ARCH-orders]], [[ARCH-payments]]`. Inside code they are text. The first
+  paragraph is the spec's summary.
+- **Open questions** are the list items under a heading *Open questions*, *Questions*,
+  *Unresolved* or *TBD*; `- [x]` or a ~~struck~~ item is resolved.
+- **Behaviour** is standard Gherkin in fenced blocks — ```` ```gherkin ````, `feature` or
+  `cucumber`, or `~~~` when a scenario quotes a fenced block. All blocks of one file form one
+  Feature, compiled by the official Cucumber parser; every scenario keeps the line it was written
+  on. A `Feature:` line may open the first block.
+- **Feature files** are specs too: every `.feature` file joins the graph. `@id:`, `@kind:` and
+  other `@key:value` tags on the Feature carry its metadata (`@id:REQ-x @maturity:ready`), so
+  existing suites join without conversion; without `@id:` the file is the spec `feature:<path>`.
 
-| Need | How the format meets it |
-| --- | --- |
-| Idea-level specs | A title in front matter is a valid spec; no Gherkin needed yet. |
-| Structured metadata and links | YAML front matter; any key is an attribute, `links` holds relations. |
-| Prose, rationale, diagrams | The Markdown body; Mermaid renders on GitHub. |
-| Executable behaviour | Standard Gherkin, parsed by the official Cucumber parser. |
-| Existing Cucumber suites | `.feature` files are specs too. |
-| LLM-friendliness | Markdown, YAML and Gherkin are the formats models read and write best. |
+How specs, links and code annotations become nodes and edges is the contract of
+[[ARCH-graph-builder]]; how files are read, of [[ARCH-spec-parser]]. Why Markdown with embedded
+Gherkin, rather than plain `.feature` files, Gauge, EARS, a TypeScript DSL or YAML records:
+[[DEC-0001]].
 
 ## Scenarios
 

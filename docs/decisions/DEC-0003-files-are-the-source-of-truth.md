@@ -4,11 +4,9 @@ kind: decision
 title: Files are the source of truth; the graph is a derived index
 status: accepted
 category: architecture
-date: 2026-09-17
+date: 2026-11-04
 deciders: [architecture]
-iteration: E1
-links:
-  affects: [ARCH-graph, ARCH-graph-builder, NFR-greppable]
+iteration: I1
 ---
 
 # Files are the source of truth; the graph is a derived index
@@ -34,5 +32,6 @@ in `.sdp/results.json`, keyed by a hash of each scenario so edits invalidate sta
 ## Consequences
 
 - No migrations, no sync bugs, branches and merges just work.
-- Query latency includes parsing; [[NFR-query-performance]] keeps us honest.
+- Every command's latency includes reading and parsing; [[NFR-query-performance]] and
+  [[NFR-large-workspace]] keep us honest.
 - Provenance is free: every node and edge carries the `file:line` it came from.

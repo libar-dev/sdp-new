@@ -3,7 +3,7 @@ id: REQ-quality-scenarios
 kind: requirement
 title: Quality requirements as quality attribute scenarios
 maturity: ready
-iteration: E2
+iteration: I1
 tags: [spec-format, architecture]
 links:
   refines: CAP-living-specs
@@ -16,7 +16,8 @@ links:
 Quality requirements — performance, availability, modifiability, usability — use the same format
 as every other spec, written as *quality attribute scenarios*: the *Given* carries the source of
 the stimulus, the environment and the artifact; the *When* the stimulus; the *Then* the response
-and its measure. A quality requirement is marked `kind: nfr`, or `type: quality` on any kind.
+and its measure. A quality requirement is marked `kind: nfr`, or `type: quality`,
+`non-functional`, `nfr` or `constraint` on any kind.
 
 Quality requirements are architectural drivers: the curated architecture shows them next to the
 significant elements they constrain ([[REQ-curated-architecture]]). Once their steps are automated,
@@ -42,9 +43,10 @@ Scenario Outline: Quality requirements appear next to the elements they constrai
   Then the output contains "ARCH-orders -constrained-by-> Q-latency"
 
   Examples:
-    | marker                           |
-    | kind: nfr                        |
-    | kind: requirement, type: quality |
+    | marker                              |
+    | kind: nfr                           |
+    | kind: requirement, type: quality    |
+    | kind: requirement, type: constraint |
 
 Scenario: An automated quality attribute scenario verifies its requirement
   Given a file "specs/NFR-checkout-latency.md" containing:

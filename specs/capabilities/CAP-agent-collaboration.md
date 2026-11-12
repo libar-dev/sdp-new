@@ -18,8 +18,9 @@ files, so they never disagree, and every fact they return carries the `file:line
    ([[NFR-greppable]]).
 2. **Line-oriented dumps.** `.sdp/graph.jsonl` and `.sdp/graph.tsv`, one fact per line, for jq and
    awk.
-3. **The CLI with `--json`.** `sdp q` ([[REQ-graph-query]]), `sdp show`, `sdp context`, `sdp check`,
-   `sdp run`, `sdp status`.
+3. **The CLI.** `sdp q` ([[REQ-graph-query]]), `sdp show`, `sdp check`, `sdp run` and
+   `sdp status` print JSON with `--json`; `sdp context` prints one Markdown document
+   ([[REQ-cli]]).
 4. **MCP.** `sdp mcp` serves the same reads as tools over stdio ([[REQ-mcp-server]]).
 
 The entry point for implementation work is the context bundle: everything about one node in one

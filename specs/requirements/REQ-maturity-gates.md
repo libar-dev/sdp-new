@@ -3,7 +3,7 @@ id: REQ-maturity-gates
 kind: requirement
 title: Honest maturity
 maturity: ready
-iteration: E2
+iteration: I1
 tags: [spec-format, quality-gates]
 links:
   refines: CAP-living-specs
@@ -24,7 +24,7 @@ results ([[REQ-executable-specs]]).
 | specified | at least one scenario that states an outcome (`Then`) |
 | ready | no unresolved open questions; every scenario has steps and an outcome |
 
-Open questions are list items under an "Open questions" heading; `- [x]` marks one resolved.
+Open questions are written as [[REQ-progressive-specs]] describes.
 
 A spec claiming more than its content supports is an error (`maturity-gate`), with a hint naming
 the level it does reach. Content ahead of its label is not wrong, only worth knowing: when the

@@ -2,7 +2,6 @@
 id: README
 kind: guide
 title: sdp
-iteration: I1
 links:
   introduces: [VISION, CAP-living-specs, CAP-curated-architecture, CAP-agent-collaboration]
 ---
@@ -102,37 +101,28 @@ Scenario: Specify behaviour before it is automated
 | Command | What it does |
 | --- | --- |
 | `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, significant elements, diagnostics |
-| `sdp q '<pattern>'` | Query, e.g. `sdp q 'requirement[maturity<ready]'`, `--paths`, `--ids`, `--json` |
+| `sdp q '<pattern>'` | Query, e.g. `sdp q 'requirement[maturity<ready]'`, `--paths`, `--ids` |
 | `sdp show <id>` | A node with attributes and edges |
 | `sdp context <id>` | Everything needed to work on a node, as Markdown (for agents and humans) |
 | `sdp check` | Diagnostics with rule ids, `file:line` and a hint; exit 1 on errors |
 | `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last |
 | `sdp gate <milestone>` | Evaluate one milestone gate; exit 1 if unmet |
-| `sdp arch [--candidates] [-f mermaid]` | The curated architecture, or suggestions for architects to look at |
+| `sdp arch [--candidates] [-f mermaid\|dot\|json]` | The curated architecture, or suggestions for architects to look at |
 | `sdp lifecycle` | Phases, iterations, gates and discipline activity |
-| `sdp graph [-f jsonl\|tsv\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
+| `sdp graph [-f jsonl\|tsv\|json\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
 | `sdp new <kind> <title>` · `sdp init` | Authoring helpers |
 | `sdp mcp` | MCP server (stdio) for agents |
 
-All read commands accept `--json`; `-C <dir>` selects the workspace root. Flags, exit codes and
-examples for each command: [REQ-cli](specs/requirements/REQ-cli.md).
+`-C <dir>` selects the workspace root. Which commands print JSON with `--json`, and every flag,
+exit code and example: [REQ-cli](specs/requirements/REQ-cli.md).
 
 ## This repository specifies itself
 
-```text
-README.md, AGENTS.md  guides; their scenarios check that what they say works
-docs/VISION.md        why sdp exists and what it is for
-specs/capabilities/   business goals (CAP-*)
-specs/requirements/   functional requirements, including the command line (REQ-*)
-specs/quality/        quality requirements as quality attribute scenarios (NFR-*)
-specs/ideas/          ideas and drafts, deliberately unfinished
-specs/steps/          step definitions: the real pipeline in memory, the real CLI in temp directories
-docs/decisions/       architecture, technology, product and process decisions (DEC-*)
-docs/architecture/    curated elements and patterns (ARCH-*, PAT-*)
-docs/delivery/        the plan (phases, iterations) and milestone gates (MS-*)
-```
-
-There are no other tests: every check of sdp is a scenario in one of these specs.
+Its requirements, quality requirements, decisions, architecture, plan and risks are specs in
+`specs/` and `docs/`; [VISION, *Finding your way*](docs/VISION.md#finding-your-way) maps where each
+kind lives. There are no other tests: every check of sdp is a scenario in one of these specs, run
+by the step definitions in `specs/steps/` against the real pipeline in memory or the real CLI in
+temporary directories.
 
 ```sh
 node src/cli/main.ts run          # every scenario; milestone gates run last and may be unmet

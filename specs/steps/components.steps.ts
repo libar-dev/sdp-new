@@ -1,10 +1,11 @@
 /**
  * Step definitions for component contracts: the spec parser, the code
  * annotation scanner, the graph builder and the query engine
- * (docs/architecture/ARCH-*.md). Parser and scanner steps call the component
- * on one file of the in-memory workspace; graph and query steps run the whole
- * pipeline. Expectations are data tables whose header names the columns
- * checked, so a scenario states only what it is about.
+ * (docs/architecture/ARCH-*.md), and query paths (REQ-graph-query). Parser
+ * and scanner steps call the component on one file of the in-memory
+ * workspace; graph and query steps run the whole pipeline. Expectations are
+ * data tables whose header names the columns checked, so a scenario states
+ * only what it is about.
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
