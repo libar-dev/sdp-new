@@ -3,9 +3,10 @@
  * imported from "sdp/annotations" (or "sdp") — out of TypeScript and JavaScript
  * source. Statically: the code is parsed, never run. Only literal ids and
  * attributes count; anything computed is reported as unreadable rather than
- * guessed, and so is a file that does not parse. A call counts where its name
- * still refers to the import: a parameter or declaration of the same name in an
- * enclosing scope shadows it, as it would at run time.
+ * guessed. A call counts where its name still refers to the import: a parameter
+ * or declaration of the same name in an enclosing scope shadows it, as it would
+ * at run time. Its target must be a module-level declaration, whose name is
+ * unique in the file; a local or undeclared target is reported too.
  *
  * The annotated symbol's JSDoc (or the module's leading JSDoc for
  * `import.meta`) comes along as its description, so the code's own words reach
@@ -34,29 +35,44 @@ export interface TypedScan {
   readonly problems: ReadonlyArray<TypedAnnotationProblem>
 }
 
+export interface Comment {
+  readonly type: "Line" | "Block"
+  /** The text between the comment's delimiters. */
+  readonly value: string
+  readonly start: number
+  readonly end: number
+}
+
+type Node = { readonly type: string; readonly start: number; readonly end: number; readonly [key: string]: unknown }
+
+/** A TypeScript or JavaScript file, parsed once for both kinds of annotation. */
+export interface Script {
+  readonly program: Node & { readonly body: ReadonlyArray<Node> }
+  readonly comments: ReadonlyArray<Comment>
+  /** The first syntax error, when the file does not parse. */
+  readonly error: { readonly line: number; readonly message: string } | undefined
+  readonly lineOf: (offset: number) => number
+}
+
 const empty: TypedScan = { annotations: [], problems: [] }
 
 /** The modules that export `annotate`: the package and its dependency-free subpath. */
 const annotationModules: ReadonlySet<string> = new Set(["sdp", "sdp/annotations"])
 
-/** One of them named in a string literal: a file that means to annotate, even when it does not parse. */
-const mentionsAnnotationModule = /["'`]sdp(\/annotations)?["'`]/
-
 const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
   const ext = /\.([cm]?[jt]sx?)$/.exec(file)?.[1]
   if (!ext) return undefined
-  return ext.endsWith("tsx") ? "tsx" : ext.endsWith("jsx") ? "jsx" : ext.includes("t") ? "ts" : "js"
+  // JavaScript may hold JSX wherever React projects write it; TypeScript only in .tsx, where `<T>x` casts cannot be.
+  return ext.includes("t") ? (ext.endsWith("x") ? "tsx" : "ts") : "jsx"
 }
-
-type Node = { readonly type: string; readonly start: number; readonly end: number; readonly [key: string]: unknown }
 
 const isNode = (value: unknown): value is Node =>
   typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string"
 
-/** Reads the `annotate()` calls of one TS/JS file without running it; computed ids are reported, not guessed. */
-export const scanTypedAnnotations = (file: string, content: string): TypedScan => {
+/** Parses a TypeScript or JavaScript file; undefined for any other language. */
+export const parseScript = (file: string, content: string): Script | undefined => {
   const lang = languageOf(file)
-  if (!lang || !content.includes("annotate")) return empty
+  if (!lang) return undefined
   const lineStarts = [0]
   for (let i = 0; i < content.length; i++) if (content[i] === "\n") lineStarts.push(i + 1)
   const lineOf = (offset: number) => {
@@ -71,18 +87,19 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
   }
 
   const parsed = parseSync(file, content, { lang, sourceType: "module" })
-  if (parsed.errors.length > 0) {
-    // Unread annotations would silently drop out of the graph: say so, for files that annotate.
-    if (!mentionsAnnotationModule.test(content)) return empty
-    const error = parsed.errors[0]!
-    const line = lineOf(error.labels[0]?.start ?? 0)
-    return { annotations: [], problems: [{
-      line,
-      message: `the file does not parse, so its annotations cannot be read: ${error.message}`,
-      hint: "fix the syntax error; until then none of the file's annotations are in the graph"
-    }] }
+  const error = parsed.errors[0]
+  return {
+    program: parsed.program as unknown as Script["program"],
+    comments: parsed.comments,
+    error: error && { line: lineOf(error.labels[0]?.start ?? 0), message: error.message },
+    lineOf
   }
-  const program = parsed.program as unknown as Node & { readonly body: ReadonlyArray<Node> }
+}
+
+/** Reads the `annotate()` calls of a parsed file without running it; computed ids are reported, not guessed. */
+export const readTypedAnnotations = (file: string, content: string, script: Script): TypedScan => {
+  if (!content.includes("annotate")) return empty
+  const { lineOf, program } = script
 
   // Local names bound to `annotate`, and namespaces whose `.annotate` is it. Type-only imports bind no value.
   const direct = new Set<string>()
@@ -97,10 +114,8 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
     }
   }
   if (direct.size === 0 && namespaces.size === 0) return empty
-  const imported = new Set([...direct, ...namespaces])
 
-  const jsdocs = (parsed.comments as ReadonlyArray<{ type: string; value: string; start: number; end: number }>)
-    .filter((c) => c.type === "Block" && c.value.startsWith("*"))
+  const jsdocs = script.comments.filter((c) => c.type === "Block" && c.value.startsWith("*"))
   const docBefore = (start: number): string | undefined => {
     const comment = [...jsdocs].reverse().find((c) => c.end <= start)
     if (!comment || content.slice(comment.end, start).trim() !== "") return undefined
@@ -124,12 +139,12 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
 
   const annotations: Array<TypedAnnotation> = []
   const problems: Array<TypedAnnotationProblem> = []
-  // `shadowed`: imported names that an enclosing scope declares again, so there they mean something else.
-  const visit = (node: Node, shadowed: ReadonlySet<string>) => {
-    const redeclared = scopeNames(node).filter((name) => imported.has(name) && !shadowed.has(name))
-    const inner = redeclared.length === 0 ? shadowed : new Set([...shadowed, ...redeclared])
+  // `locals`: the names enclosing scopes declare, so there they mean something other than a module-level name.
+  const visit = (node: Node, locals: ReadonlySet<string>) => {
+    const declared = scopeNames(node)
+    const inner = declared.length === 0 ? locals : new Set([...locals, ...declared])
     if (node.type === "CallExpression" && isAnnotate(unwrap(node.callee as Node)!, direct, namespaces, inner)) {
-      read(node)
+      read(node, inner)
       return
     }
     for (const value of Object.values(node)) {
@@ -137,14 +152,22 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
       else if (isNode(value)) visit(value, inner)
     }
   }
-  const read = (call: Node) => {
+  const read = (call: Node, locals: ReadonlySet<string>) => {
     const line = lineOf(call.start)
     const [target, links, declaration] = (call.arguments as ReadonlyArray<Node | undefined>).map(unwrap)
-    const problem = (message: string) => problems.push({ line, message })
+    const problem = (message: string, hint?: string) => problems.push({ line, message, hint })
     let symbol: string | undefined
     if (target?.type === "MetaProperty") symbol = undefined
     else if (target && symbolName(target) !== undefined) symbol = symbolName(target)
     else return problem("the annotation target must be a name (a class, function or constant) or import.meta")
+    // A local name can repeat in the file; only a module-level one names a single code node.
+    const name = symbol?.split(".")[0]
+    if (name !== undefined && (locals.has(name) || !declarations.has(name))) {
+      return problem(
+        `the annotation target must be a module-level declaration or import.meta: ${name} is not one`,
+        "annotate a class, function or constant declared at the top of the module, or the module itself with import.meta"
+      )
+    }
     if (links?.type !== "ObjectExpression") return problem("the links must be an object literal, e.g. { is: \"ARCH-x\" }")
     const attrs: Record<string, unknown> = {}
     if (declaration) {
@@ -158,7 +181,7 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
         attrs[key] = value
       }
     }
-    const where = symbol === undefined ? { line: 1, doc: moduleDoc } : declarations.get(symbol.split(".")[0]!)
+    const where = name === undefined ? { line: 1, doc: moduleDoc } : declarations.get(name)
     for (const property of links.properties as ReadonlyArray<Node>) {
       const rel = propertyKey(property)
       const value = property.type === "Property" ? literal(property.value as Node) : undefined
@@ -182,18 +205,18 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
   visit(program, new Set())
   return { annotations, problems }
 }
-annotate(scanTypedAnnotations, { is: "ARCH-code-annotations" })
+annotate(readTypedAnnotations, { is: "ARCH-code-annotations" })
 
 const importedName = (spec: Node): string | undefined => {
   const imported = spec.imported as { name?: string; value?: string } | undefined
   return imported?.name ?? imported?.value
 }
 
-const isAnnotate = (callee: Node, direct: ReadonlySet<string>, namespaces: ReadonlySet<string>, shadowed: ReadonlySet<string>) => {
-  if (callee.type === "Identifier") return direct.has(callee.name as string) && !shadowed.has(callee.name as string)
+const isAnnotate = (callee: Node, direct: ReadonlySet<string>, namespaces: ReadonlySet<string>, locals: ReadonlySet<string>) => {
+  if (callee.type === "Identifier") return direct.has(callee.name as string) && !locals.has(callee.name as string)
   if (callee.type !== "MemberExpression" || callee.computed) return false
   const object = callee.object as Node
-  return object.type === "Identifier" && namespaces.has(object.name as string) && !shadowed.has(object.name as string) &&
+  return object.type === "Identifier" && namespaces.has(object.name as string) && !locals.has(object.name as string) &&
     (callee.property as Node).name === "annotate"
 }
 
@@ -338,9 +361,7 @@ const declaredNames = (node: Node): ReadonlyArray<string> => {
     case "TSModuleDeclaration":
       return isNode(node.id) && node.id.type === "Identifier" ? [node.id.name as string] : []
     case "VariableDeclaration":
-      return (node.declarations as ReadonlyArray<Node>).flatMap((d) =>
-        isNode(d.id) && d.id.type === "Identifier" ? [d.id.name as string] : []
-      )
+      return (node.declarations as ReadonlyArray<Node>).flatMap((d) => boundNames(d.id as Node))
     default:
       return []
   }

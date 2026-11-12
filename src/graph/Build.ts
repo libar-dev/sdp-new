@@ -9,8 +9,7 @@ import { createHash } from "node:crypto"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
-import { type Annotation, codeNodeId, ignoredAnnotations, scanAnnotations } from "../parse/Annotations.ts"
-import { scanTypedAnnotations } from "../parse/TypedAnnotations.ts"
+import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import { parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
 import { type RunResults, type ScenarioResult, type StepStatus, type Verification, verificationOf } from "../run/Results.ts"
@@ -82,10 +81,9 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   const annotations: Array<Annotation> = []
   for (const file of input.codeFiles) {
-    annotations.push(...scanAnnotations(file.path, file.content))
-    const typed = scanTypedAnnotations(file.path, file.content)
-    annotations.push(...typed.annotations)
-    for (const problem of typed.problems) {
+    const scan = scanCode(file.path, file.content)
+    annotations.push(...scan.annotations)
+    for (const problem of scan.unreadable) {
       diagnostics.push({
         rule: "annotation-unreadable",
         severity: "warning",
@@ -94,9 +92,7 @@ export const buildProject = (input: ProjectInput): Project => {
         hint: problem.hint ?? "write ids and attributes as literals, e.g. annotate(Graph, { is: \"ARCH-graph\" })"
       })
     }
-  }
-  for (const file of input.codeFiles) {
-    for (const ignored of ignoredAnnotations(file.content)) {
+    for (const ignored of scan.ignored) {
       diagnostics.push({
         rule: "annotation-ignored",
         severity: "warning",

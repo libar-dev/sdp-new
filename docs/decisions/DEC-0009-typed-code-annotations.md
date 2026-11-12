@@ -31,14 +31,18 @@ on those abstractions already describes them, and that text never reached the gr
 
 ## Decision
 
-Option 4 for TypeScript and JavaScript; comment annotations stay for every other language.
+Option 4 for TypeScript and JavaScript; comment annotations stay for every other language, and
+remain possible in TypeScript and JavaScript too.
 
-- The target is the symbol itself (or `import.meta` for a module), so renames and
-  find-references include the annotation.
+- The target is a module-level declaration (or `import.meta` for the module), so renames and
+  find-references include the annotation and its name identifies it within the file; a local or
+  undeclared target is reported, never merged with another of the same name.
 - `sdp types` generates a declaration that types the ids `annotate` accepts; `sdp check` reports
   when it is stale. Unknown ids are compile errors.
-- sdp parses the source (oxc-parser) and never executes it; only literal ids count, anything
-  computed is reported.
+- sdp parses the source once (oxc-parser) and never executes it; only literal ids count, anything
+  computed is reported. Comment annotations in these files are read from the parser's comments,
+  so a string that looks like one is not; other languages are scanned line by line, best effort
+  ([[ARCH-code-annotations]]).
 - The annotated declaration's JSDoc becomes the `code` node's description.
 
 ## Consequences

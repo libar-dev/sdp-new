@@ -12,8 +12,7 @@ import { strict as assert } from "node:assert"
 import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
 import { type Attrs, formatSource } from "../../src/model/Graph.ts"
-import { type Annotation, scanAnnotations } from "../../src/parse/Annotations.ts"
-import { scanTypedAnnotations } from "../../src/parse/TypedAnnotations.ts"
+import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
 import type { Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
@@ -149,15 +148,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("{string} is scanned for annotations", ({ args: [path], world }) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
-    world.scratch.annotations = scanAnnotations(path, content)
-  })
-
-  When("{string} is scanned for typed annotations", ({ args: [path], world }) => {
-    const content = world.files.get(path)
-    assert.ok(content !== undefined, `no file ${path}`)
-    const scan = scanTypedAnnotations(path, content)
+    const scan = scanCode(path, content)
     world.scratch.annotations = scan.annotations
-    world.scratch.annotationProblems = scan.problems
+    world.scratch.annotationProblems = scan.unreadable
   })
 
   Then("the annotated {string} is declared at line {int} and described as {string}", ({ args: [target, line, doc], world }) => {

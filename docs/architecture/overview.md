@@ -62,7 +62,7 @@ per element:
 | --- | --- | --- |
 | `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, imports step modules with `import "sdp"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
 | `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts` | CommonMark and YAML parsing, Gherkin through the official parser with every line mapped back, spec assembly | ARCH-spec-parser |
-| `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in other languages | ARCH-code-annotations |
+| `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in any language | ARCH-code-annotations |
 | `src/graph/Build.ts` | Pure graph construction, implicit links, results merge, stage derivation | ARCH-graph-builder |
 | `src/model/Graph.ts` | Immutable graph with adjacency indexes | ARCH-graph |
 | `src/graph/Query.ts` | SDPQ parser and evaluator | ARCH-query-engine |
