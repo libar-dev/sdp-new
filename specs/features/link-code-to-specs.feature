@@ -380,6 +380,8 @@ Feature: Link code to specs
         | rates  | export const rates: Readonly<Record<string, number>> = { DE: 19 }                                                                                  | const rates: Readonly<Record<string, number>>                                                 |
         | limit  | export const limit = 3                                                                                                                             | const limit                                                                                   |
         | Side   | export enum Side { Buy, Sell }                                                                                                                     | enum Side { Buy, Sell }                                                                       |
+        | count  | export let count: number                                                                                                                           | let count: number                                                                             |
+        | ready  | export declare const ready: boolean                                                                                                                | const ready: boolean                                                                          |
 
     Scenario: A tag that opens a file gives the shapes of what the file exports
       Given a file "src/pricing.ts" containing:
@@ -396,12 +398,14 @@ Feature: Link code to specs
         /** The VAT on a net amount, rounded once. */
         export const vatFor = (net: Cents, rate: number): Cents => round((net * rate) / 100)
 
+        export let rounding: number
+
         const audit = (): void => {}
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
-        | id                  | doc                             | exports                                                       |
-        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents |
+        | id                  | doc                             | exports                                                                                     |
+        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number |
 
   Rule: sdp check asks an annotated function to state its return type
 

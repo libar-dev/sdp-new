@@ -29,8 +29,8 @@ const typeOnly = new Set(["ParenthesizedExpression", "TSAsExpression", "TSSatisf
  * The function a constant's value is: a function written there, or the one a call wraps as its last
  * argument, as `Effect.fn("load")(function*(…) { … })` does.
  */
-const functionOf = (value: Node | undefined): Node | undefined => {
-  if (value === undefined) return undefined
+const functionOf = (value: Node | null | undefined): Node | undefined => {
+  if (!isNode(value)) return undefined
   if (typeOnly.has(value.type)) return functionOf(value.expression as Node)
   if (functions.has(value.type)) return value
   if (value.type !== "CallExpression") return undefined
@@ -109,9 +109,9 @@ export const shapes = (content: string, script: Script): Shapes => {
     }
   }
 
-  /** A variable's shape: the function its value is, or its type as written. */
+  /** A variable's shape: the function its value is, or its type as written; a variable declared without a value has its type alone. */
   const variableShape = (kind: string, declarator: Node, name: string): Shape => {
-    const fn = functionOf(declarator.init as Node | undefined)
+    const fn = functionOf(declarator.init as Node | null)
     if (fn) return signature(fn, name)
     const type = typeOf((declarator.id as Node).typeAnnotation)
     return { text: `${kind} ${name}${type ? `: ${type}` : ""}` }
