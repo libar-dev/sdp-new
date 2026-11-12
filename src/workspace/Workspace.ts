@@ -103,7 +103,7 @@ export const loadProject = Effect.fn("loadProject")(function*(root: string, opti
     findFiles(root, config.specs, config.exclude),
     findFiles(root, config.features, config.exclude),
     findFiles(root, config.code, config.exclude)
-  ])
+  ], { concurrency: "unbounded" })
   const specFiles = yield* readAll(root, specPaths)
   const featureFiles = yield* readAll(root, featurePaths)
   const codeFiles = yield* readAll(root, codePaths)

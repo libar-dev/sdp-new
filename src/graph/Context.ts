@@ -99,7 +99,8 @@ export const neighbourhood = (project: Project, id: string, depth: number): Read
   const { graph } = project
   const seen = new Set([id])
   let frontier = [id]
-  for (let d = 0; d < depth; d++) {
+  // Stops when nothing new is reachable, so any depth (even Infinity) terminates.
+  for (let d = 0; d < depth && frontier.length > 0; d++) {
     const next: Array<string> = []
     for (const current of frontier) {
       for (const { other } of graph.neighbours(current)) {

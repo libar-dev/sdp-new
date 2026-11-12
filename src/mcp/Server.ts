@@ -47,7 +47,9 @@ const SdpContext = Tool.make("sdp_context", {
     "Everything needed to work on one node, as Markdown: the spec text, relationships, scenario status with suggested step definitions, significant architecture, patterns and decisions in reach, linked code.",
   parameters: Schema.Struct({
     id: Schema.String,
-    depth: Schema.optional(Schema.Number).annotate({ description: "Hops to search for architecture and decisions (default 2)" })
+    depth: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 6 }))).annotate({
+      description: "Hops to search for architecture and decisions, 1 to 6 (default 2)"
+    })
   }),
   ...text
 })
