@@ -508,8 +508,9 @@ Scenario: types writes every id with its kind for annotate() to accept, and chec
   When I run "sdp types"
   Then the exit code is 0
   And the file ".sdp/ids.d.ts" contains '"REQ-search": "requirement"'
-  When I run "sdp check"
-  Then the output does not contain "types-stale"
+  When I run "sdp check --json"
+  Then the JSON output has:
+    | data | nothing |
   Given a file "specs/REQ-export.md" containing:
     """
     ---
@@ -517,8 +518,10 @@ Scenario: types writes every id with its kind for annotate() to accept, and chec
     ---
     # Export
     """
-  When I run "sdp check"
-  Then the output contains "types-stale"
+  When I run "sdp check --json"
+  Then the JSON output has:
+    | data.rule | types-stale    |
+    | data.file | .sdp/ids.d.ts  |
 ~~~
 
 ## Reading the graph

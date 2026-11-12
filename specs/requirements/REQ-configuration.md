@@ -382,10 +382,10 @@ Scenario: sdp new writes what a renamed profile reads
   Then the output lines are "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition, I1, E1, C1, T1"
   When I run "sdp q 'checkpoint -ends-> era' --ids"
   Then the output lines are "ERA-elaboration"
-  When I run "sdp check"
+  When I run "sdp check --json"
   Then the exit code is 1
-  And the output does not contain "[dangling-link]"
-  And the output does not contain "[plan-reference]"
+  And the JSON output has:
+    | data.rule | maturity-criteria, maturity-value, template-placeholder |
   When I run "sdp lifecycle --json"
   Then the JSON output has:
     | data.phases | ERA-inception, ERA-elaboration, ERA-construction, ERA-transition |

@@ -92,6 +92,8 @@ Scenario: The rule a decision leads to is a scenario of what it constrains, whic
 Scenario: A new decision asks what was chosen over what, and why
   When I run "sdp new decision 'Use Postgres for orders' --dir specs"
   Then the file "specs/DEC-0001-use-postgres-for-orders.md" contains "Not <what a reasonable person would have chosen>, because <why>."
-  When I run "sdp check"
-  Then the output contains "[template-placeholder] DEC-0001"
+  When I run "sdp check --json"
+  Then the JSON output has:
+    | data.rule | template-placeholder |
+    | data.node | DEC-0001             |
 ~~~
