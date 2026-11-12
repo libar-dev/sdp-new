@@ -164,6 +164,8 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     findFiles(root, config.evidence.inputs, config.exclude)
   ], { concurrency: "unbounded" })
   const featureFiles = yield* readAll(root, featurePaths)
+  const directories = new Set(featurePaths.map((file) => path.dirname(file)))
+  const markdownFiles = yield* findFiles(root, [...directories].map((directory) => path.join(directory, "*.md")), config.exclude)
   const codeFiles = yield* readAll(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
   const typesFile = path.join(root, config.types)
@@ -191,7 +193,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   }
   const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const project = buildProject({ root, config, featureFiles, codeFiles, stepFiles, types, evidence: view })
+  const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, types, evidence: view })
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
 })

@@ -45,6 +45,9 @@ export interface ParsedFile {
 
 const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not run until it parses"
 
+/** The id of a feature file without an `@id=`: someone else's suite, named by its path. */
+export const suiteId = (file: string): string => `feature:${file}`
+
 /**
  * A `.feature` file is a spec: the tags above `Feature:` say what it is — `@id=`, `@kind=` and any
  * other `@key=value` its identity and attributes, `@rel:ID` its links, any other tag a Cucumber
@@ -52,7 +55,7 @@ const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not r
  * paragraphs under it its description. A file without an `@id=` is a suite named by its path.
  */
 export const parseFeatureSpec = (file: string, content: string, config: Config): ParsedFile => {
-  const fallbackId = `feature:${file}`
+  const fallbackId = suiteId(file)
   const parsed = parseFeatureFile(content, (key) => isLinkKey(config.vocabulary, key))
   if (Result.isFailure(parsed)) return { spec: undefined, diagnostics: syntaxDiagnostics(fallbackId, file, parsed.failure) }
   const { feature, read } = parsed.success

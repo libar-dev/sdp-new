@@ -12,7 +12,7 @@ import { type RunResults, type StepStatus, type Verification, verificationOf } f
 import { activityRelation, hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Vocabulary, type Words } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, type Spec, writtenKind } from "../parse/Spec.ts"
+import { parseFeatureSpec, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
 export interface SourceFile {
@@ -24,6 +24,8 @@ export interface ProjectInput {
   readonly root: string
   readonly config: Config
   readonly featureFiles: ReadonlyArray<SourceFile>
+  /** The `.md` files beside the feature files, by path: sdp reads none of them. */
+  readonly markdownFiles: ReadonlyArray<string>
   readonly codeFiles: ReadonlyArray<SourceFile>
   /** The step definition files: their definitions are read statically, never run. */
   readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
@@ -82,6 +84,15 @@ export const buildProject = (input: ProjectInput): Project => {
     const parsed = parseFeatureSpec(file.path, file.content, input.config)
     diagnostics.push(...parsed.diagnostics)
     if (parsed.spec) specs.push(parsed.spec)
+  }
+  // Markdown where specs live is a spec written out of habit, and in no graph, run or check.
+  const specDirectories = new Set(specs.filter((spec) => spec.id !== suiteId(spec.file)).map((spec) => directoryOf(spec.file)))
+  for (const file of input.markdownFiles.filter((file) => specDirectories.has(directoryOf(file)))) {
+    diagnostics.push(diagnostic("not-a-spec", {
+      message: `${file} is Markdown, which sdp does not read: nothing written in it is in the graph`,
+      source: { file, line: 1 },
+      hint: `a spec is a feature file: write ${file.replace(/\.md$/, ".feature")}, its tags (@id=…) above \`Feature:\` (\`sdp new\` writes one); Markdown is for README.md and AGENTS.md`
+    }))
   }
   const annotations: Array<Annotation> = []
   for (const file of input.codeFiles) {
@@ -426,6 +437,8 @@ const codeLinks = (
   // Not assigned one by one: `__proto__` is a key like any other.
   return { attrs: Object.fromEntries(values), links }
 }
+
+const directoryOf = (file: string) => file.slice(0, Math.max(0, file.lastIndexOf("/")))
 
 const compact = (record: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined))

@@ -117,6 +117,26 @@ Feature: Check rules
         | @activity:E1      | plan-reference | activity names no discipline, so its link to E1 plans nothing    | name the discipline, `@activity.implementation:E1` |
         | @owner=           | annotation     | owner has no value                                               | write @owner=<value>, or @owner alone              |
 
+  @decided-by:DEC-0001
+  Rule: A Markdown file where specs live is reported with what to write instead, because sdp reads none of it
+
+    Scenario: A requirement written as Markdown beside the feature files, and a README elsewhere
+      Given these specs:
+        | tags      | Feature |
+        | @id=REQ-a | A       |
+      And a file "specs/REQ-b.md" containing:
+        """
+        # Checkout
+        """
+      And a file "README.md" containing:
+        """
+        # Shop
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule       | severity | at               | hint                                                                  |
+        | not-a-spec | warning  | specs/REQ-b.md:1 | a spec is a feature file: write specs/REQ-b.feature, its tags (@id=…) |
+
   Rule: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
 
     Background:

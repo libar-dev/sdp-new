@@ -14,6 +14,7 @@ export const rules = {
   "link-conflict": "warning",
   "derived-attribute": "error",
   "gherkin-syntax": "error",
+  "not-a-spec": "warning",
   "annotation": "error",
   "description-comment": "warning",
   "scenario-empty": "warning",
