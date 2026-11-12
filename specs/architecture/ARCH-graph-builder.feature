@@ -84,12 +84,14 @@ Feature: Graph builder
       And sdp reports "<reported>"
 
       Examples:
-        | file                  | content                                         | edges                        | reported      |
-        | specs/REQ-pay.feature | @id=REQ-pay @owner:ARCH-orders\nFeature: Pay    | REQ-pay -owner-> ARCH-orders | nothing       |
-        | specs/REQ-pay.feature | @id=REQ-pay @owner=ARCH-orders\nFeature: Pay    | nothing                      | nothing       |
-        | src/pay.py            | # @sdp is REQ-pay iteration=E1\ndef pay(): pass | REQ-pay -iteration-> E1      | nothing       |
-        | src/pay.py            | # @sdp is REQ-pay iteration=E9\ndef pay(): pass | REQ-pay -iteration-> E9      | dangling-link |
-        | src/pay.py            | # @sdp is REQ-pay owner=E1\ndef pay(): pass     | nothing                      | nothing       |
+        | file                  | content                                                                                                                 | edges                        | reported      |
+        | specs/REQ-pay.feature | @id=REQ-pay @owner:ARCH-orders\nFeature: Pay                                                                            | REQ-pay -owner-> ARCH-orders | nothing       |
+        | specs/REQ-pay.feature | @id=REQ-pay @owner=ARCH-orders\nFeature: Pay                                                                            | nothing                      | nothing       |
+        | src/pay.py            | # @sdp is REQ-pay iteration=E1\ndef pay(): pass                                                                         | REQ-pay -iteration-> E1      | nothing       |
+        | src/pay.py            | # @sdp is REQ-pay iteration=E9\ndef pay(): pass                                                                         | REQ-pay -iteration-> E9      | dangling-link |
+        | src/pay.py            | # @sdp is REQ-pay owner=E1\ndef pay(): pass                                                                             | nothing                      | nothing       |
+        | specs/REQ-pay.feature | @id=REQ-pay @iteration=E1\nFeature: Pay                                                                                 | nothing                      | link-syntax   |
+        | src/pay.ts            | import { annotate } from "sdp/annotations"\nexport const pay = 0\nannotate(pay, { is: "REQ-pay" }, { iteration: true }) | nothing                      | link-syntax   |
 
   Rule: A link stated more than once is one edge that keeps every declaration, and where their attributes disagree the first holds
 
@@ -181,11 +183,11 @@ Feature: Graph builder
       Then the result is "nothing"
 
       Examples:
-        | file                | content                                                                         | at                    | name     | message                                | hint                               |
-        | specs/REQ-a.feature | @id=REQ-a @maturity:verified\nFeature: A                                        | specs/REQ-a.feature:1 | maturity | no link can be named maturity          | written with =: @maturity=verified |
-        | specs/REQ-a.feature | @id=REQ-a\nFeature: A\n\n  Rule: R\n\n    @stage:verified\n    Scenario: S      | specs/REQ-a.feature:6 | stage    | no link can be named stage             | written with =: @stage=verified    |
-        | src/a.py            | # @sdp status verified\ndef a(): pass                                           | src/a.py:1            | status   | no link can be named status            | written with =                     |
-        | specs/REQ-a.feature | @id=REQ-a @owner=payments @owner:verified\nFeature: A                           | specs/REQ-a.feature:1 | owner    | owner is already an attribute of REQ-a | give the relation another name     |
+        | file                | content                                                                    | at                    | name     | message                                | hint                               |
+        | specs/REQ-a.feature | @id=REQ-a @maturity:verified\nFeature: A                                   | specs/REQ-a.feature:1 | maturity | no link can be named maturity          | written with =: @maturity=verified |
+        | specs/REQ-a.feature | @id=REQ-a\nFeature: A\n\n  Rule: R\n\n    @stage:verified\n    Scenario: S | specs/REQ-a.feature:6 | stage    | no link can be named stage             | written with =: @stage=verified    |
+        | src/a.py            | # @sdp status verified\ndef a(): pass                                      | src/a.py:1            | status   | no link can be named status            | written with =                     |
+        | specs/REQ-a.feature | @id=REQ-a @owner=payments @owner:verified\nFeature: A                      | specs/REQ-a.feature:1 | owner    | owner is already an attribute of REQ-a | give the relation another name     |
 
   Rule: Annotated code is a code node linked to what it names, and an is link adds to its node only what no spec says
 
