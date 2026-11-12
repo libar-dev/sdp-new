@@ -189,6 +189,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(world.output.includes(expected), `output does not contain ${JSON.stringify(expected)}:\n${world.output}`)
   })
 
+  // The lines of the doc string, one after the other; how far each is indented does not count.
+  Then("the output contains:", ({ doc, world }) => {
+    const flush = (text: string) => text.split("\n").map((line) => line.trimStart()).join("\n")
+    assert.ok(flush(world.output).includes(flush(doc ?? "")), `output does not contain the text:\n${world.output}`)
+  })
+
   Then("the output contains {string} {int} time(s)", ({ args: [text, count], world }) => {
     assert.equal(world.output.split(text).length - 1, count, `occurrences of ${JSON.stringify(text)} in:\n${world.output}`)
   })
