@@ -1,14 +1,15 @@
 /**
- * The delivery lifecycle, RUP-style: phases split into iterations and closed
- * by milestones, with disciplines (business modeling, requirements, analysis &
- * design, implementation, test, deployment) active in every iteration at
- * varying intensity. All of it is plain graph data, read through the words
- * of the workspace's vocabulary profile (the kinds, the plan and phase
- * relations, `activity`, `order`, `start` and `end`):
+ * The delivery lifecycle. The milestone is the one concept it stands on: a
+ * node whose scenarios are its gate and whose `met` records that the gate
+ * passed. Where the project is follows from the files alone — the first
+ * milestone that is not met — and the calendar only marks today and lateness.
+ * All of it is plain graph data, read through the words of the workspace's
+ * vocabulary profile:
  *
- *   phase      nodes, ordered by an `order` attribute
- *   iteration  nodes linked to their phase (`phase: PH-elaboration`)
- *   milestone  nodes linked to their phase; their scenarios are the gate
+ *   iteration  nodes with a first and a last day, optionally in a phase
+ *   phase      a name for a group of iterations, in the order of its first
+ *   milestone  ends what it closes, a phase or an iteration, and with it the
+ *              stretch of the timeline since the milestone before
  *   work       nodes linked to an iteration (`iteration: E2`): its kind's
  *              discipline is planned there, and `activity:` plans any
  *              discipline into iterations of its own
@@ -18,13 +19,12 @@
  * is written. No other edge counts — a `[[E2]]` mention plans nothing — and a
  * node is counted once however many edges lead to the same iteration. The
  * discipline × iteration chart is the plan; stages and executed scenarios are
- * evidence and are reported apart from it, and the calendar only says where
- * today is, never that a milestone was met.
+ * evidence and are reported apart from it.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type GraphNode, tally } from "../model/Graph.ts"
-import { activityRelation, attribute, hasKind, hasRelation, isPlanKind, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { activityRelation, attribute, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
@@ -40,26 +40,47 @@ export interface IterationReport {
 export interface PhaseReport {
   readonly node: GraphNode
   readonly iterations: ReadonlyArray<IterationReport>
-  readonly milestones: ReadonlyArray<GraphNode>
+}
+
+export interface MilestoneReport {
+  readonly node: GraphNode
+  /** The phase or the iteration it closes, if it names one. */
+  readonly closes: GraphNode | undefined
+  /** The phase it closes, or that of the iteration it closes. */
+  readonly phase: GraphNode | undefined
+  /** The stretch of the timeline it ends: the iterations since the milestone before it. */
+  readonly iterations: ReadonlyArray<GraphNode>
+  /** The work planned into those iterations, each node once. */
+  readonly work: ReadonlyArray<GraphNode>
+  /** The last day of what it closes. */
+  readonly planned: string | undefined
+  /** The day it was recorded as met. */
+  readonly met: string | undefined
+  /** Its gate: each of its scenarios with the status of its last run. */
+  readonly gate: ReadonlyArray<{ readonly name: string; readonly status: string }>
 }
 
 export interface LifecycleReport {
+  /** Every milestone, in the order of the timeline: by the end of what it closes. */
+  readonly milestones: ReadonlyArray<MilestoneReport>
+  /** Where the project is: the first milestone that is not met. */
+  readonly next: MilestoneReport | undefined
+  /** The iterations after the last milestone: nothing closes them. */
+  readonly unclosed: ReadonlyArray<GraphNode>
+  /** The phases, in the order of their first iteration. */
   readonly phases: ReadonlyArray<PhaseReport>
   /** Nodes with a maturity that are planned into no iteration. */
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
-  /** Every iteration, in chart order: those of the phases first, then any without a phase. */
+  /** Every iteration, in the order of the timeline: by its first day. */
   readonly iterations: ReadonlyArray<GraphNode>
   /** The planned work and its evidence for each of `iterations`, in the same order. */
   readonly work: ReadonlyArray<IterationReport>
-  /** The iteration whose start…end contains `today`, if any. */
+  /** The day the report was computed for, if it was given one. */
+  readonly today: string | undefined
+  /** The iteration whose start…end contains `today`, if any. The calendar, not the project's position. */
   readonly current: GraphNode | undefined
-  /**
-   * The phase of the latest iteration that has started by `today` (so a gap between iterations
-   * stays in the phase just worked on).
-   */
-  readonly currentPhase: GraphNode | undefined
   /** The words the plan was read with, so the rendering can name them. */
   readonly vocabulary: Vocabulary
 }
@@ -127,28 +148,31 @@ export const plannedActivity = (project: Project, node: GraphNode): ReadonlyArra
 }
 
 /**
- * Phases, iterations, milestones and planned discipline activity, with the evidence for the
- * planned work. `today` is an ISO date (YYYY-MM-DD); without it nothing is marked current.
+ * Milestones with the stretch of the timeline each ends, phases, iterations and planned discipline
+ * activity, with the evidence for the planned work. `today` is an ISO date (YYYY-MM-DD); without
+ * it nothing is marked current or late.
  */
 export const lifecycle = (project: Project, today?: string): LifecycleReport => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
-  const { end, order: orderKey, start } = vocabulary.attributes
-  const order = (node: GraphNode) => {
-    const value = Number(attribute(node, orderKey))
-    return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER
+  const { end, start } = vocabulary.attributes
+  const day = (node: GraphNode | undefined, key: string) => {
+    const value = node && attribute(node, key)
+    return Predicate.isString(value) ? value : undefined
   }
-  const startOf = (node: GraphNode) => attribute(node, start)
-  const byStart = (a: GraphNode, b: GraphNode) =>
-    String(startOf(a) ?? "").localeCompare(String(startOf(b) ?? "")) || order(a) - order(b) || a.id.localeCompare(b.id)
-  const inPhase = (node: GraphNode, phase: GraphNode) =>
-    graph.out(node.id).some((edge) => hasRelation(vocabulary, "phase", edge.rel) && edge.to === phase.id)
+  const target = (node: GraphNode, role: "phase" | "closes") =>
+    graph.out(node.id).flatMap((edge) => hasRelation(vocabulary, role, edge.rel) ? [graph.node(edge.to)] : []).find(Predicate.isNotUndefined)
 
-  const phases = graph.ofKind(vocabulary.kinds.phase).slice().sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id))
-  const iterationNodes = graph.ofKind(vocabulary.kinds.iteration).slice().sort(byStart)
+  const iterations = graph.ofKind(vocabulary.kinds.iteration).slice()
+    .sort((a, b) => (day(a, start) ?? "").localeCompare(day(b, start) ?? "") || a.id.localeCompare(b.id))
+  const position = new Map(iterations.map((iteration, index) => [iteration.id, index]))
+  const phaseOf = (iteration: GraphNode) => {
+    const phase = target(iteration, "phase")
+    return phase && hasKind(vocabulary, "phase", phase.kind) ? phase : undefined
+  }
 
   // Every node's plan, once: the iterations it is planned into and its discipline activity.
-  const itemsOf = new Map<string, Set<GraphNode>>(iterationNodes.map((it) => [it.id, new Set()]))
+  const itemsOf = new Map<string, Set<GraphNode>>(iterations.map((it) => [it.id, new Set()]))
   const activityIn = new Map<string, Map<string, Set<string>>>()
   const planned = new Set<string>()
   for (const node of graph.nodes()) {
@@ -165,17 +189,17 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     }
   }
 
+  /** The scenarios of a node, in the order they are written, with the status of their last run. */
+  const scenariosOf = (node: GraphNode) =>
+    graph.in(node.id)
+      .flatMap((edge) => edge.rel === vocabulary.relations.scenario ? [graph.node(edge.from)] : [])
+      .filter((scenario): scenario is GraphNode => scenario?.kind === made.kinds.scenario)
+      .sort((a, b) => (a.source?.line ?? 0) - (b.source?.line ?? 0))
+      .map((scenario) => ({ name: scenario.title, status: String(scenario.attrs.status) }))
+
   const iterationReport = (iteration: GraphNode): IterationReport => {
     const items = [...itemsOf.get(iteration.id)!]
-    const statuses: Array<string> = []
-    for (const item of items) {
-      for (const edge of graph.in(item.id)) {
-        const scenario = graph.node(edge.from)
-        const status = scenario?.attrs.status
-        if (edge.rel !== vocabulary.relations.scenario || scenario?.kind !== made.kinds.scenario) continue
-        if (Predicate.isString(status) && !notExecuted.has(status)) statuses.push(status)
-      }
-    }
+    const statuses = items.flatMap(scenariosOf).map((scenario) => scenario.status).filter((status) => !notExecuted.has(status))
     return {
       node: iteration,
       items,
@@ -184,73 +208,146 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
       scenarios: tally(statuses)
     }
   }
+  const work = iterations.map(iterationReport)
 
-  const reports = new Map(iterationNodes.map((it) => [it.id, iterationReport(it)]))
-  const phaseReports = phases.map((phase): PhaseReport => ({
-    node: phase,
-    iterations: iterationNodes.filter((it) => inPhase(it, phase)).map((it) => reports.get(it.id)!),
-    milestones: graph.ofKind(vocabulary.kinds.milestone).filter((m) => inPhase(m, phase))
-  }))
-  const orderedIterations = unique(phaseReports.flatMap((p) => p.iterations.map((i) => i.node)))
-  for (const it of iterationNodes) if (!orderedIterations.includes(it)) orderedIterations.push(it)
+  const phases = graph.ofKind(vocabulary.kinds.phase)
+    .map((node): PhaseReport => ({ node, iterations: work.filter((it) => phaseOf(it.node)?.id === node.id) }))
+    .sort((a, b) => firstOf(a, position) - firstOf(b, position) || a.node.id.localeCompare(b.node.id))
+
+  // A milestone ends the timeline at the last iteration of what it closes; one that closes
+  // nothing on the timeline comes after the others.
+  const closing = graph.ofKind(vocabulary.kinds.milestone).map((node) => {
+    const closes = target(node, "closes")
+    const iteration = closes && position.has(closes.id) ? closes : undefined
+    const closed = phases.find((phase) => phase.node.id === closes?.id)
+    const last = iteration ?? closed?.iterations.at(-1)?.node
+    return {
+      node,
+      closes,
+      phase: iteration ? phaseOf(iteration) : closed?.node,
+      at: last ? position.get(last.id)! : Infinity,
+      // Where an iteration and its phase end on the same day, the iteration's milestone comes first.
+      rank: iteration ? 0 : 1
+    }
+  }).sort((a, b) => a.at - b.at || a.rank - b.rank || a.node.id.localeCompare(b.node.id))
+
+  let covered = -1
+  const milestones = closing.map(({ at, closes, node, phase }): MilestoneReport => {
+    const stretch = Number.isFinite(at) ? iterations.slice(covered + 1, at + 1) : []
+    if (Number.isFinite(at)) covered = Math.max(covered, at)
+    return {
+      node,
+      closes,
+      phase,
+      iterations: stretch,
+      work: unique(stretch.flatMap((iteration) => [...itemsOf.get(iteration.id)!])),
+      planned: day(iterations[at], end),
+      met: metOn(vocabulary, node),
+      gate: scenariosOf(node)
+    }
+  })
 
   const disciplines = [...vocabulary.disciplines.keys()].map((discipline) => ({
     discipline,
-    activity: orderedIterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
+    activity: iterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))
-
   const unplanned = graph.nodes().filter((n) =>
     Predicate.isString(n.attrs.maturity) && !planned.has(n.id) && !isStructural(vocabulary, n)
   )
-  const started = today === undefined
-    ? []
-    : orderedIterations.filter((it) => {
-      const begins = startOf(it)
-      return Predicate.isString(begins) && begins <= today
-    })
-  const current = started.find((it) => today! <= String(attribute(it, end) ?? ""))
-  const latest = current ?? started.at(-1)
-  const currentPhase = latest && phaseReports.find((p) => p.iterations.some((i) => i.node.id === latest.id))?.node
+  const current = iterations.find((it) => {
+    const first = day(it, start)
+    const last = day(it, end)
+    return today !== undefined && first !== undefined && last !== undefined && first <= today && today <= last
+  })
   return {
-    phases: phaseReports,
+    milestones,
+    next: milestones.find((milestone) => milestone.met === undefined),
+    unclosed: iterations.slice(covered + 1),
+    phases,
     unplanned,
     disciplines,
-    iterations: orderedIterations,
-    work: orderedIterations.map((it) => reports.get(it.id)!),
+    iterations,
+    work,
+    today,
     current,
-    currentPhase,
     vocabulary
   }
 }
 annotate(lifecycle, { is: "ARCH-lifecycle" })
+
+/** Where a phase begins on the timeline; one without iterations comes last. */
+const firstOf = (phase: PhaseReport, position: ReadonlyMap<string, number>) => {
+  const [first] = phase.iterations
+  return first ? position.get(first.node.id)! : Infinity
+}
 
 const shades = [" ", "░", "▒", "▓", "█"]
 
 const counts = (record: Readonly<Record<string, number>>) =>
   Object.entries(record).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([key, n]) => `${key}:${n}`).join(" ")
 
+/** Whole days from one ISO date to another; negative when the second is earlier. */
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000)
+
+const gateMarks: Readonly<Record<string, string>> = { passed: "✔", failed: "✘" }
+
 /**
- * Renders the lifecycle as text: phases with their milestone gates, the work planned into each
- * iteration, the planned discipline activity chart, and — apart from the plan — the evidence.
+ * Renders the lifecycle as text: the milestones with the stretch of the timeline each ends, the
+ * work planned into each iteration, the planned discipline activity chart, and — apart from the
+ * plan — the evidence.
  */
 export const renderLifecycle = (report: LifecycleReport): string => {
+  const { current, milestones, next, today } = report
+  if (report.iterations.length === 0 && milestones.length === 0) return `${emptyPlanHint}\n`
   const out: Array<string> = []
-  if (report.phases.length === 0) {
-    return `${emptyPlanHint}\n`
-  }
-  const currentIndex = report.phases.findIndex((p) => p.node.id === report.currentPhase?.id)
-  const label = (it: GraphNode) => it.id === report.current?.id ? `${it.id}*` : it.id
-  out.push("PHASES  (◀ now and * are where today falls; a milestone is met only when its gate passes)")
-  report.phases.forEach((phase, index) => {
-    const its = phase.iterations.map((i) => label(i.node)).join(" ") || "—"
-    const now = index === currentIndex ? "◀ now" : ""
-    out.push(`  ${pad(phase.node.title, 14)} ${pad(its, 14)}${now}`)
-    for (const m of phase.milestones) {
-      const v = String(m.attrs.verification ?? "none")
-      const mark = v === "passing" ? "✔" : v === "failing" ? "✘" : "…"
-      out.push(`    ◆ ${pad(m.id, 6)} ${pad(m.title, 31)} gate ${mark} ${v}`)
+  const label = (it: GraphNode) => it.id === current?.id ? `${it.id}*` : it.id
+  const position = next === undefined
+    ? milestones.length > 0 ? "every milestone is met" : undefined
+    : `project ${next.phase ? `in ${next.phase.title}` : `at ${next.node.id}`}`
+  const calendar = today === undefined ? undefined : current ? `calendar in ${current.id}` : "no iteration today"
+  const heading = [today, position, calendar].filter(Predicate.isNotUndefined).join(" · ")
+
+  /** How a milestone stands: when it was met and how far from its date, or how much of its gate passes and how late it is. */
+  const standing = (milestone: MilestoneReport) => {
+    const { gate, met, planned } = milestone
+    if (met !== undefined) {
+      const off = planned === undefined ? 0 : daysBetween(planned, met)
+      return `met ${met}${off === 0 ? "" : ` (${off > 0 ? "+" : ""}${off}d)`}`
     }
-  })
+    const passed = gate.filter((scenario) => scenario.status === "passed").length
+    const late = today !== undefined && planned !== undefined ? daysBetween(planned, today) : 0
+    return `${gate.length === 0 ? "no gate" : `${passed}/${gate.length}`}${late > 0 ? `  late ${late}d` : ""}`
+  }
+  const rows = [
+    ...milestones.map((milestone) => ({
+      milestone,
+      mark: milestone.met !== undefined ? "✔" : milestone === next ? "▶" : " ",
+      cells: [
+        milestone.node.id,
+        milestone.node.title,
+        milestone.phase?.title ?? "",
+        milestone.iterations.map(label).join(" "),
+        milestone.planned ?? "",
+        standing(milestone)
+      ]
+    })),
+    ...stretches(report).map(({ iterations, phase }) => ({
+      milestone: undefined,
+      mark: " ",
+      cells: ["—", "no milestone", phase?.title ?? "", iterations.map(label).join(" "), "", ""]
+    }))
+  ]
+  const widths = rows[0]!.cells.map((_, column) => Math.max(...rows.map((row) => row.cells[column]!.length)))
+  out.push(`MILESTONES${heading ? `  (${heading})` : ""}`)
+  for (const { cells, mark, milestone } of rows) {
+    out.push(`  ${mark} ${cells.map((cell, column) => pad(cell, widths[column]! + 1)).join(" ").trimEnd()}`)
+    if (milestone === undefined || milestone !== next) continue
+    for (const { name, status } of milestone.gate) {
+      out.push(`        ${gateMarks[status] ?? "…"} ${name}${Object.hasOwn(gateMarks, status) ? "" : `  (${status})`}`)
+    }
+  }
+  out.push("  ✔ met · ▶ next to be met, with its gate as last run · n/m of its gate passes · * today · the date is the end of what it closes")
+
   out.push("", "PLANNED WORK  (nodes planned into each iteration, by kind)")
   for (const it of report.work) {
     const { end, start } = report.vocabulary.attributes
@@ -282,16 +379,28 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   return out.join("\n") + "\n"
 }
 
-/** What `sdp lifecycle` says before there is a plan: how to write one, inline. */
-export const emptyPlanHint = `No phases defined yet. \`sdp new plan "Delivery plan"\` writes a plan with the four phases and an
-iteration in each, or declare phases and iterations in any spec's front matter:
+/** The iterations no milestone closes, in runs that share a phase. */
+const stretches = (report: LifecycleReport) => {
+  const phaseOf = (iteration: GraphNode) => report.phases.find((phase) => phase.iterations.some((it) => it.node.id === iteration.id))?.node
+  const runs: Array<{ readonly phase: GraphNode | undefined; readonly iterations: Array<GraphNode> }> = []
+  for (const iteration of report.unclosed) {
+    const phase = phaseOf(iteration)
+    const run = runs.at(-1)
+    if (run && run.phase?.id === phase?.id) run.iterations.push(iteration)
+    else runs.push({ phase, iterations: [iteration] })
+  }
+  return runs
+}
+
+/** What `sdp lifecycle` says before there is a plan: how to write one. */
+export const emptyPlanHint = `No plan yet. \`sdp new plan "Delivery plan"\` writes one with four phases and an iteration in each,
+or declare iterations in any spec's front matter:
 
   nodes:
-    - { id: PH-elaboration, kind: phase, title: Elaboration, order: 2 }
-    - { id: E1, kind: iteration, title: Architecture baseline, phase: PH-elaboration, start: "2026-11-16", end: "2026-11-27" }
+    - { id: E1, kind: iteration, title: Architecture baseline, start: "2026-11-16", end: "2026-11-27" }
 
-Then plan work with \`iteration: E1\` on a spec — and other disciplines' work on it with
-\`activity: { implementation: C1, test: [C1, T1] }\` — and close each phase with a milestone
-(\`sdp new milestone "Architecture baseline"\`, \`phase: PH-elaboration\`) whose scenarios are its gate.`
+Plan work with \`iteration: E1\` on a spec — and other disciplines' work on it with
+\`activity: { implementation: C1, test: [C1, T1] }\` — and end a stretch of the timeline with a
+milestone (\`sdp new milestone "Architecture baseline"\`, \`closes: E1\`) whose scenarios are its gate.`
 
 const pad = (s: string, n: number) => s.length >= n ? `${s} ` : s + " ".repeat(n - s.length)

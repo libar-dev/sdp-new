@@ -46,8 +46,8 @@ attributes it derives, the stages beyond the ladder, and the names no link can h
 | Section | What sdp reads its words for |
 | --- | --- |
 | `kinds` | decisions, milestones (their scenarios are gates), phases, iterations, patterns, the kinds that are the architecture, the architectural drivers, and the kind a node anchored in code gets when it names none |
-| `relations` | planning work into an iteration, putting an iteration or milestone into its phase, the prose mention, a scenario's link to its spec, and the code anchor |
-| `attributes` | `activity`, a phase's `order`, an iteration's `start` and `end`, and the attribute whose value in `qualities` marks a quality requirement |
+| `relations` | planning work into an iteration, putting an iteration into its phase, what a milestone closes, the prose mention, a scenario's link to its spec, and the code anchor |
+| `attributes` | `activity`, an iteration's `start` and `end`, a milestone's `met`, and the attribute whose value in `qualities` marks a quality requirement |
 | `maturity` | the authoring ladder, lowest first ([[REQ-maturity-criteria]]) |
 | `disciplines` | the kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
 | `links` | keys of the workspace's own that link like `links:` entries ([[ARCH-graph-builder]]) |
@@ -64,7 +64,7 @@ spec or a query:
   or a relation, link key or attribute named like an attribute sdp derives or checks (`stage`,
   `maturity`, `status`, …);
 - the mention, scenario or anchor relation sharing its word with another of them or with a relation
-  authors write as a link key (plan, phase, `links`): one edge would be two things.
+  authors write as a link key (plan, phase, closes, `links`): one edge would be two things.
 
 `sdp new` writes what the profile says ([[REQ-cli]]): the template of a kind is that of the role it
 plays, and the keys and kinds it writes are the workspace's words.
@@ -91,7 +91,7 @@ their work unless `activity:` says otherwise; how activity is planned and counte
 | analysis-design | element, pattern |
 | implementation | none |
 | test | none |
-| deployment | release, environment, deployment |
+| deployment | environment, deployment |
 
 ## Scenarios
 
@@ -322,7 +322,7 @@ Scenario: relations.plan and relations.phase name the relations the plan uses
     id: PLAN
     kind: plan
     nodes:
-      - { id: build, kind: phase, order: 1 }
+      - { id: build, kind: phase }
       - { id: S1, kind: iteration, part-of: build }
       - { id: S2, kind: iteration, phase: build }
     ---
@@ -350,6 +350,28 @@ Scenario: relations.plan and relations.phase name the relations the plan uses
   Then phase "build" has iterations "S1"
   And iteration "S1" plans "REQ-search"
   And "requirements" activity in iteration "S1" is 1
+
+Scenario: attributes.met names the key a milestone is recorded as met with
+  Given a file "sdp.config.yaml" containing:
+    """
+    vocabulary: { attributes: { met: reached } }
+    """
+  And a file "docs/MS-launch.md" containing:
+    """
+    ---
+    id: MS-launch
+    ---
+    # Launch
+
+    ```gherkin
+    Scenario: There is something to launch
+      Then the query "requirement" returns at least 1 result
+    ```
+    """
+  When I run "sdp gate MS-launch --record"
+  Then the file "docs/MS-launch.md" contains "reached: 20"
+  When I run "sdp status"
+  Then the output contains "milestones    met 1"
 
 Scenario: links names keys of the workspace's own that link
   Given a file "sdp.config.yaml" containing:
@@ -409,8 +431,8 @@ Scenario: sdp new writes what a renamed profile reads
     ids: { adr: ADR, era: ERA }
     vocabulary:
       kinds: { decision: [adr], milestone: [checkpoint], phase: [era], iteration: [sprint], driver: [adr, nfr] }
-      relations: { plan: [sprint], phase: [part-of], anchor: implements-element }
-      attributes: { order: position, start: from, end: until }
+      relations: { plan: [sprint], phase: [part-of], closes: [ends], anchor: implements-element }
+      attributes: { start: from, end: until }
     """
   When I run "sdp new adr 'Use Postgres'"
   Then the output contains "ADR-0001\tdocs/decisions/ADR-0001-use-postgres.md"
@@ -419,10 +441,10 @@ Scenario: sdp new writes what a renamed profile reads
   When I run "sdp new plan Roadmap"
   Then the output contains "PLAN-roadmap\tdocs/delivery/PLAN-roadmap.md"
   When I run "sdp new checkpoint Launch"
-  Then the file "docs/delivery/milestones/CHEC-launch.md" contains "part-of: ERA-elaboration"
+  Then the file "docs/delivery/milestones/CHEC-launch.md" contains "ends: ERA-elaboration"
   When I run "sdp q era|sprint --ids"
   Then the output lines are "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition, I1, E1, C1, T1"
-  When I run "sdp q 'sprint -part-of-> era[position=2]' --ids"
+  When I run "sdp q 'checkpoint -ends-> era' --ids"
   Then the output lines are "ERA-elaboration"
   When I run "sdp check"
   Then the output does not contain "[dangling-link]"

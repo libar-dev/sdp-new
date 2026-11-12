@@ -21,15 +21,16 @@ const VocabularyFile = Schema.Struct({
   relations: Schema.optional(Schema.Struct({
     plan: Schema.optional(Words),
     phase: Schema.optional(Words),
+    closes: Schema.optional(Words),
     mention: Schema.optional(Word),
     scenario: Schema.optional(Word),
     anchor: Schema.optional(Word)
   })),
   attributes: Schema.optional(Schema.Struct({
     activity: Schema.optional(Word),
-    order: Schema.optional(Word),
     start: Schema.optional(Word),
     end: Schema.optional(Word),
+    met: Schema.optional(Word),
     quality: Schema.optional(Word)
   })),
   qualities: Schema.optional(Words),

@@ -234,6 +234,7 @@ of the ordinary ones (*Layers* above), so a gate can require what the run just v
 ([[REQ-builtin-steps]]). An unmet gate is reported but does not fail `sdp run`, because a future
 milestone is expected to be unmet; `sdp gate <milestone>` ([[REQ-cli]]) evaluates one milestone
 and exits with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp run`.
+The gate of a milestone recorded as met does not run again ([[REQ-lifecycle-view]]).
 
 ## Running concurrently
 

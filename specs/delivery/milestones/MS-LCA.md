@@ -1,8 +1,6 @@
 ---
 id: MS-LCA
-kind: milestone
-title: Lifecycle Architecture
-phase: PH-elaboration
+closes: PH-elaboration
 ---
 
 # Lifecycle Architecture

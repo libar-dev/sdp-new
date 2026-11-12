@@ -78,6 +78,7 @@ export const status = (summary: StatusSummary): string => {
     counts("stages", summary.stages),
     counts("scenarios", summary.scenarios),
     counts("gates", summary.gates),
+    counts("milestones", summary.milestones),
     ...(Object.keys(summary.stale).length > 0 ? [`${counts("stale", summary.stale)}  ${c.dim("(sdp run refreshes them)")}`] : []),
     line("architecture", `${summary.architecture} node(s) of an architectural kind`),
     counts("check", summary.diagnostics, "no diagnostics")
@@ -177,7 +178,10 @@ export const runSummary = (report: RunReport | GateReport): string => {
   return [
     "",
     ...(scenarios > 0 || (gates === 0 && !gated) ? [`${scenarios} scenario(s): ${tallied(report.summary)}`] : []),
-    ...(gates > 0 || gated ? [`${gates} gate scenario(s)${of}: ${tallied(report.gates)}`] : []),
+    ...(gates > 0 || (gated && report.met === undefined) ? [`${gates} gate scenario(s)${of}: ${tallied(report.gates)}`] : []),
+    ...(gated && report.met !== undefined
+      ? [gates > 0 ? `${report.milestone} is recorded as met: ${report.met}` : `${report.milestone} was met on ${report.met}: it is closed, and its gate does not run again`]
+      : []),
     ...(unselected > 0
       ? [c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`)]
       : []),

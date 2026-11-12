@@ -1,8 +1,6 @@
 ---
 id: MS-PR
-kind: milestone
-title: Product Release
-phase: PH-transition
+closes: PH-transition
 version: "1.0.0"
 ---
 

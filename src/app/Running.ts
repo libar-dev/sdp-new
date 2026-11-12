@@ -4,22 +4,25 @@
  * One run over a workspace selects scenarios and their examples, runs the
  * ordinary ones against the graph without results, commits their results,
  * then runs the gates (milestones and `@gate` examples) against a graph that
- * shows the ordinary results and no gate results. A workspace whose
- * scenarios cannot all be read does not run at all. Works on any
+ * shows the ordinary results and no gate results. The gate of a milestone
+ * that is met does not run again, and a workspace whose scenarios cannot all
+ * be read does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
  */
 import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
-import { type Duration, Effect } from "effect"
+import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
 import type { Project } from "../graph/Build.ts"
+import { lifecycle } from "../lifecycle/Lifecycle.ts"
 import { problemLine } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
-import { attribute, made } from "../model/Vocabulary.ts"
+import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
+import { withFrontMatter } from "../parse/Markdown.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
-import { fingerprint, isGate } from "../run/Evidence.ts"
+import { fingerprint, isClosed, isGate } from "../run/Evidence.ts"
 import { snippetModule } from "../run/Match.ts"
 import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
@@ -115,7 +118,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const { config } = before.project
   // Whether a scenario is a gate is decided by the examples this run selected.
   const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {
-    const chosen = selected(scenario, spec)
+    const chosen = isClosed(spec, config.vocabulary) ? undefined : selected(scenario, spec)
     return chosen && isGate(scenario, spec, config.vocabulary, chosen) === gates ? chosen : undefined
   }
   const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))
@@ -225,30 +228,67 @@ export const run = Effect.fn("run")(function*(root: string, input: RunInput = {}
 export interface GateInput {
   /** The milestone whose gate to evaluate — or any spec with scenarios tagged `@gate`. */
   readonly milestone: string
+  /** When the gate passes, write `met: <today>` into the milestone. */
+  readonly record?: boolean | undefined
   readonly onScenario?: RunInput["onScenario"]
 }
 
 export interface GateReport extends RunReport {
   /** The spec whose gate was evaluated. */
   readonly milestone: string
+  /** The day the milestone is recorded as met: by this call, or before it — and then nothing ran. */
+  readonly met?: string | undefined
+}
+
+/** Why a milestone cannot be recorded as met whatever its gate says, or `undefined` when it can. */
+const unrecordable = (project: Project, spec: Spec): string | undefined => {
+  const vocabulary = project.config.vocabulary
+  const { milestones } = lifecycle(project)
+  const at = milestones.findIndex((milestone) => milestone.node.id === spec.id)
+  const earlier = milestones.slice(0, Math.max(at, 0)).find((milestone) => milestone.met === undefined)
+  return !hasKind(vocabulary, "milestone", spec.kind)
+    ? `${spec.id} is a ${spec.kind}: only a ${vocabulary.kinds.milestone.join(" or ")} is recorded as met`
+    : earlier
+    ? `${spec.id} cannot be met before ${earlier.node.id}, which comes before it and is not met`
+    : spec.format !== "markdown"
+    ? `${spec.file} is not a Markdown spec: write the tag @${vocabulary.attributes.met}:<date> there yourself`
+    : undefined
 }
 
 /**
  * `sdp gate`: evaluates one spec's gate scenarios against the current graph, and passes only when
- * every one of them passed.
+ * every one of them passed. With `record`, a milestone whose gate passes is written down as met
+ * today; one that is met already is closed, and nothing runs.
  */
 export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) {
   const project = yield* loadProject(root)
   yield* ensureReadable(project)
   const { milestone } = input
+  const { vocabulary } = project.config
   if (!project.graph.node(milestone)) return yield* new UnknownNode({ id: milestone })
   const spec = project.specById.get(milestone)
-  if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, project.config.vocabulary))) {
+  if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, vocabulary))) {
     return yield* new Refused({
       reason: `${milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`
     })
   }
+  if (isClosed(spec, vocabulary)) {
+    const nothing = { passed: true, summary: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
+    const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
+    return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
+  }
+  const reason = input.record ? unrecordable(project, spec) : undefined
+  if (reason !== undefined) return yield* new Refused({ reason })
   const ran = yield* execute(root, { targets: [milestone], onScenario: input.onScenario }, "gates")
-  const report: GateReport = { ...ran.data, milestone }
-  return { ...ran, data: report } satisfies Answer<GateReport>
+  const met = input.record && ran.data.passed ? DateTime.formatIsoDate(yield* DateTime.now) : undefined
+  if (met !== undefined) {
+    const fs = yield* FileSystem.FileSystem
+    const file = (yield* Path.Path).join(root, spec.file)
+    const recorded = withFrontMatter(yield* fs.readFileString(file), vocabulary.attributes.met, met)
+    if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no front matter to record ${milestone} in` })
+    yield* fs.writeFileString(file, recorded)
+  }
+  const report: GateReport = { ...ran.data, milestone, met }
+  const notes = input.record && !ran.data.passed ? [...ran.notes, `${milestone} is not recorded as met: its gate does not pass`] : ran.notes
+  return { ...ran, notes, data: report } satisfies Answer<GateReport>
 })

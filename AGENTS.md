@@ -146,7 +146,7 @@ Scenario: The words sdp interprets are one command away
   When I run "sdp vocabulary" in the repository
   Then the output contains "anchor             is"
 
-Scenario: A gate that is due and unmet shows in sdp lifecycle, and sdp gate fails on it
+Scenario: A milestone that is not met shows in sdp lifecycle, and sdp gate fails on it
   Given a file "docs/DEC-0001.md" containing:
     """
     ---
@@ -159,8 +159,7 @@ Scenario: A gate that is due and unmet shows in sdp lifecycle, and sdp gate fail
     """
     ---
     id: MS-objectives
-    kind: milestone
-    phase: PH-inception
+    closes: PH-inception
     ---
     # Objectives
 
@@ -174,8 +173,8 @@ Scenario: A gate that is due and unmet shows in sdp lifecycle, and sdp gate fail
   When I run "sdp run"
   Then the exit code is 0
   When I run "sdp lifecycle"
-  Then the output line with "MS-objectives" contains "failing"
-  And the output line with "MS-objectives" does not contain "not due"
+  Then the output line with "MS-objectives" contains "▶"
+  And the output line with "MS-objectives" contains "0/1"
   When I run "sdp gate MS-objectives"
   Then the exit code is 1
 

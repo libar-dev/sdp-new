@@ -32,7 +32,7 @@ make of a workspace that cannot be fully read.
 | `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one |
 | `sdp_check` | optional minimum `severity` (default `info`: everything) | diagnostics with rule, `file:line` and hint ([[REQ-check-rules]]) |
 | `sdp_architecture` | — | every element and pattern with what its spec says it is for and its links, the decisions and quality requirements among them ([[REQ-curated-architecture]]) |
-| `sdp_lifecycle` | — | phases with their milestone gates, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
+| `sdp_lifecycle` | — | the milestones and where the project is, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
 
 **Text or data.** A tool answers with the text its command prints. Every tool but the two that
 answer with a document — `sdp_context` and `sdp_snippets` — also takes `json: true` and then
@@ -106,7 +106,7 @@ Scenario Outline: Every tool answers from the workspace, as its command does
     | sdp_steps        | { "text": "returns no results" }                      | \tThen\tthe query {string} returns no results      |
     | sdp_check        | {}                                                    | error [dangling-link] REQ-a -depends-on-> REQ-gone |
     | sdp_architecture | {}                                                    | Architecture: 0 node(s)                            |
-    | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
+    | sdp_lifecycle    | {}                                                    | No plan yet                                        |
     | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
 
 Scenario Outline: Asked for JSON, a tool answers with the envelope its command prints

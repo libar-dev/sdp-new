@@ -40,6 +40,7 @@ declare module "sdp/annotations" {
     "E2": "iteration"
     "GLOSSARY": "glossary"
     "I1": "iteration"
+    "MS-beta": "milestone"
     "MS-IOC": "milestone"
     "MS-LCA": "milestone"
     "MS-LCO": "milestone"

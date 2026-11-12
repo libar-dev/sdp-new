@@ -4,10 +4,10 @@ kind: plan
 links:
   decided-by: DEC-0007
 nodes:
-  - { id: PH-inception,    title: Inception,    order: 1 }
-  - { id: PH-elaboration,  title: Elaboration,  order: 2 }
-  - { id: PH-construction, title: Construction, order: 3 }
-  - { id: PH-transition,   title: Transition,   order: 4 }
+  - { id: PH-inception,    title: Inception }
+  - { id: PH-elaboration,  title: Elaboration }
+  - { id: PH-construction, title: Construction }
+  - { id: PH-transition,   title: Transition }
   - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: PH-inception, start: "2026-11-02", end: "2026-11-13", planned: after-the-fact }
   - { id: E1, kind: iteration, title: Scale and compatibility, phase: PH-elaboration,  start: "2026-11-16", end: "2026-11-27" }
   - { id: E2, kind: iteration, title: Packaging,               phase: PH-elaboration,  start: "2026-11-30", end: "2026-12-11" }
@@ -30,7 +30,7 @@ Scenario: Work is planned only into declared iterations and disciplines
 
 Scenario: Every phase has iterations and a milestone that closes it
   Then the query "phase !<-phase- iteration" returns no results
-  And the query "phase !<-phase- milestone" returns no results
+  And the query "phase !<-closes- milestone" returns no results
 
 Scenario: A risk names what it threatens, and the work that retires it by a milestone unless it is tolerated
   Then the query "risk !-affects-> *" returns no results

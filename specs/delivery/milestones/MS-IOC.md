@@ -1,8 +1,6 @@
 ---
 id: MS-IOC
-kind: milestone
-title: Initial Operational Capability
-phase: PH-construction
+closes: PH-construction
 ---
 
 # Initial Operational Capability

@@ -188,7 +188,7 @@ const lifecycleCommand = Command.make(
     if (json) return yield* print(yield* Reading.lifecycle(root), true, () => "")
     yield* print(yield* Reading.lifecycleChart(root), false, (chart) => chart.trimEnd())
   })
-).pipe(Command.withDescription("Phases, iterations, milestone gates and discipline activity (RUP view)"))
+).pipe(Command.withDescription("Milestones and where the project is, the work planned into each iteration, discipline activity and the evidence"))
 
 const vocabularyCommand = Command.make(
   "vocabulary",
@@ -294,15 +294,22 @@ const gateCommand = Command.make(
   "gate",
   {
     milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta, or a spec with @gate scenarios")),
+    record: Flag.Boolean("record").pipe(
+      Flag.withDescription("When the gate passes, write `met: <today>` into the milestone: it is closed, and the next one is where the project is"),
+      Flag.withDefault(false)
+    ),
     json
   },
-  Effect.fn(function*({ json, milestone }) {
+  Effect.fn(function*({ json, milestone, record }) {
     const root = yield* workspaceRoot
-    yield* printRun((onScenario) => Running.gate(root, { milestone, onScenario }), { json, verbose: false })
+    yield* printRun((onScenario) => Running.gate(root, { milestone, record, onScenario }), { json, verbose: false })
   })
 ).pipe(
   Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),
-  Command.withExamples([{ command: "sdp gate MS-beta", description: "Does this milestone's gate pass?" }])
+  Command.withExamples([
+    { command: "sdp gate MS-beta", description: "Does this milestone's gate pass?" },
+    { command: "sdp gate MS-beta --record", description: "End what it closes: record it as met, in the same commit as whatever must keep holding" }
+  ])
 )
 
 // --- authoring --------------------------------------------------------------

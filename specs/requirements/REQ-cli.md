@@ -81,10 +81,10 @@ Background:
     id: PLAN
     kind: plan
     nodes:
-      - { id: PH-inception,    kind: phase, title: Inception,    order: 1 }
-      - { id: PH-elaboration,  kind: phase, title: Elaboration,  order: 2 }
-      - { id: PH-construction, kind: phase, title: Construction, order: 3 }
-      - { id: PH-transition,   kind: phase, title: Transition,   order: 4 }
+      - { id: PH-inception,    kind: phase, title: Inception }
+      - { id: PH-elaboration,  kind: phase, title: Elaboration }
+      - { id: PH-construction, kind: phase, title: Construction }
+      - { id: PH-transition,   kind: phase, title: Transition }
       - { id: C1, kind: iteration, title: Search, phase: PH-construction }
     ---
     # Plan
@@ -93,9 +93,8 @@ Background:
     """
     ---
     id: MS-beta
-    kind: milestone
     title: Beta
-    phase: PH-construction
+    closes: PH-construction
     ---
     # Beta
 
@@ -295,7 +294,7 @@ the template with the level and must be on the configured ladder; `--id` overrid
 id — it names the file, so it has no slash — and `--dir` the directory chosen by kind, relative to
 the workspace root or absolute. A kind that plays a role of the vocabulary gets that role's
 template and words ([[REQ-configuration]]). Requirements, ideas, quality requirements (`nfr`), decisions, elements, patterns,
-milestones and plans have their own templates (`sdp new --help` lists them); any other kind gets the
+milestones, plans and risks have their own templates (`sdp new --help` lists them); any other kind gets the
 generic one. `sdp new idea` writes a requirement at maturity `idea` to `specs/requirements`. Ids come from
 `ids:` in the config (`REQ-guest-checkout`); decisions and risks are numbered (`DEC-0007`). An id
 that only a link names so far — a dangling link — is free: creating it resolves the link. An
@@ -314,9 +313,8 @@ Ready, which a team writes as a gate ([[REQ-maturity-criteria]]).
 
 `sdp new plan` writes the delivery plan: the four phases (`PH-inception`, `PH-elaboration`,
 `PH-construction`, `PH-transition`) and one two-week example iteration in each (`I1`, `E1`, `C1`, `T1`,
-starting today), as inline nodes. Milestones from the template close `phase: PH-elaboration`; work is
-planned with `iteration: E1`, and other disciplines' work on it with `activity:`
-([[REQ-lifecycle-view]]).
+starting today), as inline nodes. A milestone from the template `closes: PH-elaboration`, and its
+scenarios are its gate ([[REQ-lifecycle-view]]).
 
 ```sh
 sdp new requirement "Saved carts" --maturity draft
@@ -392,7 +390,7 @@ Scenario: --dir may be absolute
 
 Scenario: The help lists the templates and the maturity levels
   When I run "sdp new --help"
-  Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan"
+  Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan, risk"
   And the output contains "idea (default), draft, specified or ready"
 
 Scenario Outline: Ids are readable ASCII, whatever the title's language
@@ -420,6 +418,7 @@ Scenario: Everything the templates produce passes the check, flagged until its t
     | element     | Orders           |           |
     | pattern     | Outbox           |           |
     | milestone   | Launch           |           |
+    | risk        | Outage           |           |
   When the workspace is checked
   Then the check reports nothing but "template-placeholder"
   And the check reports "template-placeholder" for "REQ-invoices"
@@ -443,6 +442,9 @@ Scenario Outline: A suggested link, uncommented, is valid YAML in the shared voc
     | element     | ARCH-orders -instance-of-> PAT-…    |
     | element     | ARCH-orders -constrained-by-> NFR-… |
     | pattern     | PAT-orders -decided-by-> DEC-…      |
+    | risk        | RISK-0001 -affects-> REQ-…          |
+    | risk        | RISK-0001 -mitigated-by-> REQ-…     |
+    | risk        | RISK-0001 -due-> MS-…               |
 
 Scenario: The ready template leaves no open question and points at the team's Definition of Ready
   When I run "sdp new requirement Invoices --maturity ready"
@@ -486,7 +488,7 @@ Scenario: types writes the ids annotate() accepts, and check knows when they are
 
 One screen: node and edge counts, kinds, relations, stages, the results of ordinary
 scenarios and, separately, of gate scenarios (which may be unmet without anything being broken),
-stale results by what changed since they ran ([[REQ-executable-specs]]), how many nodes are of an
+how many milestones are met and how many open, stale results by what changed since they ran ([[REQ-executable-specs]]), how many nodes are of an
 architectural kind, and diagnostics by severity.
 
 ```sh
@@ -504,6 +506,7 @@ Scenario: status counts gate scenarios apart from the others
   When I run "sdp status"
   Then the output contains "scenarios     unrun 2"
   And the output contains "gates         unrun 1"
+  And the output contains "milestones    open 1"
   And the output contains "check         no diagnostics"
 ~~~
 
@@ -745,43 +748,50 @@ Scenario: vocabulary prints the words sdp interprets and the words it makes
 
 ### `sdp lifecycle`
 
-Phases with their milestone gates (`◀ now` marks the calendar, never achievement), the planned work
-of each iteration, the planned discipline activity chart with a one-line legend for its shading, and
-the evidence — stages and scenario results — shown apart from the plan ([[REQ-lifecycle-view]]). Without
-phases it shows how to declare them, inline, and suggests `sdp new plan`.
+The milestones in the order of the timeline — each with the iterations it ends, the date of what it
+closes and how it stands, the first that is not met being where the project is — then the planned
+work of each iteration, the discipline activity chart, and the evidence apart from the plan
+([[REQ-lifecycle-view]]).
 
 ```sh
 sdp lifecycle
+sdp lifecycle --json | jq '.data.position, .data.milestones[].gate'
 ```
 
 ~~~gherkin
-Scenario: lifecycle lays out phases, iterations and gates
+Scenario: lifecycle lays out the milestones, the planned work and the chart
   When I run "sdp lifecycle"
-  Then the output contains "Construction"
-  And the output contains "MS-beta"
+  Then the output line with "MS-beta" contains "▶"
+  And the output line with "MS-beta" contains "Construction"
+  And the output line with "MS-beta" contains "C1"
   And the output contains "DISCIPLINE ACTIVITY"
   And the output contains "░ ▒ ▓ █  more work in an iteration, relative to the discipline's busiest; blank: none"
 
-Scenario: lifecycle --json keeps the plan and the evidence apart
+Scenario: lifecycle --json says where the project is, and keeps the plan and the evidence apart
   When I run "sdp lifecycle --json"
   Then the output is valid JSON
+  And the output contains '"position": {'
+  And the output contains '"milestone": "MS-beta"'
+  And the output field "data.milestones" holds "MS-beta"
+  And the output field "data.phases" holds "PH-inception, PH-elaboration, PH-construction, PH-transition"
+  And the output contains '"unmet": ['
   And the output contains '"disciplines"'
-  And the output contains '"work"'
   And the output contains '"evidence"'
 
-Scenario: A plan from the template puts a milestone from the template under its phase
+Scenario: Before there is a plan lifecycle says how to write one, and a milestone from the template ends its phase
   When I run "sdp -C fresh init"
   Then the output contains "created sdp.config.yaml"
   When I run "sdp -C fresh lifecycle"
   Then the output contains "sdp new plan"
-  And the output contains "- { id: PH-elaboration, kind: phase"
+  And the output contains "- { id: E1, kind: iteration"
   When I run "sdp -C fresh new plan 'Delivery plan'"
   Then the output contains "PLAN-delivery-plan\tdocs/delivery/PLAN-delivery-plan.md"
   When I run "sdp -C fresh new milestone 'Architecture baseline'"
   Then the output contains "MS-architecture-baseline\tdocs/delivery/milestones/MS-architecture-baseline.md"
   When I run "sdp -C fresh lifecycle"
-  Then the line after the output line with "Elaboration" contains "◆ MS-architecture-baseline"
-  And the output line with "Inception" contains "I1*"
+  Then the output line with "MS-architecture-baseline" contains "Elaboration"
+  And the output line with "MS-architecture-baseline" contains "I1* E1"
+  And the output line with "no milestone" contains "C1"
 ~~~
 
 ## Checking and running
@@ -1026,11 +1036,14 @@ Scenario: A --tags filter that is not a tag expression is an error that says so
 ### `sdp gate <milestone>`
 
 Runs one milestone's gate scenarios against the current graph and exits 0 only when every one of
-them passed. No command enforces a gate by the calendar: the same commit would pass today and fail
-tomorrow.
+them passed. `--record` then writes `met: <today>` into the milestone: it is closed, its gate does
+not run again, and the next milestone is where the project is ([[REQ-lifecycle-view]]). Ending a
+phase is somebody's act, so nothing is recorded unasked — and no command enforces a gate by the
+calendar: the same commit would pass today and fail tomorrow.
 
 ```sh
 sdp gate MS-beta
+sdp gate MS-beta --record
 ```
 
 ~~~gherkin
@@ -1061,6 +1074,60 @@ Scenario: gate --json prints nothing but JSON
   When I run "sdp gate MS-beta --json"
   Then the output is valid JSON
   And the output contains '"passed": false'
+
+Scenario: gate --record records nothing while the gate does not pass
+  When I run "sdp gate MS-beta --record"
+  Then the exit code is 1
+  And the output contains "MS-beta is not recorded as met"
+  And the file "docs/MS-beta.md" does not contain "met:"
+
+Scenario: gate --record writes met into a milestone whose gate passes, in the order of the timeline
+  Given a file "docs/MS-alpha.md" containing:
+    """
+    ---
+    id: MS-alpha
+    closes: C1
+    ---
+    # Alpha
+
+    ```gherkin
+    Scenario: There is a plan
+      Then the query "plan" returns 1 result
+    ```
+    """
+  When I run "sdp gate MS-beta --record"
+  Then the exit code is 1
+  And the output contains "MS-beta cannot be met before MS-alpha"
+  When I run "sdp gate MS-alpha --record"
+  Then the exit code is 0
+  And the file "docs/MS-alpha.md" contains "met: 20"
+  When I run "sdp q milestone[met] --ids"
+  Then the output lines are "MS-alpha"
+  When I run "sdp lifecycle --json"
+  Then the output contains '"milestone": "MS-beta"'
+
+Scenario: A milestone that is met is closed: its gate does not run again
+  Given a file "docs/MS-alpha.md" containing:
+    """
+    ---
+    id: MS-alpha
+    closes: C1
+    met: 2026-11-13
+    ---
+    # Alpha
+
+    ```gherkin
+    Scenario: There is no plan
+      Then the query "plan" returns no results
+    ```
+    """
+  When I run "sdp gate MS-alpha"
+  Then the exit code is 0
+  And the output contains "MS-alpha was met on 2026-11-13"
+  When I run "sdp run"
+  Then the output does not contain "MS-alpha#there-is-no-plan"
+  When I run "sdp status"
+  Then the output contains "milestones    met 1 · open 1"
 
 Scenario: The build of sdp itself enforces no gate
   When I run "grep verify package.json" in the repository
