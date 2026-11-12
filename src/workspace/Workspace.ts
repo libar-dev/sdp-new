@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
+import { diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { RunResults } from "../model/Results.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
@@ -105,23 +106,85 @@ const globBase = (pattern: string): string => {
   return parts.slice(0, wild < 0 ? -1 : wild).join("/")
 }
 
-/** Expand globs relative to `root` to the files they match, de-duplicated and sorted for stable output. */
-export const findFiles = Effect.fn("findFiles")(function*(
+/** A path a glob matches that is no file sdp can read, and what it is instead. */
+export interface NotAFile {
+  readonly path: string
+  readonly is: string
+}
+
+/** What sdp calls each type of path that is neither a file nor a directory. */
+const notAFile: Partial<Record<FileSystem.File.Type, string>> = {
+  FIFO: "a named pipe",
+  Socket: "a socket",
+  BlockDevice: "a device",
+  CharacterDevice: "a device"
+}
+
+/**
+ * Expands globs relative to `root` to the files they match, de-duplicated and sorted for stable
+ * output, and to what they match that is no file sdp can read: a link that leads to none, a named
+ * pipe, a socket or a device. A glob matches directories too (`fixtures/**` is `fixtures` and all
+ * below it); they are neither.
+ */
+export const findPaths = Effect.fn("findPaths")(function*(
   root: string,
   patterns: ReadonlyArray<string>,
   exclude: ReadonlyArray<string>
 ) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
+  // What the walk learns of each path that is no file, so that a file costs no look of its own: the
+  // entries of the directories it lists that are not files, and the type of what each path it looks
+  // at leads to, none where nothing is. Named as the globs name what they match: relative to the
+  // root, unless the pattern is absolute.
+  let absolute = false
+  const prefix = root.endsWith("/") ? root : `${root}/`
+  const named = (at: string) => absolute ? at : at.slice(prefix.length)
+  const notFiles = new Map<string, FileSystem.File.Type | undefined>()
+  const walk = FileSystem.make({
+    ...fs,
+    readDirectoryEntries: (directory) =>
+      Effect.map(fs.readDirectoryEntries(directory), (entries) => {
+        const at = directory.endsWith("/") ? directory : `${directory}/`
+        for (const entry of entries) if (entry.type !== "File") notFiles.set(named(at + entry.name), entry.type)
+        return entries
+      }),
+    stat: (at) =>
+      fs.stat(at).pipe(
+        Effect.map((info) => (notFiles.set(named(at), info.type), info)),
+        Effect.tapError(() => Effect.sync(() => notFiles.set(named(at), undefined)))
+      )
+  })
   const found = new Set<string>()
   for (const pattern of patterns) {
-    for (const file of yield* fs.glob(pattern, { root, exclude })) found.add(file)
+    absolute = path.isAbsolute(pattern)
+    for (const file of yield* walk.glob(pattern, { root, exclude })) found.add(file)
   }
-  // A glob matches directories too (`fixtures/**` is `fixtures` and all below it). A path whose
-  // type cannot be told is kept, so that reading it says what is wrong with it.
-  const isFile = (file: string) =>
-    fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type !== "Directory"), Effect.orElseSucceed(() => true))
-  return (yield* Effect.filter([...found], isFile, { concurrency: 32 })).sort()
+  // A link the walk did not follow is looked at: it is what it leads to.
+  const links = [...found].filter((file) => notFiles.get(file) === "SymbolicLink")
+  for (const { file, type } of yield* Effect.forEach(links, (file) =>
+    fs.stat(path.resolve(root, file)).pipe(
+      Effect.map((info) => ({ file, type: info.type })),
+      Effect.orElseSucceed(() => ({ file, type: undefined }))
+    ), { concurrency: 32 })) notFiles.set(file, type)
+  const sorted = [...found].sort()
+  const typeOf = (file: string) => notFiles.has(file) ? notFiles.get(file) : "File"
+  return {
+    files: sorted.filter((file) => typeOf(file) === "File"),
+    unread: sorted.flatMap((file): ReadonlyArray<NotAFile> => {
+      const type = typeOf(file)
+      return type === "File" || type === "Directory" ? [] : [{ path: file, is: type === undefined ? "a link that leads to no file" : notAFile[type] ?? "no file" }]
+    })
+  }
+})
+
+/** The files globs relative to `root` match, de-duplicated and sorted for stable output. */
+export const findFiles = Effect.fn("findFiles")(function*(
+  root: string,
+  patterns: ReadonlyArray<string>,
+  exclude: ReadonlyArray<string>
+) {
+  return (yield* findPaths(root, patterns, exclude)).files
 })
 
 const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {
@@ -162,11 +225,13 @@ export interface Workspace {
   readonly stored: RunResults | undefined
 }
 
-/** Reads `files` (relative to the root) that exist; an import recorded by an earlier run may be gone. */
+/** Reads `files` (relative to the root) that are files; an import recorded by an earlier run may be gone, or be no file now. */
 export const readFiles = Effect.fn("readFiles")(function*(root: string, files: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  return yield* readAll(root, yield* Effect.filter(files, (file) => fs.exists(path.resolve(root, file))))
+  const isFile = (file: string) =>
+    fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type === "File"), Effect.orElseSucceed(() => false))
+  return yield* readAll(root, yield* Effect.filter(files, isFile))
 })
 
 /**
@@ -183,19 +248,21 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const configFile = yield* readConfigFile(root)
   const config = yield* parseConfig(configFile)
   const stored = yield* readResults(root, config)
-  const [featurePaths, codePaths, stepPaths, inputPaths] = yield* Effect.all([
-    findFiles(root, config.features, config.exclude),
-    findFiles(root, config.code, config.exclude),
-    findFiles(root, config.steps, config.exclude),
-    findFiles(root, config.evidence.inputs, config.exclude)
+  const [features, code, steps, inputs] = yield* Effect.all([
+    findPaths(root, config.features, config.exclude),
+    findPaths(root, config.code, config.exclude),
+    findPaths(root, config.steps, config.exclude),
+    findPaths(root, config.evidence.inputs, config.exclude)
   ], { concurrency: "unbounded" })
-  const featureFiles = yield* readAll(root, featurePaths)
-  // Markdown where specs live: beside a feature file, or under the directory a features glob starts in.
-  const beside = [...new Set(featurePaths.map((file) => path.dirname(file)))].map((directory) => path.join(directory, "*.md"))
+  const featureFiles = yield* readAll(root, features.files)
+  // Markdown where specs live: beside a feature file, or under the directory a features glob starts
+  // in. sdp reads none of it, so what is no file is Markdown all the same.
+  const beside = [...new Set(features.files.map((file) => path.dirname(file)))].map((directory) => path.join(directory, "*.md"))
   const under = config.features.map(globBase).filter((base) => base !== "").map((base) => `${base}/**/*.md`)
-  const markdownFiles = yield* findFiles(root, [...beside, ...under], config.exclude)
-  const codeFiles = yield* readAll(root, codePaths)
-  const stepFiles = yield* readAll(root, stepPaths)
+  const markdown = yield* findPaths(root, [...beside, ...under], config.exclude)
+  const markdownFiles = [...markdown.files, ...markdown.unread.map((file) => file.path)].sort()
+  const codeFiles = yield* readAll(root, code.files)
+  const stepFiles = yield* readAll(root, steps.files)
   const recorded = Object.entries(stored?.imports ?? {})
   const imports = options.imports ?? []
   const imported = new Map(
@@ -212,13 +279,28 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const fingerprints: Fingerprints = {
     sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
-    inputs: declaredInputs(yield* readAll(root, inputPaths), config.evidence.env),
+    inputs: declaredInputs(yield* readAll(root, inputs.files), config.evidence.env),
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it.
     specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
   }
   const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
+  const built = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
+  // What the globs match that is no file is reported where it is: what it would hold is not read.
+  const notFiles = new Map([...features.unread, ...code.unread, ...steps.unread, ...inputs.unread].map((file) => [file.path, file]))
+  const project = notFiles.size === 0 ? built : {
+    ...built,
+    diagnostics: sortDiagnostics([
+      ...built.diagnostics,
+      ...[...notFiles.values()].map(({ is, path: file }) =>
+        diagnostic("not-a-file", {
+          message: `${file} is ${is}, matched by the globs of the configuration: sdp reads files, so what it would hold is not read`,
+          source: { file, line: 1 },
+          hint: `make it a file, or leave it out with exclude: ["${file}"] in the configuration`
+        })
+      )
+    ])
+  }
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources, stored } satisfies Workspace
 })

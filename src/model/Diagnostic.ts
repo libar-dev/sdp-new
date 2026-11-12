@@ -15,6 +15,7 @@ export const rules = {
   "derived-attribute": "error",
   "gherkin-syntax": "error",
   "not-a-spec": "warning",
+  "not-a-file": "error",
   "annotation": "error",
   "description-comment": "warning",
   "scenario-empty": "warning",
@@ -40,14 +41,16 @@ export const rules = {
 export type RuleId = keyof typeof rules
 
 /**
- * The rules that report part of the workspace as not read — a spec that does not parse, an id
- * declared twice, a tag or a code annotation whose fact or link is dropped, written where it
- * annotates nothing, or given a value another declaration of its node overrides. What they name is
+ * The rules that report part of the workspace as not read — a spec that does not parse, a path the
+ * globs match that is no file, an id declared twice, a tag or a code annotation whose fact or link
+ * is dropped, written where it annotates nothing, or given a value another declaration of its node
+ * overrides. What they name is
  * missing from the graph, so no answer drawn from the graph is known to be complete while one of
  * them is reported.
  */
 export const unreadRules: ReadonlySet<RuleId> = new Set([
   "gherkin-syntax",
+  "not-a-file",
   "duplicate-id",
   "annotation",
   "link-syntax",

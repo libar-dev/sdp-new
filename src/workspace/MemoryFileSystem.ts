@@ -2,7 +2,7 @@
  * An in-memory `FileSystem` for tests and executable specs: the real loading
  * pipeline runs against a map of `relative path → content` rooted at "/ws".
  */
-import { Effect, FileSystem, Glob, Layer, Path } from "effect"
+import { Effect, FileSystem, Layer, Path } from "effect"
 import { systemError } from "effect/PlatformError"
 import { noRevisions, Revisions } from "./Revisions.ts"
 import { loadProject } from "./Workspace.ts"
@@ -35,22 +35,20 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
       }),
     remove: (path) => Effect.sync(() => void files.delete(rel(path))),
     makeDirectory: () => Effect.void,
-    // Like the real one: paths under `root`, relative to it, the directories that match among them.
-    glob: (pattern, options) =>
-      Effect.sync(() => {
-        const glob = Glob.make(pattern, { dot: options?.dot ?? false })
-        const excludes = (options?.exclude ?? []).map((p) => Glob.make(p, { dot: true }))
-        const root = rel(options?.root ?? memoryRoot)
-        const prefix = root === "" ? "" : `${root}/`
-        const under = [...files.keys()].filter((file) => file.startsWith(prefix)).map((file) => file.slice(prefix.length))
-        const directories = new Set(under.flatMap((file) => {
-          const parts = file.split("/")
-          return parts.slice(1).map((_, i) => parts.slice(0, i + 1).join("/"))
-        }))
-        // A trailing `/` marks a directory.
-        const matches = (path: string) => Glob.match(glob, path) && !excludes.some((ex) => Glob.match(ex, path))
-        return [...under.filter(matches), ...[...directories].filter((directory) => matches(`${directory}/`))].sort()
-      }),
+    // Globs walk directories as on disk: each lists its entries with their types.
+    readDirectoryEntries: (path) => {
+      const directory = rel(path)
+      const prefix = directory === "" ? "" : `${directory}/`
+      const entries = new Map<string, FileSystem.File.Type>()
+      for (const file of files.keys()) {
+        if (!file.startsWith(prefix)) continue
+        const [name = "", ...below] = file.slice(prefix.length).split("/")
+        entries.set(name, below.length > 0 ? "Directory" : "File")
+      }
+      return entries.size === 0 && path !== memoryRoot
+        ? Effect.fail(notFound("readDirectoryEntries", path))
+        : Effect.succeed([...entries].map(([name, type]) => ({ name, type })))
+    },
     // Only the type: whether a path is a file or a directory is all sdp asks.
     stat: (path) =>
       files.has(rel(path))

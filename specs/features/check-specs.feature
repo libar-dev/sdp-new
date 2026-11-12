@@ -80,6 +80,29 @@ Feature: Check specs
         | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given("a cart of {items}", () => {})\n})                                  |
         | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(/a (cart of items/, () => {})\n})                                   |
 
+    Scenario Outline: A path the globs match that is no file sdp can read: <what>
+      Given a file "src/cart.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "<made by>"
+      Then the exit code is 0
+      When I run "sdp check --severity error --json --base none"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule     | not-a-file |
+        | data.severity | error      |
+        | data.file     | src/<file> |
+        | data.line     | 1          |
+      When I run "sdp q code --ids"
+      Then the exit code is 2
+      And the output contains "not read: src/<file>:1 [not-a-file]"
+
+      Examples:
+        | what              | made by                      | file    |
+        | a link to nothing | ln -s nowhere.ts src/gone.ts | gone.ts |
+        | a named pipe      | mkfifo src/pipe.ts           | pipe.ts |
+
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec
 
