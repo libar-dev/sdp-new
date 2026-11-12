@@ -650,6 +650,24 @@ Feature: Check specs
         | a link to a file git does not hold | ln -s untracked.yaml sdp.config.yaml           | 2         | false    |
         | a link out of the repository       | ln -s /nowhere/sdp.config.yaml sdp.config.yaml | 2         | false    |
 
+    Scenario Outline: A link out of the repository or in a circle at the base, <case>
+      When I run the pipeline:
+        """
+        <links>
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | complete | <complete> |
+
+      Examples:
+        | case                                          | links                                                                                                      | exit code | complete |
+        | where the specs are                           | mkdir tools && ln -s ../../shared-config tools/shared && ln -s self self                                   | 0         | true     |
+        | a configuration file sdp reads only after one | echo '# every key at its default' > sdp.config.yaml && ln -s /nowhere/sdp.config.json sdp.config.json      | 0         | true     |
+        | that a features glob names                    | echo 'features: ["specs/**/*.feature", "shared/*.feature"]' > sdp.config.yaml && ln -s ../elsewhere shared | 2         | false    |
+
     Scenario: A spec deleted, from a workspace whose directory's name starts with a space
       Given a file " app/sdp.config.yaml" containing:
         """

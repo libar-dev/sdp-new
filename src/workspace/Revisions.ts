@@ -12,7 +12,7 @@
  * @sdp is ARCH-workspace
  */
 import { ByteSize, Context, Effect, FileSystem, Layer, Option, Result, Schema, Stream } from "effect"
-import { systemError } from "effect/PlatformError"
+import { type PlatformError, systemError } from "effect/PlatformError"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import type { SourceFile } from "../graph/Build.ts"
 import type { BaseSpecs } from "../check/Check.ts"
@@ -124,76 +124,87 @@ export const gitRevisions = Layer.effect(
       if (commit === undefined) return yield* missing(`${command} found no commit`)
       const at = commit.slice(0, 7)
 
-      // Every file of the commit, from the top of the repository, each with its blob: read by blob, a
-      // file is read whatever bytes its name holds. The workspace is the directory `prefix` names.
+      // The workspace is the directory `prefix` names in its repository.
       const prefix = pathOf(yield* inWorkspace(["rev-parse", "--show-prefix"]))
-      const tree = yield* inWorkspace(["ls-tree", "-r", "-z", "--full-tree", commit])
-      if (prefix === undefined || tree?.code !== 0) return yield* missing(`git ls-tree could not list the files of ${at}`)
-      const entries = new Map(tree.out.toString("utf8").split("\0").flatMap((entry) => {
-        const tab = entry.indexOf("\t")
-        const [mode, , object] = entry.slice(0, Math.max(0, tab)).split(" ")
-        return tab > 0 && mode !== undefined && object !== undefined ? [[entry.slice(tab + 1), { mode, object }] as const] : []
-      }))
-      const read = Effect.fnUntraced(function*(wanted: ReadonlyArray<{ readonly path: string; readonly object: string }>) {
-        if (wanted.length === 0) return []
-        const out = yield* inWorkspace(["cat-file", "--batch"], wanted.map(({ object }) => `${object}\n`).join(""))
-        return out?.code === 0 ? batch(wanted, out.out) : undefined
-      })
-      const links = yield* read([...entries].flatMap(([path, { mode, object }]) => mode === symbolicLink ? [{ path, object }] : []))
-      if (links === undefined) return yield* missing(`git cat-file could not read the symbolic links of ${at}`)
-      const committed = treeFiles(entries, new Map(links.map(({ content, path }) => [path, content])))
+      if (prefix === undefined) return yield* missing("git could not say where this workspace is in its repository")
       const workspace = prefix.replace(/\/$/, "")
       const fromTop = (path: string) => workspace === "" ? path : `${workspace}/${path}`
-      // Each path of the workspace with the blob of the file it leads to at the base, if it leads to one.
-      const inCommit = (paths: ReadonlyArray<string>) => paths.map((path) => ({ path, object: committed.blob(fromTop(path)) }))
-      const held = (wanted: ReturnType<typeof inCommit>) =>
-        wanted.flatMap(({ object, path }) => object === undefined ? [] : [{ path, object }])
-
-      // The base is read as it was configured — its features globs, its exclusions and its vocabulary —
-      // from the first configuration file it has, as on disk. One that is a link to no file git holds
-      // may lead to a file of this machine, so the configuration the base would use is not known.
-      const configName = configFileNames.find((name) => committed.has(fromTop(name)))
-      const configFile = configName === undefined ? undefined : held(inCommit([configName]))[0]
-      if (configName !== undefined && configFile === undefined) {
-        return yield* missing(`the configuration of ${at} is not known: its ${configName} is a link to no file git holds`)
-      }
-      const configFiles = yield* read(configFile === undefined ? [] : [configFile])
-      if (configFiles === undefined) return yield* missing(`git cat-file could not read the configuration of ${at}`)
-      const parsed = yield* Effect.result(parseConfig(configFiles[0]))
-      if (Result.isFailure(parsed)) return yield* missing(`the configuration of ${at} does not read: ${parsed.failure.message}`)
-      const config = parsed.success
-      // Its specs are those the workspace's own walk finds there: what it reaches that the commit
-      // cannot say is a part of the base that was not compared.
-      const listed = yield* Effect.result(
-        findFiles(workspace, config.features, config.exclude).pipe(Effect.provideService(FileSystem.FileSystem, committed.fileSystem))
-      )
-      if (Result.isFailure(listed)) return yield* missing(`the files of ${at} could not be listed: ${listed.failure.message}`)
-      const specs = inCommit(listed.success)
-      const files = yield* read(held(specs))
-      if (files === undefined) return yield* missing(`git cat-file could not read the specs of ${at}`)
       const fromWorkspace = (path: string) => path.startsWith(prefix) ? path.slice(prefix.length) : path
-      const unknown = new Map([
-        ...[...committed.unknown].map(([path, what]) => [fromWorkspace(path), what] as const),
-        ...specs.filter(({ object }) => object === undefined).map(({ path }) => [path, "a link to nothing"] as const)
-      ])
-      const unread = [
-        ...[...unknown].map(([path, what]) =>
-          `not compared: ${path} at the base ${at} is ${what}, so git holds none of what the configuration finds there`
-        ),
-        ...[...committed.folded].map(([written, actual]) =>
-          `not compared: ${fromWorkspace(written)} is ${fromWorkspace(actual)} at the base ${at}: a file system that ignores case reads one for the other, and git does not`
+      const committed = commitFiles((repository, args, input) => git(repository, args, input, env), { mode: tree, object: commit, repository: root })
+      return yield* Effect.gen(function*() {
+        // The base is read as it was configured — its features globs, its exclusions and its vocabulary —
+        // from the first configuration file it has, as on disk. One that is a link to no file git holds
+        // may lead to a file of this machine, so the configuration the base would use is not known.
+        const configName = Option.getOrUndefined(yield* Effect.findFirst(configFileNames, (name) =>
+          Effect.map(committed.reach(fromTop(name), false), (reached) => reached !== undefined)
+        ))
+        const configEntry = configName === undefined ? undefined : yield* committed.file(fromTop(configName))
+        if (configName !== undefined && configEntry === undefined) {
+          return yield* missing(`the configuration of ${at} is not known: its ${configName} is a link to no file git holds`)
+        }
+        const configFiles = yield* committed.read(configName === undefined || configEntry === undefined ? [] : [{ path: configName, entry: configEntry }])
+        if (configFiles === undefined) return yield* missing(`git cat-file could not read the configuration of ${at}`)
+        const parsed = yield* Effect.result(parseConfig(configFiles[0]))
+        if (Result.isFailure(parsed)) return yield* missing(`the configuration of ${at} does not read: ${parsed.failure.message}`)
+        const config = parsed.success
+        // Its specs are those the workspace's own walk finds there: what it reads there that the commit
+        // cannot say is a part of the base that was not compared.
+        const listed = yield* findFiles(workspace, config.features, config.exclude).pipe(
+          Effect.provideService(FileSystem.FileSystem, committed.fileSystem)
         )
-      ]
-      return { found: { commit: at, command, files, config, missing: unread } }
+        const specs = yield* Effect.forEach(listed, (path) =>
+          Effect.map(committed.file(fromTop(path)), (entry) => entry === undefined ? [] : [{ path, entry }])
+        )
+        const files = yield* committed.read(specs.flat())
+        if (files === undefined) return yield* missing(`git cat-file could not read the specs of ${at}`)
+        const { folded, unknown } = yield* committed.unread
+        const unread = [
+          ...unknown.map(([path, what]) =>
+            `not compared: ${fromWorkspace(path)} at the base ${at} is ${what}, so git holds none of what the configuration finds there`
+          ),
+          ...folded.map(([written, actual]) =>
+            `not compared: ${fromWorkspace(written)} is ${fromWorkspace(actual)} at the base ${at}: a file system that ignores case reads one for the other, and git does not`
+          )
+        ]
+        return { found: { commit: at, command, files, config, missing: unread } } satisfies BaseRead
+      }).pipe(Effect.catchTag("PlatformError", (error) => missing(`the files of ${at} could not be listed: ${error.message}`)))
     })
     return { base }
   })
 )
 
-/** The mode `git ls-tree` gives a symbolic link, whose blob holds its target, and a submodule, whose files are another repository's. */
+/** The mode `git ls-tree` gives a directory, a symbolic link, whose blob holds its target, and a submodule, whose files are another repository's. */
+const tree = "040000"
 const symbolicLink = "120000"
 const submodule = "160000"
 const inSubmodule = "a submodule, whose files are another repository's"
+
+/** A path from the root of a file system, not from the top of the repository. */
+const outOfRepository = /^(\/|[A-Za-z]:\/)/
+
+/** An entry of a commit's tree: its mode, its object, and the directory git reads that object in. */
+interface Entry {
+  readonly mode: string
+  readonly object: string
+  readonly repository: string
+}
+
+const isFile = (entry: Entry) => entry.mode !== tree && entry.mode !== submodule && entry.mode !== symbolicLink
+const typeOf = (entry: Entry): FileSystem.File.Type =>
+  entry.mode === tree || entry.mode === submodule ? "Directory" : entry.mode === symbolicLink ? "SymbolicLink" : "File"
+
+/** A git command run in a repository: its exit code and what it wrote, or undefined when git does not run. */
+type Git = (repository: string, args: ReadonlyArray<string>, input?: string) => Effect.Effect<{ readonly code: number; readonly out: Buffer } | undefined>
+
+/**
+ * Where a path leads in a commit's tree: the path it reaches, with its entry; where the tree cannot
+ * say, what the path is, or the name the tree has for it only in another case; or nowhere.
+ */
+type Reached =
+  | { readonly found: string; readonly entry: Entry }
+  | { readonly unknown: string; readonly at: string }
+  | { readonly folded: string; readonly at: string }
+  | undefined
 
 /** All a file of a commit can say of itself: its type. */
 const fileInfo = (type: FileSystem.File.Type): FileSystem.File.Info => ({
@@ -213,97 +224,162 @@ const fileInfo = (type: FileSystem.File.Type): FileSystem.File.Info => ({
   blocks: Option.none()
 })
 
+/** The entries `git ls-tree -z` wrote, each by its path in the tree listed, in `repository`. */
+const treeEntries = (out: Buffer, repository: string) =>
+  out.toString("utf8").split("\0").flatMap((line) => {
+    const tab = line.indexOf("\t")
+    const [mode, , object] = line.slice(0, Math.max(0, tab)).split(" ")
+    return tab > 0 && mode !== undefined && object !== undefined ? [[line.slice(tab + 1), { mode, object, repository }] as const] : []
+  })
+
 /**
- * The files of a commit, by their path from the top of the repository, as a file system the
- * workspace's walk (`findFiles`) can find specs in as it finds them on disk: a symbolic link leads
- * where its target does. What a path reaches that the commit cannot say is recorded: in `unknown`,
- * what it is — out of the repository, a submodule — and in `folded`, a name the tree has only in
- * another case, which a file system that ignores case would read for it. `blob` is the blob of the
- * file a path leads to, if it leads to one.
+ * The files of a commit, `top` its tree, by their path from the top of the repository, as a file
+ * system the workspace's walk (`findFiles`) finds specs in as it finds them on disk: a symbolic link
+ * leads where its target does. A directory is listed from git when a path first goes through it, and
+ * with all below it when the walk reads it, the targets of its links with it: reading the base costs
+ * what its globs reach, not the size of the repository.
+ *
+ * What the walk reads there that the commit cannot say — a directory it lists, or a file it accepts,
+ * out of the repository, through a link in a circle, in a submodule, or by a name the tree has only
+ * in another case — is recorded in `unread`. A link it only passes over is not: on disk as here, `**`
+ * follows none, so whatever it leads to is never read.
  */
-const treeFiles = (
-  entries: ReadonlyMap<string, { readonly mode: string; readonly object: string }>,
-  targets: ReadonlyMap<string, string>
-) => {
-  const listings = new Map<string, Map<string, FileSystem.File.Type>>([["", new Map()]])
-  for (const [path, { mode }] of entries) {
-    const names = path.split("/")
-    names.forEach((name, at) => {
-      const directory = names.slice(0, at).join("/")
-      const listing = listings.get(directory) ?? listings.set(directory, new Map()).get(directory)!
-      listing.set(name, at < names.length - 1 || mode === submodule ? "Directory" : mode === symbolicLink ? "SymbolicLink" : "File")
-    })
-  }
+const commitFiles = (git: Git, top: Entry) => {
+  /** Each directory listed so far, by its path, and those listed with all below them. */
+  const listings = new Map<string, Map<string, Entry>>()
+  const whole = new Set<string>()
+  /** The target of each link in a directory listed so far, by the link's path. */
+  const targets = new Map<string, string>()
+  /** What the walk read and the commit cannot say: what each path is, or the name the tree has for it. */
   const unknown = new Map<string, string>()
   const folded = new Map<string, string>()
-  const cannotSay = (path: string, what: string) => void unknown.set(path, what)
-  /** Where `written` leads in the tree, its links followed — the last one only if `follow` — or undefined when nowhere. */
-  const resolve = (written: string, follow: boolean): string | undefined => {
-    if (/^(\/|[A-Za-z]:\/)/.test(written)) return cannotSay(written, "outside the repository")
+
+  /** The blobs of `wanted`, read in the repository of each, or undefined when git cannot read one. */
+  const read = Effect.fnUntraced(function*(wanted: ReadonlyArray<{ readonly path: string; readonly entry: Entry }>) {
+    const files: Array<SourceFile> = []
+    for (const repository of new Set(wanted.map(({ entry }) => entry.repository))) {
+      const blobs = wanted.flatMap(({ entry, path }) => entry.repository === repository ? [{ path, object: entry.object }] : [])
+      const out = yield* git(repository, ["cat-file", "--batch"], blobs.map(({ object }) => `${object}\n`).join(""))
+      const read = out?.code === 0 ? batch(blobs, out.out) : undefined
+      if (read === undefined) return undefined
+      files.push(...read)
+    }
+    return files
+  })
+
+  const cannotList = (path: string) =>
+    systemError({ _tag: "Unknown", module: "FileSystem", method: "readDirectoryEntries", pathOrDescriptor: path, description: "git could not list it" })
+
+  /** The directory at `path`, the tree `entry` is, listed — with all below it if `deep` — and the targets of its links read. */
+  const list = Effect.fnUntraced(function*(path: string, entry: Entry, deep: boolean) {
+    const out = yield* git(entry.repository, ["ls-tree", "--full-tree", ...(deep ? ["-r", "-t"] : []), "-z", entry.object])
+    if (out?.code !== 0) return yield* Effect.fail(cannotList(path))
+    const listed = treeEntries(out.out, entry.repository).map(([name, child]) => [path === "" ? name : `${path}/${name}`, child] as const)
+    const links = yield* read(listed.flatMap(([at, child]) => child.mode === symbolicLink ? [{ path: at, entry: child }] : []))
+    if (links === undefined) return yield* Effect.fail(cannotList(path))
+    const listingAt = (directory: string) => listings.get(directory) ?? listings.set(directory, new Map()).get(directory)!
+    listingAt(path)
+    if (deep) whole.add(path)
+    for (const [at, child] of listed) {
+      const slash = at.lastIndexOf("/")
+      listingAt(at.slice(0, Math.max(0, slash))).set(at.slice(slash + 1), child)
+      if (deep && child.mode === tree) whole.add(at)
+    }
+    for (const { content, path: at } of links) targets.set(at, content)
+    return listingAt(path)
+  })
+
+  /**
+   * The listing of the directory at `path`, `entry` in the tree, read when first reached — with all
+   * below it if `deep` —, or what it is when the commit cannot say, or undefined when it is no directory.
+   */
+  const listingOf = Effect.fnUntraced(function*(path: string, entry: Entry, deep: boolean) {
+    if (whole.has(path) || (!deep && listings.has(path))) return listings.get(path)!
+    if (entry.mode === submodule) return inSubmodule
+    return entry.mode === tree ? yield* list(path, entry, deep) : undefined
+  })
+
+  /** Where `written` leads in the tree, its links followed — the last one only if `follow`. */
+  const reach = Effect.fnUntraced(function*(written: string, follow: boolean): Effect.fn.Return<Reached, PlatformError> {
+    if (outOfRepository.test(written)) return { unknown: "outside the repository", at: written }
     const pending = written.split("/")
-    const reached: Array<string> = []
+    const reached: Array<{ readonly name: string; readonly entry: Entry }> = []
     for (let hops = 0; pending.length > 0;) {
       const name = pending.shift()!
       if (name === "" || name === ".") continue
       if (name === "..") {
-        if (reached.pop() === undefined) return cannotSay(written, "outside the repository")
+        if (reached.pop() === undefined) return { unknown: "outside the repository", at: written }
         continue
       }
-      const listing = listings.get(reached.join("/"))
-      const type = listing?.get(name)
-      const path = [...reached, name].join("/")
-      if (type === undefined) {
+      const directory = reached.map((step) => step.name).join("/")
+      const listing = yield* listingOf(directory, reached.at(-1)?.entry ?? top, false)
+      if (typeof listing === "string") return { unknown: listing, at: directory }
+      const entry = listing?.get(name)
+      const path = directory === "" ? name : `${directory}/${name}`
+      if (entry === undefined) {
         const other = [...listing?.keys() ?? []].find((candidate) => candidate.toLowerCase() === name.toLowerCase())
-        if (other !== undefined) folded.set(path, [...reached, other].join("/"))
-        return undefined
+        return other === undefined ? undefined : { folded: directory === "" ? other : `${directory}/${other}`, at: path }
       }
-      if (entries.get(path)?.mode === submodule && pending.length > 0) return cannotSay(path, inSubmodule)
-      if (type === "SymbolicLink" && (follow || pending.length > 0)) {
+      if (entry.mode === symbolicLink && (follow || pending.length > 0)) {
         const target = targets.get(path) ?? ""
-        if (++hops > 40 || /^(\/|[A-Za-z]:\/)/.test(target)) return cannotSay(written, "a link out of the repository, or in a circle")
+        if (++hops > 40 || outOfRepository.test(target)) return { unknown: "a link out of the repository, or in a circle", at: written }
         pending.unshift(...target.split("/"))
         continue
       }
-      reached.push(name)
+      reached.push({ name, entry })
     }
-    return reached.join("/")
-  }
-  const typeOf = (path: string): FileSystem.File.Type | undefined => {
-    const at = path.lastIndexOf("/")
-    return path === "" ? "Directory" : listings.get(path.slice(0, Math.max(0, at)))?.get(path.slice(at + 1))
-  }
+    return { found: reached.map((step) => step.name).join("/"), entry: reached.at(-1)?.entry ?? top }
+  })
+
+  const record = (reached: Exclude<Reached, { readonly found: string } | undefined>) =>
+    Effect.sync(() => {
+      if ("unknown" in reached) unknown.set(reached.at, reached.unknown)
+      else folded.set(reached.at, reached.folded)
+    })
   const notFound = (method: string, path: string) =>
     Effect.fail(systemError({ _tag: "NotFound", module: "FileSystem", method, pathOrDescriptor: path }))
+
   const fileSystem = FileSystem.make(FileSystem.makeNoop({
-    stat: (path) => {
-      const found = resolve(path, true)
-      const type = found === undefined ? undefined : typeOf(found)
-      return type === undefined ? notFound("stat", path) : Effect.succeed(fileInfo(type))
-    },
-    readDirectoryEntries: (path) => {
-      const found = resolve(path, true)
-      if (found !== undefined && entries.get(found)?.mode === submodule) cannotSay(found, inSubmodule)
-      const listing = found === undefined ? undefined : listings.get(found)
-      return listing === undefined
-        ? notFound("readDirectoryEntries", path)
-        : Effect.succeed([...listing].map(([name, type]) => ({ name, type })))
-    },
-    readLink: (path) => {
-      const found = resolve(path, false)
-      const target = found === undefined ? undefined : targets.get(found)
-      return target === undefined
-        ? Effect.fail(systemError({ _tag: "Unknown", module: "FileSystem", method: "readLink", pathOrDescriptor: path }))
-        : Effect.succeed(target)
-    }
+    // What the commit cannot say is taken for a directory: the walk then reads it only where it reads
+    // one a link leads to, through a segment that names it, and it is recorded there.
+    stat: (path) =>
+      Effect.flatMap(reach(path, true), (reached) =>
+        reached === undefined ? notFound("stat", path) : Effect.succeed(fileInfo("found" in reached ? typeOf(reached.entry) : "Directory"))
+      ),
+    readDirectoryEntries: (path) =>
+      Effect.gen(function*() {
+        const reached = yield* reach(path, true)
+        if (reached === undefined) return yield* notFound("readDirectoryEntries", path)
+        if (!("found" in reached)) {
+          yield* record(reached)
+          return yield* notFound("readDirectoryEntries", path)
+        }
+        const listing = yield* listingOf(reached.found, reached.entry, true)
+        if (typeof listing === "string") yield* record({ unknown: listing, at: reached.found })
+        return typeof listing === "object"
+          ? [...listing].map(([name, entry]) => ({ name, type: typeOf(entry) }))
+          : yield* notFound("readDirectoryEntries", path)
+      }),
+    readLink: (path) =>
+      Effect.gen(function*() {
+        const reached = yield* reach(path, false)
+        const target = reached !== undefined && "found" in reached ? targets.get(reached.found) : undefined
+        return target ?? (yield* Effect.fail(systemError({ _tag: "Unknown", module: "FileSystem", method: "readLink", pathOrDescriptor: path })))
+      })
   }))
-  /** Whether `written` names an entry of the tree, a link whatever it leads to. */
-  const has = (written: string) => resolve(written, false) !== undefined
-  const blob = (written: string): string | undefined => {
-    const found = resolve(written, true)
-    const entry = found === undefined ? undefined : entries.get(found)
-    return entry === undefined || entry.mode === submodule ? undefined : entry.object
-  }
-  return { fileSystem, has, blob, unknown, folded }
+
+  /** The file the walk accepted at `written`, if it is one; what the commit cannot say of it is recorded. */
+  const file = Effect.fnUntraced(function*(written: string) {
+    const reached = yield* reach(written, true)
+    if (reached !== undefined && "found" in reached) return isFile(reached.entry) ? reached.entry : undefined
+    yield* record(reached ?? { unknown: "a link to nothing", at: written })
+    return undefined
+  })
+
+  /** What the walk read that the commit cannot say: what each path is, and the name the tree has for each folded one. */
+  const unread = Effect.sync(() => ({ unknown: [...unknown], folded: [...folded] }))
+
+  return { fileSystem, reach, file, read, unread }
 }
 
 /**
