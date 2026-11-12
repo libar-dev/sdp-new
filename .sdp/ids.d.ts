@@ -26,6 +26,8 @@ declare module "sdp/annotations" {
     "GUIDE": "guide"
     "IT-packaging": "iteration"
     "IT-scale-and-compatibility": "iteration"
+    "link-attributes-on-annotations": "change"
+    "link-code-to-specs": "feature"
     "MS-mvp": "milestone"
     "NFR-no-build-step": "nfr"
     "PAT-derived-index": "pattern"

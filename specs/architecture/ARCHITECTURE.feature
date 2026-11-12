@@ -31,6 +31,22 @@ Feature: Architecture overview
       Then the query "element" returns at least 1 result
       And the query "element !<-is- code" returns no results
 
+  Rule: Every annotation in this repository reads, and the ids it is typed against are current
+
+    sdp only warns about either; this repository fails its run instead.
+
+    Scenario: Annotations found, none unreadable, and no stale id types
+      Then the query "code -is-> element|pattern" returns at least 1 result
+      And there are no diagnostics for rule "annotation-unreadable"
+      And there are no diagnostics for rule "types-stale"
+
+  Rule: Code in this repository links only to the architecture, and every ready requirement or feature names the element that realizes it
+
+    Scenario: No code outside the architecture, none linked to a requirement, no ready requirement or feature without an element
+      Then the query "code !-is|instance-of-> element|pattern" returns no results
+      And the query "code ?-*-> requirement|nfr" returns no results
+      And the query "requirement|feature[maturity=ready] !-realized-by-> element" returns no results
+
   @open
   Rule: Does `src/app/` — the use cases, the answer envelope, the templates — get an element of its own?
 
