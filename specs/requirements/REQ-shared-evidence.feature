@@ -1,14 +1,15 @@
 @id=REQ-shared-evidence @maturity=idea
-@refines:CAP-living-specs @decided-by:DEC-0010
+@refines:CAP-living-specs
 Feature: Evidence shared between machines
 
-  `.sdp/results.json` is evidence about one checkout (DEC-0010): a colleague, or a reviewer of a
-  pull request, sees `verified` only after running everything again. A team should be able to take
-  the evidence a CI run produced — for exactly the inputs it fingerprinted — and read it wherever
-  those inputs are the same.
+  `.sdp/results.json` is evidence about one checkout: a colleague, or a reviewer of a pull request,
+  sees `verified` only after running everything again.
+
+  @decided-by:DEC-0010
+  Rule: Evidence a CI run produced counts wherever the inputs it fingerprinted are the same
 
   @open
-  Rule: What is exchanged: the results file as it is, or one immutable artifact per run with an index derived from them?
+  Rule: What is exchanged: the results file as it is, one immutable artifact per run with an index derived from them, or Cucumber Messages that existing reporters render?
 
   @open
   Rule: Which run counts when several cover the same scenario: the latest, a named CI run, or only results that agree?
