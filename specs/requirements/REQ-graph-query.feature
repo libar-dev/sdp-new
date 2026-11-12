@@ -3,266 +3,248 @@
 @iteration:I1 @activity.implementation:I1 @activity.test:I1
 Feature: Path-pattern queries
 
-  People and agents ask the graph a question in one line — on the command line, over MCP and inside
+  People and agents ask the graph a question in one line: on the command line, over MCP and inside
   scenarios, which is how gates, guards and architecture rules are written. The syntax is a public
   contract, because specs in every workspace embed it.
 
-  A query returns nodes or paths and nothing more: counting and grouping are jq's
-  (REQ-graph-export).
-
   Background:
-    Given a file "model.md" containing:
-      """
-      ---
-      id: MODEL
-      kind: model
-      nodes:
-        - { id: REQ-checkout, kind: requirement, maturity: ready, tags: [checkout, web], due: "2026-12-01", links: { realized-by: ARCH-orders } }
-        - { id: REQ-refunds, kind: requirement, maturity: idea, estimate: 8, due: "2027-03-01", links: { realized-by: ARCH-billing } }
-        - { id: ARCH-orders, kind: element, title: "Order service, v2", public: true, links: { depends-on: ARCH-billing } }
-        - { id: ARCH-billing, kind: element, title: Billing, public: false, links: { depends-on: ARCH-ledger } }
-        - { id: ARCH-ledger, kind: element, title: "Ledger [legacy]", owner: { team: core }, links: { depends-on: ARCH-orders } }
-      ---
-      # Model
+    Given these specs:
+      | tags                                                                                     | Feature           |
+      | @id=REQ-checkout @maturity=ready @checkout @web @due=2026-12-01 @realized-by:ARCH-orders | Checkout          |
+      | @id=REQ-refunds @maturity=idea @estimate=8 @due=2027-03-01 @realized-by:ARCH-billing     | Refunds           |
+      | @id=ARCH-orders @public=true @depends-on:ARCH-billing                                    | Order service, v2 |
+      | @id=ARCH-billing @public=false @depends-on:ARCH-ledger                                   | Billing           |
+      | @id=ARCH-ledger @owner.team=core @depends-on:ARCH-orders                                 | Ledger [legacy]   |
 
-      Everything ends in the [[ARCH-ledger]].
-      """
+  Rule: A query is node selectors joined by edges, and returns nodes or paths and nothing more
 
-  Scenario: The grammar is what sdp q --help prints
-    When I run "sdp q --help"
-    Then the output contains:
-      """
-      query  := node (edge node)* [edge]
-      node   := (kind(|kind)* | * | #ID(|ID)*) ([cond(, cond)*])*
-      cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v | key<=v | key>v | key>=v
-      edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
-      """
+    Counting and grouping are jq's, over `sdp graph`.
 
-  Scenario Outline: A selector names kinds, ids or every node
-    When I query "<query>"
-    Then the result is "<result>"
+    Scenario: The grammar is what sdp q --help prints
+      When I run "sdp q --help"
+      Then the output contains:
+        """
+        query  := node (edge node)* [edge]
+        node   := (kind(|kind)* | * | #ID(|ID)*) ([cond(, cond)*])*
+        cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v | key<=v | key>v | key>=v
+        edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
+        """
 
-    Examples:
-      | query                     | result                                                                   |
-      | requirement\|element      | REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger        |
-      | *                         | MODEL, REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
-      | #ARCH-orders\|REQ-refunds | ARCH-orders, REQ-refunds                                                 |
+    Scenario Outline: A malformed query is rejected with a reason
+      When I query '<query>'
+      Then the query is rejected with "<reason>"
 
-  Scenario Outline: A word the workspace does not know is no error: it matches nothing
-    When I query "<query>"
-    Then the result is "<result>"
+      Examples:
+        | query                                      | reason                   |
+        |                                            | empty query              |
+        | requirement]                               | unbalanced               |
+        | *[title="open                              | unbalanced               |
+        | requirement realized-by element            | expected an edge         |
+        | requirement <-realized-by-> element        | expected an edge         |
+        | requirement -realized-by-> -depends-on-> * | expected a node selector |
+        | requirement[maturity=ready]x               | could not parse filters  |
+        | requirement[=ready]                        | invalid condition        |
+        | requirement[!maturity=ready]               | only negates bare keys   |
+        | *[title~(]                                 | invalid regex            |
 
-    Examples:
-      | query               | result  |
-      | #ARCH-unknown       | nothing |
-      | gizmo               | nothing |
-      | element -feeds-> *  | nothing |
-      | element[colour=red] | nothing |
+  Rule: A selector names kinds, ids or every node
 
-  Scenario Outline: Every condition must hold, in one group or in several
-    When I query "<query>"
-    Then the result is "<result>"
+    Scenario Outline: Kinds, ids and the star
+      When I query "<query>"
+      Then the result is "<result>"
 
-    Examples:
-      | query                        | result      |
-      | element[public, title~order] | ARCH-orders |
-      | element[public][title~order] | ARCH-orders |
-      | #ARCH-orders[public]         | ARCH-orders |
-      | #ARCH-billing[public]        | nothing     |
+      Examples:
+        | query                     | result                                                            |
+        | requirement\|element      | REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
+        | *                         | REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
+        | #ARCH-orders\|REQ-refunds | ARCH-orders, REQ-refunds                                          |
 
-  Scenario Outline: A bare key asks whether it is set; a comparison reads the value
-    Given a file "flags.md" containing:
-      """
-      ---
-      id: FLAGS
-      kind: flags
-      nodes:
-        - { id: F-missing, kind: flag }
-        - { id: F-null, kind: flag, value: null }
-        - { id: F-false, kind: flag, value: false }
-        - { id: F-zero, kind: flag, value: 0 }
-        - { id: F-empty, kind: flag, value: "" }
-        - { id: F-none, kind: flag, value: [] }
-        - { id: F-true, kind: flag, value: true }
-      ---
-      # Flags
-      """
-    When I query '<query>'
-    Then the result is "<result>"
+    Scenario Outline: A word the workspace does not know is no error: it matches nothing
+      When I query "<query>"
+      Then the result is "<result>"
 
-    Examples: Missing, null, false, empty text and an empty list are not set
-      | query        | result                                      |
-      | flag[value]  | F-zero, F-true                              |
-      | flag[!value] | F-missing, F-null, F-false, F-empty, F-none |
+      Examples:
+        | query               | result  |
+        | #ARCH-unknown       | nothing |
+        | gizmo               | nothing |
+        | element -feeds-> *  | nothing |
+        | element[colour=red] | nothing |
 
-    Examples: = and ~ find false, zero and empty text; != also matches a node that has no value
-      | query              | result                                             |
-      | flag[value=false]  | F-false                                            |
-      | flag[value!=false] | F-missing, F-null, F-zero, F-empty, F-none, F-true |
-      | flag[value=0]      | F-zero                                             |
-      | flag[value=""]     | F-empty                                            |
-      | flag[value!=""]    | F-missing, F-null, F-false, F-zero, F-none, F-true |
-      | flag[value=null]   | nothing                                            |
-      | flag[value~^f]     | F-false                                            |
-      | flag[value<1]      | F-zero                                             |
+  Rule: A node matches when every condition holds, in one group or in several
 
-  Scenario Outline: Case is ignored, and a list matches when any of its elements does
-    When I query "<query>"
-    Then the result is "<result>"
+    Scenario Outline: In one group or in several
+      When I query "<query>"
+      Then the result is "<result>"
 
-    Examples:
-      | query                  | result       |
-      | element[public=TRUE]   | ARCH-orders  |
-      | element[title=BILLING] | ARCH-billing |
-      | element[title~^bill]   | ARCH-billing |
-      | requirement[tags=web]  | REQ-checkout |
-      | requirement[tags!=web] | REQ-refunds  |
+      Examples:
+        | query                        | result      |
+        | element[public, title~order] | ARCH-orders |
+        | element[public][title~order] | ARCH-orders |
+        | #ARCH-orders[public]         | ARCH-orders |
+        | #ARCH-billing[public]        | nothing     |
 
-  Scenario Outline: A bar separates alternatives, except in a regex or in quotes
-    When I query '<query>'
-    Then the result is "<result>"
+  Rule: A bare key asks whether a value is set, and a comparison reads the value
 
-    Examples:
-      | query                               | result                    |
-      | requirement[maturity=ready\|idea]   | REQ-checkout, REQ-refunds |
-      | requirement[maturity!=ready\|draft] | REQ-refunds               |
-      | element[title!~^(billing\|ledger)]  | ARCH-orders               |
-      | element[title~^[bl]]                | ARCH-billing, ARCH-ledger |
-      | element[title~\[legacy\]]           | ARCH-ledger               |
-      | *[title="Order service, v2"]        | ARCH-orders               |
-      | *[title~"service, v[0-9]"]          | ARCH-orders               |
+    Scenario Outline: Set and unset values
+      Given these specs:
+        | tags                                | Feature  |
+        | @id=F-missing @kind=flag            | No value |
+        | @id=F-false @kind=flag @value=false | False    |
+        | @id=F-zero @kind=flag @value=0      | Zero     |
+        | @id=F-true @kind=flag @value=true   | True     |
+      When I query '<query>'
+      Then the result is "<result>"
 
-  Scenario Outline: Less and greater order values that are set
-    When I query "<query>"
-    Then the result is "<result>"
+      Examples: Missing and false are not set
+        | query        | result             |
+        | flag[value]  | F-zero, F-true     |
+        | flag[!value] | F-missing, F-false |
 
-    Examples: Along the maturity ladder
-      | query                       | result       |
-      | requirement[maturity>idea]  | REQ-checkout |
-      | requirement[maturity<=idea] | REQ-refunds  |
+      Examples: = and ~ find false and zero; != also matches a node that has no value
+        | query              | result                    |
+        | flag[value=false]  | F-false                   |
+        | flag[value!=false] | F-missing, F-zero, F-true |
+        | flag[value=0]      | F-zero                    |
+        | flag[value~^f]     | F-false                   |
+        | flag[value<1]      | F-zero                    |
 
-    Examples: Then as numbers; a node without the key is not compared
-      | query                     | result      |
-      | requirement[estimate>5]   | REQ-refunds |
-      | requirement[estimate<100] | REQ-refunds |
+    Scenario Outline: Case is ignored, and a list matches when any of its elements does
+      When I query "<query>"
+      Then the result is "<result>"
 
-    Examples: Then as text, so ISO dates order
-      | query                        | result       |
-      | requirement[due<2027-01-01]  | REQ-checkout |
-      | requirement[due>=2027-03-01] | REQ-refunds  |
+      Examples:
+        | query                  | result       |
+        | element[public=TRUE]   | ARCH-orders  |
+        | element[title=BILLING] | ARCH-billing |
+        | element[title~^bill]   | ARCH-billing |
+        | requirement[tags=web]  | REQ-checkout |
+        | requirement[tags!=web] | REQ-refunds  |
 
-  Scenario Outline: id, kind, title and source are keys, and a dot reaches into a nested attribute
-    When I query "<query>"
-    Then the result is "<result>"
+    Scenario Outline: A bar separates alternatives, except in a regex or in quotes
+      When I query '<query>'
+      Then the result is "<result>"
 
-    Examples:
-      | query                | result                    |
-      | *[id~^req-]          | REQ-checkout, REQ-refunds |
-      | *[kind=model]        | MODEL                     |
-      | *[source=model.md:7] | ARCH-orders               |
-      | *[owner.team=core]   | ARCH-ledger               |
+      Examples:
+        | query                               | result                    |
+        | requirement[maturity=ready\|idea]   | REQ-checkout, REQ-refunds |
+        | requirement[maturity!=ready\|draft] | REQ-refunds               |
+        | element[title!~^(billing\|ledger)]  | ARCH-orders               |
+        | element[title~^[bl]]                | ARCH-billing, ARCH-ledger |
+        | element[title~\[legacy\]]           | ARCH-ledger               |
+        | *[title="Order service, v2"]        | ARCH-orders               |
+        | *[title~"service, v[0-9]"]          | ARCH-orders               |
 
-  Scenario Outline: A key reads only what the node itself holds
-    When I query "<query>"
-    Then the result is "<result>"
+    Scenario Outline: Less and greater order values that are set
+      When I query "<query>"
+      Then the result is "<result>"
 
-    Examples:
-      | query                      | result                                 |
-      | element[toString]          | nothing                                |
-      | element[owner.constructor] | nothing                                |
-      | element[!constructor]      | ARCH-orders, ARCH-billing, ARCH-ledger |
+      Examples: Along the maturity ladder
+        | query                       | result       |
+        | requirement[maturity>idea]  | REQ-checkout |
+        | requirement[maturity<=idea] | REQ-refunds  |
 
-  Scenario Outline: A key also holds the targets of the node's links, so a condition and a filter agree
-    When I query "<query>"
-    Then the result is "<result>"
+      Examples: Then as numbers; a node without the key is not compared
+        | query                     | result      |
+        | requirement[estimate>5]   | REQ-refunds |
+        | requirement[estimate<100] | REQ-refunds |
 
-    Examples:
-      | query                                    | result       |
-      | requirement[realized-by=ARCH-orders]     | REQ-checkout |
-      | requirement ?-realized-by-> #ARCH-orders | REQ-checkout |
-      | element[depends-on=ARCH-ledger]          | ARCH-billing |
-      | element ?-depends-on-> #ARCH-ledger      | ARCH-billing |
+      Examples: Then as text, so ISO dates order
+        | query                        | result       |
+        | requirement[due<2027-01-01]  | REQ-checkout |
+        | requirement[due>=2027-03-01] | REQ-refunds  |
 
-  Scenario Outline: An edge follows a relation out, in or both ways; at the end of a query it leads to any node
-    When I query "<query>"
-    Then the result is "<result>"
+  Rule: A key reads what the node itself holds: its attributes, its id, kind, title and source, and the targets of its links
 
-    Examples:
-      | query                                                | result                   |
-      | #ARCH-billing -depends-on-> *                        | ARCH-ledger              |
-      | #ARCH-billing <-depends-on- *                        | ARCH-orders              |
-      | #ARCH-billing -depends-on- *                         | ARCH-ledger, ARCH-orders |
-      | #ARCH-billing <-depends-on\|realized-by- *           | ARCH-orders, REQ-refunds |
-      | #REQ-checkout -realized-by-> * -depends-on-> element | ARCH-billing             |
-      | #REQ-checkout -realized-by->                         | ARCH-orders              |
+    Scenario Outline: id, kind, title and source are keys, and a dot reaches into a nested attribute
+      When I query "<query>"
+      Then the result is "<result>"
 
-  Scenario Outline: A star or no name is any relation but a prose mention
-    When I query "<query>"
-    Then the result is "<result>"
+      Examples:
+        | query                                 | result                    |
+        | *[id~^req-]                           | REQ-checkout, REQ-refunds |
+        | *[kind=requirement]                   | REQ-checkout, REQ-refunds |
+        | *[source=specs/ARCH-orders.feature:1] | ARCH-orders               |
+        | *[owner.team=core]                    | ARCH-ledger               |
 
-    Examples:
-      | query                   | result                                |
-      | #ARCH-billing <-- *     | ARCH-orders, REQ-refunds              |
-      | #ARCH-billing -*- *     | ARCH-ledger, ARCH-orders, REQ-refunds |
-      | #ARCH-ledger <-*- *     | ARCH-billing                          |
-      | #MODEL -*-> *           | nothing                               |
-      | #MODEL -mentions-> *    | ARCH-ledger                           |
-      | #MODEL -*\|mentions-> * | ARCH-ledger                           |
+    Scenario Outline: Names every object has are no keys
+      When I query "<query>"
+      Then the result is "<result>"
 
-  Scenario Outline: A plus is one or more hops, and reaches its start when a cycle leads back
-    When I query "<query>"
-    Then the result is "<result>"
+      Examples:
+        | query                      | result                                 |
+        | element[toString]          | nothing                                |
+        | element[owner.constructor] | nothing                                |
+        | element[!constructor]      | ARCH-orders, ARCH-billing, ARCH-ledger |
 
-    Examples:
-      | query                                       | result                                 |
-      | #ARCH-orders -depends-on+-> *               | ARCH-billing, ARCH-ledger, ARCH-orders |
-      | #ARCH-orders <-depends-on+- *               | ARCH-billing, ARCH-ledger, ARCH-orders |
-      | #ARCH-orders -depends-on+-> #ARCH-orders    | ARCH-orders                            |
-      | #REQ-checkout -realized-by+-> #REQ-checkout | nothing                                |
+    Scenario Outline: A key also holds the targets of the node's links, so a condition and a filter agree
+      When I query "<query>"
+      Then the result is "<result>"
 
-  Scenario Outline: ? keeps the nodes with such a neighbour, ! those without, and neither moves
-    When I query "<query>"
-    Then the result is "<result>"
+      Examples:
+        | query                                    | result       |
+        | requirement[realized-by=ARCH-orders]     | REQ-checkout |
+        | requirement ?-realized-by-> #ARCH-orders | REQ-checkout |
+        | element[depends-on=ARCH-ledger]          | ARCH-billing |
+        | element ?-depends-on-> #ARCH-ledger      | ARCH-billing |
 
-    Examples:
-      | query                                                        | result      |
-      | element ?<-realized-by- requirement[maturity=ready]          | ARCH-orders |
-      | element !<-realized-by- *                                    | ARCH-ledger |
-      | element !-depends-on+-> #ARCH-orders                         | nothing     |
-      | requirement ?-realized-by-> element[public] -realized-by-> * | ARCH-orders |
+  Rule: An edge follows a relation out, in or both ways, and with a plus one or more times
 
-  Scenario Outline: A malformed query is rejected with a reason
-    When I query '<query>'
-    Then the query is rejected with "<reason>"
+    Scenario Outline: Out, in, both ways, and to any node at the end of a query
+      When I query "<query>"
+      Then the result is "<result>"
 
-    Examples:
-      | query                                      | reason                   |
-      |                                            | empty query              |
-      | requirement]                               | unbalanced               |
-      | *[title="open                              | unbalanced               |
-      | requirement realized-by element            | expected an edge         |
-      | requirement <-realized-by-> element        | expected an edge         |
-      | requirement -realized-by-> -depends-on-> * | expected a node selector |
-      | requirement[maturity=ready]x               | could not parse filters  |
-      | requirement[=ready]                        | invalid condition        |
-      | requirement[!maturity=ready]               | only negates bare keys   |
-      | *[title~(]                                 | invalid regex            |
+      Examples:
+        | query                                                | result                   |
+        | #ARCH-billing -depends-on-> *                        | ARCH-ledger              |
+        | #ARCH-billing <-depends-on- *                        | ARCH-orders              |
+        | #ARCH-billing -depends-on- *                         | ARCH-ledger, ARCH-orders |
+        | #ARCH-billing <-depends-on\|realized-by- *           | ARCH-orders, REQ-refunds |
+        | #REQ-checkout -realized-by-> * -depends-on-> element | ARCH-billing             |
+        | #REQ-checkout -realized-by->                         | ARCH-orders              |
+
+    Scenario Outline: A star or no name is any relation
+      When I query "<query>"
+      Then the result is "<result>"
+
+      Examples:
+        | query               | result                                |
+        | #ARCH-billing <-- * | ARCH-orders, REQ-refunds              |
+        | #ARCH-billing -*- * | ARCH-ledger, ARCH-orders, REQ-refunds |
+        | #ARCH-ledger <-*- * | ARCH-billing                          |
+        | #ARCH-ledger -*-> * | ARCH-orders                           |
+
+    Scenario Outline: A plus is one or more hops, and reaches its start when a cycle leads back
+      When I query "<query>"
+      Then the result is "<result>"
+
+      Examples:
+        | query                                       | result                                 |
+        | #ARCH-orders -depends-on+-> *               | ARCH-billing, ARCH-ledger, ARCH-orders |
+        | #ARCH-orders <-depends-on+- *               | ARCH-billing, ARCH-ledger, ARCH-orders |
+        | #ARCH-orders -depends-on+-> #ARCH-orders    | ARCH-orders                            |
+        | #REQ-checkout -realized-by+-> #REQ-checkout | nothing                                |
+
+  Rule: ? keeps the nodes that have such a neighbour and ! those that have none, and neither moves
+
+    Scenario Outline: With and without such a neighbour
+      When I query "<query>"
+      Then the result is "<result>"
+
+      Examples:
+        | query                                                        | result      |
+        | element ?<-realized-by- requirement[maturity=ready]          | ARCH-orders |
+        | element !<-realized-by- *                                    | ARCH-ledger |
+        | element !-depends-on+-> #ARCH-orders                         | nothing     |
+        | requirement ?-realized-by-> element[public] -realized-by-> * | ARCH-orders |
 
   Rule: The result is the distinct end nodes; a path is a route that exists, each edge drawn as it points
 
     Background:
-      Given a file "routes.md" containing:
-        """
-        ---
-        id: ROUTES
-        kind: model
-        nodes:
-          - { id: A, kind: stop, links: { r: B } }
-          - { id: B, kind: stop, links: { r: A, s: C } }
-          - { id: C, kind: stop }
-        ---
-        # Routes
-        """
+      Given these specs:
+        | tags                       | Feature |
+        | @id=A @kind=stop @r:B      | A       |
+        | @id=B @kind=stop @r:A @s:C | B       |
+        | @id=C @kind=stop           | C       |
 
     Scenario: Several routes to a node are one result and as many paths
       When I query "requirement -realized-by-> element -depends-on+-> *"
