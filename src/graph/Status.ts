@@ -26,6 +26,8 @@ export const statusSummary = (project: Project) => {
     scenarios: tally(scenarios.filter((n) => !gates.has(n.id)).map((n) => n.attrs.status)),
     /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
     gates: tally(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status)),
+    /** Stored results that no longer count, by what changed since they ran. */
+    stale: tally(scenarios.filter((n) => n.attrs.staleBecause !== undefined).map((n) => n.attrs.staleBecause)),
     architecture: {
       significant: architecture.significant.length,
       declared: architecture.declared.length

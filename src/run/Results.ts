@@ -17,6 +17,7 @@ export const StepResult = Schema.Struct({
 })
 export type StepResult = typeof StepResult.Type
 
+/** One example of a scenario; an example the run did not select is `skipped`, with no steps. */
 export const PickleResult = Schema.Struct({
   name: Schema.String,
   status: StepStatus,
@@ -24,6 +25,20 @@ export const PickleResult = Schema.Struct({
   steps: Schema.Array(StepResult)
 })
 export type PickleResult = typeof PickleResult.Type
+
+/**
+ * Fingerprints of what a scenario ran against. A result is evidence only while
+ * each fingerprint it recorded still matches the workspace.
+ */
+export const Evidence = Schema.Struct({
+  /** The configuration file, the code, and the step definitions with the workspace files they import. */
+  sources: Schema.String,
+  /** The spec and feature files, recorded when a step read the graph (`project`). */
+  specs: Schema.optional(Schema.String),
+  /** The results of the ordinary scenarios, recorded when a gate read the graph after they ran. */
+  results: Schema.optional(Schema.String)
+})
+export type Evidence = typeof Evidence.Type
 
 export const ScenarioResult = Schema.Struct({
   id: Schema.String,
@@ -33,6 +48,7 @@ export const ScenarioResult = Schema.Struct({
   line: Schema.Number,
   status: StepStatus,
   hash: Schema.String,
+  evidence: Evidence,
   runAt: Schema.String,
   durationMs: Schema.Number,
   pickles: Schema.Array(PickleResult)
@@ -40,8 +56,10 @@ export const ScenarioResult = Schema.Struct({
 export type ScenarioResult = typeof ScenarioResult.Type
 
 export const RunResults = Schema.Struct({
-  version: Schema.Literal(1),
+  version: Schema.Literal(2),
   runAt: Schema.String,
+  /** Workspace files the step definitions import besides the step files, part of `evidence.sources`. */
+  imports: Schema.Array(Schema.String),
   scenarios: Schema.Record(Schema.String, ScenarioResult)
 })
 export type RunResults = typeof RunResults.Type

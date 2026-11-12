@@ -42,9 +42,13 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
 - **Handlers** return nothing, a Promise or an Effect. A thrown error, a rejected Promise or a failed
   Effect fails the step; `pending(reason)`, returned or thrown, marks it recognised but not
   implemented. A step times out after 30 seconds.
+- **Stopping.** The context carries `signal`, an `AbortSignal` that aborts when the step times out
+  or the run is interrupted. An Effect is interrupted either way; a Promise keeps running unless
+  its handler passes the signal on — to `fetch`, a child process, a timer.
 - **Worlds.** The first argument of `defineSteps` is a world factory. Every scenario gets a fresh
   world per factory; modules passing the same factory share that world, so a step library can be
-  split across files (sdp's own steps share `specs/steps/world.ts`).
+  split across files (sdp's own steps share `specs/steps/world.ts`). A world is made as part of the
+  first step that needs it: a factory that throws fails that step, naming the module.
 - Steps match by text, not keyword: `Given`, `When`, `Then` and `Step` register alike.
 - **`import … from "sdp"`** — and `"sdp/annotations"` in the application code the steps exercise —
   always resolve to the sdp that runs the steps, so a workspace needs no package installed for it,
@@ -71,12 +75,17 @@ Examples table — and matches each step against every step definition.
 
 A scenario without any steps is `undefined` as a whole: nothing in it is automated.
 
+`--tags` selects examples, not whole scenarios: an example runs when its own tags — those of its
+feature, its scenario and its Examples block — match. An example a run did not select is recorded
+as `skipped`, without steps.
+
 Every step is matched even after one did not pass, so one run reports every missing and ambiguous
 definition; only execution stops. An example's status is the worst of its steps, and a scenario's
 the worst of its examples, in this order: `failed`, `ambiguous`, `undefined`, `pending`, `skipped`,
 `passed`. A scenario therefore stays `undefined` until every step has a definition; the stubs that
 `--snippets` suggests return `pending()`, so pasting them turns it `pending` until they are
-implemented.
+implemented. Likewise a scenario is `passed` only when one run executed and passed every example:
+a run that selected some examples of an outline leaves it `skipped` at best.
 
 Matching needs no run: `sdp context <id>` and the MCP tool `sdp_snippets` match a spec's steps
 against the current step definitions and list those without exactly one ([[REQ-agent-context]]).
@@ -94,26 +103,57 @@ The statuses of a spec's scenarios roll up into the spec (the first matching row
 | no scenarios | `none` | declared maturity |
 | any failed or ambiguous | `failing` | `in-progress` |
 | all passed | `passing` | `verified` |
-| none run yet, or all changed since their last run | `unrun` | declared maturity |
+| none run yet, or all stale | `unrun` | declared maturity |
 | each undefined or not run | `undefined` | declared maturity |
 | anything else: some pending, or some passed while others are not | `pending` | `in-progress` |
 
 `sdp run` records results in `.sdp/results.json` (the `results` setting): per scenario its status,
 each example's steps with their status, error, matching definition (`file:line`), suggested
-definition and duration, and a hash of the scenario's executable content. Every command reads the
-file: scenario nodes get `status` and `lastRun`, specs their `verification` and `stage`. When a
-scenario changes, its hash no longer matches and its last result becomes `stale`. A partial run
-(`sdp run <ids or paths>`, `--tags`) merges into the earlier results and drops results of scenarios
-that no longer exist. The file is generated; never edit it by hand.
+definition and duration, a hash of the scenario's executable content, and its `evidence`. Every
+command reads the file: scenario nodes get `status`, `lastRun` and, when stale, `staleBecause`;
+specs their `verification` and `stage`. A partial run (`sdp run <ids or paths>`, `--tags`) merges into the earlier results and
+drops results of scenarios that no longer exist. The file is generated; never edit it by hand.
+
+A result counts only while what it ran against is unchanged. Its evidence is a fingerprint of the
+configuration file, the code (the `code` globs), the step definition files (the `steps` globs) and
+the workspace files they import. A scenario whose steps read the graph — the built-in steps, and
+any step definition that uses `project` — also records the spec and feature files; a gate that
+reads the graph also records the statuses of the ordinary scenarios that ran before it. When any
+of that changes, the result is **stale**: kept, but no longer counted. The scenario node's `status`
+is `stale`, and `staleBecause` says what changed:
+
+| `staleBecause` | What changed since the run |
+| --- | --- |
+| `scenario-changed` | the scenario itself |
+| `code-changed` | the configuration, a code file, a step definition file or a file it imports — one added or removed too |
+| `specs-changed` | a spec or feature file, and the scenario read the graph |
+| `results-changed` | the status of an ordinary scenario, and the gate read the graph |
+
+A spec whose scenarios are all stale is back at its declared maturity, so nothing stays `verified`
+on evidence about other code, and a gate that requires verified work is unmet until the scenarios
+run again. Invalidation is deliberately coarse — any change to the code invalidates every result —
+and covers what step definitions import, not files they read while running. `sdp status` counts
+stale results by reason; `sdp run` says how many earlier results it left stale — those it did not
+select.
+
+## Runs need readable specs
+
+A run that cannot read every scenario does not start. When Gherkin or front matter does not parse
+(`gherkin-syntax`, `front-matter`) or an id is declared twice (`duplicate-id`, so results could be
+filed under the wrong scenario), `sdp run` and `sdp gate` list those errors, one line each with
+`file:line`, and exit with 1 before anything executes or is recorded ([[REQ-cli]]). Other errors
+`sdp check` reports, such as a dangling link, leave every scenario readable and do not stop a run;
+neither do undefined steps, which are specifications not automated yet.
 
 ## Gates and records that no longer apply
 
 `sdp run` executes ordinary scenarios first and **gate scenarios** second — scenarios of milestones
 (`kind: milestone`) and scenarios tagged `@gate` — against a graph rebuilt with the fresh results,
-so a gate can require what the run just verified. Gates assert against the graph with built-in
-steps ([[REQ-builtin-steps]]). An unmet gate is reported but does not fail `sdp run`, because a
-future milestone is expected to be unmet; `sdp gate <milestone>` ([[REQ-cli]]) evaluates one milestone and exits
-with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp run`.
+so a gate can require what the run just verified; with `--tags`, a scenario is a gate when a
+selected example is tagged `@gate`. Gates assert against the graph with built-in steps
+([[REQ-builtin-steps]]). An unmet gate is reported but does not fail `sdp run`, because a future
+milestone is expected to be unmet; `sdp gate <milestone>` ([[REQ-cli]]) evaluates one milestone
+and exits with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp run`.
 
 Specs whose `status` is `superseded`, `rejected` or `deprecated` keep their text but do not run: a
 decision that no longer applies stops guarding anything.
@@ -122,9 +162,10 @@ decision that no longer applies stops guarding anything.
 
 `sdp run --concurrency <n>` runs up to `n` scenarios at once, which pays off when steps wait on
 processes, files or networks. Scenarios tagged `@serial` — timing measurements, anything sharing a
-resource — always run alone, after the others. Results are reported in scenario order whatever
-finishes first, so output stays stable. The default is one at a time, because step definitions
-written for a sequential run may share state.
+resource — always run alone, after the others; with `--tags`, those with a selected example tagged
+`@serial`. Results are reported in scenario order whatever finishes first, so output stays stable.
+The default is one at a time, because step definitions written for a sequential run may share
+state.
 
 ## Scenarios
 
@@ -242,8 +283,97 @@ Scenario: Editing a scenario makes its last result stale
     ```
     """
   Then node "REQ-cart#add-an-item" has attribute status = "stale"
+  And node "REQ-cart#add-an-item" has attribute staleBecause = "scenario-changed"
   And node "REQ-cart" has attribute verification = "unrun"
   And node "REQ-cart" has attribute stage = "ready"
+
+Scenario Outline: A result counts only while the sources it ran against are unchanged
+  Given a step definition "an empty cart" that passes
+  And a step definition "I add a lamp" that passes
+  And a step definition "the cart holds {int} item(s)" that passes
+  When the scenarios are run
+  And a file "<file>" containing:
+    """
+    <content>
+    """
+  Then node "REQ-cart#add-an-item" has attribute status = "stale"
+  And node "REQ-cart#add-an-item" has attribute staleBecause = "code-changed"
+  And node "REQ-cart" has attribute stage = "ready"
+
+  Examples:
+    | file                      | content                       |
+    | src/cart.ts               | export const lamps = 1        |
+    | sdp.config.yaml           | results: .sdp/results.json    |
+    | specs/steps/cart.steps.ts | export const phrases = []     |
+
+Scenario: A scenario that reads the graph also goes stale when a spec changes
+  Given a step definition "an empty cart" that passes
+  And a step definition "I add a lamp" that passes
+  And a step definition "the cart holds {int} item(s)" that passes
+  And a file "specs/catalogue.feature" containing:
+    """
+    @id:REQ-catalogue
+    Feature: Catalogue
+      Scenario: The cart is specified
+        Then the query "#REQ-cart" returns 1 result
+    """
+  When the scenarios are run
+  And a file "specs/REQ-wishlist.md" containing:
+    """
+    ---
+    id: REQ-wishlist
+    ---
+    # Wishlist
+    """
+  Then node "REQ-catalogue#the-cart-is-specified" has attribute status = "stale"
+  And node "REQ-catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
+  And node "REQ-cart#add-an-item" has attribute status = "passed"
+
+Scenario: Changing what step definitions import leaves their results stale, and a gate on them unmet
+  Given a file "docs/MS-beta.md" containing:
+    """
+    ---
+    id: MS-beta
+    kind: milestone
+    ---
+    # Beta
+
+    ```gherkin
+    Scenario: The cart works
+      Then the node "REQ-cart" has stage "verified"
+    ```
+    """
+  And a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp"
+    import { lamps } from "./lamps.ts"
+
+    export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
+      Given("an empty cart", () => {})
+      When("I add a lamp", ({ world }) => {
+        world.items += lamps
+      })
+      Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
+        if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
+      })
+    })
+    """
+  And a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 1
+    """
+  When I run "sdp run"
+  Then the output contains "1 gate scenario(s): 1 passed"
+  Given a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 2
+    """
+  When I run "sdp status"
+  Then the output contains "stale         code-changed 2"
+  When I run "sdp gate MS-beta"
+  Then the exit code is 1
+  And the output contains 'REQ-cart.stage is "ready", expected "verified"'
+  And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 ~~~
 
 ### Step definitions
@@ -347,6 +477,26 @@ Scenario: A step that outlasts its timeout fails
   When the scenarios are run with a step timeout of 50 ms
   Then the step "an empty cart" has status "failed"
   And the step "an empty cart" reports "step timed out"
+
+Scenario: A step that times out is told to stop through its signal
+  Given a step definition "an empty cart" that waits for its signal
+  When the scenarios are run with a step timeout of 50 ms
+  Then the step "an empty cart" has status "failed"
+  And the step "an empty cart" reports "step timed out"
+  And the handler of "an empty cart" saw its signal abort
+
+Scenario: Interrupting a run tells the running step to stop
+  Given a step definition "an empty cart" that waits for its signal
+  When the scenarios are run and interrupted while "an empty cart" runs
+  Then the handler of "an empty cart" saw its signal abort
+
+Scenario: A world factory that throws fails the step that needs the world
+  Given a step definition "an empty cart" whose world factory throws
+  And a step definition "I add a lamp" that passes
+  When the scenarios are run
+  Then the step "an empty cart" has status "failed"
+  And the step "an empty cart" reports "could not create the world of cart: deliberate failure in the world factory"
+  And the step "I add a lamp" has status "skipped"
 ~~~
 
 ### Matching
@@ -544,6 +694,56 @@ Scenario: Scenarios run concurrently when asked to, except those tagged @serial
   Then the scenarios "One" and "Two" overlapped
   And the scenario "Alone" ran alone
   And scenario "REQ-timing#alone" has status "passed"
+
+Scenario: --tags selects examples, and a scenario passes only when all its examples ran
+  Given a file "specs/payment.feature" containing:
+    """
+    @id:REQ-payment
+    Feature: Payment
+      Scenario Outline: Pay by <method>
+        Given a payment by <method>
+
+        @fast
+        Examples:
+          | method |
+          | card   |
+
+        @slow
+        Examples:
+          | method  |
+          | invoice |
+    """
+  And a step definition "a payment by card" that passes
+  And a step definition "a payment by invoice" that fails
+  When the workspace is run with tags "@fast"
+  Then the step "a payment by card" has status "passed"
+  And the step "a payment by invoice" did not run
+  And scenario "REQ-payment#pay-by-method" has status "skipped"
+  And node "REQ-payment" has attribute stage = "in-progress"
+
+Scenario: Whether a scenario runs alone depends on the examples a run selects
+  Given a file "specs/timing.feature" containing:
+    """
+    @id:REQ-timing
+    Feature: Timing
+      Scenario: One
+        Given a slow step
+
+      Scenario Outline: Two <mode>
+        Given a slow step
+
+        Examples:
+          | mode     |
+          | together |
+
+        @serial
+        Examples:
+          | mode  |
+          | alone |
+    """
+  And a step definition "a slow step" that takes a moment
+  When the workspace is run with concurrency 4 and tags "not @serial"
+  Then the scenarios "One" and "Two together" overlapped
 ~~~
 
 ### Gates
@@ -576,4 +776,39 @@ Rule: Gates run last
   Scenario: An unmet gate is reported like any other scenario
     When the workspace is run
     Then scenario "MS-beta#the-cart-works" has status "failed"
+
+  Scenario: A gate's result goes stale when the results it read change
+    Given a step definition "an empty cart" that passes
+    And a step definition "I add a lamp" that passes
+    And a step definition "the cart holds {int} item(s)" that passes
+    When the workspace is run
+    And the step definition "I add a lamp" now fails
+    And the workspace is run for "REQ-cart"
+    Then scenario "REQ-cart#add-an-item" has status "failed"
+    And node "MS-beta#the-cart-works" has attribute status = "stale"
+    And node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
+
+  Scenario: Whether a scenario is a gate depends on the examples a run selects
+    Given a step definition "an empty cart" that passes
+    And a step definition "I add a lamp" that passes
+    And a step definition "the cart holds {int} item(s)" that passes
+    And a file "specs/release.feature" containing:
+      """
+      @id:REQ-release
+      Feature: Release
+        Scenario Outline: The cart is <stage>
+          Then the node "REQ-cart" has stage "<stage>"
+
+          Examples: Before this run
+            | stage |
+            | ready |
+
+          @gate
+          Examples: After the ordinary scenarios
+            | stage    |
+            | verified |
+      """
+    When the workspace is run with tags "not @gate"
+    Then the step 'the node "REQ-cart" has stage "ready"' has status "passed"
+    And scenario "REQ-release#the-cart-is-stage" has status "skipped"
 ~~~

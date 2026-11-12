@@ -23,7 +23,7 @@ import { builtinSteps } from "../run/Builtin.ts"
 import { makeMatcher, snippetModule } from "../run/Match.ts"
 import type { ScenarioResult } from "../run/Results.ts"
 import { summarize } from "../run/Runner.ts"
-import { runWorkspace } from "../run/Session.ts"
+import { ensureReadable, runWorkspace } from "../run/Session.ts"
 import { findWorkspaceRoot, loadConfig, loadProject, loadSteps } from "../workspace/Workspace.ts"
 import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
 import { agentsTemplate, configTemplate, newSpec, templateKinds } from "./templates.ts"
@@ -229,6 +229,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   const print = (r: ScenarioResult) => options.json ? Effect.void : Console.log(formatScenario(r, { verbose: options.verbose }))
   const run = yield* runWorkspace(root, {
     modules: [builtinSteps, ...steps.modules],
+    imports: steps.imports,
     selection: { targets: yield* fromHere(root, options.targets), tags: Option.getOrUndefined(options.tags) },
     concurrency: options.concurrency,
     onScenario: print
@@ -246,12 +247,26 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   const snippets = [...scenarios, ...gates].flatMap((r) => r.pickles.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
   const module = options.snippets && snippets.length > 0 ? snippetModule(snippets, steps.files) : undefined
   if (options.json) {
-    return yield* printJson({ summary: counts, gates: gateCounts, scenarios: [...scenarios, ...gates], ...(module ? { snippets: module } : {}) })
+    return yield* printJson({
+      summary: counts,
+      gates: gateCounts,
+      stale: run.stale,
+      scenarios: [...scenarios, ...gates],
+      ...(module ? { snippets: module } : {})
+    })
   }
   const describe = (c: Readonly<Record<string, number>>) =>
     Object.entries(c).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s}`).join(", ") || "none"
   if (scenarios.length > 0 || gates.length === 0) yield* Console.log(`\n${scenarios.length} scenario(s): ${describe(counts)}`)
   if (gates.length > 0) yield* Console.log(`${gates.length} gate scenario(s): ${describe(gateCounts)}`)
+  const unselected = [...scenarios, ...gates].flatMap((r) => r.pickles.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
+  if (unselected > 0) {
+    yield* Console.log(c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`))
+  }
+  const stale = Object.values(run.stale).reduce((sum, n) => sum + n, 0)
+  if (stale > 0) {
+    yield* Console.log(c.yellow(`stale: ${stale} earlier result(s) no longer count (${describe(run.stale)}); run them again`))
+  }
   if (module) {
     yield* Console.log(`\nStep definitions for the undefined steps:\n\n${module}`)
   } else if (snippets.length > 0) {
@@ -301,6 +316,7 @@ const gateCommand = Command.make(
   { milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta")), json },
   Effect.fn(function*({ json, milestone }) {
     const project = yield* loadProject(yield* workspaceRoot)
+    yield* ensureReadable(project)
     const node = project.graph.node(milestone)
     if (!node) return yield* fail(`no node ${milestone}`)
     const spec = project.specById.get(milestone)
@@ -406,6 +422,7 @@ const statusCommand = Command.make(
     yield* Console.log(line("decisions", summary.decisions))
     yield* Console.log(line("scenarios", summary.scenarios, results))
     yield* Console.log(line("gates", summary.gates, results))
+    if (Object.keys(summary.stale).length > 0) yield* Console.log(`${line("stale", summary.stale)}  ${c.dim("(sdp run refreshes them)")}`)
     yield* Console.log(
       `${c.bold("architecture".padEnd(13))} ${summary.architecture.significant} significant · ${summary.architecture.declared} declared, not significant`
     )
@@ -554,6 +571,7 @@ sdp.pipe(
     ConfigError: (e) => fail(`${e.file}: invalid configuration: ${e.message.replace(/\s*\n\s*/g, " ")}`),
     StepLoadError: (e) => fail(`${e.file}: could not load step definitions: ${e.message}`),
     UnknownTargets: (e) => fail(e.message),
+    UnreadableSpecs: (e) => fail(e.message),
     WorkspaceNotFound: (e) => fail(e.message),
     PlatformError: (e) => fail(e.message)
   }),

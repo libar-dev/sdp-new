@@ -48,7 +48,11 @@ export const formatScenario = (r: ScenarioResult, options: { readonly verbose: b
   const lines = [`${statusIcon[r.status]} ${pad(r.status, 9)} ${r.id} ${c.dim(`${r.file}:${r.line}`)}`]
   if (r.status === "passed" && !options.verbose) return lines.join("\n")
   for (const pickle of r.pickles) {
-    if (r.pickles.length > 1 && pickle.status !== "passed") lines.push(`    ${c.dim("example")} ${pickle.name}${pickle.exampleLine ? c.dim(` :${pickle.exampleLine}`) : ""}`)
+    // An example without step results is one the run did not select.
+    const unselected = pickle.status === "skipped" && pickle.steps.length === 0 ? c.dim("  not selected") : ""
+    if (r.pickles.length > 1 && pickle.status !== "passed") {
+      lines.push(`    ${c.dim("example")} ${pickle.name}${pickle.exampleLine ? c.dim(` :${pickle.exampleLine}`) : ""}${unselected}`)
+    }
     for (const step of pickle.steps) {
       if (step.status === "passed" && !options.verbose) continue
       if (step.status === "skipped") continue
