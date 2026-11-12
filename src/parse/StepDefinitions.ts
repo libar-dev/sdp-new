@@ -2,12 +2,13 @@
  * Reads step definitions out of step files statically: the file is parsed,
  * never run, so reading a workspace executes none of its code. A step file
  * registers its definitions in `defineSteps(world, ({ Given, When, Then }) => { … })`
- * calls at its top level, imported from "sdp/steps", one call per step as a
- * statement of that callback: `Given("…", handler)`, with its expression a
- * string or RegExp literal. That form is read, with each `file:line`. What is
- * registered any other way — under a condition, in a loop, through another
- * name or a helper, with a computed expression — is reported, never guessed:
- * only `sdp run`, which imports the module, knows it.
+ * calls it exports at its top level, imported from "sdp/steps", one call per
+ * step as a statement of that callback: `Given("…", handler)`, with its
+ * expression a string or RegExp literal. That form is read, with each
+ * `file:line`. What is registered any other way — under a condition, in a
+ * loop, after a statement that may return, through another name or a helper,
+ * with a computed expression, by a `defineSteps` renamed or not exported — is
+ * reported, never guessed: only `sdp run`, which imports the module, knows it.
  */
 import { annotate } from "sdp/annotations"
 import { CucumberExpression, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
@@ -43,10 +44,21 @@ const isKeyword = (name: unknown): name is StepKeyword => typeof name === "strin
 
 const nameOf = (node: unknown): string | undefined => isNode(node) && node.type === "Identifier" ? node.name as string : undefined
 
-/** Whether `node` names one of `names` anywhere inside it. */
-const mentions = (node: Node, names: ReadonlySet<string>): boolean =>
-  names.has(nameOf(node) ?? "") ||
-  Object.values(node).some((value) => (Array.isArray(value) ? value : [value]).some((child) => isNode(child) && mentions(child, names)))
+const children = (node: Node): ReadonlyArray<Node> => Object.values(node).flatMap((value) => (Array.isArray(value) ? value : [value]).filter(isNode))
+
+/** The identifiers inside `node` that name one of `names`, outside imports. */
+const references = (node: Node, names: ReadonlySet<string>): ReadonlyArray<Node> =>
+  node.type === "ImportDeclaration" ? [] : names.has(nameOf(node) ?? "") ? [node] : children(node).flatMap((child) => references(child, names))
+
+/** The calls inside `node` of a function that one of `names` names. */
+const callsOf = (node: Node, names: ReadonlySet<string>): ReadonlyArray<Node> => [
+  ...(node.type === "CallExpression" && names.has(nameOf(node.callee) ?? "") ? [node] : []),
+  ...children(node).flatMap((child) => callsOf(child, names))
+]
+
+/** Whether `node` can leave the function it is written in: a return or a throw outside any function inside it. */
+const exits = (node: Node): boolean =>
+  node.type === "ReturnStatement" || node.type === "ThrowStatement" || (!node.type.includes("Function") && children(node).some(exits))
 
 /** Reads the step definitions of one step file without running it. */
 export const scanStepDefinitions = (file: string, content: string): StepScan => {
@@ -122,37 +134,57 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
     const body = callback.body as Node
     // `(steps) => steps.Given(…)` is a callback of one statement.
     const statements = body.type === "BlockStatement" ? body.body as ReadonlyArray<Node> : [body]
-    for (const statement of statements) {
+    for (const [index, statement] of statements.entries()) {
       const expression = statement.type === "ExpressionStatement" ? statement.expression as Node : statement
       const keyword = expression.type === "CallExpression" ? keywordOf(expression.callee as Node) : undefined
       if (keyword !== undefined) register(keyword, expression)
-      else if (mentions(statement, names)) {
+      else if (references(statement, names).length > 0) {
         unreadable(
           statement,
           "this statement registers steps under a condition, in a loop or through another name, so they cannot be read without running the file"
         )
+      } else if (exits(statement) && index < statements.length - 1) {
+        unreadable(statement, "this statement may return before the registrations after it, so only a run knows whether they are made")
+        return
       }
     }
   }
 
+  // A run loads what the file exports: `export default defineSteps(…)`, `export const steps = defineSteps(…)`,
+  // or a constant exported by name. A call at the top level that is none of these defines nothing a run loads.
+  const exported = new Set(program.body.flatMap((statement) =>
+    statement.type === "ExportDefaultDeclaration"
+      ? [nameOf(statement.declaration)]
+      : statement.type === "ExportNamedDeclaration" && !statement.source
+      ? (statement.specifiers as ReadonlyArray<Node>).map((specifier) => nameOf(specifier.local))
+      : []
+  ).filter((name) => name !== undefined))
   let modules = 0
   for (const statement of program.body) {
-    const declared = statement.type === "ExportDefaultDeclaration" || statement.type === "ExportNamedDeclaration"
-      ? statement.declaration
-      : statement
+    const isExport = statement.type === "ExportDefaultDeclaration" || statement.type === "ExportNamedDeclaration"
+    const declared = isExport ? statement.declaration : statement.type === "ExpressionStatement" ? statement.expression : statement
     if (!isNode(declared)) continue
     const values = declared.type === "VariableDeclaration"
-      ? (declared.declarations as ReadonlyArray<Node>).map((declaration) => declaration.init)
-      : [declared]
-    for (const value of values) {
-      if (!isNode(value) || value.type !== "CallExpression") continue
-      const callee = value.callee as Node
-      if (callee.type !== "Identifier" || !defineSteps.has(callee.name as string)) continue
+      ? (declared.declarations as ReadonlyArray<Node>).map((declaration) => ({
+        value: declaration.init,
+        loaded: isExport || exported.has(nameOf(declaration.id) ?? "")
+      }))
+      : [{ value: declared, loaded: isExport }]
+    for (const { loaded, value } of values) {
+      if (!isNode(value) || value.type !== "CallExpression" || !defineSteps.has(nameOf(value.callee) ?? "")) continue
+      if (!loaded) {
+        unreadable(value, "this defineSteps(…) is not exported, so a run loads none of its steps: write `export default defineSteps(…)`")
+        continue
+      }
       modules++
       readModule(value)
     }
   }
-  if (modules === 0) {
+  // Renamed or passed on, it defines steps under a name sdp does not follow.
+  const called = new Set(callsOf(program, defineSteps).map((call) => call.callee))
+  const aliases = references(program, defineSteps).filter((reference) => !called.has(reference))
+  for (const alias of aliases) unreadable(alias, "defineSteps is renamed or passed on here, so the steps it defines cannot be read without running the file")
+  if (modules === 0 && problems.length === 0) {
     problems.push({
       rule: "step-unreadable",
       line: 1,

@@ -749,6 +749,49 @@ Feature: Executable specifications
       Then the JSON output has:
         | data.summary.passed | 1 |
 
+    Scenario: A module that is not exported, a registration after a return and defineSteps renamed are reported, never listed
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        const unused = defineSteps(() => ({}), ({ Given }) => {
+          Given("an empty cart", () => {})
+        })
+        """
+      And a file "specs/steps/lamp.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ When }) => {
+          When("I add a lamp", () => {})
+          if (process.env.NO_LAMPS === undefined) return
+          When("I add a phantom", () => {})
+        })
+        """
+      And a file "specs/steps/count.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item(s)", () => {})
+        })
+        const define = defineSteps
+        export const hidden = define(() => ({}), ({ Then }) => {
+          Then("a hidden step", () => {})
+        })
+        """
+      When I run "sdp steps"
+      Then the exit code is 2
+      And the output contains "specs/steps/count.steps.ts:4\tThen\tthe cart holds {int} item(s)"
+      And the output contains "specs/steps/lamp.steps.ts:4\tWhen\tI add a lamp"
+      And the output contains "11 step definition(s)"
+      And the output contains "not read: specs/steps/cart.steps.ts:3: this defineSteps(…) is not exported, so a run loads none of its steps"
+      And the output contains "not read: specs/steps/lamp.steps.ts:5: this statement may return before the registrations after it"
+      And the output contains "not read: specs/steps/count.steps.ts:6: defineSteps is renamed or passed on here"
+      When I run "sdp run --json"
+      Then the JSON output has:
+        | data.summary.undefined | 1 |
+
     Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
       Given a file "specs/steps/cart.steps.ts" containing:
         """
