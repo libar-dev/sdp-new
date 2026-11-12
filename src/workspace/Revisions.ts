@@ -56,11 +56,12 @@ export const gitRevisions = Layer.effect(
   Revisions,
   Effect.gen(function*() {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-    /** A git command run in the workspace: its exit code and what it wrote, or undefined when git does not run. */
-    const git = (root: string, args: ReadonlyArray<string>, input?: string) =>
+    /** A git command run in the workspace, in `env` if given: its exit code and what it wrote, or undefined when git does not run. */
+    const git = (root: string, args: ReadonlyArray<string>, input?: string, env?: Record<string, string | undefined>) =>
       Effect.scoped(Effect.gen(function*() {
         const handle = yield* spawner.spawn(ChildProcess.make("git", [...args], {
           cwd: root,
+          ...(env === undefined ? {} : { env, extendEnv: false }),
           stdin: input === undefined ? "ignore" : Stream.make(new TextEncoder().encode(input)),
           stderr: "ignore"
         }))
@@ -73,21 +74,26 @@ export const gitRevisions = Layer.effect(
     const base = Effect.fn("Revisions.base")(function*(root: string, named: string | undefined) {
       const missing = (reason: string): Effect.Effect<BaseRead, BaseNotFound> =>
         named === undefined ? Effect.succeed({ none: reason }) : Effect.fail(new BaseNotFound({ base: named, reason }))
-      const inside = yield* git(root, ["rev-parse", "--is-inside-work-tree"])
+      // A variable that names a repository, its work tree or its index — set for a hook, or left in a
+      // shell — would have git read another repository than the one the workspace is in: git lists them.
+      const located = new Set(text(yield* git(root, ["rev-parse", "--local-env-vars"]))?.split("\n"))
+      const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !located.has(name)))
+      const inWorkspace = (args: ReadonlyArray<string>, input?: string) => git(root, args, input, env)
+      const inside = yield* inWorkspace(["rev-parse", "--is-inside-work-tree"])
       if (inside === undefined) return yield* missing("git did not run in this workspace")
       if (text(inside) !== "true") return yield* missing("this workspace is in no git repository")
-      const ref = named ?? text(yield* git(root, ["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])) ??
-        (text(yield* git(root, ["rev-parse", "--quiet", "--verify", "refs/heads/main"])) ? "main" : undefined) ??
-        (text(yield* git(root, ["rev-parse", "--quiet", "--verify", "refs/heads/master"])) ? "master" : undefined)
+      const ref = named ?? text(yield* inWorkspace(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])) ??
+        (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/main"])) ? "main" : undefined) ??
+        (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/master"])) ? "master" : undefined)
       if (ref === undefined) return yield* missing("the repository has no origin/HEAD, main or master branch")
       const command = `git merge-base HEAD ${ref}`
-      const commit = text(yield* git(root, ["merge-base", "HEAD", ref]))
+      const commit = text(yield* inWorkspace(["merge-base", "HEAD", ref]))
       if (commit === undefined) return yield* missing(`${command} found no commit`)
       const at = commit.slice(0, 7)
 
       // The files of the commit under the workspace, relative to it as its globs are, each with its
       // blob: read by blob, a file is read whatever bytes its name holds.
-      const tree = yield* git(root, ["ls-tree", "-r", "-z", commit])
+      const tree = yield* inWorkspace(["ls-tree", "-r", "-z", commit])
       if (tree?.code !== 0) return yield* missing(`git ls-tree could not list the files of ${at}`)
       const blobs = tree.out.toString("utf8").split("\0").flatMap((entry) => {
         const tab = entry.indexOf("\t")
@@ -96,7 +102,7 @@ export const gitRevisions = Layer.effect(
       })
       const read = Effect.fnUntraced(function*(wanted: ReadonlyArray<{ readonly path: string; readonly object: string }>) {
         if (wanted.length === 0) return []
-        const out = yield* git(root, ["cat-file", "--batch"], wanted.map(({ object }) => `${object}\n`).join(""))
+        const out = yield* inWorkspace(["cat-file", "--batch"], wanted.map(({ object }) => `${object}\n`).join(""))
         return out?.code === 0 ? batch(wanted, out.out) : undefined
       })
 

@@ -489,6 +489,12 @@ Feature: Check specs
         | in the configuration                 | base: HEAD                 | sdp check             | 0         | (git merge-base HEAD HEAD)                              |
         | in the configuration, and --base     | base: HEAD                 | sdp check --base main | 1         | (git merge-base HEAD main)                              |
 
+    Scenario: The base of the repository the workspace is in, whatever repository git's variables name
+      Given the files are committed on the branch "main"
+      When I run "GIT_DIR=$PWD/elsewhere GIT_WORK_TREE=$PWD/elsewhere GIT_INDEX_FILE=$PWD/elsewhere/index sdp check"
+      Then the exit code is 0
+      And the output line with "note:" contains "(git merge-base HEAD main)"
+
     Scenario Outline: No base: <case>
       Given the files are <where>
       When I run "sdp check"
