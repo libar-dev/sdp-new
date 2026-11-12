@@ -506,7 +506,8 @@ const hops = (context: Context, id: string, step: EdgeStep): Array<Hop> => {
  * step has one per node it reaches, a shortest one, found breadth-first: a node is walked on from
  * once, and the start is reached when a cycle leads back to it. A two-way walk never goes back
  * along the edge it just took, so it reaches the start only where two of its branches meet, or a
- * second link to the start does. `cut` when the walk stopped at `maxDepth` with nodes left to reach.
+ * second link to the start does. `cut` when the walk stopped at `maxDepth` with nodes left to reach,
+ * or the only cycle it closed is longer than that: two branches can meet beyond the bound.
  */
 const reachable = (
   context: Context,
@@ -527,6 +528,7 @@ const reachable = (
     return met === undefined || sameEdge(met[0]!.edge, extended[0]!.edge) ? undefined : [...extended, ...backTo(from, met)]
   }
   let cycle: ReadonlyArray<Hop> | undefined
+  let beyond = false
   let frontier: Array<{ readonly id: string; readonly route: ReadonlyArray<Hop> }> = [{ id: from, route: [] }]
   for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
     const next: typeof frontier = []
@@ -534,7 +536,8 @@ const reachable = (
       for (const hop of hops(context, id, step)) {
         if (!onward(route, hop)) continue
         const closed = closing(route, hop)
-        if (closed !== undefined && (cycle === undefined || closed.length < cycle.length)) cycle = closed
+        if (closed !== undefined && closed.length > maxDepth) beyond = true
+        else if (closed !== undefined && (cycle === undefined || closed.length < cycle.length)) cycle = closed
         if (closed !== undefined || routes.has(hop.node)) continue
         const extended = [...route, hop]
         routes.set(hop.node, extended)
@@ -545,7 +548,7 @@ const reachable = (
     frontier = next
   }
   if (cycle !== undefined) routes.set(from, cycle)
-  const cut = frontier.some(({ id, route }) =>
+  const cut = (cycle === undefined && beyond) || frontier.some(({ id, route }) =>
     hops(context, id, step).some((hop) => onward(route, hop) && (!routes.has(hop.node) || (cycle === undefined && closing(route, hop) !== undefined)))
   )
   return { routes: [...routes.values()], cut }

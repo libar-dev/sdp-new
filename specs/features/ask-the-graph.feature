@@ -336,6 +336,15 @@ Feature: Ask the graph
       Then the result has 12 nodes
       And the result is truncated because "a + edge reaches further than 12 hops"
 
+    Scenario: A cycle longer than the bound, followed either way, is cut short
+      Given a chain of 20 nodes linked by "next"
+      And these specs:
+        | tags                          | Feature |
+        | @id=N20 @kind=node20 @next:N1 | N20     |
+      When I query "#N1 -next+- #N1"
+      Then the result is "nothing"
+      And the result is truncated because "a + edge reaches further than 12 hops"
+
     Scenario: Too many routes at one step
       Given 25 nodes, each linked to all the others by "knows"
       When I query "member -knows-> member -knows-> member"
