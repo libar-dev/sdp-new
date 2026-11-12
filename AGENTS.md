@@ -35,8 +35,9 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
     write here. A new feature moves to `features/` when its scenarios pass; a change's rules move
     into the feature it changes, and the change is deleted.
   - `decisions/` — few. Only a choice that is hard to reverse, surprising without context and a
-    real trade-off, and that spans features: a title and one to three sentences. A reason that
-    concerns one feature is written under the rule it explains.
+    real trade-off, and that spans features: a title and one to three sentences on what was chosen
+    over what, why, and the cost accepted with it. A reason that concerns one feature is written
+    under the rule it explains.
   - Architecture is a decision when it is significant and universal, a rule in a spec otherwise —
     `ARCHITECTURE` holds the rules this repository's code keeps — or a view sdp generates from the
     code's annotations (`sdp arch`): an element is the code anchored to it, that code's doc comment
@@ -45,8 +46,9 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   - `VISION`, `GUIDE` and `ARCHITECTURE` are about the whole; `ask-the-graph` is the example to follow.
 - A feature is written as a requirements document would be: under its name, who needs what and
   why, then what it is not; a `Rule:` per requirement, quality ones included, stated as what a user
-  can observe, with its reason under it; its scenarios are the acceptance examples. It names a
-  technology only where users see one: a command, an output, a bound an answer reports.
+  can observe, with its reason under it; its scenarios are the acceptance examples, and a quality
+  one's example is measured. It names a technology only where users see one: a command, an output,
+  a bound an answer reports.
 - An id names what it is, so that a reader of a message that cites it needs no lookup:
   `files-are-the-source-of-truth`, not `ADR-0003`; `IT-packaging`, not `E2`. A feature, a change
   and a decision have no prefix: a feature is what an id without one names, and a change and a

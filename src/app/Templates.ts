@@ -19,11 +19,7 @@ annotate(import.meta, { is: "ARCH-reports" })
 const directoryFor: Record<string, string> = {
   feature: "specs/incoming",
   change: "specs/incoming",
-  requirement: "specs/requirements",
-  nfr: "specs/quality",
-  capability: "specs/capabilities",
   decision: "specs/decisions",
-  element: "specs/architecture",
   pattern: "specs/architecture",
   milestone: "specs/delivery",
   plan: "specs/delivery",
@@ -35,8 +31,11 @@ const directoryFor: Record<string, string> = {
 /** Where a feature is once its scenarios pass. */
 const builtFeatures = "specs/features"
 
-/** What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at maturity idea. */
-export const templateKinds = ["feature", "idea", "change", "decision", "requirement", "nfr", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
+/**
+ * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
+ * maturity idea, and an element is no file: its code declares it.
+ */
+export const templateKinds = ["feature", "idea", "change", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
 
 type Template = "feature" | "change" | "decision" | "element" | "pattern" | "milestone" | "plan" | "phase" | "iteration" | "risk" | "generic"
 
@@ -85,15 +84,16 @@ export const newId = (kind: string, title: string, config: Config, existing: Rea
 
 export interface NewSpec {
   readonly id: string
-  readonly file: string
-  readonly content: string
+  /** The file to write, and what it holds; an element has none, for its code declares it. */
+  readonly file: { readonly path: string; readonly content: string } | undefined
   /** What the author writes next, one instruction per line: the template leaves none in the file. */
   readonly next: ReadonlyArray<string>
 }
 
 /**
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
- * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea.
+ * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
+ * `sdp new element` no file: only the id its code declares, and how.
  * Fails, with the reason, when a change names no feature it changes, or when the content would not
  * read back with its id, kind and title.
  */
@@ -132,6 +132,8 @@ export const newSpec = (options: {
       `a ${kind} names the ${feature} it changes, and ${found}: sdp new ${kind} "<title>" --changes <id>, where sdp q ${feature} --ids lists the ids`
     )
   }
+  const next = guidance({ kind, id, maturity, config, changes })
+  if (template === "element") return Result.succeed({ id, file: undefined, next })
   const endKey = vocabulary.attributes.end
   const undated = template === "iteration"
     ? graph.ofKind(vocabulary.kinds.iteration).find((node) => attribute(node, endKey) !== undefined && dayOf(node, endKey) === undefined)
@@ -151,7 +153,7 @@ export const newSpec = (options: {
       `refusing to write ${file}: it would not read back with id ${JSON.stringify(id)}, kind ${JSON.stringify(kind)} and title ${JSON.stringify(title)}`
     )
   }
-  return Result.succeed({ id, file, content, next: guidance({ kind, id, maturity, config, changes }) })
+  return Result.succeed({ id, file: { path: file, content }, next })
 }
 
 /** The levels whose criteria are built in: a template grows with them. */
@@ -202,7 +204,6 @@ const specTemplate = (options: {
   switch (templateOf(kind, vocabulary)) {
     case "decision":
       return feature(identity, `  ${decisionPlaceholder}`)
-    case "element":
     case "pattern":
     case "risk":
     case "plan":
@@ -226,17 +227,7 @@ const specTemplate = (options: {
   // From specified on the criteria ask for a scenario that states an outcome: a rule and its first example, to fill in.
   return feature(
     tags,
-    ...rule(
-      "<the rule, in one sentence>",
-      kind === "nfr"
-        ? [
-          "Scenario: <quality attribute scenario>",
-          "  Given <environment, e.g. normal load of 500 concurrent users>",
-          "  When <stimulus, e.g. a user submits an order>",
-          "  Then <response measure, e.g. confirmation is shown within 300 ms at p95>"
-        ]
-        : ["Scenario: <the main success case>", "  Given <context>", "  When <action>", "  Then <observable outcome>"]
-    )
+    ...rule("<the rule, in one sentence>", ["Scenario: <the main success case>", "  Given <context>", "  When <action>", "  Then <observable outcome>"])
   )
 }
 
@@ -272,6 +263,7 @@ const guidance = (options: {
       return [
         "say under the title who needs what, and why, before any solution; then what it is not",
         "write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples",
+        "a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users",
         "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         `plan it: ${plan}`,
         `once its scenarios pass it is built: move it to ${builtFeatures}/`
@@ -285,9 +277,9 @@ const guidance = (options: {
       ]
     case "decision":
       return [
-        "write what was chosen over what, and why, in one to three sentences",
+        "write what was chosen over what, why, and the cost accepted with it, in one to three sentences",
         "record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains",
-        `a rule that rests on it is written on the spec it constrains, tagged \`@decided-by:${id}\`; its price is a risk`
+        `a rule that rests on it is written on the spec it constrains, tagged \`@decided-by:${id}\``
       ]
     case "milestone":
       return [
@@ -318,9 +310,9 @@ const guidance = (options: {
       ]
     case "element":
       return [
-        "say under the title what it is responsible for and why that is architecture",
-        `anchor it next to the declaration that is it: annotate(Thing, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
-        "link what shaped it: @instance-of:PAT-…, and @decided-by:<decision> on a rule that rests on a decision"
+        `no file is written: an element is declared where its code is, by annotate(<declaration>, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
+        "the doc comment of that code is its description: say there what it is for",
+        `sdp arch shows it, with its code and the elements that code imports; a feature it realizes links it with \`@realized-by:${id}\``
       ]
     case "pattern":
       return [
@@ -329,22 +321,17 @@ const guidance = (options: {
       ]
     case "generic": {
       const level = levels.indexOf(maturity)
-      const quality = kind === "nfr"
       return [
         level <= 0
           ? "write the idea in a sentence under the title"
-          : quality
-          ? `say under the title which quality matters, for whom, and why: ${criteria.draft} asks for that paragraph`
           : `say under the title who needs what, and why, before any solution: ${criteria.draft} asks for that paragraph`,
         ...(level === 1 || level === 2
           ? [`write what is still unknown as a \`Rule:\` tagged \`@open\`, its name the question: ${criteria.ready} asks for none left`]
           : []),
         ...(level >= 2
-          ? [quality
-            ? "fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
-            : "fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
+          ? ["fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
           : []),
-        quality ? `elements it constrains link to it with @constrained-by:${id}` : "link it: @realized-by:ARCH-…",
+        "link it: @realized-by:ARCH-…",
         `plan it: ${plan}`
       ]
     }
