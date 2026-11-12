@@ -523,7 +523,8 @@ Feature: See the architecture
         - still to come: receipts (idea) — Receipts
         """
 
-  Rule: An element that work still to come names, and no code declares yet, is shown as planned
+  @replaces:see-the-architecture#an-element-that-work-still-to-come-names-and-no-code-declares
+  Rule: An element that only work still to come names is shown as still to come
 
     Once that work is live, the element must be in the code.
 
@@ -544,7 +545,7 @@ Feature: See the architecture
         | still to come     | @maturity=ready | element | nothing       |
         | that is live      |                 | missing | dangling-link |
 
-    Scenario: A planned element in the view
+    Scenario: An element still to come in the view
       Given a file "specs/export.feature" containing:
         """
         @id=export @maturity=ready @realized-by:ARCH-exports
@@ -554,6 +555,6 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains:
         """
-        ARCH-exports (element)  planned by export: no code declares it yet
+        ARCH-exports (element)  still to come, named by export: no code declares it yet
         still to come: export (ready)  Export
         """

@@ -407,12 +407,12 @@ export const buildProject = (input: ProjectInput): Project => {
   })
 
   // Every reference to an unknown id is reported where it is written; the id stays visible as one
-  // `missing` node, so it can be queried and fixed. An element or a pattern that work still to come
-  // names is planned: it is a node of the kind its id's prefix names, with no place in the files,
-  // until the work is built and its code must declare it.
+  // `missing` node, so it can be queried and fixed. An element or a pattern that only work still to
+  // come names is still to come too: a node of the kind its id's prefix names, with no place in the
+  // files, until the work is built and its code must declare it.
   const declaredIds = new Set(nodes.keys())
   const architectural = (id: string) => hasKind(vocabulary, "architectural", prefixKind(id, input.config) ?? "")
-  const planning = (edge: GraphEdge) => nodes.get(edge.from)?.attrs.toCome === true && architectural(edge.to)
+  const namedToCome = (edge: GraphEdge) => nodes.get(edge.from)?.attrs.toCome === true && architectural(edge.to)
   const iterations = [...nodes.values()].filter((n) => hasKind(vocabulary, "iteration", n.kind)).map((n) => n.id)
   const phases = [...nodes.values()].filter((n) => hasKind(vocabulary, "phase", n.kind)).map((n) => n.id)
   const activityPrefix = `${vocabulary.attributes.activity}.`
@@ -428,18 +428,16 @@ export const buildProject = (input: ProjectInput): Project => {
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
       : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
   }
-  // Live work replaces what was live at the base, and may name it in the change that deletes it:
-  // the comparison with the base reads that link, and no dangling link is reported for it.
-  const replacedBefore = (edge: GraphEdge) => hasRelation(vocabulary, "replaces", edge.rel) && nodes.get(edge.from)?.attrs.toCome !== true
-  for (const edge of links) {
+  // Live work may name what it replaced in the change that deletes it: what the link names is the
+  // base's, which the comparison with the base reads from the specs, and the graph has no node of it.
+  const replacedBefore = (edge: GraphEdge) =>
+    hasRelation(vocabulary, "replaces", edge.rel) && nodes.get(edge.from)?.attrs.toCome !== true && !declaredIds.has(edge.to)
+  const present = links.filter((edge) => !replacedBefore(edge))
+  for (const edge of present) {
     if (declaredIds.has(edge.to)) continue
-    if (replacedBefore(edge)) {
-      if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
-      continue
-    }
-    if (planning(edge)) {
-      const planned = nodes.get(edge.to)
-      if (planned === undefined || planned.kind === made.kinds.missing) {
+    if (namedToCome(edge)) {
+      const named = nodes.get(edge.to)
+      if (named === undefined || named.kind === made.kinds.missing) {
         nodes.set(edge.to, { id: edge.to, kind: prefixKind(edge.to, input.config)!, title: edge.to, attrs: {} })
       }
       continue
@@ -454,7 +452,7 @@ export const buildProject = (input: ProjectInput): Project => {
   }
 
   const codeFiles = new Set(input.codeFiles.map((file) => file.path))
-  const graph = new Graph(nodes.values(), [...links, ...importsBetweenElements(annotations, importsOf, codeFiles, nodes, vocabulary)])
+  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, codeFiles, nodes, vocabulary)])
 
   return {
     root: input.root,

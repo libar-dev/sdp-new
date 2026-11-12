@@ -112,8 +112,8 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
  * without one, what the code anchored to it says of itself. Under each piece of code that is it
  * comes its surface: a declaration's shape, or what a file exports. Code that links to it otherwise
  * — that plays a pattern — is followed by the elements that code is. Then the work on it: what is
- * live, and what is still to come, ready first. A node no file declares is planned by the
- * work that names it. A title that only repeats the id, as that of an element declared by its code,
+ * live, and what is still to come, ready first. A node no file declares is still to come, named by
+ * the work still to come that names it. A title that only repeats the id, as that of an element declared by its code,
  * is left out.
  */
 export const architecture = ({ anchor, anchors, architecture, drivers, edges, kinds, work }: ArchitectureData): string => {
@@ -127,9 +127,9 @@ export const architecture = ({ anchor, anchors, architecture, drivers, edges, ki
     const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : anchoring.map((e) => code.get(e.from)?.attrs.doc)
     const named = title(node.id) === "" ? node.id : `${node.id} — ${node.title}`
     const { live = [], toCome = [] } = work.find((w) => w.node === node.id) ?? {}
-    const by = toCome.length > 0 ? ` by ${toCome.map((item) => item.id).join(", ")}` : ""
-    const planned = node.file === null ? `planned${by}: no code declares it yet` : ""
-    lines.push("", `${named} (${node.kind})  ${where(node) || planned}`.trimEnd())
+    const by = toCome.length > 0 ? `, named by ${toCome.map((item) => item.id).join(", ")}` : ""
+    const coming = node.file === null ? `still to come${by}: no code declares it yet` : ""
+    lines.push("", `${named} (${node.kind})  ${where(node) || coming}`.trimEnd())
     for (const text of described) if (typeof text === "string") lines.push(`  ${text}`)
     for (const edge of edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`.trimEnd())
     for (const edge of incoming) {
