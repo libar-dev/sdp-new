@@ -42,9 +42,9 @@ Feature: Architecture overview
 
   Rule: Code in this repository links only to the architecture, and every ready requirement or feature names the element that realizes it
 
-    Scenario: No code outside the architecture, none linked to a requirement, no ready requirement or feature without an element
+    Scenario: No code outside the architecture, none linked to anything else, no ready requirement or feature without an element
       Then the query "code !-is|instance-of-> element|pattern" returns no results
-      And the query "code ?-*-> feature|change" returns no results
+      And the query "code ?-*-> *[kind!=element|pattern]" returns no results
       And the query "requirement|feature[maturity=ready] !-realized-by-> element" returns no results
 
   Rule: The step API loads nothing of the parser, the graph or the workspace

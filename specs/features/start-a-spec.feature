@@ -83,13 +83,15 @@ Feature: Start a spec
         | requirement 'Gift cards' --id REQ-vouchers --dir specs/payments | REQ-vouchers        | specs/payments/REQ-vouchers.feature            |
         | requirement 'Gift cards' --dir $PWD/specs/payments              | REQ-gift-cards      | specs/payments/REQ-gift-cards.feature          |
 
-    Scenario: A title with no letters to slug is numbered after the highest number its kind has
+    Scenario: A title that leaves no ASCII letter or digit to slug is numbered after the highest number its kind has
       Given these specs:
-        | tags                       | Feature |
-        | @id=REQ-0007               | Корзина |
-        | @id=REQ-checkout           | Checkout |
+        | tags             | Feature  |
+        | @id=REQ-0007     | Корзина  |
+        | @id=REQ-checkout | Checkout |
       When I run "sdp new requirement 'Платёж'"
       Then the output lines are "REQ-0008\tspecs/requirements/REQ-0008.feature"
+      When I run "sdp new requirement 'Платёж 2'"
+      Then the output lines are "REQ-2\tspecs/requirements/REQ-2.feature"
 
     Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so
       Given a file "shop/sdp.config.yaml" containing:

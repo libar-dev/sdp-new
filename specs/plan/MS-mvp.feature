@@ -22,7 +22,8 @@ Feature: Minimum viable product
     A change is deleted once its rules are in its feature, so it is gone when it is built.
 
     Scenario: Questions stay interactive on large repositories on disk
-      Then the query "change[id=questions-stay-interactive-on-disk]" returns no results
+      Then the query "rule[spec=ask-the-graph][title~on disk][verification=passing]" returns 1 result
+      And the query "change[id=questions-stay-interactive-on-disk]" returns no results
 
   Rule: Nothing built is still undecided
 
