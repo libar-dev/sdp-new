@@ -36,8 +36,8 @@ example, verified by scenarios that run the real CLI as a process in a temporary
 ## The example workspace
 
 The scenarios below run against this small workspace: one specified requirement, two
-architecture elements of which the architect marked one significant, a decision, an architecture
-rule, a plan with the four phases and one iteration, and a milestone whose gate is not met yet.
+architecture elements, a decision, an architecture rule, a plan with the four phases and one
+iteration, and a milestone whose gate is not met yet.
 
 ~~~gherkin
 Background:
@@ -72,15 +72,15 @@ Background:
     id: ARCHITECTURE
     kind: view
     nodes:
-      - { id: ARCH-index, kind: element, title: Search index, significant: true, rationale: "search latency depends on it", links: { decided-by: DEC-0001 } }
-      - { id: ARCH-cache, kind: element, title: Page cache }
-      - { id: DEC-0001, kind: decision, title: Use an inverted index, status: accepted, decision: one inverted index for all products }
+      - { id: ARCH-index, kind: element, title: Search index, links: { decided-by: DEC-0001 } }
+      - { id: ARCH-cache, kind: element, title: Page cache, links: { decided-by: DEC-0001 } }
+      - { id: DEC-0001, kind: decision, title: Use an inverted index, status: accepted }
     ---
     # Architecture
 
     ```gherkin
-    Scenario: Significant elements are justified by a decision
-      Then the query "element[significant] !-*- decision" returns no results
+    Scenario: Every element is justified by a decision
+      Then the query "element !-*- decision" returns no results
     ```
     """
   And a file "docs/plan.md" containing:
@@ -390,10 +390,10 @@ Scenario: types writes the ids annotate() accepts, and check knows when they are
 
 ### `sdp status`
 
-One screen: node and edge counts, kinds, relations, spec stages, decisions, the results of
-ordinary scenarios and, separately, of gate scenarios (which may be unmet without anything being
-broken), stale results by what changed since they ran ([[REQ-executable-specs]]), how many
-elements are marked significant, and diagnostics by severity.
+One screen: node and edge counts, kinds, relations, stages, decisions, the results of ordinary
+scenarios and, separately, of gate scenarios (which may be unmet without anything being broken),
+stale results by what changed since they ran ([[REQ-executable-specs]]), how many nodes are of an
+architectural kind, and diagnostics by severity.
 
 ```sh
 sdp status --json | jq .scenarios
@@ -422,14 +422,30 @@ which, even if nothing was found: the answer may be incomplete.
 
 ```sh
 sdp q 'requirement[maturity<ready]'
-sdp q 'requirement -realized-by-> element[significant]' --paths
+sdp q 'requirement -realized-by-> element -decided-by-> decision' --paths
 ```
 
 ~~~gherkin
 Scenario: q answers a path pattern
-  When I run "sdp q 'requirement -realized-by-> element[significant]' --json"
+  When I run "sdp q 'requirement -realized-by-> element[declaredIn=ARCHITECTURE]' --json"
   Then the output is valid JSON
   And the output contains '"id": "ARCH-index"'
+
+Scenario: q lists a decision by its status and a spec by its stage
+  Given a file "docs/DEC-0002.md" containing:
+    """
+    ---
+    id: DEC-0002
+    kind: decision
+    status: proposed
+    maturity: idea
+    ---
+    # Shard the index
+    """
+  When I run "sdp q decision"
+  Then the output contains "DEC-0002  decision  proposed"
+  When I run "sdp q requirement"
+  Then the output contains "REQ-search  requirement  specified"
 
 Scenario: An invalid query is an error
   When I run "sdp q 'requirement[maturity<'"
@@ -482,7 +498,7 @@ sdp show ARCH-index
 ~~~gherkin
 Scenario: show prints a node with its edges
   When I run "sdp show ARCH-index"
-  Then the output contains "significant: true"
+  Then the output contains 'declaredIn: "ARCHITECTURE"'
   And the output contains "-decided-by-> DEC-0001"
   And the output contains "<-realized-by- REQ-search"
 ~~~
@@ -492,7 +508,7 @@ Scenario: show prints a node with its edges
 Everything needed to work on one node, as one Markdown document ([[REQ-agent-context]]): the spec,
 why it is not ready yet, its relationships, scenario results with a suggested definition for each
 step that has none (matched against the step definitions, so no run is needed), the step files,
-the significant architecture, quality requirements and decisions within reach (`--depth`,
+the architecture, quality requirements and decisions within reach (`--depth`,
 default 2), and linked code. The usual first call before changing a spec.
 
 ```sh
@@ -517,7 +533,7 @@ per line, for grep, awk and jq.
 
 ```sh
 sdp graph --write && grep -P '^edge\t[^\t]*\trealized-by\t' .sdp/graph.tsv
-sdp graph -f mermaid -q 'element[significant]'
+sdp graph -f mermaid -q 'element -decided-by-> decision'
 ```
 
 ~~~gherkin
@@ -530,29 +546,40 @@ Scenario: graph --write leaves the graph on disk for grep and jq
 
 ### `sdp arch`
 
-The curated architecture: only the elements and patterns an architect marked `significant`, each
-with its rationale, the patterns it applies and the decisions and quality requirements linked to
-it. What is significant is the architects' call; sdp shows it and never computes, limits or
-checks it. `--candidates` lists suggestions worth a look; `-f`, `--format mermaid|dot|json` for
-diagrams and scripts.
+The architecture: every element and pattern architects declared, each with what its spec says it is
+for and its links, among them the decisions and quality requirements that shaped it
+([[REQ-curated-architecture]]). sdp never computes, ranks or suggests what belongs in it;
+`-f`, `--format mermaid|dot|json` for diagrams and scripts.
 
 ```sh
 sdp arch
-sdp arch --candidates
+sdp arch -f mermaid
 ```
 
 ~~~gherkin
-Scenario: arch shows what architects marked significant
+Scenario: arch shows every declared element with its decisions
   When I run "sdp arch"
-  Then the output contains "Significant (marked by architects): 1"
-  And the output contains "why: search latency depends on it"
-  And the output contains "-decided-by-> DEC-0001"
-  And the output contains "1 declared, not significant: ARCH-cache"
+  Then the output contains "Architecture: 2 node(s)"
+  And the output contains "ARCH-index -decided-by-> DEC-0001"
+  And the output contains "ARCH-cache — Page cache (element)"
 
 Scenario: arch -f json is for scripts
   When I run "sdp arch -f json"
   Then the output is valid JSON
-  And the output contains '"significant": [\n    "ARCH-index"'
+  And the output field "nodes" holds "ARCH-cache, ARCH-index, DEC-0001"
+~~~
+
+### `sdp vocabulary`
+
+The words sdp interprets — kinds, relations, attributes, statuses, the maturity ladder and the
+disciplines — as the workspace configures them, in the shape of the `vocabulary:` section of the
+configuration ([[REQ-configuration]]); `--json` for scripts.
+
+~~~gherkin
+Scenario: vocabulary prints the words sdp interprets
+  When I run "sdp vocabulary --json"
+  Then the output is valid JSON
+  And the output field "maturity" holds "idea, draft, specified, ready"
 ~~~
 
 ### `sdp lifecycle`
@@ -622,7 +649,8 @@ Scenario Outline: Only errors fail the check
   Examples:
     | front matter                                       | rule          | exit code |
     | { id: REQ-a, links: { depends-on: REQ-gone } }     | dangling-link | 1         |
-    | { id: REQ-a, maturity: someday }                   | maturity-value | 0        |
+    | { id: REQ-a, maturity: draft }                     | maturity-gate  | 1        |
+    | { id: REQ-a, links: [REQ-b] }                      | link-syntax    | 1        |
     | { id: REQ-a, kind: decision, status: accepted }    | decision-content | 0      |
 
 Scenario: check --json prints the diagnostics as JSON
@@ -666,8 +694,6 @@ Scenario: A failing scenario fails the run
     ---
     id: ARCH-cdn
     kind: element
-    significant: true
-    rationale: page load time
     ---
     # Content delivery network
     """

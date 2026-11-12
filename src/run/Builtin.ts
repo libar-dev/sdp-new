@@ -3,13 +3,13 @@
  * architecture rules, decision guards and lifecycle milestone gates into
  * ordinary scenarios — the same format as every other specification.
  *
- *   Then the query "element[significant] !-*- decision" returns no results
+ *   Then the query "element !-*- decision" returns no results
  *   Then there are no error diagnostics
  */
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { parseQuery, projectOrderings, runQuery, unknownNames } from "../graph/Query.ts"
+import { parseQuery, projectQueryOptions, runQuery, unknownNames } from "../graph/Query.ts"
 import { isRuleId, rules, type Severity } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { defineSteps } from "./Steps.ts"
@@ -34,7 +34,7 @@ const run = (project: Project, source: string): ReadonlyArray<GraphNode> => {
       }`
     )
   }
-  const result = runQuery(project.graph, parsed.success, { orderings: projectOrderings(project.config.maturity) })
+  const result = runQuery(project.graph, parsed.success, projectQueryOptions(project))
   if (result.truncated) {
     throw new Error(
       `query "${source}" was cut short (${result.limits.join("; ")}), so its result is incomplete and proves nothing; narrow the query`

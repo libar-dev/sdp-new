@@ -2,10 +2,6 @@
 id: ARCH-spec-parser
 kind: element
 title: Spec parser
-significant: true
-rationale: >-
-  Defines the one specification format (DEC-0001). A change here changes what every spec file in
-  every workspace means — the highest cost of change in the system.
 iteration: I1
 links:
   decided-by: DEC-0001
@@ -20,6 +16,9 @@ attributes, links, prose links, open questions and executable scenarios, plus a 
 anything it cannot read. It is a pure function of the file's content and the configuration, and it
 keeps the line of every fact, so each node, edge and diagnostic built from it points at a greppable
 `file:line`. Annotations in code are read by [[ARCH-code-annotations]].
+
+Defines the one specification format (DEC-0001). A change here changes what every spec file in every
+workspace means — the highest cost of change in the system.
 
 ## Markdown
 

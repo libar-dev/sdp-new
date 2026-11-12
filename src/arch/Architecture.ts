@@ -1,124 +1,68 @@
 /**
- * The curated architecture. Which elements and patterns are architecturally
- * significant is the architect's decision, recorded as `significant: true`
- * (with a `rationale` saying why). sdp never computes, limits or checks
- * significance. It shows the curated set together with the patterns it applies
- * and the decisions and quality requirements around it, and can suggest
- * candidates for an architect to consider.
+ * The architecture: every node of an architectural kind (elements and patterns
+ * unless the vocabulary says otherwise). The graph is curated — what an
+ * architect declares in a spec or anchors in code is, by that act, part of the
+ * architecture — so sdp never computes, ranks, limits or suggests what belongs
+ * in it. It shows the architecture with the decisions and quality requirements
+ * linked to it.
  */
 import { annotate } from "sdp/annotations"
-import { Predicate } from "effect"
-import type { GraphEdge, GraphNode } from "../model/Graph.ts"
+import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
+import { hasKind, isDriver, isMention } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { nodeJson } from "../graph/Export.ts"
 
-export const isSignificant = (node: GraphNode): boolean =>
-  node.attrs.significant === true || node.attrs.significant === "true" || node.attrs.significant === "yes"
-
-/** Nodes of an architectural kind (elements, patterns, ...) or carrying a `significant` attribute. */
-export const isArchitectural = (project: Project, node: GraphNode): boolean =>
-  project.config.architecture.kinds.includes(node.kind) || node.attrs.significant !== undefined
-
-/** Architectural drivers: decisions and quality (non-functional) requirements. */
-export const isDriver = (project: Project, node: GraphNode): boolean =>
-  project.config.architecture.drivers.includes(node.kind) ||
-  ["quality", "non-functional", "nfr", "constraint"].includes(String(node.attrs.type ?? "").toLowerCase())
-
-export interface ArchitectureSummary {
-  /** Marked significant by an architect. */
-  readonly significant: ReadonlyArray<GraphNode>
-  /** Declared architectural nodes that are not marked significant. */
-  readonly declared: ReadonlyArray<GraphNode>
-}
-
-export const architectureSummary = (project: Project): ArchitectureSummary => {
-  const architectural = [...project.graph.nodes.values()].filter((node) => isArchitectural(project, node))
-  return { significant: architectural.filter(isSignificant), declared: architectural.filter((node) => !isSignificant(node)) }
-}
-
-export interface Candidate {
-  readonly node: GraphNode
-  readonly score: number
-  readonly reasons: ReadonlyArray<string>
-}
-
-/**
- * Ranks non-significant architectural nodes (and annotated code) by signals an
- * architect may find worth a look: links from decisions and quality
- * requirements, requirements depending on them, and fan-in. Suggestions only.
- */
-export const rankCandidates = (project: Project, limit = 10): ReadonlyArray<Candidate> => {
-  const { graph } = project
-  const candidates: Array<Candidate> = []
-  for (const node of graph.nodes.values()) {
-    if (isSignificant(node)) continue
-    if (!isArchitectural(project, node) && node.kind !== "code") continue
-    const decisions = new Set<string>()
-    const qualities = new Set<string>()
-    const requirements = new Set<string>()
-    for (const { edge, other } of graph.neighbours(node.id)) {
-      const o = graph.node(other)
-      if (!o || !isDesignLink(edge, o)) continue
-      if (o.kind === "decision") decisions.add(o.id)
-      else if (isDriver(project, o)) qualities.add(o.id)
-      else if (Predicate.isString(o.attrs.maturity)) requirements.add(o.id)
-    }
-    const fanIn = graph.in(node.id).filter((edge) => {
-      const from = graph.node(edge.from)
-      return from !== undefined && isDesignLink(edge, from)
-    }).length
-    const score = decisions.size * 3 + qualities.size * 3 + requirements.size * 2 + fanIn
-    if (score === 0) continue
-    const reasons = [
-      decisions.size > 0 ? `${decisions.size} decision(s): ${[...decisions].join(", ")}` : undefined,
-      qualities.size > 0 ? `${qualities.size} quality requirement(s): ${[...qualities].join(", ")}` : undefined,
-      requirements.size > 0 ? `${requirements.size} requirement(s) depend on it` : undefined,
-      fanIn > 0 ? `fan-in ${fanIn}` : undefined
-    ].filter(Predicate.isString)
-    candidates.push({ node, score, reasons })
-  }
-  return candidates.sort((a, b) => b.score - a.score || a.node.id.localeCompare(b.node.id)).slice(0, limit)
-}
-
-/**
- * Links that say something about the design. Scenarios verifying a spec, prose
- * mentions and code anchors only show that something is specified, talked about
- * or implemented — writing more of them must not make an element look central.
- */
-const isDesignLink = (edge: GraphEdge, other: GraphNode) =>
-  edge.rel !== "verifies" && edge.rel !== "mentions" && other.kind !== "scenario" && other.kind !== "code"
-
 export interface ArchitectureView {
+  /** The architectural nodes, then the drivers linked to them. */
   readonly nodes: ReadonlyArray<GraphNode>
   readonly edges: ReadonlyArray<GraphEdge>
 }
 
 /**
- * Significant nodes, the patterns they apply, and the decisions and quality
- * requirements linked to them — and nothing else. This is the view to hand to
- * a person or an agent designing a change.
+ * Every architectural node and the decisions and quality requirements linked to it — and nothing
+ * else. A prose mention links nothing, so it pulls nothing in. This is the view to hand to a person
+ * or an agent designing a change.
  */
 export const architectureView = (project: Project): ArchitectureView => {
   const { graph } = project
-  const keep = new Set(architectureSummary(project).significant.map((node) => node.id))
-  for (const id of [...keep]) {
-    for (const { other } of graph.neighbours(id)) {
+  const vocabulary = project.config.vocabulary
+  const architecture = graph.nodes().filter((node) => hasKind(vocabulary, "architectural", node.kind))
+  const keep = new Set(architecture.map((node) => node.id))
+  for (const node of architecture) {
+    for (const { edge, other } of graph.neighbours(node.id)) {
       const o = graph.node(other)
-      if (o && (o.kind === "pattern" || isDriver(project, o))) keep.add(o.id)
+      if (o && !isMention(vocabulary, edge) && isDriver(vocabulary, o)) keep.add(o.id)
     }
   }
   const sub = graph.subgraph(keep)
-  return { nodes: [...sub.nodes.values()], edges: sub.edges }
+  return { nodes: sub.nodes(), edges: sub.edges().filter((edge) => !isMention(vocabulary, edge)) }
 }
 annotate(architectureView, { is: "ARCH-architecture-view" })
 
-/** The curated view as JSON — one shape for `sdp arch --format json` and the MCP tool. */
+/**
+ * The view as text: each architectural node with what its spec says it is for and its links;
+ * the decisions and quality requirements appear as the nodes it links to.
+ */
+export const renderArchitecture = (project: Project): string => {
+  const { graph } = project
+  const vocabulary = project.config.vocabulary
+  const view = architectureView(project)
+  const architecture = view.nodes.filter((node) => hasKind(vocabulary, "architectural", node.kind))
+  const title = (id: string) => graph.node(id)?.title ?? ""
+  const lines = [`Architecture: ${architecture.length} node(s) of the kinds ${vocabulary.kinds.architectural.join(", ")}`]
+  for (const node of architecture) {
+    lines.push("", `${node.id} — ${node.title} (${node.kind})  ${formatSource(node.source)}`.trimEnd())
+    if (typeof node.attrs.summary === "string") lines.push(`  ${node.attrs.summary}`)
+    for (const edge of view.edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`)
+    for (const edge of view.edges.filter((e) => e.to === node.id)) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`)
+  }
+  return lines.join("\n") + "\n"
+}
+
+/** The view as JSON — one shape for `sdp arch --format json` and the MCP tool. */
 export const architectureJson = (project: Project) => {
-  const summary = architectureSummary(project)
   const view = architectureView(project)
   return {
-    significant: summary.significant.map((n) => n.id),
-    declared: summary.declared.map((n) => n.id),
     nodes: view.nodes.map(nodeJson),
     edges: view.edges.map((e) => ({ from: e.from, rel: e.rel, to: e.to }))
   }

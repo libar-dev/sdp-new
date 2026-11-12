@@ -85,7 +85,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("specs created from the sdp new templates:", ({ table, world }) =>
     Effect.map(load(world), (project) => {
       const [header = [], ...rows] = table ?? []
-      const existing = [...project.graph.nodes.keys()]
+      const existing = project.graph.nodes().map((n) => n.id)
       for (const row of rows) {
         const cell = (name: string) => row[header.indexOf(name)] ?? ""
         const created = newSpec({

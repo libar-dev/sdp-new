@@ -22,7 +22,7 @@ nodes:
     links: { decided-by: DEC-0002 }
   - id: PRIN-architects-decide
     kind: principle
-    title: Significance is the architect's call
+    title: The architecture is what architects declare
     links: { decided-by: DEC-0008 }
   - id: PRIN-agent-native
     kind: principle
@@ -59,8 +59,8 @@ which now do much of the work, cannot see it at all.
 sdp sits where requirements tools, BDD runners and architecture repositories overlap, and keeps
 what each does well in one graph. Unlike a requirements tool, it keeps specifications in the
 repository and runs them. Unlike a BDD runner, it also holds ideas, quality requirements,
-decisions, architecture and the plan. Unlike an architecture repository, it shows only what
-architects marked significant, connected to the decisions and evidence behind it. It is built for
+decisions, architecture and the plan. Unlike an architecture repository, it holds only what
+architects declared significant, connected to the decisions and evidence behind it. It is built for
 agents as much as for people.
 
 ## Principles
@@ -76,9 +76,9 @@ agents as much as for people.
    [[DEC-0007]]).
 4. **The graph speaks the team's language.** Kinds and relations are the authors' words, not a
    metamodel ([[DEC-0002]]).
-5. **Significance is the architect's call.** Few abstractions are architecture; architects mark
-   them, and the tool shows them without computing, limiting or checking significance
-   ([[DEC-0008]]).
+5. **The architecture is what architects declare.** Few abstractions are architecture; what
+   architects declare or anchor in code is, by that act, significant. The tool shows it and never
+   computes, ranks, limits or suggests what belongs in it ([[DEC-0008]]).
 6. **Agent-native.** Everything is reachable with grep and jq, a `--json` CLI and MCP; every fact
    carries the `file:line` it came from; queries fit on one line; the tool runs from source, so
    agents run what they edit ([[DEC-0003]], [[DEC-0006]], [[DEC-0004]]).
@@ -121,5 +121,5 @@ Scenario: Every principle rests on a decision
   Then the query "principle !-decided-by-> decision" returns no results
 
 Scenario: The vision maps every capability
-  Then the query "capability !<-*- #VISION" returns no results
+  Then the query "capability !<-*|mentions- #VISION" returns no results
 ~~~

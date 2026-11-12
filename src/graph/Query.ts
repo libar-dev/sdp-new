@@ -3,25 +3,35 @@
  * Cypher's ASCII art so agents can guess it, but written on one line so it
  * fits a shell argument:
  *
- *   requirement[maturity=ready] -realized-by-> element[significant]
+ *   requirement[maturity=ready] -realized-by-> element
  *   #DEC-0003 <-*- *                      everything pointing at a node
- *   element[significant] !-*- decision    significant elements with no decision
+ *   element !-*- decision                 elements with no decision
  *   element -depends-on+-> *              transitive closure
  *
  * Node selector: `kind`, `kind|kind`, `*`, `#ID` / `#ID|ID`, followed by any
  * number of `[cond, cond]` groups. Conditions: `key`, `!key`, `key=a|b`,
  * `key!=a`, `key~regex`, `key!~regex`, `key<v`, `key>=v` (numbers, dates, and
- * the maturity ladder compare in order). A bare `key` asks whether it is set
- * (not missing, null, false or empty); the others compare the value itself.
+ * the maturity and stage ladders compare in order). A bare `key` asks whether
+ * it is set (not missing, null, false or empty); the others compare the value
+ * itself. A key reads the node's own attribute and the targets of the node's
+ * links of that relation, so `[iteration=E1]` and `-iteration-> #E1` agree.
  *
  * Edge step: `-rel->` (out), `<-rel-` (in), `-rel-` (either), `*` or empty for
- * any relation, `a|b` for alternatives, a trailing `+` for one-or-more hops.
+ * any relation but a prose mention, `a|b` for alternatives (`*|mentions` adds
+ * mentions), a trailing `+` for one-or-more hops.
  * Prefix `!` keeps nodes WITHOUT such a neighbour, `?` keeps nodes WITH one;
  * both filter without moving.
  */
 import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
+import {
+  defaultVocabulary,
+  isMention,
+  made,
+  type Vocabulary,
+  vocabularyWords
+} from "../model/Vocabulary.ts"
 import type { Project } from "./Build.ts"
 
 annotate(import.meta, { is: "ARCH-query-engine" })
@@ -31,13 +41,14 @@ export const querySyntax = `node (edge node)*
   node  kind | kind|kind | * | #ID | #ID|ID, then [cond, ...]
   cond  key | !key | key=a|b | key!=a | key~regex | key!~regex | key<v | key>=v
         key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
-        < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < in-progress < verified
-  edge  -rel-> | <-rel- | -rel-   rel: * or empty for any, a|b alternatives, trailing + for one or more hops
+        < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
+        a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
+  edge  -rel-> | <-rel- | -rel-   rel: * or empty for any but mentions, a|b alternatives (*|mentions for all), trailing + for one or more hops
         prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
 examples
   requirement[maturity<ready]
-  requirement -realized-by-> element[significant]
-  element[significant] !-*- decision
+  requirement -realized-by-> element
+  element !-*- decision
   element -decided-by-> decision[status=proposed]
   #DEC-0002 <-*- *
   scenario[status=failed] -verifies-> *`
@@ -64,7 +75,8 @@ export interface NodeSelector {
 
 export interface EdgeStep {
   readonly direction: "out" | "in" | "both"
-  readonly rels: ReadonlyArray<string> | "*"
+  /** Relation names; `*` among them stands for every relation but the mention relation. */
+  readonly rels: ReadonlyArray<string>
   readonly transitive: boolean
   readonly mode: "move" | "exists" | "not-exists"
 }
@@ -95,9 +107,14 @@ export interface QueryResult {
   readonly limits: ReadonlyArray<string>
 }
 
+/** Values in order, lowest rung first; the words of one rung rank equal. */
+export type Ladder = ReadonlyArray<ReadonlyArray<string>>
+
 export interface QueryOptions {
-  /** Ordered value ladders for `<`/`>` on non-numeric attributes, e.g. `{ maturity: ["idea", ...] }`. */
-  readonly orderings?: Readonly<Record<string, ReadonlyArray<string>>> | undefined
+  /** Ladders for `<`/`>` on non-numeric attributes, by attribute: `maturity` → `[idea, draft, ...]`. */
+  readonly orderings?: ReadonlyMap<string, Ladder> | undefined
+  /** The words the engine interprets: the mention relation, which `*` skips. */
+  readonly vocabulary?: Vocabulary | undefined
   /** Paths kept per step (default 10 000); more mark the result `truncated`. */
   readonly maxPaths?: number | undefined
   /** Hops a `+` step follows (default 12); a longer reach marks the result `truncated`. */
@@ -126,22 +143,26 @@ export const parseQuery = (source: string): Result.Result<Query, QueryError> => 
 export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {}): QueryResult => {
   const maxPaths = options.maxPaths ?? 10_000
   const maxDepth = options.maxDepth ?? 12
-  const orderings = options.orderings ?? {}
+  const context: Context = {
+    graph,
+    orderings: options.orderings ?? new Map(),
+    vocabulary: options.vocabulary ?? defaultVocabulary
+  }
   const limits = new Set<string>()
   const hopLimit = `a + edge reaches further than ${maxDepth} hops`
   const pathLimit = `a step has more than ${maxPaths} paths`
-  let paths: Array<{ readonly path: QueryPath; readonly end: string }> = startNodes(graph, query.start, orderings).map((
+  let paths: Array<{ readonly path: QueryPath; readonly end: string }> = startNodes(context, query.start).map((
     node
   ) => ({ path: { start: node.id, steps: [] }, end: node.id }))
 
   for (const { edge, node } of query.steps) {
     const accept = (id: string) => {
       const candidate = graph.node(id)
-      return candidate !== undefined && matchesNode(candidate, node, orderings)
+      return candidate !== undefined && matchesNode(context, candidate, node)
     }
     if (edge.mode !== "move") {
       paths = paths.filter(({ end }) => {
-        const reached = reachable(graph, end, edge, maxDepth)
+        const reached = reachable(context, end, edge, maxDepth)
         const found = reached.hops.some((hop) => accept(hop.node))
         // A neighbour found within the limit settles the filter; only a search cut short leaves it open.
         if (!found && reached.cut) limits.add(hopLimit)
@@ -152,7 +173,7 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     const next: Array<{ path: QueryPath; end: string }> = []
     const seen = new Set<string>()
     for (const { path, end } of paths) {
-      const reached = reachable(graph, end, edge, maxDepth)
+      const reached = reachable(context, end, edge, maxDepth)
       if (reached.cut) limits.add(hopLimit)
       for (const hop of reached.hops) {
         if (!accept(hop.node)) continue
@@ -249,7 +270,7 @@ const parseEdge = (token: string): Result.Result<EdgeStep, string> => {
   }
   const transitive = inner.endsWith("+")
   if (transitive) inner = inner.slice(0, -1)
-  const rels = inner === "" || inner === "*" ? "*" as const : inner.split("|").filter(Boolean)
+  const rels = inner === "" ? [anyRelation] : inner.split("|").filter(Boolean)
   return Result.succeed({ direction, rels, transitive, mode })
 }
 
@@ -340,27 +361,50 @@ const splitTopLevel = (text: string): Array<string> => {
 
 const unquote = (value: string) => value.replace(/^(["'])([\s\S]*)\1$/, "$2")
 
-const startNodes = (graph: Graph, selector: NodeSelector, orderings: Readonly<Record<string, ReadonlyArray<string>>>) => {
+/** What evaluation reads besides the query: the graph, the ladders and the interpreted words. */
+interface Context {
+  readonly graph: Graph
+  readonly orderings: ReadonlyMap<string, Ladder>
+  readonly vocabulary: Vocabulary
+}
+
+/** In an edge step, every relation but the mention relation. */
+const anyRelation = "*"
+
+const startNodes = (context: Context, selector: NodeSelector) => {
+  const { graph } = context
   const candidates = selector.ids
     ? selector.ids.flatMap((id) => {
       const node = graph.node(id)
       return node ? [node] : []
     })
-    : [...graph.nodes.values()]
-  return candidates.filter((node) => matchesNode(node, selector, orderings))
+    : graph.nodes()
+  return candidates.filter((node) => matchesNode(context, node, selector))
 }
 
-export const matchesNode = (
-  node: GraphNode,
-  selector: NodeSelector,
-  orderings: Readonly<Record<string, ReadonlyArray<string>>> = {}
-): boolean => {
+const matchesNode = (context: Context, node: GraphNode, selector: NodeSelector): boolean => {
   if (selector.ids && !selector.ids.includes(node.id)) return false
   if (selector.kinds !== "*" && !selector.kinds.includes(node.kind)) return false
-  return selector.conditions.every((condition) => matchesCondition(node, condition, orderings))
+  return selector.conditions.every((condition) => matchesCondition(context, node, condition))
 }
 
-const valueOf = (node: GraphNode, key: string): unknown => {
+/** A node's own data at `key`, or at the dotted path `a.b`; nothing inherited from a prototype. */
+const ownValue = (node: GraphNode, key: string): unknown => {
+  if (Object.hasOwn(node.attrs, key)) return node.attrs[key]
+  let value: unknown = node.attrs
+  for (const part of key.split(".")) {
+    if (!Predicate.isObject(value) || !Object.hasOwn(value, part)) return undefined
+    value = (value as Record<string, unknown>)[part]
+  }
+  return value
+}
+
+/**
+ * What `key` holds for a node: `id`, `kind`, `title` and `source` are keys like any attribute, and
+ * a key also holds the targets of the node's links of that relation, so a link reads the same
+ * whichever way it was written.
+ */
+const valueOf = (context: Context, node: GraphNode, key: string): unknown => {
   switch (key) {
     case "id":
       return node.id
@@ -371,13 +415,13 @@ const valueOf = (node: GraphNode, key: string): unknown => {
     case "source":
       return node.source ? `${node.source.file}:${node.source.line}` : undefined
   }
-  if (key in node.attrs) return node.attrs[key]
-  let value: unknown = node.attrs
-  for (const part of key.split(".")) {
-    if (!Predicate.isObject(value)) return undefined
-    value = (value as Record<string, unknown>)[part]
-  }
-  return value
+  const { graph, vocabulary } = context
+  const own = ownValue(node, key)
+  const linked = graph.out(node.id).filter((edge) => edge.rel === key && !isMention(vocabulary, edge)).map((edge) => edge.to)
+  if (linked.length === 0) return own
+  // A link written with attributes (`{ to: E1, ... }`) is its target here.
+  const values = [...new Set([...scalars(own).filter((v) => !Predicate.isObject(v)), ...linked])]
+  return values.length === 1 ? values[0] : values
 }
 
 /** What `[key]` asks: is the key set? Missing, null, false, empty text and empty lists are not. */
@@ -388,12 +432,8 @@ const isSet = (value: unknown) =>
 const scalars = (value: unknown): ReadonlyArray<unknown> =>
   (Array.isArray(value) ? value : [value]).filter((v) => v !== undefined && v !== null)
 
-const matchesCondition = (
-  node: GraphNode,
-  condition: Condition,
-  orderings: Readonly<Record<string, ReadonlyArray<string>>>
-): boolean => {
-  const value = valueOf(node, condition.key)
+const matchesCondition = (context: Context, node: GraphNode, condition: Condition): boolean => {
+  const value = valueOf(context, node, condition.key)
   // Existence is a flag test; equality and regexes see the value itself, so false, 0 and "" can be asked for.
   switch (condition.op) {
     case "exists":
@@ -409,7 +449,7 @@ const matchesCondition = (
     case "!~":
       return !scalars(value).some((v) => condition.regex!.test(String(v)))
     default: {
-      const ladder = orderings[condition.key]
+      const ladder = context.orderings.get(condition.key)
       return scalars(value).filter(isSet).some((v) => compare(v, condition.values[0]!, ladder, condition.op as Op))
     }
   }
@@ -417,12 +457,15 @@ const matchesCondition = (
 
 const equals = (value: unknown, expected: string) => String(value).toLowerCase() === expected.toLowerCase()
 
-const compare = (value: unknown, expected: string, ladder: ReadonlyArray<string> | undefined, op: Op): boolean => {
+/** A value's rung on a ladder, or -1 when it is not on it. */
+const rung = (ladder: Ladder, value: string) => ladder.findIndex((words) => words.includes(value))
+
+const compare = (value: unknown, expected: string, ladder: Ladder | undefined, op: Op): boolean => {
   let diff: number
   const a = Number(value)
   const b = Number(expected)
-  if (ladder && ladder.includes(String(value)) && ladder.includes(expected)) {
-    diff = ladder.indexOf(String(value)) - ladder.indexOf(expected)
+  if (ladder && rung(ladder, String(value)) >= 0 && rung(ladder, expected) >= 0) {
+    diff = rung(ladder, String(value)) - rung(ladder, expected)
   } else if (value !== "" && expected !== "" && Number.isFinite(a) && Number.isFinite(b)) {
     diff = a - b
   } else {
@@ -442,34 +485,37 @@ const compare = (value: unknown, expected: string, ladder: ReadonlyArray<string>
   }
 }
 
-const relMatches = (edge: GraphEdge, rels: EdgeStep["rels"]) => rels === "*" || rels.includes(edge.rel)
+/** `*` follows links, never prose mentions; a mention is followed only where the query names it. */
+const relMatches = (vocabulary: Vocabulary, edge: GraphEdge, rels: EdgeStep["rels"]) =>
+  rels.includes(edge.rel) || (rels.includes(anyRelation) && !isMention(vocabulary, edge))
 
-const hops = (graph: Graph, id: string, step: EdgeStep): Array<PathStep> => {
+const hops = (context: Context, id: string, step: EdgeStep): Array<PathStep> => {
+  const { graph, vocabulary } = context
   const result: Array<PathStep> = []
   if (step.direction !== "in") {
-    for (const e of graph.out(id)) if (relMatches(e, step.rels)) result.push({ rel: e.rel, direction: "out", node: e.to })
+    for (const e of graph.out(id)) if (relMatches(vocabulary, e, step.rels)) result.push({ rel: e.rel, direction: "out", node: e.to })
   }
   if (step.direction !== "out") {
-    for (const e of graph.in(id)) if (relMatches(e, step.rels)) result.push({ rel: e.rel, direction: "in", node: e.from })
+    for (const e of graph.in(id)) if (relMatches(vocabulary, e, step.rels)) result.push({ rel: e.rel, direction: "in", node: e.from })
   }
   return result
 }
 
 /** Hops for one edge step; `cut` when a transitive step stopped at `maxDepth` with nodes left to visit. */
 const reachable = (
-  graph: Graph,
+  context: Context,
   from: string,
   step: EdgeStep,
   maxDepth: number
 ): { readonly hops: ReadonlyArray<PathStep>; readonly cut: boolean } => {
-  if (!step.transitive) return { hops: hops(graph, from, step), cut: false }
+  if (!step.transitive) return { hops: hops(context, from, step), cut: false }
   const result: Array<PathStep> = []
   const visited = new Set<string>([from])
   let frontier = [from]
   for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
     const next: Array<string> = []
     for (const id of frontier) {
-      for (const hop of hops(graph, id, step)) {
+      for (const hop of hops(context, id, step)) {
         if (visited.has(hop.node)) continue
         visited.add(hop.node)
         result.push({ ...hop, rel: `${hop.rel}+` })
@@ -478,45 +524,55 @@ const reachable = (
     }
     frontier = next
   }
-  const cut = frontier.some((id) => hops(graph, id, step).some((hop) => !visited.has(hop.node)))
+  const cut = frontier.some((id) => hops(context, id, step).some((hop) => !visited.has(hop.node)))
   return { hops: result, cut }
 }
 
 const pathKey = (path: QueryPath) => [path.start, ...path.steps.map((s) => `${s.rel}>${s.node}`)].join(">")
 
-/** The orderings every project uses: the maturity ladder and the derived stage ladder. */
-export const projectOrderings = (maturity: ReadonlyArray<string>): Readonly<Record<string, ReadonlyArray<string>>> => ({
-  maturity,
-  stage: [...maturity, "in-progress", "verified"],
-  verification: ["none", "unrun", "undefined", "pending", "failing", "passing"]
+/**
+ * The stage ladder: the maturity levels, then `failing` and `in-progress` as one rung — a failing
+ * spec is no further along than one being automated — then `verified`.
+ */
+export const stageLadder = (vocabulary: Vocabulary): Ladder => [
+  ...maturityLadder(vocabulary),
+  [made.stages.failing, made.stages.inProgress],
+  [made.stages.verified]
+]
+
+const maturityLadder = (vocabulary: Vocabulary): Ladder => vocabulary.maturity.map((level) => [level])
+
+/** The orderings every project uses: the maturity ladder, the stage ladder and the verification ladder. */
+export const projectOrderings = (vocabulary: Vocabulary): ReadonlyMap<string, Ladder> =>
+  new Map([
+    ["maturity", maturityLadder(vocabulary)],
+    ["stage", stageLadder(vocabulary)],
+    ["verification", ["none", "unrun", "undefined", "pending", "failing", "passing"].map((value) => [value])]
+  ])
+
+/** How a project's graph is queried: with its ladders and its vocabulary. */
+export const projectQueryOptions = (project: Project): QueryOptions => ({
+  orderings: projectOrderings(project.config.vocabulary),
+  vocabulary: project.config.vocabulary
 })
 
 /** Query a project's graph with its maturity and stage ladders. */
 export const queryProject = (project: Project, source: string): Result.Result<QueryResult, QueryError> =>
-  query(project.graph, source, { orderings: projectOrderings(project.config.maturity) })
-
-/** Kinds sdp itself creates, or the configuration names, count as known even before any node has them. */
-const conventionalKinds = ["scenario", "code", "missing", "phase", "iteration", "milestone"]
-const conventionalRelations = ["verifies", "mentions", "is"]
+  query(project.graph, source, projectQueryOptions(project))
 
 /**
  * Kinds and relations a query names that nothing in the project uses — almost
- * always a typo, and a typo in a negative assertion would otherwise pass.
+ * always a typo, and a typo in a negative assertion would otherwise pass. The
+ * kinds and relations sdp makes, and those the vocabulary names, count as known.
  */
 export const unknownNames = (project: Project, parsed: Query): { readonly kinds: ReadonlyArray<string>; readonly relations: ReadonlyArray<string> } => {
   const { config, graph } = project
-  const knownKinds = new Set([
-    ...graph.kinds().keys(),
-    ...conventionalKinds,
-    ...Object.keys(config.ids),
-    ...config.architecture.kinds,
-    ...config.architecture.drivers,
-    ...Object.values(config.disciplines).flat()
-  ])
-  const knownRelations = new Set([...graph.relations().keys(), ...conventionalRelations])
+  const words = vocabularyWords(config.vocabulary)
+  const knownKinds = new Set([...graph.kinds().keys(), ...Object.values(made.kinds), ...Object.keys(config.ids), ...words.kinds])
+  const knownRelations = new Set([...graph.relations().keys(), ...words.relations, anyRelation])
   const selectors = [parsed.start, ...parsed.steps.map((step) => step.node)]
   const kinds = selectors.flatMap((selector) => selector.kinds === "*" ? [] : selector.kinds).filter((kind) => !knownKinds.has(kind))
-  const relations = parsed.steps.flatMap((step) => step.edge.rels === "*" ? [] : step.edge.rels).filter((rel) => !knownRelations.has(rel))
+  const relations = parsed.steps.flatMap((step) => step.edge.rels).filter((rel) => !knownRelations.has(rel))
   return { kinds: [...new Set(kinds)], relations: [...new Set(relations)] }
 }
 

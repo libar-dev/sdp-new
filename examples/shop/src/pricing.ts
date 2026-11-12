@@ -10,7 +10,7 @@ export const vatRates: Readonly<Record<string, number>> = { DE: 19, FR: 20, HR: 
 
 /** The VAT on a net amount for the delivery country, rounded once. */
 export const vatFor = (net: Cents, country: string): Cents => {
-  const rate = vatRates[country]
+  const rate = Object.hasOwn(vatRates, country) ? vatRates[country] : undefined
   if (rate === undefined) throw new Error(`no VAT rate for ${country}`)
   return Math.round((net * rate) / 100)
 }

@@ -1,6 +1,7 @@
 import { statusCell } from "../graph/Export.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
+import type { Vocabulary } from "../model/Vocabulary.ts"
 import type { ScenarioResult, StepStatus } from "../run/Results.ts"
 
 const useColor = process.stdout.isTTY === true && !process.env.NO_COLOR
@@ -25,8 +26,8 @@ export const table = (rows: ReadonlyArray<ReadonlyArray<string>>): string => {
   return rows.map((r) => r.map((cell, i) => i === r.length - 1 ? cell : pad(cell, widths[i]!)).join("  ").trimEnd()).join("\n")
 }
 
-export const nodeRows = (nodes: ReadonlyArray<GraphNode>) =>
-  nodes.map((n) => [n.id, n.kind, statusCell(n), n.title, formatSource(n.source)])
+export const nodeRows = (vocabulary: Vocabulary, nodes: ReadonlyArray<GraphNode>) =>
+  nodes.map((n) => [n.id, n.kind, statusCell(vocabulary, n), n.title, formatSource(n.source)])
 
 export const statusIcon: Record<StepStatus, string> = {
   passed: c.green("✔"),

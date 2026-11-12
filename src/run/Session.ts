@@ -13,6 +13,7 @@ import { isActive, isGate, type Project, staleCounts } from "../graph/Build.ts"
 import { formatSource } from "../model/Graph.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
+import type { Vocabulary } from "../model/Vocabulary.ts"
 import { loadProject, writeResults } from "../workspace/Workspace.ts"
 import type { RunResults, ScenarioResult } from "./Results.ts"
 import { mergeResults, runScenarios } from "./Runner.ts"
@@ -105,15 +106,15 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
 }) {
   const selected = selects(options.selection ?? {})
   // Whether a scenario is a gate is decided by the examples this run selected.
-  const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {
-    const chosen = isActive(spec) ? selected(scenario, spec) : undefined
-    return chosen && isGate(scenario, spec, chosen) === gates ? chosen : undefined
+  const select = (gates: boolean, vocabulary: Vocabulary) => (scenario: Scenario, spec: Spec) => {
+    const chosen = isActive(spec, vocabulary) ? selected(scenario, spec) : undefined
+    return chosen && isGate(scenario, spec, vocabulary, chosen) === gates ? chosen : undefined
   }
   const run = (project: Project, gates: boolean) =>
     runScenarios({
       project,
       modules: options.modules,
-      select: select(gates),
+      select: select(gates, project.config.vocabulary),
       gates,
       timeout: options.timeout,
       concurrency: options.concurrency,

@@ -31,17 +31,22 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
   unknown id selects nothing). All conditions must hold, whether written in one `[…]` group,
   separated by commas, or in several groups.
 - **Values.** `id`, `kind`, `title` and `source` (`file:line`) are keys like any attribute; `a.b`
-  reaches into a nested attribute. A bare `key` asks whether the key is set: missing, `null`,
+  reaches into a nested attribute. A key reads only what the node itself holds — `toString` is no
+  attribute of every node — and the targets of the node's links of that relation, so
+  `[realized-by=ARCH-orders]` and `?-realized-by-> #ARCH-orders` agree ([[DEC-0010]]). A bare
+  `key` asks whether the key is set: missing, `null`,
   `false`, empty text and empty lists are not, so `!key` finds them. Equality and regexes compare
   the value itself, ignoring case — `key=false`, `key=0` and `key=""` find exactly those values —
   and `key!=v` also matches nodes where the key is missing or `null`, which have no value to
   compare. A list matches when any of its elements does. `<` and `>` compare only set values,
   along the maturity, stage and verification ladders, then as numbers, then as text — so ISO dates
-  order correctly. `|` separates alternatives except
+  order correctly. On the stage ladder `failing` and `in-progress` rank equal, above every
+  maturity level and below `verified` ([[REQ-maturity-gates]]). `|` separates alternatives except
   in a regex; quote a value, in single or double quotes, when it contains a comma or a literal `|`.
   A regex may contain brackets.
 - **Edges.** `-rel->` follows outgoing edges, `<-rel-` incoming ones, `-rel-` both. `*` or nothing
-  matches any relation, `a|b` either. A trailing `+` follows the relation one or more hops without
+  matches any relation but a prose mention, which is not a link; name it to follow it
+  (`-mentions->`, or `-*|mentions->` for everything). `a|b` matches either. A trailing `+` follows the relation one or more hops without
   revisiting nodes. An edge at the end of a query leads to any node.
 - **Filters.** `?edge node` keeps the current nodes that have such a neighbour, `!edge node` those
   that have none; neither moves.
@@ -52,7 +57,7 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
 
 ```sh
 sdp q 'requirement[maturity<ready]'
-sdp q 'requirement -realized-by-> element[significant] -decided-by-> decision' --paths
+sdp q 'requirement -realized-by-> element -decided-by-> decision' --paths
 sdp q 'scenario[status=failed] -verifies-> *'
 sdp q '#DEC-0003 <-*- *'
 sdp q 'requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=construction]'
@@ -73,11 +78,13 @@ Background:
     nodes:
       - { id: REQ-checkout, kind: requirement, maturity: ready, tags: [checkout, web], due: "2026-12-01", links: { realized-by: ARCH-orders } }
       - { id: REQ-refunds, kind: requirement, maturity: idea, estimate: 8, due: "2027-03-01", links: { realized-by: ARCH-billing } }
-      - { id: ARCH-orders, kind: element, title: "Order service, v2", significant: true, links: { depends-on: ARCH-billing } }
-      - { id: ARCH-billing, kind: element, title: Billing, significant: false, links: { depends-on: ARCH-ledger } }
+      - { id: ARCH-orders, kind: element, title: "Order service, v2", public: true, links: { depends-on: ARCH-billing } }
+      - { id: ARCH-billing, kind: element, title: Billing, public: false, links: { depends-on: ARCH-ledger } }
       - { id: ARCH-ledger, kind: element, title: "Ledger [legacy]", owner: { team: core }, links: { depends-on: ARCH-orders } }
     ---
     # Model
+
+    Everything ends in the [[ARCH-ledger]].
     """
 
 Scenario Outline: Selectors name kinds or ids
@@ -90,8 +97,8 @@ Scenario Outline: Selectors name kinds or ids
     | *                           | MODEL, REQ-checkout, REQ-refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
     | #ARCH-orders\|REQ-refunds   | ARCH-orders, REQ-refunds                                                 |
     | #ARCH-unknown               | nothing                                                                  |
-    | #ARCH-orders[significant]   | ARCH-orders                                                              |
-    | #ARCH-billing[significant]  | nothing                                                                  |
+    | #ARCH-orders[public]        | ARCH-orders                                                              |
+    | #ARCH-billing[public]       | nothing                                                                  |
 
 Scenario Outline: Conditions compare attribute values
   When I query '<query>'
@@ -99,13 +106,13 @@ Scenario Outline: Conditions compare attribute values
 
   Examples:
     | query                               | result                    |
-    | element[significant]                | ARCH-orders               |
-    | element[!significant]               | ARCH-billing, ARCH-ledger |
-    | element[significant=false]          | ARCH-billing              |
-    | element[significant!=false]         | ARCH-orders, ARCH-ledger  |
-    | element[significant=TRUE]           | ARCH-orders               |
-    | element[significant, title~order]   | ARCH-orders               |
-    | element[significant][title~order]   | ARCH-orders               |
+    | element[public]                     | ARCH-orders               |
+    | element[!public]                    | ARCH-billing, ARCH-ledger |
+    | element[public=false]               | ARCH-billing              |
+    | element[public!=false]              | ARCH-orders, ARCH-ledger  |
+    | element[public=TRUE]                | ARCH-orders               |
+    | element[public, title~order]        | ARCH-orders               |
+    | element[public][title~order]        | ARCH-orders               |
     | requirement[tags=web]               | REQ-checkout              |
     | requirement[tags!=web]              | REQ-refunds               |
     | requirement[maturity=ready\|idea]   | REQ-checkout, REQ-refunds |
@@ -126,6 +133,11 @@ Scenario Outline: Conditions compare attribute values
     | *[id~^req-]                         | REQ-checkout, REQ-refunds |
     | *[source=model.md:7]                | ARCH-orders               |
     | *[owner.team=core]                  | ARCH-ledger               |
+    | element[toString]                   | nothing                   |
+    | element[owner.constructor]          | nothing                   |
+    | element[!constructor]               | ARCH-orders, ARCH-billing, ARCH-ledger |
+    | requirement[realized-by=ARCH-orders] | REQ-checkout             |
+    | element[depends-on=ARCH-ledger]     | ARCH-billing              |
 
 Scenario Outline: Unset is told apart from false, zero and empty text
   Given a file "flags.md" containing:
@@ -172,13 +184,17 @@ Scenario Outline: Edges follow relations in either direction
     | #ARCH-billing <-depends-on\|realized-by- *                        | ARCH-orders, REQ-refunds              |
     | #ARCH-billing <-- *                                               | ARCH-orders, REQ-refunds              |
     | #ARCH-billing -*- *                                               | ARCH-ledger, ARCH-orders, REQ-refunds |
+    | #MODEL -*-> *                                                     | nothing                               |
+    | #MODEL -mentions-> *                                              | ARCH-ledger                           |
+    | #MODEL -*\|mentions-> *                                           | ARCH-ledger                           |
+    | #ARCH-ledger <-*- *                                               | ARCH-billing                          |
     | #ARCH-orders -depends-on+-> *                                     | ARCH-billing, ARCH-ledger             |
     | #ARCH-orders <-depends-on+- *                                     | ARCH-billing, ARCH-ledger             |
     | #REQ-checkout -realized-by-> * -depends-on-> element              | ARCH-billing                          |
     | #REQ-checkout -realized-by->                                      | ARCH-orders                           |
     | element ?<-realized-by- requirement[maturity=ready]               | ARCH-orders                           |
     | element !<-realized-by- *                                         | ARCH-ledger                           |
-    | requirement ?-realized-by-> element[significant] -realized-by-> * | ARCH-orders                           |
+    | requirement ?-realized-by-> element[public] -realized-by-> *      | ARCH-orders                           |
 
 Scenario: The result is the distinct end nodes; the paths keep every route
   When I query "requirement -realized-by-> element -depends-on+-> *"

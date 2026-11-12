@@ -13,7 +13,7 @@ iteration: I1
 
 ## Context
 
-Architecturally significant abstractions live in code; the graph has to know which code they are,
+The architecture's abstractions live in code; the graph has to know which code they are,
 and which patterns that code applies. Comment annotations (`// @sdp is ARCH-graph`) work in any
 language but are invisible to the compiler: a misspelt id, a renamed class or an annotation that
 drifted away from its declaration goes unnoticed until someone reads the graph. Meanwhile the JSDoc
@@ -51,8 +51,9 @@ remain possible in TypeScript and JavaScript too.
   shipping it on its own is part of [[REQ-npm-package]].
 - Type-checking sdp's own sources inside another workspace would apply that workspace's ids to
   sdp's annotations; consumers need compiled declarations, again [[REQ-npm-package]].
-- The architects still decide significance in the element's spec ([[DEC-0008]]); annotations say
-  where in the code the element and its patterns are.
+- An `is` annotation declares an element where no spec does, so adding one is the architects' call
+  like declaring it in a spec ([[DEC-0008]]); other annotations say where in the code the elements
+  and their patterns are.
 
 ~~~gherkin
 Scenario: This repository's code links to its architecture with typed annotations

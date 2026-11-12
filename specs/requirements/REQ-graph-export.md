@@ -24,8 +24,8 @@ nodes and edges along the paths a query matches. `sdp graph --write` writes `.sd
 | `jsonl` (default) | one JSON object per line: nodes as `{"type":"node", "id", "kind", "title", "source", "attrs"}`, then edges as `{"type":"edge", "from", "rel", "to", "attrs", "source"}` |
 | `tsv` | one fact per line: `node⇥<id>⇥<kind>⇥<title>⇥<file:line>` and `edge⇥<from>⇥<rel>⇥<to>⇥<file:line>`; tabs and line breaks inside a cell become spaces |
 | `json` | one document: `{ "nodes": [...], "edges": [...] }` |
-| `dot` | a Graphviz digraph with shapes by kind; significant nodes are bold |
-| `mermaid` | a Mermaid flowchart; significant nodes have a thick border |
+| `dot` | a Graphviz digraph; decisions, patterns, milestones and the architecture each have a shape of their own |
+| `mermaid` | a Mermaid flowchart, shaped the same way |
 
 The line-oriented formats answer most questions with standard tools ([[NFR-greppable]]):
 
@@ -53,8 +53,6 @@ Background:
     ---
     id: ARCH-x
     kind: element
-    significant: true
-    rationale: everything depends on it
     ---
     # X
     """
@@ -71,14 +69,14 @@ Scenario Outline: Every format carries the edges with their source
     | dot     | "REQ-a" -> "ARCH-x" [label="realized-by"];                                                   |
     | mermaid | -->\|realized-by\|                                                                           |
 
-Scenario Outline: Diagrams make significant nodes stand out
+Scenario Outline: Diagrams shape a node by the role its kind plays
   When the graph is exported as <format>
-  Then the output contains '<marking>'
+  Then the output contains '<shape>'
 
   Examples:
-    | format  | marking                 |
-    | dot     | shape=box3d, style=bold |
-    | mermaid | stroke-width:3px        |
+    | format  | shape                                       |
+    | dot     | "ARCH-x" [label="ARCH-x\nX", shape=box3d]; |
+    | dot     | "REQ-a" [label="REQ-a\nAlpha", shape=ellipse]; |
 
 Scenario: A query selects the part of the graph to export
   Given a file "specs/REQ-b.md" containing:

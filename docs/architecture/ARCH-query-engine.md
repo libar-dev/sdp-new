@@ -2,10 +2,6 @@
 id: ARCH-query-engine
 kind: element
 title: Query engine (SDPQ)
-significant: true
-rationale: >-
-  Public contract used by agents, milestone gates and decision guards; its syntax is embedded in
-  specs across workspaces, and it carries the interactive-latency requirement.
 iteration: I1
 links:
   decided-by: DEC-0006
@@ -18,6 +14,9 @@ links:
 Parses the path patterns of [[REQ-graph-query]] and evaluates them over the graph. It is a pure
 function of a graph, a query and the ordering ladders of the workspace's configuration (maturity,
 stage, verification).
+
+Public contract used by agents, milestone gates and decision guards; its syntax is embedded in specs
+across workspaces, and it carries the interactive-latency requirement.
 
 - **Parsing first.** A query is parsed completely before evaluation, so a malformed one fails with
   its reason and touches no node.

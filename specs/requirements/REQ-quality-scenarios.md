@@ -20,8 +20,8 @@ the stimulus, the environment and the artifact; the *When* the stimulus; the *Th
 and its measure. A quality requirement is marked `kind: nfr`, or `type: quality`,
 `non-functional`, `nfr` or `constraint` on any kind.
 
-Quality requirements are architectural drivers: the curated architecture shows them next to the
-significant elements they constrain ([[REQ-curated-architecture]]). Once their steps are automated,
+Quality requirements are architectural drivers: the architecture view shows them next to the
+elements they constrain ([[REQ-curated-architecture]]). Once their steps are automated,
 the scenarios are fitness functions that run with every `sdp run` — this repository's own
 [[NFR-query-performance]] measures query and build latency that way.
 
@@ -35,7 +35,7 @@ Scenario Outline: Quality requirements appear next to the elements they constrai
     id: MODEL
     kind: model
     nodes:
-      - { id: ARCH-orders, kind: element, significant: true, rationale: owns checkout, links: { constrained-by: Q-latency } }
+      - { id: ARCH-orders, kind: element, links: { constrained-by: Q-latency } }
       - { id: Q-latency, <marker>, title: Checkout latency }
     ---
     # Model

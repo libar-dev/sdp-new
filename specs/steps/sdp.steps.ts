@@ -7,7 +7,7 @@
 import { Effect, Predicate, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { architectureView, rankCandidates } from "../../src/arch/Architecture.ts"
+import { renderArchitecture } from "../../src/arch/Architecture.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
 import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
@@ -15,6 +15,7 @@ import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
+import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
@@ -123,16 +124,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("I ask for the architecture view", ({ world }) =>
     Effect.map(load(world), (project) => {
-      const view = architectureView(project)
-      world.output = [
-        ...view.nodes.map((n) => `${n.id} — ${n.title} (${n.kind})${n.attrs.rationale ? `\n  rationale: ${String(n.attrs.rationale)}` : ""}`),
-        ...view.edges.map((e) => `${e.from} -${e.rel}-> ${e.to}`)
-      ].join("\n")
-    }))
-
-  When("I ask for architecture candidates", ({ world }) =>
-    Effect.map(load(world), (project) => {
-      world.output = rankCandidates(project).map((c) => `${c.node.id} ${c.score} ${c.reasons.join("; ")}`).join("\n")
+      world.output = renderArchitecture(project)
     }))
 
   // --- context, exports, lifecycle, MCP ------------------------------------
@@ -144,7 +136,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the graph is exported as {word}", ({ args: [format], world }) =>
     Effect.map(load(world), (project) => {
-      world.output = exportGraph(project.graph, format as GraphFormat)
+      world.output = exportGraph(project.graph, format as GraphFormat, project.config.vocabulary)
     }))
 
   // `\t` and `\n` in the expected text stand for a tab and a line break.
@@ -171,7 +163,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the output has one line per node and edge", ({ world }) =>
     Effect.map(load(world), (project) => {
       const lines = world.output.trimEnd().split("\n")
-      assert.equal(lines.length, project.graph.nodes.size + project.graph.edges.length)
+      assert.equal(lines.length, project.graph.nodes().length + project.graph.edges().length)
     }))
 
   When("the lifecycle is computed", ({ world }) =>
@@ -228,7 +220,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       id: `N${i}`,
       kind: kinds[i % kinds.length]!,
       title: `node ${i}`,
-      attrs: { maturity: ["idea", "draft", "specified", "ready"][i % 4], significant: i % 50 === 0 }
+      attrs: { maturity: ["idea", "draft", "specified", "ready"][i % 4] }
     }))
     let seed = 42
     const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31
@@ -246,7 +238,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const samples: Array<number> = []
     for (let i = 0; i < 7; i++) {
       const started = performance.now()
-      const result = query(graph, q, { orderings: projectOrderings(["idea", "draft", "specified", "ready"]) })
+      const result = query(graph, q, { orderings: projectOrderings(defaultVocabulary) })
       samples.push(performance.now() - started)
       assert.ok(Result.isSuccess(result))
     }

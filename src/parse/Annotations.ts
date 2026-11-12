@@ -47,8 +47,11 @@ const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [] }
 /** One of the annotation modules named in a string literal: a file that means to annotate, even when it does not parse. */
 const mentionsAnnotationModule = /["'`]sdp(\/annotations)?["'`]/
 
-/** Every annotation of one code file, typed and in comments, and what could not be read. */
-export const scanCode = (file: string, content: string): CodeScan => {
+/**
+ * Every annotation of one code file, typed and in comments, and what could not be read. `anchor` is
+ * the relation whose `annotate()` call may declare the node it names.
+ */
+export const scanCode = (file: string, content: string, anchor: string): CodeScan => {
   if (!content.includes("@sdp") && !content.includes("annotate")) return nothing
   const script = parseScript(file, content)
   if (script === undefined) {
@@ -68,7 +71,7 @@ export const scanCode = (file: string, content: string): CodeScan => {
     }
   }
   const comments = readComments(file, content, script)
-  const typed = readTypedAnnotations(file, content, script)
+  const typed = readTypedAnnotations(file, content, script, anchor)
   return { annotations: [...comments.annotations, ...typed.annotations], unreadable: typed.problems, ignored: comments.ignored }
 }
 annotate(scanCode, { is: "ARCH-code-annotations" })

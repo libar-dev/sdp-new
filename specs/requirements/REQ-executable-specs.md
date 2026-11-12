@@ -102,7 +102,7 @@ The statuses of a spec's scenarios roll up into the spec (the first matching row
 | Scenario statuses | `verification` | `stage` |
 | --- | --- | --- |
 | no scenarios | `none` | declared maturity |
-| any failed or ambiguous | `failing` | `in-progress` |
+| any failed or ambiguous | `failing` | `failing` |
 | all passed | `passing` | `verified` |
 | none run yet, or all stale | `unrun` | declared maturity |
 | each undefined or not run | `undefined` | declared maturity |
@@ -259,7 +259,7 @@ Scenario Outline: Results of automated steps decide the stage
     | adding | scenario | verification | stage       |
     | passes | passed   | passing      | verified    |
     | pends  | pending  | pending      | in-progress |
-    | fails  | failed   | failing      | in-progress |
+    | fails  | failed   | failing      | failing     |
 
 Scenario: Editing a scenario makes its last result stale
   Given a step definition "an empty cart" that passes

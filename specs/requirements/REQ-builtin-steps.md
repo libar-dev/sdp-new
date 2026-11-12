@@ -121,7 +121,7 @@ Scenario Outline: A built-in step that fails says why
     | the query "requirement" returns no results                  | REQ-search (requirement) specs/REQ-search.md:1   |
     | the query "element" returns at least 2 results              | returned 1 result(s), expected at least 2        |
     | the query "requirement\|element" returns at most 1 result   | returned 2 result(s), expected at most 1         |
-    | every node matching "element" also matches "*[significant]" | ARCH-index (element) docs/ARCH-index.md:1        |
+    | every node matching "element" also matches "*[owner]"       | ARCH-index (element) docs/ARCH-index.md:1        |
     | there are no warning diagnostics                            | [decision-status] DEC-0001                       |
     | there are no diagnostics for rule "decision-status"         | DEC-0001: decision status should be one of       |
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |

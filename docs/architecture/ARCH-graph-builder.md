@@ -3,7 +3,7 @@ id: ARCH-graph-builder
 kind: element
 title: Graph builder
 links:
-  decided-by: DEC-0003
+  decided-by: [DEC-0003, DEC-0010]
   instance-of: { to: PAT-pipes-and-filters, role: filter }
   feeds: ARCH-graph
 ---
@@ -14,20 +14,21 @@ Builds the system graph from what the workspace read — specs from [[ARCH-spec-
 from [[ARCH-code-annotations]] and the last scenario results — and from nothing else. It is pure
 and runs on every command ([[PAT-derived-index]]). It never fails on content: problems become
 diagnostics, and the graph stays complete enough to query them, with unresolved references visible
-as nodes.
+as nodes. The words it interprets come from the vocabulary profile ([[ARCH-vocabulary]]).
 
 | Source | Becomes |
 | --- | --- |
 | a spec | A node of its kind at `file:1`, with its attributes and derived facts: `file`, `summary`, `scenarios`, `openQuestions` (unresolved only), and `verification` and `stage` from the results. |
 | a scenario | A `scenario` node at its line that `-verifies->` its spec. |
 | an inline node | A node at the line of its `id`; `declaredIn` names its spec and is an attribute, not an edge. |
-| a link | An edge named by its relation, at the line of its target, with the link's attributes. |
-| a prose link | `-mentions->`, or the typed relation; a spec mentioning itself adds nothing. |
-| an attribute whose value is a node's id — or an entry of a map attribute | An implicit edge named after the key (after its path for a map entry: `activity.implementation`), marked `implicit`, located at the attribute's line. Values that are not ids stay values; `id`, `kind`, `title`, `summary`, `maturity`, `status`, `stage`, `verification`, `tags`, `file`, `type` and `declaredIn` never link. |
+| a link key: an entry of `links:`, a plan or phase relation, an entry of `activity`, a key under `vocabulary.links` | An edge named by its relation (`activity.implementation` for an entry of `activity`), at the line the key is written, with the link's attributes ([[DEC-0010]]). Every other key is a value and never links. |
+| a prose link | `-mentions->`, or the typed relation. A spec mentioning itself, or a node a link already joins it to, adds nothing. |
 | an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`) — at the declaration's line, with its JSDoc as `doc` for typed annotations — with an edge to each target carrying the annotation's attributes. |
 | `@sdp is <ID>` | Anchors the node in code. Declares it (kind `element` unless given) when no spec does; otherwise adds only the attributes the spec does not set. |
+| a link stated more than once | One edge with every declaration (`sources`) and the union of their attributes; declarations that give an attribute different values are a `link-conflict`. |
+| a derived attribute written by an author | A `derived-attribute` error where it is written; the value is ignored, on a spec, an inline node or a node declared in code alike. |
 | an id declared again | A `duplicate-id` error at the later declaration; the first, in path order, is kept. |
-| a reference to an unknown id | A `missing` node without a source, and a `dangling-link` error at the reference. |
+| a reference to an unknown id | A `missing` node without a source, and a `dangling-link` error at every reference. |
 
 What is read, and the id prefixes that kinds are inferred from, is configured
 ([[REQ-configuration]]).
@@ -83,7 +84,7 @@ Scenario: Specs, scenarios and inline nodes become nodes at their lines
     | from                 | rel       | to      | source              | attributes    |
     | REQ-pay#card-payment | verifies  | REQ-pay | specs/REQ-pay.md:15 |               |
     | ARCH-cache           | speeds-up | REQ-pay | docs/plan.md:7      |               |
-    | REQ-pay              | iteration | E1      | specs/REQ-pay.md:4  | implicit=true |
+    | REQ-pay              | iteration | E1      | specs/REQ-pay.md:4  |               |
   And node "REQ-pay" has attribute file = "specs/REQ-pay.md"
   And node "REQ-pay" has attribute summary = "Shoppers pay by card."
   And node "REQ-pay" has attribute scenarios = "1"
@@ -91,7 +92,7 @@ Scenario: Specs, scenarios and inline nodes become nodes at their lines
   And node "E1" has attribute declaredIn = "PLAN"
   And the workspace graph has no "declaredIn" edges
 
-Scenario Outline: An attribute naming a node becomes an implicit edge
+Scenario Outline: A key links or it does not, whatever its value
   Given a file "docs/model.md" containing:
     """
     ---
@@ -105,18 +106,93 @@ Scenario Outline: An attribute naming a node becomes an implicit edge
     # Model
     """
   When the workspace is loaded
-  Then the implicit edges are "<edges>"
-  And building the graph reports nothing
+  Then the edges from "REQ-pay" are "<edges>"
+  And building the graph reports "<reported>"
 
   Examples:
-    | attribute                 | edges                                               |
-    | iteration: E1             | REQ-pay -iteration-> E1                             |
-    | owners: [ARCH-orders, E1] | REQ-pay -owners-> ARCH-orders, REQ-pay -owners-> E1 |
-    | owner: ARCH-unknown       | nothing                                             |
-    | owner: REQ-pay            | nothing                                             |
-    | status: E1                | nothing                                             |
-    | tags: [E1]                | nothing                                             |
-    | activity: { implementation: E1, test: [E1, ARCH-orders] } | REQ-pay -activity.implementation-> E1, REQ-pay -activity.test-> E1, REQ-pay -activity.test-> ARCH-orders |
+    | attribute                                                 | edges                                                                                                   | reported      |
+    | iteration: E1                                             | REQ-pay -iteration-> E1                                                                                 | nothing       |
+    | iteration: E9                                             | REQ-pay -iteration-> E9                                                                                 | dangling-link |
+    | links: { owner: ARCH-orders }                             | REQ-pay -owner-> ARCH-orders                                                                            | nothing       |
+    | owner: ARCH-orders                                        | nothing                                                                                                 | nothing       |
+    | status: E1                                                | nothing                                                                                                 | nothing       |
+    | activity: { implementation: E1, test: [E1, ARCH-orders] } | REQ-pay -activity.implementation-> E1, REQ-pay -activity.test-> ARCH-orders, REQ-pay -activity.test-> E1 | nothing       |
+    | activity: { test: [] }                                    | nothing                                                                                                 | nothing       |
+
+Scenario: A link stated twice is one edge that keeps both declarations
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    links:
+      iteration: { to: E1, why: planned }
+    iteration: { to: E1, why: promised, since: 2026 }
+    ---
+    # A
+
+    iteration:: [[E1]]
+    """
+  And a file "docs/plan.md" containing:
+    """
+    ---
+    id: PLAN
+    nodes:
+      - { id: E1, kind: iteration }
+    ---
+    # Plan
+    """
+  When the workspace is loaded
+  Then the workspace graph has edges:
+    | from  | rel       | to | sources                                              | attributes                 |
+    | REQ-a | iteration | E1 | specs/REQ-a.md:4, specs/REQ-a.md:5, specs/REQ-a.md:9 | why="planned" since=2026 |
+  And building the graph reports:
+    | rule          | at               | message                                            |
+    | link-conflict | specs/REQ-a.md:5 | why is "promised" here but "planned" at specs/REQ-a.md:4 |
+
+Scenario: A mention adds nothing between nodes a link already joins
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    links:
+      decided-by: DEC-1
+    ---
+    # A
+
+    Follows [[DEC-1]], weighs [[RISK-1]] and keeps [[DEC-2]] in mind.
+    """
+  And a file "docs/model.md" containing:
+    """
+    ---
+    id: MODEL
+    nodes:
+      - { id: DEC-1, kind: decision, status: accepted }
+      - { id: DEC-2, kind: decision, status: accepted }
+      - { id: RISK-1, kind: risk, links: { affects: REQ-a } }
+    ---
+    # Model
+    """
+  When the workspace is loaded
+  Then the edges from "REQ-a" are "REQ-a -decided-by-> DEC-1, REQ-a -mentions-> DEC-2"
+
+Scenario Outline: What sdp derives cannot be written, wherever a node is declared
+  Given a file "<file>" containing:
+    """
+    <content>
+    """
+  When the workspace is loaded
+  Then building the graph reports:
+    | rule              | at   | message                                         |
+    | derived-attribute | <at> | stage is derived by sdp, so the value written here is ignored |
+  When I query "*[stage=verified]"
+  Then the result is "nothing"
+
+  Examples:
+    | file              | content                                                                       | at                  |
+    | specs/REQ-a.md    | ---\nid: REQ-a\nmaturity: idea\nstage: verified\n---\n# A                   | specs/REQ-a.md:4    |
+    | docs/plan.md      | ---\nid: PLAN\nnodes:\n  - { id: REQ-b, kind: requirement, stage: verified }\n---\n# Plan | docs/plan.md:4      |
+    | src/pay.py        | # @sdp is REQ-pay kind=requirement stage=verified\ndef pay(): pass               | src/pay.py:1        |
+    | specs/pay.feature | @id:REQ-f @stage:verified\nFeature: Pay                                         | specs/pay.feature:1 |
 
 Scenario: Annotated code becomes code nodes linked to what it names
   Given a file "specs/REQ-pay.md" containing:
@@ -198,7 +274,7 @@ Scenario: An id declared twice is an error; the first declaration is kept
     | duplicate-id | error    | specs/b.md:1    | already declared at specs/a.md:1 |
     | duplicate-id | error    | specs/plan.md:4 | already declared at specs/a.md:1 |
 
-Scenario: Unknown ids become missing nodes, with an error at each reference
+Scenario: Unknown ids become missing nodes, with an error at every reference
   Given a file "specs/REQ-sync.md" containing:
     """
     ---
@@ -213,6 +289,15 @@ Scenario: Unknown ids become missing nodes, with an error at each reference
     Mirrors [[DEC-0042]].
     realized-by:: [[ARCH-worker]]
     """
+  And a file "specs/REQ-backup.md" containing:
+    """
+    ---
+    id: REQ-backup
+    links:
+      depends-on: ARCH-queue
+    ---
+    # Backup
+    """
   And a file "src/sync.ts" containing:
     """
     // @sdp implements REQ-sink
@@ -220,7 +305,8 @@ Scenario: Unknown ids become missing nodes, with an error at each reference
     """
   When the workspace is loaded
   Then building the graph reports:
-    | rule          | severity | at                   | message                                      |
+    | rule          | severity | at                    | message                                      |
+    | dangling-link | error    | specs/REQ-backup.md:4 | REQ-backup -depends-on-> ARCH-queue          |
     | dangling-link | error    | specs/REQ-sync.md:4  | REQ-sync -depends-on-> ARCH-queue            |
     | dangling-link | error    | specs/REQ-sync.md:6  | ARCH-sync -uses-> ARCH-clock                 |
     | dangling-link | error    | specs/REQ-sync.md:10 | REQ-sync -mentions-> DEC-0042                |
@@ -228,6 +314,7 @@ Scenario: Unknown ids become missing nodes, with an error at each reference
     | dangling-link | error    | src/sync.ts:1        | code:src/sync.ts#sync -implements-> REQ-sink |
   And the workspace graph has exactly these nodes:
     | id                    | kind        | source              |
+    | REQ-backup            | requirement | specs/REQ-backup.md:1 |
     | REQ-sync              | requirement | specs/REQ-sync.md:1 |
     | ARCH-sync             | element     | specs/REQ-sync.md:6 |
     | code:src/sync.ts#sync | code        | src/sync.ts:1       |

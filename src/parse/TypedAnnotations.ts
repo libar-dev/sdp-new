@@ -96,8 +96,11 @@ export const parseScript = (file: string, content: string): Script | undefined =
   }
 }
 
-/** Reads the `annotate()` calls of a parsed file without running it; computed ids are reported, not guessed. */
-export const readTypedAnnotations = (file: string, content: string, script: Script): TypedScan => {
+/**
+ * Reads the `annotate()` calls of a parsed file without running it; computed ids are reported, not
+ * guessed. `anchor` is the relation whose annotation the declaration (the third argument) belongs to.
+ */
+export const readTypedAnnotations = (file: string, content: string, script: Script, anchor: string): TypedScan => {
   if (!content.includes("annotate")) return empty
   const { lineOf, program } = script
 
@@ -195,7 +198,7 @@ export const readTypedAnnotations = (file: string, content: string, script: Scri
         line,
         rel,
         targets,
-        attrs: rel === "is" ? attrs : {},
+        attrs: rel === anchor ? attrs : {},
         symbol,
         symbolLine: where?.line ?? line,
         doc: where?.doc

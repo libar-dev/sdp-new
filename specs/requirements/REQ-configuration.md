@@ -8,7 +8,7 @@ activity: { implementation: I1, test: I1 }
 tags: [configuration]
 links:
   refines: CAP-living-specs
-  realized-by: ARCH-workspace
+  realized-by: [ARCH-workspace, ARCH-vocabulary]
 ---
 
 # Workspace configuration
@@ -28,30 +28,43 @@ the offending key.
 | `exclude` | `**/node_modules/**`, `.sdp/**`, `**/dist/**`, `**/build/**`, `.git/**` | paths never read; the configured list adds to these |
 | `results` | `.sdp/results.json` | where `sdp run` records scenario results |
 | `types` | `.sdp/ids.d.ts` | where `sdp types` writes the id declarations that type `annotate` ([[ARCH-code-annotations]]) |
-| `maturity` | `[idea, draft, specified, ready]` | the maturity ladder, lowest first ([[REQ-maturity-gates]]) |
 | `ids` | see below | the id prefix of each kind |
-| `architecture.kinds` | `[element, pattern]` | kinds that are architectural abstractions, the pool for candidates |
-| `architecture.drivers` | `[decision, nfr]` | kinds shown with the significant nodes they link to ([[REQ-curated-architecture]]) |
-| `lifecycle.disciplines` | see below | the node kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
-| `lifecycle.planRelations` | `[iteration]` | the relations that plan a node into an iteration; no other edge, such as a mention, does |
-| `lifecycle.phaseRelations` | `[phase]` | the relations that put an iteration or a milestone into its phase |
+| `vocabulary` | see below | the words sdp interprets ([[DEC-0002]]) |
 
-Lists replace their default, except `exclude`, which extends it; `ids` and `lifecycle.disciplines`
-merge key by key.
+Lists replace their default, except `exclude`, which extends it; `ids` merges key by key.
+
+**Vocabulary.** The few words sdp reads meaning into are roles of one profile, each with a default
+word ([[ARCH-vocabulary]]). `sdp vocabulary` prints the active profile in the shape this section
+takes, so renaming a word is copying its line and changing the word. A role the section names
+replaces its default; `disciplines` merge one by one.
+
+| Section | What sdp reads its words for |
+| --- | --- |
+| `kinds` | decision records, milestones (their scenarios are gates), phases, iterations, patterns, the kinds that are the architecture, the architectural drivers, and the kind a node anchored in code gets when it names none |
+| `relations` | superseding a decision, planning work into an iteration, putting an iteration or milestone into its phase, the prose mention, a scenario's link to its spec, and the code anchor |
+| `attributes` | `activity`, a phase's `order`, an iteration's `start` and `end`, and the attribute whose value in `qualities` marks a quality requirement |
+| `statuses` | the statuses a decision may have, which of them are `accepted` and `superseded`, and those that make a record inactive |
+| `maturity` | the authoring ladder, lowest first ([[REQ-maturity-gates]]) |
+| `disciplines` | the kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
+| `links` | keys of the workspace's own that link like `links:` entries ([[DEC-0010]]) |
+
+A profile that cannot work is an error naming its path: an empty ladder, a level listed twice, or a
+level named like a stage sdp derives (`failing`, `in-progress`, `verified`).
 
 **Id prefixes.** A spec that omits `kind` gets it from its id prefix — case-insensitive, followed
 by `-` or `_` — and a prefix that maps to no kind gives `spec`. `sdp new` names new specs with the same prefixes: decisions and risks are
 numbered (`DEC-0007`), everything else takes a slug of its title (`REQ-guest-checkout`). A kind has
 one prefix, so moving requirements to `US-` makes `REQ-` ids plain specs unless they declare their
-kind.
+kind. A prefix is letters only and belongs to one kind, so every id sdp makes reads back as its kind.
 
 | Kind | requirement | nfr | decision | element | pattern | milestone | capability | risk |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Prefix | `REQ` | `NFR` | `DEC` | `ARCH` | `PAT` | `MS` | `CAP` | `RISK` |
 
-**Disciplines.** The RUP disciplines and the kinds whose planned nodes count as their work unless
-`activity:` says otherwise; how activity is planned and counted is [[REQ-lifecycle-view]]'s. No
-kind is implementation or test work by itself: specs plan those with `activity:`.
+**Disciplines.** The default disciplines are RUP's, with the kinds whose planned nodes count as
+their work unless `activity:` says otherwise; how activity is planned and counted is
+[[REQ-lifecycle-view]]'s. No kind is implementation or test work by itself: specs plan those with
+`activity:`.
 
 | Discipline | Kinds |
 | --- | --- |
@@ -123,7 +136,7 @@ Scenario Outline: Each key shapes what the graph holds
     | code     | sdp.config.yaml | code: ["tools/**/*.ts"]                             | code                           | code:tools/report.ts#report        |
     | exclude  | sdp.config.yaml | exclude: ["notes/**"]                               | requirement                    | REQ-login, REQ-search              |
     | ids      | sdp.config.yaml | ids: { requirement: US }                            | requirement                    | US-signup                          |
-    | maturity | sdp.config.yaml | maturity: [idea, draft, specified, approved, ready] | requirement[maturity<approved] | REQ-scratch                        |
+    | vocabulary | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | requirement[maturity<approved] | REQ-scratch |
     | json     | sdp.config.json | { "exclude": ["notes/**"] }                         | requirement                    | REQ-login, REQ-search              |
 
 Scenario Outline: Without a declared kind, the id prefix decides
@@ -203,10 +216,10 @@ Scenario: results says where scenario results are kept
   Then the results are stored in "out/results.json"
   And node "REQ-cart" has attribute verification = "passing"
 
-Scenario: architecture.kinds says which kinds can be candidates
+Scenario: kinds.architectural says which kinds are the architecture
   Given a file "sdp.config.yaml" containing:
     """
-    architecture: { kinds: [component] }
+    vocabulary: { kinds: { architectural: [component] } }
     """
   And a file "docs/model.md" containing:
     """
@@ -215,17 +228,19 @@ Scenario: architecture.kinds says which kinds can be candidates
     kind: model
     nodes:
       - { id: CMP-orders, kind: component, links: { decided-by: DEC-1 } }
+      - { id: ARCH-legacy, kind: element }
       - { id: DEC-1, kind: decision, status: accepted }
     ---
     # Model
     """
-  When I ask for architecture candidates
-  Then the output contains "CMP-orders"
+  When I ask for the architecture view
+  Then the output contains "CMP-orders -decided-by-> DEC-1"
+  And the output does not contain "ARCH-legacy"
 
-Scenario: architecture.drivers says what is shown next to significant nodes
+Scenario: kinds.driver says what is shown next to the architecture
   Given a file "sdp.config.yaml" containing:
     """
-    architecture: { drivers: [decision, nfr, risk] }
+    vocabulary: { kinds: { driver: [decision, nfr, risk] } }
     """
   And a file "docs/model.md" containing:
     """
@@ -233,7 +248,7 @@ Scenario: architecture.drivers says what is shown next to significant nodes
     id: MODEL
     kind: model
     nodes:
-      - { id: ARCH-orders, kind: element, significant: true, rationale: owns checkout, links: { threatened-by: RISK-1 } }
+      - { id: ARCH-orders, kind: element, links: { threatened-by: RISK-1 } }
       - { id: RISK-1, kind: risk, title: Payment provider outage }
     ---
     # Model
@@ -241,10 +256,26 @@ Scenario: architecture.drivers says what is shown next to significant nodes
   When I ask for the architecture view
   Then the output contains "ARCH-orders -threatened-by-> RISK-1"
 
-Scenario: lifecycle.disciplines adds or redefines disciplines
+Scenario: kinds.decision gives a team's own word for decisions the decision rules
   Given a file "sdp.config.yaml" containing:
     """
-    lifecycle: { disciplines: { operations: [runbook] } }
+    vocabulary: { kinds: { decision: [adr], driver: [adr, nfr] } }
+    """
+  And a file "docs/ADR-1.md" containing:
+    """
+    ---
+    id: ADR-1
+    kind: adr
+    ---
+    # Use Postgres
+    """
+  When the workspace is checked
+  Then the check reports "decision-status" for "ADR-1"
+
+Scenario: disciplines adds or redefines disciplines
+  Given a file "sdp.config.yaml" containing:
+    """
+    vocabulary: { disciplines: { operations: [runbook] } }
     """
   And a file "plan.md" containing:
     """
@@ -260,10 +291,10 @@ Scenario: lifecycle.disciplines adds or redefines disciplines
   When the lifecycle is computed
   Then "operations" activity in iteration "C1" is 1
 
-Scenario: lifecycle.planRelations and lifecycle.phaseRelations name the relations the plan uses
+Scenario: relations.plan and relations.phase name the relations the plan uses
   Given a file "sdp.config.yaml" containing:
     """
-    lifecycle: { planRelations: [sprint], phaseRelations: [part-of] }
+    vocabulary: { relations: { plan: [sprint], phase: [part-of] } }
     """
   And a file "plan.md" containing:
     """
@@ -299,6 +330,60 @@ Scenario: lifecycle.planRelations and lifecycle.phaseRelations name the relation
   Then phase "build" has iterations "S1"
   And iteration "S1" plans "REQ-search"
   And "requirements" activity in iteration "S1" is 1
+
+Scenario: links names keys of the workspace's own that link
+  Given a file "sdp.config.yaml" containing:
+    """
+    vocabulary: { links: [owner] }
+    """
+  And a file "specs/REQ-catalogue.md" containing:
+    """
+    ---
+    id: REQ-catalogue
+    owner: ARCH-index
+    reviewer: ARCH-gone
+    ---
+    # Catalogue
+    """
+  And a file "docs/ARCH-index.md" containing:
+    """
+    ---
+    id: ARCH-index
+    kind: element
+    ---
+    # Search index
+    """
+  When the workspace is loaded
+  Then the edges from "REQ-catalogue" are "REQ-catalogue -owner-> ARCH-index"
+  And building the graph reports "nothing"
+
+Scenario: sdp vocabulary prints the profile in force
+  Given a file "sdp.config.yaml" containing:
+    """
+    vocabulary: { kinds: { decision: [adr] }, links: [owner] }
+    """
+  When I run "sdp vocabulary --json"
+  Then the output is valid JSON
+  And the output field "links" holds "owner"
+  And the output field "maturity" holds "idea, draft, specified, ready"
+  When I run "sdp vocabulary"
+  Then the output line with "decision" contains "adr"
+
+Scenario Outline: A profile that cannot work is rejected where it is wrong
+  Given a file "sdp.config.yaml" containing:
+    """
+    <config>
+    """
+  Then loading the workspace fails with "<problem>"
+  And loading the workspace fails with '<path>'
+
+  Examples:
+    | config                                            | problem                              | path                          |
+    | vocabulary: { maturity: [] }                      | needs at least one level             | at ["vocabulary"]["maturity"] |
+    | vocabulary: { maturity: [idea, ready, idea] }     | idea repeats                         | at ["vocabulary"]["maturity"] |
+    | vocabulary: { maturity: [idea, verified] }        | verified is a stage sdp derives      | at ["vocabulary"]["maturity"] |
+    | ids: { component: MY-COMP }                       | must be letters only                 | at ["ids"]["component"]       |
+    | ids: { story: REQ }                               | requirement and story share the prefix REQ | at ["ids"]              |
 
 Scenario: A malformed configuration names the file and the key
   Given a file "sdp.config.yaml" containing:

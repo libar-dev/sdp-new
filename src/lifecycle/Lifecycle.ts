@@ -2,9 +2,9 @@
  * The delivery lifecycle, RUP-style: phases split into iterations and closed
  * by milestones, with disciplines (business modeling, requirements, analysis &
  * design, implementation, test, deployment) active in every iteration at
- * varying intensity. All of it is plain graph data, read through the
- * relations the workspace configures (`lifecycle.planRelations`,
- * `lifecycle.phaseRelations`):
+ * varying intensity. All of it is plain graph data, read through the words
+ * of the workspace's vocabulary profile (the kinds, the plan and phase
+ * relations, `activity`, `order`, `start` and `end`):
  *
  *   phase      nodes, ordered by an `order` attribute
  *   iteration  nodes linked to their phase (`phase: elaboration`)
@@ -14,15 +14,17 @@
  *              discipline into iterations of its own
  *              (`activity: { implementation: C1, test: [C1, T1] }`)
  *
- * No other edge counts — a `[[E2]]` mention plans nothing — and a node is
- * counted once however many edges lead to the same iteration. The
+ * Plan facts are read as edges, which every link key yields whichever way it
+ * is written. No other edge counts — a `[[E2]]` mention plans nothing — and a
+ * node is counted once however many edges lead to the same iteration. The
  * discipline × iteration chart is the plan; stages and executed scenarios are
  * evidence and are reported apart from it, and the calendar only says where
  * today is, never that a milestone was met.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import type { GraphNode } from "../model/Graph.ts"
+import { type GraphNode, tally } from "../model/Graph.ts"
+import { activityRelation, attribute, hasKind, hasRelation, made, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
@@ -43,7 +45,7 @@ export interface PhaseReport {
 
 export interface LifecycleReport {
   readonly phases: ReadonlyArray<PhaseReport>
-  /** Specs with a maturity that are planned into no iteration. */
+  /** Nodes with a maturity that are planned into no iteration. */
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
@@ -60,6 +62,8 @@ export interface LifecycleReport {
   readonly currentPhase: GraphNode | undefined
   /** Whether the report was computed for a date; without one, every gate counts as due. */
   readonly dated: boolean
+  /** The words the plan was read with, so the rendering can name them. */
+  readonly vocabulary: Vocabulary
 }
 
 /** One discipline's work on a node, planned into an iteration. */
@@ -68,18 +72,13 @@ export interface PlannedActivity {
   readonly iteration: string
 }
 
-const structural = new Set(["phase", "iteration", "milestone", "scenario", "missing", "code"])
+/** The plan's own nodes and the nodes sdp makes are not planned work. */
+const isStructural = (vocabulary: Vocabulary, node: GraphNode) =>
+  hasKind(vocabulary, "phase", node.kind) || hasKind(vocabulary, "iteration", node.kind) ||
+  hasKind(vocabulary, "milestone", node.kind) || Object.values(made.kinds).some((kind) => kind === node.kind)
 
 /** Scenario statuses that mean it has not been executed (since its last change). */
 const notExecuted = new Set(["unrun", "stale"])
-
-const order = (node: GraphNode) => {
-  const value = Number(node.attrs.order)
-  return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER
-}
-
-const byStart = (a: GraphNode, b: GraphNode) =>
-  String(a.attrs.start ?? "").localeCompare(String(b.attrs.start ?? "")) || order(a) - order(b) || a.id.localeCompare(b.id)
 
 const unique = <A>(values: Iterable<A>): Array<A> => [...new Set(values)]
 
@@ -87,21 +86,29 @@ const unique = <A>(values: Iterable<A>): Array<A> => [...new Set(values)]
  * `activity:` as written: each discipline with the values given for it (one iteration id or a
  * list). Undefined when the node has no `activity`, or when it is not a mapping.
  */
-export const declaredActivity = (attrs: Readonly<Record<string, unknown>>): ReadonlyMap<string, ReadonlyArray<unknown>> | undefined => {
-  const value = attrs.activity
-  if (!Predicate.isObject(value)) return undefined
+export const declaredActivity = (
+  vocabulary: Vocabulary,
+  attrs: Readonly<Record<string, unknown>>
+): ReadonlyMap<string, ReadonlyArray<unknown>> | undefined => {
+  const value = attribute({ attrs }, vocabulary.attributes.activity)
+  if (!Predicate.isObject(value) || Array.isArray(value)) return undefined
   return new Map(Object.entries(value).map(([discipline, its]) => [discipline, Array.isArray(its) ? its : its == null ? [] : [its]]))
 }
 
-/** The iterations a node is planned into through the configured plan relations, each once. */
-export const planIterations = (project: Project, node: GraphNode): ReadonlyArray<string> => {
-  const { config, graph } = project
+/** The iterations an edge relation leads to from `node`, each once. */
+const iterationsBy = (project: Project, node: GraphNode, matches: (rel: string) => boolean): ReadonlyArray<string> => {
+  const { graph } = project
+  const vocabulary = project.config.vocabulary
   return unique(
     graph.out(node.id)
-      .filter((edge) => config.planRelations.includes(edge.rel) && graph.node(edge.to)?.kind === "iteration")
+      .filter((edge) => matches(edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? ""))
       .map((edge) => edge.to)
   )
 }
+
+/** The iterations a node is planned into through the plan relations, each once. */
+export const planIterations = (project: Project, node: GraphNode): ReadonlyArray<string> =>
+  iterationsBy(project, node, (rel) => hasRelation(project.config.vocabulary, "plan", rel))
 
 /**
  * The discipline work planned on a node. A discipline its `activity:` names is planned into the
@@ -109,14 +116,15 @@ export const planIterations = (project: Project, node: GraphNode): ReadonlyArray
  * the node's kind is planned into the iterations of its plan relations.
  */
 export const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<PlannedActivity> => {
-  const { config, graph } = project
-  const declared = declaredActivity(node.attrs)
+  const vocabulary = project.config.vocabulary
+  const declared = declaredActivity(vocabulary, node.attrs)
   const home = planIterations(project, node)
-  return Object.entries(config.disciplines).flatMap(([discipline, kinds]) => {
-    const named = declared?.get(discipline)
-    const iterations = named === undefined
-      ? kinds.includes(node.kind) ? home : []
-      : unique(named.filter((id): id is string => Predicate.isString(id) && graph.node(id)?.kind === "iteration"))
+  return [...vocabulary.disciplines].flatMap(([discipline, kinds]) => {
+    const iterations = declared?.has(discipline)
+      ? iterationsBy(project, node, (rel) => rel === activityRelation(vocabulary, discipline))
+      : kinds.includes(node.kind)
+      ? home
+      : []
     return iterations.map((iteration) => ({ discipline, iteration }))
   })
 }
@@ -126,19 +134,28 @@ export const plannedActivity = (project: Project, node: GraphNode): ReadonlyArra
  * planned work. `today` is an ISO date (YYYY-MM-DD); without it nothing is marked current.
  */
 export const lifecycle = (project: Project, today?: string): LifecycleReport => {
-  const { config, graph } = project
+  const { graph } = project
+  const vocabulary = project.config.vocabulary
+  const { end, order: orderKey, start } = vocabulary.attributes
+  const order = (node: GraphNode) => {
+    const value = Number(attribute(node, orderKey))
+    return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER
+  }
+  const startOf = (node: GraphNode) => attribute(node, start)
+  const byStart = (a: GraphNode, b: GraphNode) =>
+    String(startOf(a) ?? "").localeCompare(String(startOf(b) ?? "")) || order(a) - order(b) || a.id.localeCompare(b.id)
   const inPhase = (node: GraphNode, phase: GraphNode) =>
-    graph.out(node.id).some((edge) => config.phaseRelations.includes(edge.rel) && edge.to === phase.id)
+    graph.out(node.id).some((edge) => hasRelation(vocabulary, "phase", edge.rel) && edge.to === phase.id)
 
-  const phases = graph.ofKind("phase").slice().sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id))
-  const iterationNodes = graph.ofKind("iteration").slice().sort(byStart)
+  const phases = graph.ofKind(vocabulary.kinds.phase).slice().sort((a, b) => order(a) - order(b) || a.id.localeCompare(b.id))
+  const iterationNodes = graph.ofKind(vocabulary.kinds.iteration).slice().sort(byStart)
 
   // Every node's plan, once: the iterations it is planned into and its discipline activity.
   const itemsOf = new Map<string, Set<GraphNode>>(iterationNodes.map((it) => [it.id, new Set()]))
   const activityIn = new Map<string, Map<string, Set<string>>>()
   const planned = new Set<string>()
-  for (const node of graph.nodes.values()) {
-    if (structural.has(node.kind)) continue
+  for (const node of graph.nodes()) {
+    if (isStructural(vocabulary, node)) continue
     const activity = plannedActivity(project, node)
     for (const iteration of [...planIterations(project, node), ...activity.map((a) => a.iteration)]) {
       itemsOf.get(iteration)?.add(node)
@@ -153,41 +170,48 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 
   const iterationReport = (iteration: GraphNode): IterationReport => {
     const items = [...itemsOf.get(iteration.id)!]
-    const stages: Record<string, number> = {}
-    const scenarios: Record<string, number> = {}
+    const statuses: Array<string> = []
     for (const item of items) {
-      if (Predicate.isString(item.attrs.stage)) stages[item.attrs.stage] = (stages[item.attrs.stage] ?? 0) + 1
       for (const edge of graph.in(item.id)) {
         const scenario = graph.node(edge.from)
         const status = scenario?.attrs.status
-        if (edge.rel !== "verifies" || scenario?.kind !== "scenario" || !Predicate.isString(status) || notExecuted.has(status)) continue
-        scenarios[status] = (scenarios[status] ?? 0) + 1
+        if (edge.rel !== vocabulary.relations.scenario || scenario?.kind !== made.kinds.scenario) continue
+        if (Predicate.isString(status) && !notExecuted.has(status)) statuses.push(status)
       }
     }
-    return { node: iteration, items, stages, scenarios }
+    return {
+      node: iteration,
+      items,
+      // Counted the way every report counts stages: each node that has one.
+      stages: tally(items.flatMap((item) => Predicate.isString(item.attrs.stage) ? [item.attrs.stage] : [])),
+      scenarios: tally(statuses)
+    }
   }
 
   const reports = new Map(iterationNodes.map((it) => [it.id, iterationReport(it)]))
   const phaseReports = phases.map((phase): PhaseReport => ({
     node: phase,
     iterations: iterationNodes.filter((it) => inPhase(it, phase)).map((it) => reports.get(it.id)!),
-    milestones: graph.ofKind("milestone").filter((m) => inPhase(m, phase))
+    milestones: graph.ofKind(vocabulary.kinds.milestone).filter((m) => inPhase(m, phase))
   }))
   const orderedIterations = unique(phaseReports.flatMap((p) => p.iterations.map((i) => i.node)))
   for (const it of iterationNodes) if (!orderedIterations.includes(it)) orderedIterations.push(it)
 
-  const disciplines = Object.keys(config.disciplines).map((discipline) => ({
+  const disciplines = [...vocabulary.disciplines.keys()].map((discipline) => ({
     discipline,
     activity: orderedIterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))
 
-  const unplanned = [...graph.nodes.values()].filter((n) =>
-    Predicate.isString(n.attrs.maturity) && !planned.has(n.id) && !structural.has(n.kind)
+  const unplanned = graph.nodes().filter((n) =>
+    Predicate.isString(n.attrs.maturity) && !planned.has(n.id) && !isStructural(vocabulary, n)
   )
   const started = today === undefined
     ? []
-    : orderedIterations.filter((it) => Predicate.isString(it.attrs.start) && it.attrs.start <= today)
-  const current = started.find((it) => today! <= String(it.attrs.end ?? ""))
+    : orderedIterations.filter((it) => {
+      const begins = startOf(it)
+      return Predicate.isString(begins) && begins <= today
+    })
+  const current = started.find((it) => today! <= String(attribute(it, end) ?? ""))
   const latest = current ?? started.at(-1)
   const currentPhase = latest && phaseReports.find((p) => p.iterations.some((i) => i.node.id === latest.id))?.node
   return {
@@ -198,7 +222,8 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     work: orderedIterations.map((it) => reports.get(it.id)!),
     current,
     currentPhase,
-    dated: today !== undefined
+    dated: today !== undefined,
+    vocabulary
   }
 }
 annotate(lifecycle, { is: "ARCH-lifecycle" })
@@ -236,9 +261,10 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   })
   out.push("", "PLANNED WORK  (nodes planned into each iteration, by kind)")
   for (const it of report.work) {
-    const dates = it.node.attrs.start ? ` ${String(it.node.attrs.start)}…${String(it.node.attrs.end ?? "")}` : ""
-    const kinds: Record<string, number> = {}
-    for (const item of it.items) kinds[item.kind] = (kinds[item.kind] ?? 0) + 1
+    const { end, start } = report.vocabulary.attributes
+    const begins = attribute(it.node, start)
+    const dates = begins ? ` ${String(begins)}…${String(attribute(it.node, end) ?? "")}` : ""
+    const kinds = tally(it.items.map((item) => item.kind))
     out.push(`  ${pad(label(it.node), 4)} ${pad(it.node.title, 28)}${pad(dates, 25)} ${it.items.length} item(s)  ${counts(kinds)}`)
   }
   if (report.unplanned.length > 0) {

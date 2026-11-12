@@ -5,14 +5,15 @@
  * moved on. Scenarios and code nodes are left out — annotations point at specs.
  */
 import { annotate } from "sdp/annotations"
+import { made } from "../model/Vocabulary.ts"
 import type { Project } from "./Build.ts"
 
 annotate(import.meta, { is: "ARCH-code-annotations" })
 
-const omitted = new Set(["scenario", "code", "missing"])
+const omitted: ReadonlySet<string> = new Set(Object.values(made.kinds))
 
 export const idsDeclaration = (project: Project): string => {
-  const ids = [...project.graph.nodes.values()]
+  const ids = project.graph.nodes()
     .filter((node) => !omitted.has(node.kind))
     .sort((a, b) => a.id.localeCompare(b.id))
   return [

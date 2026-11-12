@@ -9,7 +9,7 @@ import type { Config } from "../model/Config.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
 import { parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
-import { type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
+import { type Json, type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
 
 export interface LinkDecl {
   readonly rel: string
@@ -276,6 +276,22 @@ const readLinks = (
   }
   return links
 }
+
+/** Attribute data as a located value, every part of it at `line`. */
+const locatedAt = (value: unknown, line: number): Located => {
+  const data = value as Json
+  if (Array.isArray(value)) return { line, data, items: value.map((item) => locatedAt(item, line)) }
+  if (!Predicate.isObject(value)) return { line, data }
+  return { line, data, entries: Object.entries(value).map(([key, entry]) => ({ key, line, value: locatedAt(entry, line) })) }
+}
+
+/** The links one link key declares outside `links:` (`iteration: E1`), in every shape `links:` accepts, at the key's line. */
+export const linksOfKey = (
+  rel: string,
+  value: unknown,
+  at: { readonly file: string; readonly owner: string; readonly line: number },
+  diagnostics: Array<Diagnostic>
+): ReadonlyArray<LinkDecl> => readLinks(locatedAt({ [rel]: value }, at.line), at, diagnostics)
 
 /** `nodes:` is a list of maps, each with an id; an empty `nodes:` declares none. */
 const readInlineNodes = (

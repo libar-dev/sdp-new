@@ -2,15 +2,16 @@
  * A context bundle: everything an agent (or a new team member) needs to work
  * on one node, as a single Markdown document — the spec itself, why it is not
  * ready yet, its relationships, scenario status with the step definitions still
- * to write, the curated architecture, quality requirements and decisions in
- * reach, and the code locations already linked to it. Architecture nobody
- * marked significant appears only as a direct relationship.
+ * to write, the architecture, quality requirements and decisions in reach,
+ * and the code locations already linked to it. What is in reach is reached
+ * through links: a prose mention is listed as a relationship but leads no
+ * further.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import { architectureView, isDriver, isSignificant } from "../arch/Architecture.ts"
 import { gateReasons } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
+import { attribute, criteria, hasKind, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
 import { isActive, type Project } from "./Build.ts"
@@ -25,10 +26,12 @@ export interface ContextSteps {
 /** Everything needed to work on one node, as one Markdown document: spec, links, readiness, scenarios, curated architecture, decisions, code. */
 export const contextBundle = (project: Project, id: string, depth = 2, steps?: ContextSteps): string | undefined => {
   const { graph } = project
+  const vocabulary = project.config.vocabulary
   const node = graph.node(id)
   if (!node) return undefined
   const spec = project.specById.get(id)
   const out: Array<string> = []
+  const statusOf = (n: GraphNode) => describeStatus(vocabulary, n)
   const describe = (n: GraphNode) => `${n.id} — ${n.title} (${n.kind}${statusOf(n)}) ${formatSource(n.source)}`.trimEnd()
 
   out.push(`# ${node.id} — ${node.title}`, "")
@@ -40,8 +43,8 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
   if (spec) out.push(...notReady(project, spec))
   if (spec) out.push("## Specification", "", spec.body.trim(), "")
 
-  const outgoing = graph.out(id).filter((e) => e.rel !== "verifies")
-  const incoming = graph.in(id).filter((e) => e.rel !== "verifies")
+  const outgoing = graph.out(id).filter((e) => e.rel !== vocabulary.relations.scenario)
+  const incoming = graph.in(id).filter((e) => e.rel !== vocabulary.relations.scenario)
   if (outgoing.length + incoming.length > 0) {
     out.push("## Relationships", "")
     for (const e of outgoing) {
@@ -100,22 +103,20 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
     }
   }
 
-  // Curated context within reach: significant nodes, the patterns of the curated view, decisions.
-  const reach = neighbourhood(project, id, depth)
-  const curated = new Set(architectureView(project).nodes.map((n) => n.id))
-  const significant = reach.filter((n) => isSignificant(n) && n.id !== id)
+  // Context within reach: the architecture, quality requirements and decisions.
+  const reach = neighbourhood(project, id, depth).filter((n) => n.id !== id)
+  const isDecision = (n: GraphNode) => hasKind(vocabulary, "decision", n.kind)
+  const architecture = reach.filter((n) => hasKind(vocabulary, "architectural", n.kind))
   // Decisions that no longer apply (superseded, rejected, deprecated) are not context for new work.
-  const decisions = reach.filter((n) => n.kind === "decision" && n.id !== id && isActive(n))
-  const patterns = reach.filter((n) => n.kind === "pattern" && n.id !== id && curated.has(n.id) && !isSignificant(n))
-  const qualities = reach.filter((n) => n.id !== id && n.kind !== "decision" && isDriver(project, n))
-  if (significant.length > 0) {
-    out.push(`## Significant architecture within ${depth} hops`, "")
-    for (const n of significant) {
-      out.push(`- ${describe(n)}${Predicate.isString(n.attrs.rationale) ? `\n  rationale: ${n.attrs.rationale}` : ""}`)
+  const decisions = reach.filter((n) => isDecision(n) && isActive(n, vocabulary))
+  const qualities = reach.filter((n) => !isDecision(n) && isDriver(vocabulary, n))
+  if (architecture.length > 0) {
+    out.push(`## Architecture within ${depth} hops`, "")
+    for (const n of architecture) {
+      out.push(`- ${describe(n)}${Predicate.isString(n.attrs.summary) ? `\n  ${n.attrs.summary}` : ""}`)
     }
     out.push("")
   }
-  if (patterns.length > 0) out.push("## Patterns", "", ...patterns.map((n) => `- ${describe(n)}`), "")
   if (qualities.length > 0) {
     out.push("## Quality requirements in reach", "")
     for (const n of qualities) {
@@ -132,7 +133,7 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
     }
     out.push("")
   }
-  const code = reach.filter((n) => n.kind === "code")
+  const code = reach.filter((n) => n.kind === made.kinds.code)
   if (code.length > 0) {
     out.push("## Code", "")
     for (const n of code) {
@@ -148,17 +149,18 @@ annotate(contextBundle, { is: "ARCH-reports" })
 
 /** Why a spec below `ready` is not ready: the ready gate's reasons, or that its content already meets it. */
 const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
-  const { maturity: ladder } = project.config
+  const { maturity: ladder } = project.config.vocabulary
+  const { ready } = criteria
   const maturity = spec.attrs.maturity
-  if (!Predicate.isString(maturity) || !ladder.includes("ready") || ladder.indexOf(maturity) < 0) return []
-  if (ladder.indexOf(maturity) >= ladder.indexOf("ready")) return []
-  const reasons = gateReasons(spec, "ready")
+  if (!Predicate.isString(maturity) || !ladder.includes(ready) || ladder.indexOf(maturity) < 0) return []
+  if (ladder.indexOf(maturity) >= ladder.indexOf(ready)) return []
+  const reasons = gateReasons(spec, ready)
   return [
     "## Not ready yet",
     "",
     ...(reasons.length > 0
       ? [`Maturity is ${maturity}; for ready:`, ...reasons.map((reason) => `- ${reason}`)]
-      : [`Maturity is ${maturity}, but the content already meets the ready gate: set \`maturity: ready\` if the team agrees.`]),
+      : [`Maturity is ${maturity}, but the content already meets the ${ready} gate: set \`maturity: ${ready}\` if the team agrees.`]),
     ""
   ]
 }
@@ -170,37 +172,39 @@ const measures = (spec: Spec | undefined): ReadonlyArray<string> =>
     return outcomes.length > 0 ? [outcomes.join("; ")] : []
   })
 
-/** What was decided: a `decision` attribute, else the `## Decision` (or Outcome) section, else the summary. */
+/** What was decided: the `## Decision` (or Outcome) section, else the summary. */
 const decisionText = (node: GraphNode, spec: Spec | undefined): string | undefined => {
-  if (Predicate.isString(node.attrs.decision)) return node.attrs.decision
   const section = spec?.sections.find((s) => /^(decision|outcome)\b/i.test(s.heading))?.text ?? ""
   if (section) return section.length > 280 ? `${section.slice(0, 279).trimEnd()}…` : section
   return Predicate.isString(node.attrs.summary) ? node.attrs.summary : undefined
 }
 
-const statusOf = (node: GraphNode) => {
+const describeStatus = (vocabulary: Vocabulary, node: GraphNode) => {
+  const maturity = attribute(node, "maturity")
+  const stage = attribute(node, "stage")
+  const status = attribute(node, "status")
   const parts = [
-    node.attrs.maturity !== undefined ? `maturity: ${String(node.attrs.maturity)}` : undefined,
-    node.attrs.stage !== undefined && node.attrs.stage !== node.attrs.maturity ? `stage: ${String(node.attrs.stage)}` : undefined,
-    node.kind === "decision" && node.attrs.status !== undefined ? `status: ${String(node.attrs.status)}` : undefined,
-    node.attrs.significant === true ? "significant" : undefined
+    maturity !== undefined ? `maturity: ${String(maturity)}` : undefined,
+    stage !== undefined && stage !== maturity ? `stage: ${String(stage)}` : undefined,
+    hasKind(vocabulary, "decision", node.kind) && status !== undefined ? `status: ${String(status)}` : undefined
   ].filter(Predicate.isString)
   return parts.length > 0 ? `, ${parts.join(", ")}` : ""
 }
 
-/** Nodes within `depth` hops in either direction, skipping scenario fan-out. */
+/** Nodes within `depth` hops in either direction along links (never prose mentions), skipping scenario fan-out. */
 export const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
   const { graph } = project
+  const vocabulary = project.config.vocabulary
   const seen = new Set([id])
   let frontier = [id]
   // Stops when nothing new is reachable, so any depth (even Infinity) terminates.
   for (let d = 0; d < depth && frontier.length > 0; d++) {
     const next: Array<string> = []
     for (const current of frontier) {
-      for (const { other } of graph.neighbours(current)) {
-        if (seen.has(other)) continue
+      for (const { edge, other } of graph.neighbours(current)) {
+        if (seen.has(other) || isMention(vocabulary, edge)) continue
         seen.add(other)
-        if (graph.node(other)?.kind !== "scenario") next.push(other)
+        if (graph.node(other)?.kind !== made.kinds.scenario) next.push(other)
       }
     }
     frontier = next

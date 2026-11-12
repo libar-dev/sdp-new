@@ -17,13 +17,26 @@ Status fields rot. A requirement marked "done" whose tests fail, or "in analysis
 misleads everyone, agents included. Yet some judgement — is this idea understood well enough? —
 cannot be computed.
 
+## Options
+
+1. **One declared status** (`status: in-analysis | in-progress | done`), as most trackers have.
+2. **Everything derived**: no declared field at all; read readiness from content alone.
+3. **Two axes**: authors declare the authoring maturity and a tool checks it against the content;
+   whether the behaviour works is derived from scenario results and cannot be declared.
+
 ## Decision
 
-Authors declare *authoring maturity* (`idea`, `draft`, `specified`, `ready`); `sdp check` verifies
-the claim against the content. Nobody declares implementation status: `stage` becomes
-`in-progress` or `verified` only from scenario results.
+Option 3. Authors declare *maturity* (`idea`, `draft`, `specified`, `ready`, or the workspace's own
+ladder); `sdp check` verifies that it is on the ladder and that the content supports it. Nobody
+declares that something works: `verification` is derived from scenario results, and writing a
+derived fact is an error. `stage` sums the two up in one word — `verified` when all scenarios pass,
+`failing` when any fails, `in-progress` while automation is partial, otherwise the declared maturity
+([[REQ-maturity-gates]]).
 
 ## Consequences
 
-- "Ready" has a definition that a machine can check (a Definition of Ready as code).
-- "Done" means verified scenarios, nothing else.
+- "Done" means verified scenarios, nothing else, and a regression shows as `failing`, not as work in
+  progress.
+- The built-in maturity criteria are structural: `ready` means nothing is left open, not that the
+  design is settled. What else a team requires before work starts is its own Definition of Ready,
+  written as a gate ([[REQ-maturity-gates]]).

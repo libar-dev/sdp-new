@@ -20,11 +20,12 @@ agents as much as for people.
   a gate it writes. *Implemented* is never declared: it is derived from scenario results.
 - **Decisions of every kind** (architecture, product, process, …) as records in the same graph,
   optionally guarding themselves with a scenario.
-- **Curated architecture.** Architects mark the few significant elements and patterns (with a
-  rationale); sdp shows exactly those with their decisions and quality requirements, and never
-  decides significance for them.
-- **Free-form graph.** Kinds and relation names are your words. Query with one-line path patterns,
-  export as JSONL/TSV for grep and jq, or serve over MCP.
+- **Curated architecture.** The graph holds only the elements and patterns architects declare, so
+  what is in it is significant by that act; sdp shows it with its decisions and quality
+  requirements, and never computes, ranks or suggests what belongs in it.
+- **Free-form graph.** Kinds and relation names are your words; the few sdp interprets are a
+  vocabulary profile you can rename (`sdp vocabulary`). Query with one-line path patterns, export as
+  JSONL/TSV for grep and jq, or serve over MCP.
 - **Lifecycle.** Phases, iterations and milestones are graph nodes; milestone gates are scenarios.
   Each piece of work plans its disciplines' activity (`iteration:`, `activity:`), so the RUP chart
   of overlapping disciplines is the plan itself, shown apart from the evidence.
@@ -103,16 +104,17 @@ Scenario: Specify behaviour before it is automated
 
 | Command | What it does |
 | --- | --- |
-| `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, gates, significant elements, diagnostics |
+| `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, gates, architecture, diagnostics |
 | `sdp q '<pattern>'` | Query, e.g. `sdp q 'requirement[maturity<ready]'`, `--paths`, `--ids` |
 | `sdp show <id>` | A node with attributes and edges |
 | `sdp context <id>` | Everything needed to work on a node, as Markdown (for agents and humans) |
 | `sdp check` | Diagnostics with rule ids, `file:line` and a hint; exit 1 on errors |
 | `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last and never fail the run |
 | `sdp gate <milestone>` | Evaluate one milestone's gate (or a spec's `@gate` scenarios); exit 1 if unmet |
-| `sdp arch [--candidates] [-f mermaid\|dot\|json]` | The curated architecture, or suggestions for architects to look at |
+| `sdp arch [-f mermaid\|dot\|json]` | The architecture: every element and pattern with its decisions and quality requirements |
 | `sdp lifecycle` | Phases, gates, planned work and discipline activity per iteration, and the evidence apart |
 | `sdp graph [-f jsonl\|tsv\|json\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
+| `sdp vocabulary [--json]` | The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured |
 | `sdp types` | Write the id declarations that type `annotate()` from `sdp/annotations` in TypeScript |
 | `sdp new <kind> <title>` · `sdp init` | Authoring helpers; templates for requirement, idea, nfr, decision, element, pattern, milestone and plan (`sdp new --help`) |
 | `sdp mcp` | MCP server (stdio) for agents |

@@ -50,8 +50,9 @@ flowchart LR
   mcp[MCP server] --> query & checker & view & reports
 ```
 
-Only the elements marked `significant: true` (see `sdp arch`) are architecture; the others are
-declared for orientation. An element with its own file specifies its contract there, as scenarios.
+Every element and pattern declared here is the architecture, by the architects' act of declaring
+it ([[DEC-0008]]; `sdp arch` shows it). An element with its own file specifies its contract there,
+as scenarios.
 
 ## Implementation
 
@@ -63,12 +64,13 @@ per element:
 | `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, imports step modules with `import "sdp"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
 | `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts` | CommonMark and YAML parsing, Gherkin through the official parser with every line mapped back, spec assembly | ARCH-spec-parser |
 | `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in any language | ARCH-code-annotations |
-| `src/graph/Build.ts` | Pure graph construction, implicit links, results merge, stage derivation | ARCH-graph-builder |
+| `src/graph/Build.ts` | Pure graph construction, link keys, results merge, stage derivation | ARCH-graph-builder |
 | `src/model/Graph.ts` | Immutable graph with adjacency indexes | ARCH-graph |
+| `src/model/Vocabulary.ts`, `Config.ts` | The vocabulary profile: the words sdp interprets, and the configuration that renames them | ARCH-vocabulary |
 | `src/graph/Query.ts` | SDPQ parser and evaluator | ARCH-query-engine |
 | `src/run/` | Step API, runner (Effect, timeouts), built-in graph steps, results schema | ARCH-runner |
 | `src/check/` | Rules over the built project | ARCH-checker |
-| `src/arch/` | Curated architecture view and candidates | ARCH-architecture-view |
+| `src/arch/` | The architecture view | ARCH-architecture-view |
 | `src/lifecycle/` | Phases, iterations, gates and discipline activity | ARCH-lifecycle |
 | `src/graph/Context.ts`, `Export.ts`, `Status.ts` | Context bundles, exports, status summary | ARCH-reports |
 | `src/cli/` | `effect/cli` commands | ARCH-cli |

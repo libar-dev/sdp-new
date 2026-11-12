@@ -48,11 +48,13 @@ that its instructions work.
 - Effect 4: `Effect.fn`/`Effect.gen` for IO workflows, `Schema` for external data, services at the
   edge (`FileSystem`, `Path`); keep parsing/graph/query/check pure. Effect docs ship in
   `node_modules/effect/AGENTS.md` — use those, not memory of Effect 2/3.
-- Relations and kinds are free-form; do not add code that depends on a closed vocabulary.
+- Kinds, relations and attributes are free-form. The few words sdp interprets are roles of the
+  vocabulary profile (`src/model/Vocabulary.ts`, printed by `sdp vocabulary`): ask it, never compare
+  with one of its words as a literal — a guard in [[DEC-0002]] fails the run if you do.
 - Every document is a spec: guides like this one carry front matter (`kind: guide`) and, where
   they make claims that can be checked, scenarios.
-- Architectural significance is the architects' call: do not mark or unmark `significant` on your
-  own initiative; propose it instead (`sdp arch --candidates` lists suggestions).
+- What belongs in the architecture is the architects' call ([[DEC-0008]]): do not add or remove an
+  element, a pattern or an `is` annotation on your own initiative; propose it instead.
 - While the project is in inception, a decision that changes is rewritten or deleted, not
   superseded — keep the graph free of history noise; git keeps the history ([[DEC-0007]]).
 - Plan work in the spec: `iteration:` for its own discipline's work, `activity:` for the others
@@ -100,7 +102,11 @@ Scenario: Snippets show how to automate a new scenario
   Then the exit code is 0
   And the output contains 'When("the catalogue is exported as CSV", ({ world }) => pending())'
 
-Scenario: Architects get suggestions, never decisions
-  When I run "sdp arch --candidates"
-  Then the output contains "what is significant is the architect's call"
+Scenario: The architecture is one command away
+  When I run "sdp arch" in the repository
+  Then the output contains "ARCH-graph — System graph (element)"
+
+Scenario: The words sdp interprets are one command away
+  When I run "sdp vocabulary" in the repository
+  Then the output contains "anchor             is"
 ~~~
