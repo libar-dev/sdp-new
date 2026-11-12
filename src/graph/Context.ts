@@ -29,7 +29,7 @@ export interface ContextSteps {
   readonly problems: ReadonlyArray<string>
 }
 
-/** Everything needed to work on one node, as one Markdown document: readiness, the scenarios, the spec, links, curated architecture, decisions, code. */
+/** Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach. */
 export const contextBundle = (project: Project, node: GraphNode, depth = 2, steps?: ContextSteps): string => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
@@ -42,9 +42,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   out.push(`# ${node.id} — ${node.title}`, "")
   out.push(`kind: ${node.kind}${statusOf(node)}  ·  source: ${formatSource(node.source) || "n/a"}`, "")
   const attrs = Object.entries(node.attrs).filter(([k]) => !["summary", "file", "title"].includes(k))
-  if (attrs.length > 0) {
-    out.push("```yaml", ...attrs.map(([k, v]) => `${k}: ${JSON.stringify(v)}`), "```", "")
-  }
+  if (attrs.length > 0) out.push(`attributes: ${attrs.map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ")}`, "")
   if (spec) out.push(...notReady(project, spec))
 
   // The contract first: each rule with its state, what it rests on and why it holds, then its

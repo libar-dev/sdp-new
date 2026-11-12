@@ -199,7 +199,7 @@ Feature: Command line
     Scenario: An invalid configuration
       Given a file "broken/sdp.config.yaml" containing:
         """
-        specs: 42
+        features: 42
         """
       When I run "sdp -C broken status"
       Then the exit code is 1
@@ -238,7 +238,7 @@ Feature: Command line
       When I run "sdp init"
       Then the output contains "created sdp.config.yaml"
       And the output contains "created .claude/skills/sdp/SKILL.md"
-      And the file "sdp.config.yaml" contains "# specs: "
+      And the file "sdp.config.yaml" contains "# features: "
       And the file ".claude/skills/sdp/SKILL.md" contains "name: sdp"
       When I run "sdp init"
       Then the output contains "exists  sdp.config.yaml"
@@ -252,7 +252,7 @@ Feature: Command line
         # every key at its default
         """
       When I run "sdp init" in "shop"
-      Then the file "shop/sdp.config.yaml" contains "# specs: "
+      Then the file "shop/sdp.config.yaml" contains "# features: "
 
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 
