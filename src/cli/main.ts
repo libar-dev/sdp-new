@@ -100,7 +100,7 @@ const statusCommand = Command.make(
 const queryCommand = Command.make(
   "query",
   {
-    expression: Argument.String("expression").pipe(Argument.withDescription("SDPQ, e.g. 'requirement[maturity=ready] -realized-by-> *'")),
+    expression: Argument.String("expression").pipe(Argument.withDescription("SDPQ, e.g. 'feature[maturity=ready] -realized-by-> *'")),
     paths: Flag.Boolean("paths").pipe(Flag.withDescription("Print the paths that led to the nodes, one per line"), Flag.withDefault(false)),
     ids: Flag.Boolean("ids").pipe(Flag.withDescription("Print only ids, one per line"), Flag.withDefault(false)),
     json
@@ -115,13 +115,13 @@ const queryCommand = Command.make(
   Command.withShortDescription("Query the graph with a path pattern"),
   Command.withDescription(`Query the graph with a path pattern (SDPQ):\n\n${querySyntax.replace(/^/gm, "  ")}`),
   Command.withExamples([
-    { command: "sdp q 'requirement[maturity<ready]'", description: "Requirements not ready yet" },
-    { command: "sdp q 'element !-*- decision'", description: "Elements without a decision" },
-    { command: "sdp q '#DEC-use-postgres <-*- *' --json | jq -r '.data.nodes[].id'", description: "Everything that points at a decision, as data" }
+    { command: "sdp q 'feature[maturity<ready]'", description: "Features not ready yet" },
+    { command: "sdp q 'feature !-realized-by-> element'", description: "Features no element realizes" },
+    { command: "sdp q '#use-postgres <-*- *' --json | jq -r '.data.nodes[].id'", description: "Everything that points at a decision, as data" }
   ])
 )
 
-const id = Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout"))
+const id = Argument.String("id").pipe(Argument.withDescription("Node id, e.g. guest-checkout"))
 
 const showCommand = Command.make(
   "show",
@@ -166,7 +166,7 @@ const graphCommand = Command.make(
   Command.withExamples([
     { command: "sdp graph | grep '\"rel\":\"decided-by\"'", description: "Every decided-by edge, with where it is declared" },
     { command: "sdp graph | jq -r 'select(.type == \"node\" and .attrs.maturity == \"ready\") | .id'", description: "The ids of the ready nodes" },
-    { command: "sdp graph --mermaid -q 'element -decided-by-> decision'", description: "A diagram of part of the graph" }
+    { command: "sdp graph --mermaid -q 'feature -realized-by-> element'", description: "A diagram of part of the graph" }
   ])
 )
 
