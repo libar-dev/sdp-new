@@ -312,6 +312,12 @@ Feature: Ask the graph
       Then the exit code is 1
       And the output contains "no node ARCH-ordrs; closest: ARCH-orders"
 
+    Scenario: A tag written without its @
+      When I run "sdp q 'feature[tags=web]'"
+      Then the exit code is 0
+      And the output contains "0 node(s)"
+      And the output contains "note: no tag web; a tag is written with its @, as @web"
+
   Rule: An answer that may miss something says so and why, and exits with 2
 
     A question that reaches too far is cut short at a bound: 12 links followed as far as they lead,
