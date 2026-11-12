@@ -190,6 +190,7 @@ Feature: See the architecture
         | tax.ts     | tax/index.ts | ./tax    | nothing  |
         | tax.ts     | tax.js       | ./tax.js | nothing  |
         | tax.js     | tax.tsx      | ./tax.js | ARCH-tax |
+        | tax.ts     | tax/index.ts | ./tax/   | ARCH-tax |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 

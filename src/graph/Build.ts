@@ -453,8 +453,9 @@ const swappedExtensions = new Map<string, ReadonlyArray<string>>([
 /**
  * The file of `files` that a relative specifier written in `file` names, as TypeScript resolves it:
  * the name with its extension swapped, then with one added, then a directory's index. A name written
- * with an extension TypeScript does not swap is first the file as written; a package name names no
- * file of the workspace.
+ * with an extension TypeScript does not swap is first the file as written; a name that ends in a
+ * directory (`./tax/`, `.`, `..`) is only that directory's index, never a file beside it; a package
+ * name names no file of the workspace.
  */
 const resolveModule = (file: string, specifier: string, files: ReadonlySet<string>): string | undefined => {
   if (!/^\.\.?(\/|$)/.test(specifier)) return undefined
@@ -465,12 +466,14 @@ const resolveModule = (file: string, specifier: string, files: ReadonlySet<strin
     else if (parts.pop() === undefined) return undefined
   }
   const path = parts.join("/")
+  const indexes = addedExtensions.map((extension) => [...parts, `index${extension}`].join("/"))
+  if (/(^|\/)\.{0,2}$/.test(specifier)) return indexes.find((candidate) => files.has(candidate))
   const written = /\.[^./]*$/.exec(path)?.[0]
   const stem = path.slice(0, path.length - (written?.length ?? 0))
   const candidates = [
     ...written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path],
     ...addedExtensions.map((extension) => `${path}${extension}`),
-    ...addedExtensions.map((extension) => `${path}/index${extension}`)
+    ...indexes
   ]
   return candidates.find((candidate) => files.has(candidate))
 }
