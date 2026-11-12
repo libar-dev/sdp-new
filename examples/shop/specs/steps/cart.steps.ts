@@ -9,6 +9,10 @@ export default defineSteps(
       world.cart.add("sku-1", price, quantity)
     })
 
+    Given("a cart with {int} lines of {int} items at {int} cents", ({ args: [lines, quantity, price], world }) => {
+      for (let i = 0; i < lines; i++) world.cart.add(`sku-${i}`, price, quantity)
+    })
+
     Given("a cart with {int} distinct lines", ({ args: [lines], world }) => {
       for (let i = 0; i < lines; i++) world.cart.add(`sku-${i}`, 100 + i)
     })
@@ -33,7 +37,7 @@ export default defineSteps(
       assert.throws(() => world.cart.total(world.country), new RegExp(message))
     })
 
-    Then("each calculation takes under {int} ms on average", ({ args: [budget], world }) => {
+    Then("the calculations take under {int} ms on average", ({ args: [budget], world }) => {
       const average = world.durations.reduce((a, b) => a + b, 0) / world.durations.length
       assert.ok(average < budget, `average ${average.toFixed(3)} ms`)
     })
