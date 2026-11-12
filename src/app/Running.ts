@@ -6,16 +6,17 @@
  * then runs the gates (milestones and `@gate` examples) against a graph that
  * shows the ordinary results and no gate results. The gate of a milestone
  * that is met does not run again, and a workspace that cannot all be read as
- * written, or has a scenario outside a rule, does not run at all. Works on any
+ * written, has a scenario outside a rule or a maturity sdp check rejects, does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
  */
 import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
 import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
+import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { type Implementable, implementable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
-import { problemLine } from "../model/Diagnostic.ts"
+import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
@@ -58,14 +59,18 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
   }
 })
 
+/** What sdp check rejects in which examples a spec holds to account: where they are, and the maturity that says whether they fail a run. */
+const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "maturity-value", "question-example"])
+
 /**
- * Fails before anything runs when part of the specs was not read as written, or a scenario is
- * outside a rule: a result of such a workspace would be evidence about specs sdp check rejects.
+ * Fails before anything runs when part of the specs was not read as written, a scenario is outside
+ * a rule, or a maturity or an open question is declared as sdp check rejects: a result of such a
+ * workspace would be evidence about specs sdp check rejects.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
     ...unread(project).filter((diagnostic) => diagnostic.severity === "error"),
-    ...project.diagnostics.filter((diagnostic) => diagnostic.rule === "scenario-outside-rule")
+    ...check(project).filter((diagnostic) => undeclared.has(diagnostic.rule))
   ]
   return problems.length === 0 ? Effect.void : Effect.fail(new UnreadableSpecs({ problems: problems.map(problemLine) }))
 }

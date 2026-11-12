@@ -194,9 +194,11 @@ Feature: Run specs as tests
             Scenario: An old wishlist
               Then the wishlist holds a lamp
         """
+      When I run "sdp q 'scenario[!toCome]' --ids"
+      Then the output lines are "wishlist#an-old-wishlist"
       When I run "sdp run wishlist"
       Then the exit code is 1
-      And the output contains "1 scenario(s): 1 undefined"
+      And the output contains "specs/wishlist.feature:9 [question-example]"
 
     Scenario: The run, a query and sdp status tell a regression from work still to come
       Given a file "specs/cart.feature" containing:
@@ -531,12 +533,14 @@ Feature: Run specs as tests
       Then the exit code is 0
       And the output contains "note: specs/steps/search.steps.ts defines no steps"
 
-  Rule: run and gate start only on a workspace they can read whole, with every scenario under a rule
+  Rule: run and gate start only on a workspace they can read whole, whose scenarios and maturities sdp check accepts
 
     A scenario left unread, a fact or a link dropped, or an id two specs claim would make the run
-    incomplete and its record untrue; a scenario outside a rule is in a spec sdp check rejects.
+    incomplete and its record untrue. A scenario outside a rule, a maturity off the ladder or written
+    twice, and an example under an open question are in specs sdp check rejects: which examples
+    fail the run would rest on a declaration nobody made.
 
-    Scenario Outline: A file sdp cannot read, a tag it drops, an id two specs claim, a scenario outside a rule
+    Scenario Outline: A file sdp cannot read, a tag it drops, an id two specs claim, a scenario outside a rule, a maturity sdp rejects
       Given a file "specs/MS-beta.feature" containing:
         """
         @id=MS-beta
@@ -557,8 +561,13 @@ Feature: Run specs as tests
       And the file ".sdp/results.json" does not exist
 
       Examples:
-        | command          | file                      | content                                                                                       | line | rule                  |
-        | sdp run          | specs/broken.feature      | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed   | 6    | gherkin-syntax        |
-        | sdp gate MS-beta | specs/shop/search.feature | @id=search\nFeature: Search again                                                             | 1    | duplicate-id          |
-        | sdp run          | specs/wishlist.feature    | @id=wishlist @iteration=IT-beta\nFeature: Wishlist                                            | 1    | link-syntax           |
-        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Scenario: Outside\n    Then there are no error diagnostics | 3    | scenario-outside-rule |
+        | command          | file                      | content                                                                                                                           | line | rule                  |
+        | sdp run          | specs/broken.feature      | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed                                       | 6    | gherkin-syntax        |
+        | sdp gate MS-beta | specs/shop/search.feature | @id=search\nFeature: Search again                                                                                                 | 1    | duplicate-id          |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist @iteration=IT-beta\nFeature: Wishlist                                                                                | 1    | link-syntax           |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Scenario: Outside\n    Then there are no error diagnostics                                     | 3    | scenario-outside-rule |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist @maturity=done\nFeature: Wishlist                                                                                    | 1    | maturity-value        |
+        | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist @maturity=implemented @maturity=draft\nFeature: Wishlist                                                             | 1    | maturity-value        |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @maturity=later\n  Rule: Kept                                                                  | 3    | maturity-value        |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Rule: Kept\n    @maturity=draft\n    Scenario: Keep\n      Then there are no error diagnostics | 4    | annotation            |
+        | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @open\n  Rule: Kept?\n    Scenario: Keep\n      Then there are no error diagnostics            | 5    | question-example      |

@@ -132,10 +132,10 @@ Feature: Know what is verified
       And node "wishlist" has attribute verification = "partial"
       And node "wishlist" has attribute stage = "in-progress"
 
-    Scenario Outline: A spec without a maturity, or with a stage written as one, is implemented: it has no stage until its scenarios say more
+    Scenario: A spec without a maturity is implemented: it has no stage until its scenarios say more
       Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=export-to-csv <maturity>
+        @id=export-to-csv
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -153,10 +153,25 @@ Feature: Know what is verified
       Then node "export-to-csv" has attribute stage = "failing"
       And node "export-to-csv" has attribute toCome = "undefined"
 
-      Examples:
-        | maturity           |
-        |                    |
-        | @maturity=verified |
+    Scenario: A stage written as a maturity is implemented, and no run starts until it is fixed
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        @id=export-to-csv @maturity=verified
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          Rule: Every row is exported
+
+            Scenario: Export current rows
+              Then I get a CSV file
+        """
+      When the workspace is loaded
+      Then node "export-to-csv" has attribute stage = "undefined"
+      And node "export-to-csv" has attribute toCome = "undefined"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "specs/export-to-csv.feature:1 [maturity-value]"
 
     Scenario: Verification orders from none to passing, so a query can ask for everything short of it
       Given these specs:
