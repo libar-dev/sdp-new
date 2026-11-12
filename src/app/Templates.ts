@@ -95,7 +95,7 @@ export interface NewSpec {
  * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
  * `sdp new element` no file: only the id its code declares, and how.
  * Fails, with the reason, when a change names no feature it changes, or when the content would not
- * read back with its id, kind and title.
+ * read back with its id, kind and title: an element's id is read back too, though it has no file.
  */
 export const newSpec = (options: {
   readonly kind: string
@@ -133,7 +133,19 @@ export const newSpec = (options: {
     )
   }
   const next = guidance({ kind, id, maturity, config, changes })
-  if (template === "element") return Result.succeed({ id, file: undefined, next })
+  const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
+  const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")
+  const file = `${directory}/${id}.feature`
+  const content = specTemplate({ kind, id, title, maturity, today: options.today, config, graph, changes })
+  const back = parseFeatureSpec(file, content, config).spec
+  // An element is no file, but its id is written in tags all the same, so it is read back as any other.
+  if (template === "element") {
+    return back?.id === id
+      ? Result.succeed({ id, file: undefined, next })
+      : Result.fail(
+        `the id ${JSON.stringify(id)} would not read back from a tag such as @realized-by:<id>: write it without whitespace or @`
+      )
+  }
   const endKey = vocabulary.attributes.end
   const undated = template === "iteration"
     ? graph.ofKind(vocabulary.kinds.iteration).find((node) => attribute(node, endKey) !== undefined && dayOf(node, endKey) === undefined)
@@ -143,11 +155,6 @@ export const newSpec = (options: {
       `${undated.id} ends on ${JSON.stringify(attribute(undated, endKey))}, which is not a date: write @${endKey}=YYYY-MM-DD there first, so that a new iteration can follow the one that ends last`
     )
   }
-  const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
-  const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")
-  const file = `${directory}/${id}.feature`
-  const content = specTemplate({ kind, id, title, maturity, today: options.today, config, graph, changes })
-  const back = parseFeatureSpec(file, content, config).spec
   if (back?.id !== id || back.kind !== kind || back.title !== title) {
     return Result.fail(
       `refusing to write ${file}: it would not read back with id ${JSON.stringify(id)}, kind ${JSON.stringify(kind)} and title ${JSON.stringify(title)}`

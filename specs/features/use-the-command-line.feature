@@ -159,22 +159,24 @@ Feature: Use the command line
       And the file "<not written>" does not exist
 
       Examples:
-        | command                           | refusal                                                         | not written                         |
-        | -C nowhere status                 | no such directory                                               | .sdp/results.json                   |
-        | -C specs/search.feature status    | a workspace is a directory, and this is a file                  | .sdp/results.json                   |
-        | -C specs/search.feature init      | a workspace is a directory, and this is a file                  | sdp.config.yaml                     |
-        | run --concurrency 0               | the number of scenarios to run at once is 1 or more             | .sdp/results.json                   |
-        | run --tags '(@fast'               | invalid --tags                                                  | .sdp/results.json                   |
-        | run serach                        | nothing matches serach                                          | .sdp/results.json                   |
-        | gate search                       | search has no gate scenarios                                    | .sdp/results.json                   |
-        | context search --depth 0          | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
-        | context search --depth 7          | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
-        | new feature ''                    | a feature needs a title                                         | specs/incoming/feature-0001.feature |
-        | new a/b Carts                     | is not a kind: a kind is one word                               | specs/a/b/carts.feature             |
-        | new ../x Carts                    | is not a kind: a kind is one word                               | x/carts.feature                     |
-        | new feature Carts --id a/b        | cannot name a file: write it without a slash                    | specs/incoming/a/b.feature          |
-        | new feature Carts --dir ''        | --dir needs a directory                                         | carts.feature                       |
-        | new feature Carts --maturity done | unknown maturity done: use one of idea, draft, specified, ready | specs/incoming/carts.feature        |
+        | command                               | refusal                                                         | not written                         |
+        | -C nowhere status                     | no such directory                                               | .sdp/results.json                   |
+        | -C specs/search.feature status        | a workspace is a directory, and this is a file                  | .sdp/results.json                   |
+        | -C specs/search.feature init          | a workspace is a directory, and this is a file                  | sdp.config.yaml                     |
+        | run --concurrency 0                   | the number of scenarios to run at once is 1 or more             | .sdp/results.json                   |
+        | run --tags '(@fast'                   | invalid --tags                                                  | .sdp/results.json                   |
+        | run serach                            | nothing matches serach                                          | .sdp/results.json                   |
+        | gate search                           | search has no gate scenarios                                    | .sdp/results.json                   |
+        | context search --depth 0              | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
+        | context search --depth 7              | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
+        | new feature ''                        | a feature needs a title                                         | specs/incoming/feature-0001.feature |
+        | new a/b Carts                         | is not a kind: a kind is one word                               | specs/a/b/carts.feature             |
+        | new ../x Carts                        | is not a kind: a kind is one word                               | x/carts.feature                     |
+        | new feature Carts --id a/b            | cannot name a file: write it without a slash                    | specs/incoming/a/b.feature          |
+        | new feature Carts --dir ''            | --dir needs a directory                                         | carts.feature                       |
+        | new feature Carts --maturity done     | unknown maturity done: use one of idea, draft, specified, ready | specs/incoming/carts.feature        |
+        | new element Bad --id 'ARCH-bad other' | would not read back from a tag                                  | .sdp/results.json                   |
+        | new element Bad --id ' '              | would not read back from a tag                                  | .sdp/results.json                   |
 
     Scenario: A configuration or a step module that cannot be loaded, without a stack trace
       Given a file "broken/sdp.config.yaml" containing:
