@@ -52,6 +52,24 @@ Feature: Link code to specs
       And node "ARCH-billing" has attribute owner = "payments"
       And node "ARCH-billing" has attribute tier = "1"
 
+    Scenario Outline: A tag names an id as a spec declares it: <id>
+      Given a file "src/pay.ts" containing:
+        """
+        /** @sdp implements <id> */
+        export const pay = (): number => 0
+        """
+      When the workspace is loaded
+      Then the workspace graph has edges:
+        | from                | rel        | to   | source       |
+        | code:src/pay.ts#pay | implements | <id> | src/pay.ts:1 |
+
+      Examples:
+        | id               |
+        | 2fa-login        |
+        | ARCH-zählung     |
+        | 支払い             |
+        | pay#ein-schritt  |
+
     Scenario: A maturity given in code decides the stage like one written in the spec
       Given a file "src/pay.py" containing:
         """
@@ -99,8 +117,8 @@ Feature: Link code to specs
   Rule: A file whose tags sdp cannot read is reported, never guessed
 
     A guessed annotation is a link nobody wrote, and a lost one a gap nobody sees. A tag that names
-    an id and something that is no id was meant as a tag; one that names no id at all, as
-    `@sdp implements <ID>` does in a guide, only mentions the form. `sdp/annotations`,
+    something that is no id, or goes on after its ids with other words, was meant as a tag; one whose
+    ids are placeholders, as `@sdp implements <ID>` in a guide, only mentions the form. `sdp/annotations`,
     the module of the `annotate()` that tags replaced, is reported wherever a file imports it: what
     its calls say is translated into tags only where a call plainly uses the import.
 
@@ -137,6 +155,9 @@ Feature: Link code to specs
       Examples:
         | case                         | code                                                                                                     | line | message                                                   | hint                                                         |
         | a list with a word that is no id | /** @sdp implements pay, pay? */\nexport const pay = (): number => 0                                   | 1    | "@sdp implements pay, pay?" names pay?, which is no id     | separated by commas                                          |
+        | a word that is no id         | /** @sdp implements pay? */\nexport const pay = (): number => 0                                         | 1    | "@sdp implements pay?" names pay?, which is no id          | separated by commas                                          |
+        | words after its ids          | /** @sdp is ARCH-billing handles payments */\nexport const pay = (): number => 0                          | 1    | "@sdp is ARCH-billing handles payments" goes on after its ids with "handles payments" | separated by commas |
+        | attributes and no id         | /** @sdp is owner=payments */\nexport const pay = (): number => 0                                       | 1    | "@sdp is owner=payments" names no id                       | separated by commas                                          |
         | the retired annotate() | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: ["pay", "refund"] }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay, refund (the call at line 4) |
         | the retired annotate(), of a namespace | import * as annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |
         | the retired module, as its default | import annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |

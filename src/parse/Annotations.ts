@@ -211,10 +211,11 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
   for (const group of groups) {
     const tags = group.flatMap((comment) =>
       comment.value.split(/\r?\n/).flatMap((text, index) => {
+        const line = lineOf(comment.start) + index
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
-        if (tag && "unread" in tag) unreadable.push({ line: lineOf(comment.start) + index, ...tag.unread })
-        return tag && !("unread" in tag) ? [{ ...tag, line: lineOf(comment.start) + index, trailing: index === 0 && afterCode(comment.start) }] : []
+        if (tag && "unread" in tag) unreadable.push({ line, ...tag.unread })
+        return tag && !("unread" in tag) ? [{ ...tag, line, trailing: index === 0 && afterCode(comment.start) }] : []
       })
     )
     if (tags.length === 0) continue
@@ -300,7 +301,8 @@ const description = (comments: ReadonlyArray<string>): string | undefined => {
 }
 
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
-const idToken = /^[A-Za-z][\w.:#/-]*$/
+/** An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any script. */
+const idToken = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*$/u
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
@@ -337,7 +339,8 @@ const lineCommentDoc = (lines: ReadonlyArray<string>, at: number): string | unde
   return description([lines.slice(first, last + 1).map(commentText).join("\n")])
 }
 
-const trailing = /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[A-Za-z][\w.:#/-]*(?:,[A-Za-z][\w.:#/-]*)*)(?=\s|$|\*\/|-->)/
+const trailing =
+  /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*(?:,[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*)*)(?=\s|$|\*\/|-->)/u
 
 /** Languages without a parser: comments after code that look like tags but, not opening their line, are not read. */
 const ignoredLines = (content: string): ReadonlyArray<Unread> =>
@@ -351,32 +354,38 @@ const ignoredLines = (content: string): ReadonlyArray<Unread> =>
   })
 
 /**
- * The relation, ids and attributes `@sdp <rel> <rest>` says. A tag that names an id and something
- * that is no id was meant as a tag and cannot be read; one that names no id, `@sdp implements <ID>`,
- * only mentions the form, and is undefined.
+ * The relation, ids and attributes `@sdp <rel> <ids> [key=value ...]` says, its ids separated by
+ * commas. A tag that names something that is no id, or goes on after its ids with other words, was
+ * meant as a tag and cannot be read; one whose ids are placeholders, `@sdp implements <ID>`, only
+ * mentions the form, and is undefined.
  */
 const readTag = (
   rel: string,
   rest: string
 ): Pick<Annotation, "rel" | "targets" | "attrs"> | { readonly unread: Omit<Unread, "line"> } | undefined => {
-  const tokens = tokenize(rest.replace(/\s*(\*\/|-->|"""|''').*$/, ""))
+  const text = rest.replace(/\s*(\*\/|-->|"""|''').*$/, "").trim()
   const targets: Array<string> = []
   const attrs: Array<readonly [string, unknown]> = []
-  for (const token of tokens) {
+  const after: Array<string> = []
+  // Whether the next word goes on with the list of ids: the first does, and one after a comma.
+  let listing = true
+  for (const token of tokenize(text)) {
     const eq = token.indexOf("=")
-    if (eq > 0) attrs.push([token.slice(0, eq), coerce(unquote(token.slice(eq + 1)))])
-    else targets.push(...token.split(",").map((t) => t.trim()).filter(Boolean))
+    if (eq > 0) {
+      attrs.push([token.slice(0, eq), coerce(unquote(token.slice(eq + 1)))])
+      listing = false
+    } else if (listing || (token.startsWith(",") && attrs.length === 0)) {
+      targets.push(...token.split(",").map((t) => t.trim()).filter(Boolean))
+      listing = token.endsWith(",")
+    } else after.push(token)
   }
+  if (targets.length > 0 && targets.every((t) => t.startsWith("<"))) return undefined
   const wrong = targets.filter((t) => !idToken.test(t))
-  if (targets.length === wrong.length) return undefined
-  if (wrong.length > 0) {
-    return {
-      unread: {
-        message: `"@sdp ${rel} ${targets.join(", ")}" names ${wrong.join(", ")}, which ${wrong.length === 1 ? "is" : "are"} no id, so the tag is not read`,
-        hint: "write the ids it links to, separated by commas: an id is a letter, then letters, digits and - _ . : # /"
-      }
-    }
-  }
+  const hint = "write the ids it links to, separated by commas, then any key=value: an id is a letter or a digit, then letters, digits and - _ . : # /"
+  const unread = (says: string) => ({ unread: { message: `"@sdp ${rel} ${text}" ${says}, so the tag is not read`, hint } })
+  if (wrong.length > 0) return unread(`names ${wrong.join(", ")}, which ${wrong.length === 1 ? "is" : "are"} no id`)
+  if (after.length > 0) return unread(`goes on after its ids with "${after.join(" ")}"`)
+  if (targets.length === 0) return unread("names no id")
   // Not assigned one by one: `__proto__` is a key like any other.
   return { rel, targets, attrs: Object.fromEntries(attrs) }
 }
