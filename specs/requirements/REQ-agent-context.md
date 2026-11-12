@@ -66,7 +66,7 @@ Scenario: One call gives the node, its spec text, its relationships, and the arc
   And the output contains "DEC-0001 — One database transaction per order"
   And the output section "Code" contains "src/orders.ts:1 checkout — implements REQ-checkout"
 
-Scenario: The bundle leads with the contract: the scenario names with their status, grouped by rule, before the spec text
+Scenario: The bundle leads with the contract, before the spec text: the scenario names with their status, under each rule and what it says must hold
   Given a file "specs/REQ-cart.md" containing:
     """
     ---
@@ -83,14 +83,33 @@ Scenario: The bundle leads with the contract: the scenario names with their stat
 
     Rule: A cart holds each item once
 
+      Two lines for one item would be charged twice.
+
       Scenario: Adding an item twice raises its quantity
         Then the cart holds 1 item
+
+    Rule: An empty cart cannot be paid
+
+      Scenario: Paying for nothing is refused
+        Then the payment is refused
     ```
     """
   When I ask for the context of "REQ-cart"
-  Then the sections of the output are "Scenarios (2), Specification"
-  And the output section "Scenarios" contains "- [unrun] A new cart is empty — specs/REQ-cart.md:10"
-  And the line after the output line with "### A cart holds each item once" contains "- [unrun] Adding an item twice raises its quantity — specs/REQ-cart.md:15"
+  Then the sections of the output are "Scenarios (3), Specification"
+  And the output section "Scenarios" contains:
+    """
+    - [unrun] A new cart is empty — specs/REQ-cart.md:10
+
+    ### A cart holds each item once
+
+    Two lines for one item would be charged twice.
+
+    - [unrun] Adding an item twice raises its quantity — specs/REQ-cart.md:17
+
+    ### An empty cart cannot be paid
+
+    - [unrun] Paying for nothing is refused — specs/REQ-cart.md:22
+    """
 
 Scenario: A spec below ready says what keeps it from ready
   Given a file "specs/REQ-checkout.md" containing:

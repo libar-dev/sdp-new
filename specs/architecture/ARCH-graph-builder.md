@@ -75,6 +75,29 @@ Scenario: A spec, each of its scenarios and each inline node is a node at the li
   And node "E1" has attribute declaredIn = "PLAN"
   And the workspace graph has no "declaredIn" edges
 
+Scenario: A scenario node carries the rule it is an example of, with the text under the rule and under itself
+  Given a file "specs/REQ-pay.md" containing:
+    """
+    ---
+    id: REQ-pay
+    ---
+    # Pay
+
+    ```gherkin
+    Rule: A wallet is charged once
+      Charging twice is the one error a shopper does not forgive.
+
+      Scenario: Retry
+        The network failed after the charge.
+
+        When the payment is retried
+    ```
+    """
+  When the workspace is loaded
+  Then node "REQ-pay#retry" has attribute rule = "A wallet is charged once"
+  And node "REQ-pay#retry" has attribute ruleDescription = "Charging twice is the one error a shopper does not forgive."
+  And node "REQ-pay#retry" has attribute description = "The network failed after the charge."
+
 Scenario Outline: A link key always links and any other key never does, whatever its value
   Given a file "specs/model.md" containing:
     """

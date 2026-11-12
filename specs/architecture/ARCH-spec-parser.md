@@ -476,172 +476,320 @@ Scenario Outline: Open question, Questions, Unresolved questions and TBD introdu
 
 ### Gherkin
 
-The blocks of a file are joined into one document for the Cucumber parser, and everything in it is
-mapped back to its line in the Markdown file. A scenario's id is the slug of its name: not its
-position, which every edit above it would change, and not a tag to keep unique by hand.
-
 ~~~gherkin
-Scenario: Scenarios and steps keep their lines in the Markdown file, Background steps included, and carry the spec's tags and kind
-  Given a file "specs/REQ-pay.md" containing:
-    """
-    ---
-    id: REQ-pay
-    tags: [checkout]
-    ---
-    # Pay
+Rule: The fences of a file are one feature
 
-    ```gherkin
-    Background:
-      Given a shop
+  Whatever a fence calls its language, its scenarios join the spec's one feature: a line is the
+  line in the Markdown file, and an id is unique in the file. A scenario's id is the slug of its
+  name — not its position, which every edit above it would change, and not a tag to keep unique
+  by hand.
 
-    Scenario: Card payment
-      When the shopper pays by card
-      Then an order is created
-    ```
-    """
-  When "specs/REQ-pay.md" is parsed
-  Then the parsed spec has scenarios:
-    | id                   | line |
-    | REQ-pay#card-payment | 11   |
-  And the executable steps of "REQ-pay#card-payment" are:
-    | keyword | text                     | line |
-    | Given   | a shop                   | 9    |
-    | When    | the shopper pays by card | 12   |
-    | Then    | an order is created      | 13   |
-  And the executable tags of "REQ-pay#card-payment" are "@checkout, @requirement"
+  Scenario: Scenarios and steps keep their lines in the Markdown file, Background steps included, and carry the spec's tags and kind
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      tags: [checkout]
+      ---
+      # Pay
 
-Scenario: All blocks of a file — gherkin, feature or cucumber — form one feature: ids are unique in it, and a Rule holds every scenario after it
-  Given a file "specs/REQ-pay.md" containing:
-    """
-    ---
-    id: REQ-pay
-    ---
-    # Pay
+      ```gherkin
+      Background:
+        Given a shop
 
-    ```gherkin
-    Scenario: Retry
-      Given a declined card
-    ```
+      Scenario: Card payment
+        When the shopper pays by card
+        Then an order is created
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the parsed spec has scenarios:
+      | id                   | line |
+      | REQ-pay#card-payment | 11   |
+    And the executable steps of "REQ-pay#card-payment" are:
+      | keyword | text                     | line |
+      | Given   | a shop                   | 9    |
+      | When    | the shopper pays by card | 12   |
+      | Then    | an order is created      | 13   |
+    And the executable tags of "REQ-pay#card-payment" are "@checkout, @requirement"
 
-    Prose between the blocks.
+  Scenario: An id is the slug of the name, numbered when the file has the name twice, and by position when there is no name
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
 
-    ```feature
-    Rule: Wallets
+      ```gherkin
+      Scenario: Retry
+        Given a declined card
+      ```
+
+      Prose between the blocks.
+
+      ```feature
       Scenario: Retry
         Given an expired wallet
 
       Scenario:
         Given no wallet
-    ```
+      ```
 
-    ```cucumber
-    Scenario: Refund
-      Given a refunded wallet
-    ```
-    """
-  When "specs/REQ-pay.md" is parsed
-  Then the parsed spec has scenarios:
-    | id                 | line | rule    |
-    | REQ-pay#retry      | 7    |         |
-    | REQ-pay#retry-2    | 15   | Wallets |
-    | REQ-pay#scenario-3 | 18   | Wallets |
-    | REQ-pay#refund     | 23   | Wallets |
+      ```cucumber
+      Scenario: Refund
+        Given a refunded wallet
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the parsed spec has scenarios:
+      | id                 | line |
+      | REQ-pay#retry      | 7    |
+      | REQ-pay#retry-2    | 14   |
+      | REQ-pay#scenario-3 | 17   |
+      | REQ-pay#refund     | 22   |
 
-Scenario: A Feature line inside a doc string is content
-  Given a file "specs/REQ-docs.md" containing:
-    """
-    ---
-    id: REQ-docs
-    ---
-    # Docs
+  Scenario: A Feature line may open the first block
+    Given a file "specs/REQ-search.md" containing:
+      """
+      ---
+      id: REQ-search
+      tags: [catalog]
+      ---
+      # Search
 
-    ````gherkin
-    Scenario: Describe a feature
-      Given a feature file containing:
-        ```
-        Feature: Search
-        ```
-    ````
-    """
-  When "specs/REQ-docs.md" is parsed
-  Then parsing reports nothing
-  And the executable steps of "REQ-docs#describe-a-feature" are:
-    | keyword | text                       | doc string      |
-    | Given   | a feature file containing: | Feature: Search |
+      ```gherkin
+      # A comment
+      @smoke
+      Feature: Product search
+        Scenario: By name
+          Then I see lamps
+      ```
+      """
+    When "specs/REQ-search.md" is parsed
+    Then parsing reports nothing
+    And the parsed spec has scenarios:
+      | id                 | line |
+      | REQ-search#by-name | 11   |
+    And the executable tags of "REQ-search#by-name" are "@catalog, @requirement, @smoke"
 
-Scenario: A Feature line may open the first block
-  Given a file "specs/REQ-search.md" containing:
-    """
-    ---
-    id: REQ-search
-    tags: [catalog]
-    ---
-    # Search
+  Scenario: A Feature line inside a doc string is content
+    Given a file "specs/REQ-docs.md" containing:
+      """
+      ---
+      id: REQ-docs
+      ---
+      # Docs
 
-    ```gherkin
-    # A comment
-    @smoke
-    Feature: Product search
-      Scenario: By name
-        Then I see lamps
-    ```
-    """
-  When "specs/REQ-search.md" is parsed
-  Then parsing reports nothing
-  And the parsed spec has scenarios:
-    | id                 | line |
-    | REQ-search#by-name | 11   |
-  And the executable tags of "REQ-search#by-name" are "@catalog, @requirement, @smoke"
+      ````gherkin
+      Scenario: Describe a feature
+        Given a feature file containing:
+          ```
+          Feature: Search
+          ```
+      ````
+      """
+    When "specs/REQ-docs.md" is parsed
+    Then parsing reports nothing
+    And the executable steps of "REQ-docs#describe-a-feature" are:
+      | keyword | text                       | doc string      |
+      | Given   | a feature file containing: | Feature: Search |
 
-Scenario: A Gherkin syntax error is reported once, at the Markdown line where parsing stopped
-  Given a file "specs/REQ-pay.md" containing:
-    """
-    ---
-    id: REQ-pay
-    ---
-    # Pay
+  Scenario: A Gherkin syntax error is reported at the Markdown line where parsing stopped, and no scenario of the file is kept
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
 
-    ```gherkin
-    Scenario: Card payment
-      Given a card
-      Whne I pay
-    ```
-    """
-  When "specs/REQ-pay.md" is parsed
-  Then the parsed spec has no scenarios
-  And parsing reports:
-    | rule           | severity | line |
-    | gherkin-syntax | error    | 9    |
+      ```gherkin
+      Scenario: Card payment
+        Given a card
+      ```
 
-Scenario Outline: The scenario hash covers what a step handler can observe, and nothing of the prose around it
-  Given a file "specs/REQ-pay.md" containing:
-    """
-    ---
-    id: REQ-pay
-    ---
-    # Pay
+      ```gherkin
+      Scenario: Wallet payment
+        Given a wallet
+        Whne I pay
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the parsed spec has no scenarios
+    And parsing reports:
+      | rule           | severity | line |
+      | gherkin-syntax | error    | 14   |
+~~~
 
-    Shoppers pay by card.
+~~~gherkin
+Rule: A Rule ends with its fence
 
-    ```gherkin
-    Scenario: Card payment
-      Given a cart with 2 items
-      When the shopper pays with:
-        | card | 4242 |
-      Then an order is created
-    ```
-    """
-  When "specs/REQ-pay.md" is parsed
-  And "specs/REQ-pay.md" is parsed again after replacing "<text>" with "<replacement>"
-  Then the hash of "REQ-pay#card-payment" <hash>
+  A rule and its examples are written in one fence, and the fence is where the rule ends: neither
+  its name nor its Background nor its tags reach the scenarios of a later fence. A rule that held
+  until the end of the file would claim every scenario written below it, in sections that never
+  heard of it.
 
-  Examples:
-    | text                  | replacement                     | hash           |
-    | 2 items               | 3 items                         | changes        |
-    | 4242                  | 4000                            | changes        |
-    | Shoppers pay by card. | Shoppers pay by card or wallet. | stays the same |
-    | # Pay                 | # Payment                       | stays the same |
+  Scenario: A scenario in a later fence belongs to no rule, and runs without the rule's Background and tags
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
 
+      ```gherkin
+      @wallet
+      Rule: A wallet is charged once
+
+        Background:
+          Given a wallet
+
+        Scenario: Retry
+          When the payment is retried
+      ```
+
+      ```gherkin
+      Scenario: Refund
+        When the order is refunded
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the parsed spec has scenarios:
+      | id             | rule                       |
+      | REQ-pay#retry  | A wallet is charged once   |
+      | REQ-pay#refund |                            |
+    And the executable steps of "REQ-pay#refund" are:
+      | keyword | text                  |
+      | When    | the order is refunded |
+    And the executable tags of "REQ-pay#refund" are "@requirement"
+
+  Scenario: A Background outside a Rule opens the file and holds in every fence, under a Rule too
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
+
+      ```gherkin
+      Background:
+        Given a shop
+      ```
+
+      ```gherkin
+      Rule: A wallet is charged once
+
+        Background:
+          Given a wallet
+
+        Scenario: Retry
+          When the payment is retried
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the executable steps of "REQ-pay#retry" are:
+      | keyword | text                   | line |
+      | Given   | a shop                 | 8    |
+      | Given   | a wallet               | 15   |
+      | When    | the payment is retried | 18   |
+
+  Scenario: A Background outside a Rule in a later fence is an error that says where it belongs
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
+
+      ```gherkin
+      Scenario: Retry
+        When the payment is retried
+      ```
+
+      ```gherkin
+      Background:
+        Given a wallet
+
+      Scenario: Refund
+        When the order is refunded
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the parsed spec has no scenarios
+    And parsing reports:
+      | rule           | severity | line | message                                                         |
+      | gherkin-syntax | error    | 12   | a Background outside a Rule holds for the whole file |
+~~~
+
+~~~gherkin
+Rule: The text under a Rule or a Scenario is kept as its description
+
+  What must hold, and why, is written where the examples are: under `Rule:`, and under
+  `Scenario:` where one example needs a word of its own. sdp keeps that text with the scenario, so
+  a reader of the graph gets the rule with its reason, and the prose around the fence has nothing
+  left to say about it.
+
+  Scenario: A scenario carries its own description and its rule's, without the indentation they were written with
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
+
+      ```gherkin
+      Rule: A wallet is charged once
+
+        A retry reuses the first charge.
+        Charging twice is the one error a shopper does not forgive.
+
+        Scenario: Retry
+          The network failed after the charge.
+
+          When the payment is retried
+
+        Scenario: Refund
+          When the order is refunded
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    Then the parsed spec has scenarios:
+      | id             | description                          | rule description                                                                              |
+      | REQ-pay#retry  | The network failed after the charge. | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
+      | REQ-pay#refund |                                      | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
+
+  Scenario Outline: The scenario hash covers what a step handler can observe, and nothing of the text around it
+    Given a file "specs/REQ-pay.md" containing:
+      """
+      ---
+      id: REQ-pay
+      ---
+      # Pay
+
+      Shoppers pay by card.
+
+      ```gherkin
+      Rule: An order needs a payment
+        No goods leave without one.
+
+        Scenario: Card payment
+          Given a cart with 2 items
+          When the shopper pays with:
+            | card | 4242 |
+          Then an order is created
+      ```
+      """
+    When "specs/REQ-pay.md" is parsed
+    And "specs/REQ-pay.md" is parsed again after replacing "<text>" with "<replacement>"
+    Then the hash of "REQ-pay#card-payment" <hash>
+
+    Examples:
+      | text                        | replacement                     | hash           |
+      | 2 items                     | 3 items                         | changes        |
+      | 4242                        | 4000                            | changes        |
+      | Shoppers pay by card.       | Shoppers pay by card or wallet. | stays the same |
+      | # Pay                       | # Payment                       | stays the same |
+      | No goods leave without one. | Nothing ships unpaid.           | stays the same |
 ~~~
 
 ### Feature files

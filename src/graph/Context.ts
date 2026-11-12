@@ -50,7 +50,8 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push(`## Scenarios (${spec.scenarios.length})`, "")
     let rule: string | undefined
     for (const s of spec.scenarios) {
-      if (s.rule !== undefined && s.rule !== rule) out.push("", `### ${s.rule}`)
+      // A rule with what it says must hold, then its examples.
+      if (s.rule !== undefined && s.rule !== rule) out.push("", `### ${s.rule}`, "", ...(s.ruleDescription ? [s.ruleDescription, ""] : []))
       rule = s.rule
       const status = graph.node(s.id)?.attrs.status ?? "unrun"
       out.push(`- [${String(status)}] ${s.name} — ${spec.file}:${s.line}`)

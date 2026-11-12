@@ -103,7 +103,14 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the parsed spec has scenarios:", ({ table, world }) =>
     assertRows(
       "scenarios",
-      spec(world).scenarios.map((s) => ({ id: s.id, name: s.name, line: String(s.line), rule: s.rule ?? "" })),
+      spec(world).scenarios.map((s) => ({
+        id: s.id,
+        name: s.name,
+        line: String(s.line),
+        description: s.description ?? "",
+        rule: s.rule ?? "",
+        "rule description": s.ruleDescription ?? ""
+      })),
       table,
       "in order"
     ))

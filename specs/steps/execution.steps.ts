@@ -396,6 +396,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(section(world.output, heading).includes(text), `section "${heading}" does not contain ${JSON.stringify(text)}:\n${world.output}`)
   })
 
+  Then("the output section {string} contains:", ({ args: [heading], doc, world }) => {
+    assert.ok(section(world.output, heading).includes(doc ?? ""), `section "${heading}" does not contain the text:\n${world.output}`)
+  })
+
   Then("the output section {string} does not contain {string}", ({ args: [heading, text], world }) => {
     assert.ok(!section(world.output, heading).includes(text), `section "${heading}" contains ${JSON.stringify(text)}:\n${world.output}`)
   })

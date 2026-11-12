@@ -128,7 +128,7 @@ export const made = {
   /** Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error. */
   attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
   /** Facts sdp computes on scenario nodes. */
-  scenarioAttributes: ["spec", "keyword", "tags", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "ruleDescription", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
   /** What sdp records on a code node: where the annotated declaration is and what its own comment says of it. */
   codeAttributes: ["file", "symbol", "doc"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */

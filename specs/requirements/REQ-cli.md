@@ -716,7 +716,7 @@ Scenario: vocabulary prints the words sdp interprets, and the kinds and attribut
   Then the output is valid JSON
   And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
   And the output field "data.made.attributes" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn"
-  And the output field "data.made.scenarioAttributes" holds "spec, keyword, tags, rule, steps, examples, status, staleBecause, lastRun, hash"
+  And the output field "data.made.scenarioAttributes" holds "spec, keyword, tags, description, rule, ruleDescription, steps, examples, status, staleBecause, lastRun, hash"
   And the output field "data.made.codeAttributes" holds "file, symbol, doc"
   When I run "sdp vocabulary"
   Then the output line with "stages" under "made by sdp, not configurable" contains "failing, in-progress, verified"
