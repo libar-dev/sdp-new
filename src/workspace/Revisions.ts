@@ -106,9 +106,10 @@ export const gitRevisions = Layer.effect(
       const inside = yield* inWorkspace(["rev-parse", "--is-inside-work-tree"])
       if (inside === undefined) return yield* missing("git did not run in this workspace")
       if (text(inside) !== "true") return yield* missing("this workspace is in no git repository")
-      const ref = named ?? text(yield* inWorkspace(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"])) ??
-        (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/main"])) ? "main" : undefined) ??
-        (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/master"])) ? "master" : undefined)
+      // The default branch by its full ref: a tag `main`, or a branch `origin/main`, would shadow its short name.
+      const ref = named ?? text(yield* inWorkspace(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])) ??
+        (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/main"])) ? "refs/heads/main" : undefined) ??
+        (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/master"])) ? "refs/heads/master" : undefined)
       if (ref === undefined) return yield* missing("the repository has no origin/HEAD, main or master branch")
       const command = `git merge-base HEAD ${ref}`
       const commit = text(yield* inWorkspace(["merge-base", "HEAD", ref]))

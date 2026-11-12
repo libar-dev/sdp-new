@@ -478,22 +478,26 @@ Feature: Check specs
         <configuration>
         """
       And the files are committed on the branch "change"
-      When I run "<command>"
+      When I run the pipeline:
+        """
+        <command>
+        """
       Then the exit code is <exit code>
       And the output line with "note:" contains "<compared>"
 
       Examples:
-        | named                                | configuration              | command               | exit code | compared                                                |
-        | by nobody                            | # every key at its default | sdp check             | 1         | (git merge-base HEAD main)                              |
-        | with --base                          | # every key at its default | sdp check --base HEAD | 0         | (git merge-base HEAD HEAD)                              |
-        | in the configuration                 | base: HEAD                 | sdp check             | 0         | (git merge-base HEAD HEAD)                              |
-        | in the configuration, and --base     | base: HEAD                 | sdp check --base main | 1         | (git merge-base HEAD main)                              |
+        | named                                | configuration              | command                   | exit code | compared                               |
+        | by nobody                            | # every key at its default | sdp check                 | 1         | (git merge-base HEAD refs/heads/main)  |
+        | by nobody, beside a tag named main   | # every key at its default | git tag main && sdp check | 1         | (git merge-base HEAD refs/heads/main)  |
+        | with --base                          | # every key at its default | sdp check --base HEAD     | 0         | (git merge-base HEAD HEAD)             |
+        | in the configuration                 | base: HEAD                 | sdp check                 | 0         | (git merge-base HEAD HEAD)             |
+        | in the configuration, and --base     | base: HEAD                 | sdp check --base main     | 1         | (git merge-base HEAD main)             |
 
     Scenario: The base of the repository the workspace is in, whatever repository git's variables name
       Given the files are committed on the branch "main"
       When I run "GIT_DIR=$PWD/elsewhere GIT_WORK_TREE=$PWD/elsewhere GIT_INDEX_FILE=$PWD/elsewhere/index sdp check"
       Then the exit code is 0
-      And the output line with "note:" contains "(git merge-base HEAD main)"
+      And the output line with "note:" contains "(git merge-base HEAD refs/heads/main)"
 
     Scenario Outline: No base: <case>
       Given the files are <where>
