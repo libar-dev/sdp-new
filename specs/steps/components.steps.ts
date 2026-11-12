@@ -161,6 +161,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     )
   })
 
+  Then("the scan reports nothing", ({ world }) =>
+    assert.deepEqual(world.scratch.annotationProblems ?? [], [], "the scan reported problems"))
+
   Then("the annotations are:", ({ table, world }) =>
     assertRows("annotations", annotations(world).map(annotationRow), table, "in order"))
 
@@ -220,6 +223,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     setFile(world, "chain.md", `---\nid: CHAIN\nkind: chain\nnodes:\n${nodes.join("\n")}\n---\n# Chain\n`)
   })
 
+  // Members M1…Mn of kind "member": n × (n-1) edges, so two hops make n × (n-1)² paths.
+  Given("{int} nodes, each linked to all the others by {string}", ({ args: [count, rel], world }) => {
+    const members = Array.from({ length: count }, (_, i) => `M${i + 1}`)
+    const nodes = members.map((id) => `  - { id: ${id}, kind: member, links: { ${rel}: [${members.filter((m) => m !== id).join(", ")}] } }`)
+    setFile(world, "mesh.md", `---\nid: MESH\nkind: mesh\nnodes:\n${nodes.join("\n")}\n---\n# Mesh\n`)
+  })
+
   When("the query {string} runs on it with at most {int} paths", ({ args: [source, maxPaths], world }) => {
     assert.ok(world.graph, "generate a graph first")
     const result = query(world.graph, source, { maxPaths, orderings: projectOrderings(["idea", "draft", "specified", "ready"]) })
@@ -235,6 +245,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the result has {int} path(s)", ({ args: [count], world }) => assert.equal(queried(world).paths.length, count))
 
   Then("the result is truncated", ({ world }) => assert.equal(queried(world).truncated, true, "the result is complete"))
+
+  Then("the result is truncated because {string}", ({ args: [limit], world }) =>
+    assert.deepEqual(queried(world).limits, [limit], "the limits that cut the result short"))
+
+  Then("the result is complete", ({ world }) =>
+    assert.equal(queried(world).truncated, false, `the result is cut short: ${queried(world).limits.join("; ")}`))
 })
 
 // ---------------------------------------------------------------------------

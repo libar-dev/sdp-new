@@ -6,7 +6,7 @@
  *   grep -P '^edge\t[^\t]*\tsupersedes\t' .sdp/graph.tsv
  *   jq -c 'select(.type=="node" and .attrs.maturity=="ready")' .sdp/graph.jsonl
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import type { Graph, GraphNode } from "../model/Graph.ts"
 import { formatSource } from "../model/Graph.ts"
 

@@ -4,7 +4,7 @@
  * Swapping the FileSystem layer (see MemoryFileSystem) runs the exact same
  * pipeline against an in-memory workspace.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Effect, FileSystem, Path, Schema } from "effect"
 import { registerHooks } from "node:module"
 import { pathToFileURL } from "node:url"

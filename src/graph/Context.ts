@@ -6,7 +6,7 @@
  * reach, and the code locations already linked to it. Architecture nobody
  * marked significant appears only as a direct relationship.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { architectureView, isDriver, isSignificant } from "../arch/Architecture.ts"
 import { gateReasons } from "../check/Check.ts"

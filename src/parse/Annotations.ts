@@ -11,7 +11,7 @@
  * same line (`total() // @sdp implements X`) is not read; `ignoredAnnotations`
  * finds those so `sdp check` can say so.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 
 annotate(import.meta, { is: "ARCH-code-annotations" })
 

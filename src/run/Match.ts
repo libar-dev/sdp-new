@@ -4,7 +4,7 @@
  * --snippets` and the MCP tool `sdp_snippets` use the same matcher to show
  * what is not automated yet, with a suggested definition for each such step.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import {
   type Argument,
   CucumberExpression,

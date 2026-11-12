@@ -20,7 +20,7 @@ the CLI or plain grep instead; MCP is optional.
 | Tool | Arguments | Answers with |
 | --- | --- | --- |
 | `sdp_status` | — | summary counts as JSON: kinds, relations, stages, decision statuses, scenario results, significant elements, diagnostics |
-| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when nothing matches because the pattern names a kind or relation nothing uses, a note listing those in use |
+| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when nothing matches because the pattern names a kind or relation nothing uses, a note listing those in use; when a limit cut evaluation short ([[ARCH-query-engine]]), a first line that says so and names the limit, even if nothing matched |
 | `sdp_show` | `id` | the node as JSON with its outgoing and incoming edges |
 | `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle ([[REQ-agent-context]]) |
 | `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one ([[REQ-executable-specs]]) |
@@ -37,7 +37,9 @@ malformed query returns the parser's message together with the query syntax, and
 says so. Arguments are checked against each tool's schema before it runs: a misspelt argument or
 an out-of-range value is rejected as invalid parameters, naming the argument, instead of being
 silently ignored. The server's instructions suggest where to start: `sdp_status`, then `sdp_query`, and
-`sdp_context` before working on a spec.
+`sdp_context` before working on a spec. They say how code links to the graph: typed `annotate`
+calls in TypeScript and JavaScript first, `@sdp` comments in other languages
+([[ARCH-code-annotations]]).
 
 ## Scenarios
 
@@ -80,6 +82,27 @@ Scenario Outline: Every tool answers from the workspace
     | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
     | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
     | sdp_query        | { "expression": "requirement -realised-by-> *" }      | no relation realised-by; relations in use: depends-on |
+
+Scenario Outline: A query result cut short by a limit says so, even when it is empty
+  Given a chain of 14 nodes linked by "next"
+  And 25 nodes, each linked to all the others by "knows"
+  When an agent calls the MCP tool "sdp_query" with:
+    """
+    <arguments>
+    """
+  Then the output contains '<first line>'
+
+  Examples:
+    | arguments                                                                 | first line                                                                                   |
+    | { "expression": "#N1 -next+-> #N14" }                                     | no matches, cut short (a + edge reaches further than 12 hops): the answer may be incomplete |
+    | { "expression": "#N1 -next+-> *" }                                        | 12 node(s), cut short (a + edge reaches further than 12 hops)                               |
+    | { "expression": "member -knows-> member -knows-> member" }                | 25 node(s), cut short (a step has more than 10000 paths)                                    |
+    | { "expression": "member -knows-> member -knows-> member", "paths": true } | 10000 path(s), cut short (a step has more than 10000 paths)                                 |
+
+Scenario: The instructions describe typed annotations first, comments for other languages
+  When an agent reads the MCP server's instructions
+  Then the output contains 'TypeScript and JavaScript link code with typed calls, `annotate(target, { implements: "REQ-x" })` imported from "sdp/annotations"'
+  And the output contains "other languages use comment lines, `// @sdp implements REQ-x`"
 
 Scenario: A malformed query comes back as a tool error that teaches the syntax
   When an agent calls the MCP tool "sdp_query" with:

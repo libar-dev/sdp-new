@@ -5,7 +5,7 @@
  * apply (superseded, rejected, deprecated) do not run. Works on any
  * `FileSystem`, so executable specs run it in memory.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
 import { type Duration, Effect, Schema } from "effect"
 import { isActive, isGate, type Project } from "../graph/Build.ts"

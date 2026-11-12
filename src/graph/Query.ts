@@ -11,14 +11,15 @@
  * Node selector: `kind`, `kind|kind`, `*`, `#ID` / `#ID|ID`, followed by any
  * number of `[cond, cond]` groups. Conditions: `key`, `!key`, `key=a|b`,
  * `key!=a`, `key~regex`, `key!~regex`, `key<v`, `key>=v` (numbers, dates, and
- * the maturity ladder compare in order).
+ * the maturity ladder compare in order). A bare `key` asks whether it is set
+ * (not missing, null, false or empty); the others compare the value itself.
  *
  * Edge step: `-rel->` (out), `<-rel-` (in), `-rel-` (either), `*` or empty for
  * any relation, `a|b` for alternatives, a trailing `+` for one-or-more hops.
  * Prefix `!` keeps nodes WITHOUT such a neighbour, `?` keeps nodes WITH one;
  * both filter without moving.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import type { Project } from "./Build.ts"
@@ -29,7 +30,8 @@ annotate(import.meta, { is: "ARCH-query-engine" })
 export const querySyntax = `node (edge node)*
   node  kind | kind|kind | * | #ID | #ID|ID, then [cond, ...]
   cond  key | !key | key=a|b | key!=a | key~regex | key!~regex | key<v | key>=v
-        (numbers, dates, and maturity/stage along idea < draft < specified < ready < in-progress < verified)
+        key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
+        < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < in-progress < verified
   edge  -rel-> | <-rel- | -rel-   rel: * or empty for any, a|b alternatives, trailing + for one or more hops
         prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
 examples
@@ -87,7 +89,10 @@ export interface QueryPath {
 export interface QueryResult {
   readonly nodes: ReadonlyArray<GraphNode>
   readonly paths: ReadonlyArray<QueryPath>
+  /** A limit cut evaluation short: the nodes and paths may be only part of the answer. */
   readonly truncated: boolean
+  /** Which limits cut it short, in words (empty when the result is complete). */
+  readonly limits: ReadonlyArray<string>
 }
 
 export interface QueryOptions {
@@ -122,16 +127,12 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
   const maxPaths = options.maxPaths ?? 10_000
   const maxDepth = options.maxDepth ?? 12
   const orderings = options.orderings ?? {}
-  let truncated = false
+  const limits = new Set<string>()
+  const hopLimit = `a + edge reaches further than ${maxDepth} hops`
+  const pathLimit = `a step has more than ${maxPaths} paths`
   let paths: Array<{ readonly path: QueryPath; readonly end: string }> = startNodes(graph, query.start, orderings).map((
     node
   ) => ({ path: { start: node.id, steps: [] }, end: node.id }))
-
-  const reach = (from: string, edge: EdgeStep) => {
-    const reached = reachable(graph, from, edge, maxDepth)
-    if (reached.cut) truncated = true
-    return reached.hops
-  }
 
   for (const { edge, node } of query.steps) {
     const accept = (id: string) => {
@@ -140,7 +141,10 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     }
     if (edge.mode !== "move") {
       paths = paths.filter(({ end }) => {
-        const found = reach(end, edge).some((hop) => accept(hop.node))
+        const reached = reachable(graph, end, edge, maxDepth)
+        const found = reached.hops.some((hop) => accept(hop.node))
+        // A neighbour found within the limit settles the filter; only a search cut short leaves it open.
+        if (!found && reached.cut) limits.add(hopLimit)
         return edge.mode === "exists" ? found : !found
       })
       continue
@@ -148,13 +152,15 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     const next: Array<{ path: QueryPath; end: string }> = []
     const seen = new Set<string>()
     for (const { path, end } of paths) {
-      for (const hop of reach(end, edge)) {
+      const reached = reachable(graph, end, edge, maxDepth)
+      if (reached.cut) limits.add(hopLimit)
+      for (const hop of reached.hops) {
         if (!accept(hop.node)) continue
         const key = `${pathKey(path)}>${hop.rel}>${hop.node}`
         if (seen.has(key)) continue
         seen.add(key)
         if (next.length >= maxPaths) {
-          truncated = true
+          limits.add(pathLimit)
           break
         }
         next.push({ path: { start: path.start, steps: [...path.steps, hop] }, end: hop.node })
@@ -170,7 +176,7 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     emitted.add(end)
     nodes.push(graph.node(end)!)
   }
-  return { nodes, paths: paths.map((p) => p.path), truncated }
+  return { nodes, paths: paths.map((p) => p.path), truncated: limits.size > 0, limits: [...limits] }
 }
 
 /** Parse and run in one go; the convenient form for steps, the CLI and the MCP server. */
@@ -374,10 +380,13 @@ const valueOf = (node: GraphNode, key: string): unknown => {
   return value
 }
 
-const present = (value: unknown) =>
+/** What `[key]` asks: is the key set? Missing, null, false, empty text and empty lists are not. */
+const isSet = (value: unknown) =>
   value !== undefined && value !== null && value !== false && value !== "" && !(Array.isArray(value) && value.length === 0)
 
-const scalars = (value: unknown): ReadonlyArray<unknown> => Array.isArray(value) ? value : [value]
+/** The values a condition compares: a list's elements, or the value itself; null and missing have none. */
+const scalars = (value: unknown): ReadonlyArray<unknown> =>
+  (Array.isArray(value) ? value : [value]).filter((v) => v !== undefined && v !== null)
 
 const matchesCondition = (
   node: GraphNode,
@@ -385,29 +394,28 @@ const matchesCondition = (
   orderings: Readonly<Record<string, ReadonlyArray<string>>>
 ): boolean => {
   const value = valueOf(node, condition.key)
+  // Existence is a flag test; equality and regexes see the value itself, so false, 0 and "" can be asked for.
   switch (condition.op) {
     case "exists":
-      return present(value)
+      return isSet(value)
     case "missing":
-      return !present(value)
+      return !isSet(value)
     case "=":
-      return present(value) && scalars(value).some((v) => condition.values.some((c) => equals(v, c)))
+      return scalars(value).some((v) => condition.values.some((c) => equals(v, c)))
     case "!=":
-      return !(present(value) && scalars(value).some((v) => condition.values.some((c) => equals(v, c))))
+      return !scalars(value).some((v) => condition.values.some((c) => equals(v, c)))
     case "~":
-      return present(value) && scalars(value).some((v) => condition.regex!.test(String(v)))
+      return scalars(value).some((v) => condition.regex!.test(String(v)))
     case "!~":
-      return !(present(value) && scalars(value).some((v) => condition.regex!.test(String(v))))
+      return !scalars(value).some((v) => condition.regex!.test(String(v)))
     default: {
-      if (!present(value)) return false
       const ladder = orderings[condition.key]
-      return scalars(value).some((v) => compare(v, condition.values[0]!, ladder, condition.op as Op))
+      return scalars(value).filter(isSet).some((v) => compare(v, condition.values[0]!, ladder, condition.op as Op))
     }
   }
 }
 
-const equals = (value: unknown, expected: string) =>
-  Predicate.isString(value) ? value.toLowerCase() === expected.toLowerCase() : String(value) === expected
+const equals = (value: unknown, expected: string) => String(value).toLowerCase() === expected.toLowerCase()
 
 const compare = (value: unknown, expected: string, ladder: ReadonlyArray<string> | undefined, op: Op): boolean => {
   let diff: number

@@ -1,6 +1,8 @@
 /**
  * Public API for step definition modules and programmatic use.
  */
+export { annotate } from "./annotations.ts"
+export type { Declaration, Id, IdOf, Ids, Links } from "./annotations.ts"
 export { defineSteps, Pending, pending } from "./run/Steps.ts"
 export type { StepContext, StepModule, StepRegistrar } from "./run/Steps.ts"
 export { buildProject } from "./graph/Build.ts"

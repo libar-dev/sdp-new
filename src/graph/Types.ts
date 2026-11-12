@@ -4,7 +4,7 @@
  * Written by `sdp types`; `sdp check` reports `types-stale` when the graph has
  * moved on. Scenarios and code nodes are left out — annotations point at specs.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import type { Project } from "./Build.ts"
 
 annotate(import.meta, { is: "ARCH-code-annotations" })

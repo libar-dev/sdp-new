@@ -33,9 +33,12 @@ Queries are SDPQ path patterns ([[REQ-graph-query]]). A failing step says what i
 lists up to ten offending nodes with their `file:line`; a malformed query fails the step with the
 parser's message. A typo must not make a negative assertion pass by matching nothing, so a query
 naming a kind or relation that nothing in the project uses fails the step — kinds sdp creates itself
-and kinds named in the configuration count as known — and so do an unknown severity or rule. The steps assert against the graph as it was when the run started, so ordinary
-scenarios see the results of earlier runs and gate scenarios those of the current one
-([[REQ-executable-specs]]). Like any step, they match by text, whatever the keyword.
+and kinds named in the configuration count as known — and so do an unknown severity or rule. For the
+same reason a query whose evaluation was cut short by a limit ([[ARCH-query-engine]]) fails the
+step whatever it asserts, naming the limit: what lies beyond it could prove the assertion wrong.
+The steps assert against the graph as it was when the run started, so ordinary scenarios see the
+results of earlier runs and gate scenarios those of the current one ([[REQ-executable-specs]]).
+Like any step, they match by text, whatever the keyword.
 
 This repository uses them for its decision guards ([[DEC-0001]], [[DEC-0002]], [[DEC-0007]]) and its
 milestone gates (for example [[MS-LCA]]).
@@ -127,6 +130,27 @@ Scenario Outline: A built-in step that fails says why
     | the query "* -realised-by-> *" returns no results           | names relation realised-by, which no edge has    |
     | there are no eror diagnostics                               | unknown severity "eror"                          |
     | there are no diagnostics for rule "decision-stats"          | unknown rule "decision-stats"                    |
+
+Scenario Outline: A query cut short by a limit proves nothing, so the step fails
+  Given a chain of 14 nodes linked by "next"
+  And 25 nodes, each linked to all the others by "knows"
+  And a file "specs/guard.feature" containing:
+    """
+    Feature: Guard
+      Scenario: Guard
+        Then <step>
+    """
+  When the scenarios are run
+  Then the step '<step>' has status "failed"
+  And the step '<step>' reports 'was cut short (<limit>), so its result is incomplete'
+
+  Examples:
+    | step                                                                               | limit                                 |
+    | the query "#N1 -next+-> #N14" returns no results                                   | a + edge reaches further than 12 hops |
+    | the query "#N1 -next+-> *" returns at least 12 results                             | a + edge reaches further than 12 hops |
+    | the query "#N1 !-next+-> #N14" returns 1 result                                    | a + edge reaches further than 12 hops |
+    | the query "member -knows-> member -knows-> member" returns at most 25 results      | a step has more than 10000 paths      |
+    | every node matching "member -knows-> member -knows-> member" also matches "member" | a step has more than 10000 paths      |
 
 Scenario: A query result is compared with a table of ids
   Given a file "specs/guard.feature" containing:

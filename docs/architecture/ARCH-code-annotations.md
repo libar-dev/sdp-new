@@ -29,18 +29,31 @@ annotate(import.meta, { is: "ARCH-query-engine" })   // the whole module
 
 - **The target is a real symbol** — a class, function or constant, a property path such as
   `Graph.prototype`, or `import.meta` for the module — so renaming it or finding its references
-  includes the annotation. The `code` node sits at the declaration's line.
+  includes the annotation. The `code` node sits at the declaration's line. Targets are run-time
+  values: an interface or type alias cannot be passed, so for a type-only abstraction annotate the
+  module that defines it or the value that realizes it.
 - **Ids are typed.** `sdp types` writes the workspace's ids, mapped to their kinds, into a
   declaration that fills `Ids` in `sdp/annotations` (path: the `types` setting,
   [[REQ-configuration]]). Then an id that does not exist is a compile error, with "did you mean"
-  suggestions; `IdOf<"decision">` narrows to one kind. `sdp check` reports `types-stale` when the
+  suggestions; `IdOf<"decision">` narrows to one kind. The check is only as good as the
+  declaration: the compiler must include it (the `tsconfig` `include`), and it must be current —
+  until `sdp types` has run any string is accepted, and `sdp check` reports `types-stale` when the
   declaration no longer matches the graph.
 - **Links** map free-form relation names to one id or a list of ids. An optional third argument
   declares the node an `is` link names when no spec does: `kind`, `title`, `significant`,
   `rationale`.
 - **Literals only.** Ids and attributes must be literals; a computed one is reported as
-  `annotation-unreadable` instead of guessed. Aliased (`import { annotate as a }`) and namespace
-  (`import * as sdp`) imports are recognised.
+  `annotation-unreadable` instead of guessed. Type-only wrappers do not count as computing:
+  `{ is: "ARCH-x" } as const` and `satisfies Declaration` read as the object inside.
+- **Bound to the import.** A call counts when its name refers to `annotate` imported from
+  `sdp/annotations` (or `sdp`, which exports it too): aliased (`import { annotate as a }`) and
+  namespace (`import * as sdp`) imports are recognised, ES module imports only. Any other module,
+  even one whose path ends in `annotations`, is a different function. Inside a scope that declares
+  the name again — a parameter, a `let`, `const`, `class` or function declaration in a block, a
+  `var` in a function, a loop variable, a catch parameter — the name means that declaration and its
+  calls are not annotations.
+- **Unparsable files are reported.** A file that names `sdp/annotations` but does not parse loses
+  none of its annotations silently: `annotation-unreadable` points at the syntax error.
 - **Descriptions come from the code.** The annotated declaration's JSDoc — the module's leading
   JSDoc for `import.meta` — becomes the `code` node's `doc`, so context bundles quote the code's own
   description of itself.
@@ -132,15 +145,122 @@ Scenario Outline: What cannot be read without running the code is reported, not 
     | annotate(pay(), { implements: "REQ-pay" }) | the annotation target must be a name      |
     | annotate(pay, links)                       | the links must be an object literal       |
 
-Scenario: Calls to other functions named annotate are not annotations
+Scenario Outline: annotate is read from the sdp package or its annotations subpath
   Given a file "src/pay.ts" containing:
     """
-    import { annotate } from "./decorators.ts"
+    import { annotate } from "<module>"
 
+    export const pay = () => 0
+    annotate(pay, { implements: "REQ-pay" })
+    """
+  When "src/pay.ts" is scanned for typed annotations
+  Then the annotations are:
+    | line | relation   | targets | binds to |
+    | 4    | implements | REQ-pay | pay      |
+
+  Examples:
+    | module          |
+    | sdp/annotations |
+    | sdp             |
+
+Scenario Outline: Functions named annotate from any other module are not annotations
+  Given a file "src/pay.ts" containing:
+    """
+    import { annotate } from "<module>"
+
+    export const pay = () => 0
     annotate(pay, { implements: "REQ-pay" })
     """
   When "src/pay.ts" is scanned for typed annotations
   Then no annotations are found
+
+  Examples:
+    | module            |
+    | ./decorators.ts   |
+    | ./annotations.ts  |
+    | ../annotations    |
+    | @acme/annotations |
+
+Scenario Outline: A name declared again in an enclosing scope is not the import
+  Given a file "src/pay.ts" containing:
+    """
+    import * as sdp from "sdp/annotations"
+    import { annotate } from "sdp/annotations"
+
+    export const pay = () => 0
+    <code>
+    """
+  When "src/pay.ts" is scanned for typed annotations
+  Then no annotations are found
+
+  Examples:
+    | shadowed by                  | code                                                                                                                    |
+    | a parameter                  | export const wrap = (annotate: (...a: Array<unknown>) => void) => annotate(pay, { is: "ARCH-fake" })                    |
+    | a destructured parameter     | export function wrap({ annotate }: { annotate: Function }) { annotate(pay, { is: "ARCH-fake" }) }                       |
+    | a constructor property       | export class Wrap { constructor(private annotate: Function) { annotate(pay, { is: "ARCH-fake" }) } }                    |
+    | a block-level const          | { const annotate = (...a: Array<unknown>) => a; annotate(pay, { is: "ARCH-fake" }) }                                    |
+    | a later function declaration | export function wrap() { annotate(pay, { is: "ARCH-fake" }); function annotate(...a: Array<unknown>) {} }               |
+    | a var in a nested block      | export function wrap() { if (pay()) { var annotate = (...a: Array<unknown>) => a } annotate(pay, { is: "ARCH-fake" }) } |
+    | a loop variable              | for (const annotate of [pay]) annotate(pay, { is: "ARCH-fake" })                                                        |
+    | a catch parameter            | try { pay() } catch (annotate) { annotate(pay, { is: "ARCH-fake" }) }                                                   |
+    | a namespace parameter        | export const wrap = (sdp: { annotate: Function }) => sdp.annotate(pay, { is: "ARCH-fake" })                             |
+
+Scenario: Outside the shadowing scope the import is read again
+  Given a file "src/pay.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+
+    export const pay = () => 0
+    export const wrap = (annotate: (...a: Array<unknown>) => void) => annotate(pay, { is: "ARCH-fake" })
+    export const later = () => { annotate(pay, { implements: "REQ-pay" }) }
+    annotate(wrap, { is: "ARCH-real" })
+    """
+  When "src/pay.ts" is scanned for typed annotations
+  Then the annotations are:
+    | line | relation   | targets   | binds to |
+    | 5    | implements | REQ-pay   | pay      |
+    | 6    | is         | ARCH-real | wrap     |
+
+Scenario: A file that names sdp/annotations but does not parse is reported
+  Given a file "src/pay.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+
+    export const pay = ( => 0
+    annotate(pay, { implements: "REQ-pay" })
+    """
+  When "src/pay.ts" is scanned for typed annotations
+  Then no annotations are found
+  And the scan reports at line 3: "the file does not parse, so its annotations cannot be read: Unexpected token"
+  When the workspace is checked
+  Then the check reports "annotation-unreadable"
+
+Scenario: A file that does not parse and does not annotate is none of sdp's business
+  Given a file "src/pay.ts" containing:
+    """
+    import { annotate } from "./decorators.ts"
+
+    export const pay = ( => 0
+    """
+  When "src/pay.ts" is scanned for typed annotations
+  Then no annotations are found
+  And the scan reports nothing
+
+Scenario: as const and satisfies change only types, so the objects inside are read
+  Given a file "src/cache.ts" containing:
+    """
+    import { annotate, type Declaration } from "sdp/annotations"
+
+    export const cache = new Map()
+    annotate(cache, { is: "ARCH-cache" } as const, { kind: "element", significant: true } satisfies Declaration)
+    annotate(cache, ({ uses: ["ARCH-store"] }) satisfies Record<string, unknown>)
+    """
+  When "src/cache.ts" is scanned for typed annotations
+  Then the annotations are:
+    | line | relation | targets    | binds to | attributes                      |
+    | 4    | is       | ARCH-cache | cache    | kind="element" significant=true |
+    | 5    | uses     | ARCH-store | cache    |                                 |
+  And the scan reports nothing
 
 Scenario: In the graph, typed annotations become code nodes at the declaration
   Given a file "specs/REQ-pay.md" containing:

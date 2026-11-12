@@ -5,7 +5,7 @@
  * lives in conventions (kinds, attribute names, relation names) chosen by the
  * people writing specs, so the graph never forces a fixed vocabulary.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 
 export interface SourceRef {
   readonly file: string

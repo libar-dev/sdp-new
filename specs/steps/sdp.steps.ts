@@ -13,7 +13,7 @@ import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
-import { registrations } from "../../src/mcp/Server.ts"
+import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
@@ -215,6 +215,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       Effect.scoped,
       Effect.provide(layerMemoryWorkspace(world.files))
     ))
+
+  When("an agent reads the MCP server's instructions", ({ world }) => {
+    world.output = instructions
+  })
 
   // --- quality attributes ---------------------------------------------------
 

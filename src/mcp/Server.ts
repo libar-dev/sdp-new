@@ -3,7 +3,7 @@
  * workspace — and the step definitions, where a tool uses them — so agents
  * always see the files as they are now, including edits they just made.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { NodeStdio } from "@effect/platform-node"
 import { DateTime, Effect, FileSystem, Layer, Path, Result, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
@@ -133,15 +133,20 @@ const handlers = (root: string) =>
         Effect.flatMap(load, (project) => {
           const result = queryProject(project, expression)
           if (Result.isFailure(result)) return toolError(`query error: ${result.failure.message}\n\n${queryHelp}`)
-          const { nodes } = result.success
+          const { limits, nodes, truncated } = result.success
+          // A result cut short says so first, empty or not: what lies beyond the limit is unknown.
+          const cut = truncated ? `, cut short (${limits.join("; ")}): the answer may be incomplete` : ""
           if (nodes.length === 0) {
             const note = unusedNamesNote(project, expression)
-            return Effect.succeed(note ? `no matches\n${note}` : "no matches")
+            return Effect.succeed([`no matches${cut}`, ...(note ? [note] : [])].join("\n"))
           }
-          if (paths) return Effect.succeed(result.success.paths.map(formatPath).join("\n"))
+          if (paths) {
+            const routes = result.success.paths.map(formatPath)
+            return Effect.succeed((truncated ? [`${routes.length} path(s)${cut}`, ...routes] : routes).join("\n"))
+          }
           return Effect.succeed(
             [
-              `${nodes.length} node(s)`,
+              `${nodes.length} node(s)${cut}`,
               ...nodes.map((n) => [n.id, n.kind, statusCell(n), n.title, formatSource(n.source)].join("\t"))
             ].join("\n")
           )
@@ -201,7 +206,7 @@ const handlers = (root: string) =>
 export const registrations = (root: string) => McpServer.toolkit(SdpToolkit).pipe(Layer.provide(handlers(root)))
 
 export const instructions =
-  `sdp exposes a software delivery graph: specs (requirements, quality requirements, ideas) at any maturity, decision records, curated architecture (only significant elements), lifecycle (phases, iterations, milestones), scenarios with execution status, and code linked via @sdp comments. Start with sdp_status, then sdp_query; use sdp_context before working on a spec and sdp_snippets to automate its scenarios. Relations are free-form; sdp's templates use ${relationVocabulary}. Source files are Markdown with YAML front matter — you can also grep them directly.`
+  `sdp exposes a software delivery graph: specs (requirements, quality requirements, ideas) at any maturity, decision records, curated architecture (only significant elements), lifecycle (phases, iterations, milestones), scenarios with execution status, and the code linked to them. TypeScript and JavaScript link code with typed calls, \`annotate(target, { implements: "REQ-x" })\` imported from "sdp/annotations", whose ids the compiler checks once \`sdp types\` has run; other languages use comment lines, \`// @sdp implements REQ-x\`. Start with sdp_status, then sdp_query; use sdp_context before working on a spec and sdp_snippets to automate its scenarios. Relations are free-form; sdp's templates use ${relationVocabulary}. Source files are Markdown with YAML front matter — you can also grep them directly.`
 
 export const serveMcp = (root: string) =>
   Layer.launch(
