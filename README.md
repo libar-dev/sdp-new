@@ -1,3 +1,12 @@
+---
+id: README
+kind: guide
+title: sdp
+iteration: I1
+links:
+  introduces: [CAP-living-specs, CAP-curated-architecture, CAP-agent-collaboration]
+---
+
 # sdp
 
 Living specifications, curated architecture and decision records as **one queryable graph** —
@@ -18,8 +27,13 @@ agents as much as for people.
   export as JSONL/TSV for grep and jq, or serve over MCP.
 - **Lifecycle.** Phases, iterations and milestones are graph nodes; milestone gates are scenarios;
   the discipline activity chart is computed from the plan.
+- **Everything is a spec.** Guides too: this README is a node of sdp's own graph, and its quick
+  start runs with every build.
 
-Read [docs/DESIGN.md](docs/DESIGN.md) for the design and [docs/decisions/](docs/decisions/) for why.
+Read [docs/VISION.md](docs/VISION.md) for why sdp exists, the
+[requirements](specs/requirements/) for exactly what it does — the command line is
+[REQ-cli](specs/requirements/REQ-cli.md) — and the [decisions](docs/decisions/) for why it works
+the way it does.
 
 ## Quick start
 
@@ -27,64 +41,118 @@ Requires Node.js ≥ 24 (TypeScript runs directly, no build step).
 
 ```sh
 npm install
-npm run verify                  # typecheck + unit tests + sdp's own executable specs + check
-
+npm run verify                  # typecheck, sdp check, and sdp's own executable specifications
 node src/cli/main.ts status     # or ./bin/sdp.js status, or `npm link` once for a global `sdp`
 ```
 
-In your own repository:
+The rest of the quick start is executable: `npm run verify` runs each scenario below with the real
+`sdp` in a fresh, empty directory, so what you read here is what you get. In your own repository:
 
-```sh
-sdp init                                     # sdp.config.yaml + agent instructions
-sdp new requirement "Guest checkout"         # specs/requirements/REQ-guest-checkout.md (maturity: idea)
-sdp new nfr "Checkout latency" --maturity specified
-sdp new decision "Use Postgres for orders"   # docs/decisions/DEC-0001-use-postgres-for-orders.md
-sdp check                                    # links, maturity gates, decisions, significance
-sdp run --snippets                           # execute scenarios; stubs for undefined steps
-```
+~~~gherkin
+Scenario: Start with an idea, a quality requirement and a decision
+  Given an empty workspace
+  When I run "sdp init"
+  Then the output contains "created sdp.config.yaml"
+  When I run "sdp new requirement 'Guest checkout'"
+  Then the output contains "specs/requirements/REQ-guest-checkout.md"
+  When I run "sdp new nfr 'Checkout latency' --maturity specified"
+  Then the output contains "specs/quality/NFR-checkout-latency.md"
+  When I run "sdp new decision 'Use Postgres for orders'"
+  Then the output contains "docs/decisions/DEC-0001-use-postgres-for-orders.md"
+  When I run "sdp check"
+  Then the exit code is 0
+~~~
+
+`sdp init` writes `sdp.config.yaml` and `AGENTS.sdp.md`, a guide for coding agents. Each `sdp new`
+prints the id and file it created from a template; `--maturity` decides how much the template
+asks for. Once behaviour is written down as Gherkin, `sdp run` executes it. Steps without a
+definition are *undefined* — reported with a suggested definition, never failing:
+
+~~~gherkin
+Scenario: Specify behaviour before it is automated
+  Given a file "specs/requirements/REQ-guest-checkout.md" containing:
+    """
+    ---
+    id: REQ-guest-checkout
+    maturity: specified
+    ---
+    # Guest checkout
+
+    Shoppers without an account can buy.
+
+    ```gherkin
+    Scenario: Guest pays by card
+      Given a cart with 2 items
+      When the guest pays with a valid card
+      Then an order is created
+    ```
+    """
+  When I run "sdp run --snippets"
+  Then the exit code is 0
+  And the output contains "1 scenario(s): 1 undefined"
+  And the output contains 'Given("a cart with {int} items", ({ world, args: [int] }) => pending())'
+  When I run "sdp q 'requirement[maturity>=specified]' --ids"
+  Then the output contains "REQ-guest-checkout"
+  When I run "sdp status"
+  Then the output contains "undefined 1"
+~~~
 
 ## Commands
 
 | Command | What it does |
 | --- | --- |
-| `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, significance, diagnostics |
+| `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, significant elements, diagnostics |
 | `sdp q '<pattern>'` | Query, e.g. `sdp q 'requirement[maturity<ready]'`, `--paths`, `--ids`, `--json` |
 | `sdp show <id>` | A node with attributes and edges |
 | `sdp context <id>` | Everything needed to work on a node, as Markdown (for agents and humans) |
 | `sdp check` | Diagnostics with rule ids, `file:line` and a hint; exit 1 on errors |
 | `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last |
 | `sdp gate <milestone>` | Evaluate one milestone gate; exit 1 if unmet |
-| `sdp arch [--candidates] [-f mermaid]` | The curated architecture, or ranked promotion candidates |
+| `sdp arch [--candidates] [-f mermaid]` | The curated architecture, or suggestions for architects to look at |
 | `sdp lifecycle` | Phases, iterations, gates and discipline activity |
 | `sdp graph [-f jsonl\|tsv\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
 | `sdp new <kind> <title>` · `sdp init` | Authoring helpers |
 | `sdp mcp` | MCP server (stdio) for agents |
 
-All read commands accept `--json`; `-C <dir>` selects the workspace root.
+All read commands accept `--json`; `-C <dir>` selects the workspace root. Flags, exit codes and
+examples for each command: [REQ-cli](specs/requirements/REQ-cli.md).
 
 ## This repository specifies itself
 
 ```text
+README.md, AGENTS.md  guides; their scenarios check that what they say works
+docs/VISION.md        why sdp exists and what it is for
 specs/capabilities/   business goals (CAP-*)
-specs/requirements/   functional requirements, all ready and verified (REQ-*)
+specs/requirements/   functional requirements, including the command line (REQ-*)
 specs/quality/        quality requirements as quality attribute scenarios (NFR-*)
 specs/ideas/          ideas and drafts, deliberately unfinished
-specs/steps/          step definitions driving the real pipeline in memory
+specs/steps/          step definitions: the real pipeline in memory, the real CLI in temp directories
 docs/decisions/       architecture, technology, product and process decisions (DEC-*)
 docs/architecture/    curated elements and patterns (ARCH-*, PAT-*)
 docs/delivery/        the plan (phases, iterations) and milestone gates (MS-*)
 ```
 
+There are no other tests: every check of sdp is a scenario in one of these specs.
+
 ```sh
-node src/cli/main.ts run          # 41 scenarios pass; gates: LCO, LCA, IOC met, PR not yet
+node src/cli/main.ts run          # every scenario; milestone gates run last and may be unmet
 node src/cli/main.ts lifecycle
 node src/cli/main.ts arch
 node src/cli/main.ts context REQ-graph-query
 ```
 
 A conventional product example — a shop with domain code, step definitions that exercise it, a
-verified requirement, a specified-but-unbuilt one, an idea, a quality requirement and a product
-decision — lives in [examples/shop](examples/shop): `node src/cli/main.ts -C examples/shop run`.
+verified requirement, a specified-but-unbuilt one, an idea, a quality requirement and product
+decisions — lives in [examples/shop](examples/shop). Run it with
+`node src/cli/main.ts -C examples/shop run`:
+
+~~~gherkin
+Scenario: The shop example verifies itself
+  Given the workspace is a copy of "examples/shop"
+  When I run "sdp run"
+  Then the exit code is 0
+  And the output contains "4 scenario(s): 3 passed, 1 undefined"
+~~~
 
 ## Using it from an MCP client
 
