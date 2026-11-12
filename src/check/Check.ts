@@ -79,6 +79,13 @@ const replacing = (node: GraphNode): Replacing => ({
 
 const isExample = (node: Replacing) => node.kind === made.kinds.scenario
 
+/** How many characters `a` and `b` begin with alike. */
+const sharedStart = (a: string, b: string): number => {
+  let shared = 0
+  while (shared < a.length && a[shared] === b[shared]) shared++
+  return shared
+}
+
 /** Why `from` cannot replace `to`, whatever either's maturity, or undefined when it can. */
 const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): string | undefined => {
   const replacing = (node: Replacing) => isExample(node) || node.kind === made.kinds.rule || hasKind(vocabulary, "feature", node.kind)
@@ -93,9 +100,11 @@ const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): 
     : undefined
 }
 
-const replacementHint = (rel: string, from: Replacing) =>
+const replacementHint = (rel: string, from: Replacing, to: Replacing) =>
   isExample(from)
     ? `an example renamed with its steps edited, or merged into another, names each example it was, @${rel}:<feature>#<example>, in the change that does it`
+    : to.spec === from.id
+    ? `put \`@${rel}:${to.id}\` on the rule that replaces it, above its \`Rule:\``
     : `work still to come names the live rule or feature it replaces: @${rel}:<feature>#<rule>, or @${rel}:<feature> for all its rules`
 
 /** The relations whose targets must be nodes of the plan, with the kind roles one of which they must play. */
@@ -195,7 +204,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: ${problem}`,
       node: edge.from,
       source: edge.source,
-      hint: replacementHint(edge.rel, from)
+      hint: replacementHint(edge.rel, replacing(from), replacing(to))
     }))
   }
 
@@ -549,23 +558,35 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
   const counted = links.filter(({ problem, to }) => to !== undefined && problem === undefined)
   const replacersOf = (id: string) => counted.filter(({ from, link }) => !isExample(from) && link.to === id).map(({ from }) => from.id)
   const namedBy = (id: string) => counted.filter(({ from, inWorkspace }) => inWorkspace && from.id === id).map(({ link }) => link.to)
-  // Once a replacement has landed, its base has no more what it replaced: the tag is done.
+  // Once a replacement has landed, its base has no more what it replaced, and the tag is done; or
+  // the tag means what was built at the base and is gone here, the one whose id begins most like it.
+  const builtThere = [...before.built, ...before.examples.filter((example) => example.live).map((example) => example.scenario.id)]
+  const likeliest = (from: Replacing, id: string) =>
+    [...new Set(builtThere)].sort().reduce<string | undefined>((best, candidate) => {
+      const named = there.get(candidate)
+      const fits = named !== undefined && !here.has(candidate) && cannotReplace(from, named, vocabulary) === undefined
+      return fits && (best === undefined || sharedStart(candidate, id) > sharedStart(best, id)) ? candidate : best
+    }, undefined)
   for (const { from, link, spec } of links.filter(({ inWorkspace, to, toCome }) => inWorkspace && to === undefined && !toCome)) {
+    const meant = likeliest(from, link.to)
     out.push(diagnostic("replaces-nothing", {
       message: `${from.id} -${link.rel}-> ${link.to}: neither the workspace nor ${at} has ${link.to}, so the link replaces nothing`,
       node: from.id,
       source: { file: spec.file, line: link.line },
-      hint: `delete \`@${link.rel}:${link.to}\`: what it replaced is gone from the base too`
+      hint: `${meant === undefined ? "" : `if it means ${meant}, built at the base, write \`@${link.rel}:${meant}\`; `}` +
+        `if the replacement is merged, delete \`@${link.rel}:${link.to}\``
     }))
   }
   // check() judges a link to what is here; one from work still to come to what is gone dangles.
-  const broken = links.filter(({ inWorkspace, link, problem, toCome }) => inWorkspace && problem !== undefined && !toCome && !here.has(link.to))
-  for (const { from, link, problem, spec } of broken) {
+  const broken = links.filter((record): record is typeof record & { readonly to: Replacing } =>
+    record.inWorkspace && record.to !== undefined && record.problem !== undefined && !record.toCome && !here.has(record.link.to)
+  )
+  for (const { from, link, problem, spec, to } of broken) {
     out.push(diagnostic("replacement", {
       message: `${from.id} -${link.rel}-> ${link.to}, which ${at} has: ${problem}`,
       node: from.id,
       source: { file: spec.file, line: link.line },
-      hint: replacementHint(link.rel, from)
+      hint: replacementHint(link.rel, from, to)
     }))
   }
 
@@ -593,7 +614,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
       node: scenario.id,
       source: still === undefined ? { file: spec.file, line: pickle.exampleLine ?? scenario.line } : { file: still.spec.file, line: still.pickle.exampleLine ?? still.scenario.line },
       hint: still === undefined
-        ? `restore it, or, renamed with its steps edited, name it on its new Scenario, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces its rule, \`@${replacesWord}:<feature>#<rule>\`, with a new live example of its own`
+        ? `restore it, or, renamed with its steps edited or merged into another, name it on the Scenario it went to, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces ${rule}, \`@${replacesWord}:${rule}\`, with a new live example of its own`
         : "a live test declares no maturity and is no gate: move it back under a live rule, or delete what makes it still to come"
     }))
   }

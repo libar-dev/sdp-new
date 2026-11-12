@@ -290,6 +290,24 @@ Feature: Write a spec
         | a rule, once it is built  |                                            | @replaces:cart#a-cart-holds-what-was-added                 | replacement, untested-rule |
         | the rule that replaces it | @replaces:cart#a-cart-holds-each-item-once | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | replacement                |
 
+    Scenario: A feature that names a rule of its own, and the rule it should be on
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @replaces:cart#a-cart-holds-what-was-added
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule        | line | hint                                                                                              |
+        | replacement | 1    | put `@replaces:cart#a-cart-holds-what-was-added` on the rule that replaces it, above its `Rule:` |
+
     Scenario Outline: A feature still to come that replaces <case>
       Given these specs:
         | tags                              | Feature |

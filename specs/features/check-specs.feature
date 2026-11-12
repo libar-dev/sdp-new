@@ -294,6 +294,7 @@ Feature: Check specs
       Then the exit code is 1
       And the output contains "[example-dropped] cart#add-an-item, a live example at the base "
       And the output contains ", is gone, and nothing that replaces cart#a-cart-holds-what-was-added is live with a new live example  specs/cart.feature:8"
+      And the output contains "write what replaces cart#a-cart-holds-what-was-added, `@replaces:cart#a-cart-holds-what-was-added`, with a new live example of its own"
 
   Rule: An example keeps its test under a new name, in a new place or with new steps, and another takes it over only by naming it
 
@@ -640,6 +641,7 @@ Feature: Check specs
       And the JSON output has:
         | data.rule | replaces-nothing |
         | data.line | 6                |
+      And the output contains "if it means cart#a-cart-is-kept-for-a-week, built at the base, write `@replaces:cart#a-cart-is-kept-for-a-week`; if the replacement is merged, delete `@replaces:cart#a-cart-holds-all`"
 
   Rule: The specs of the base are those its own configuration finds in it, and what of them sdp cannot read makes the answer incomplete
 
