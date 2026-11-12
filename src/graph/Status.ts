@@ -4,7 +4,7 @@ import { check } from "../check/Check.ts"
 import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
 import { notPassing, type ScenarioResult } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
-import type { Scenario } from "../parse/Gherkin.ts"
+import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { isClosed, isGate } from "../run/Evidence.ts"
 import type { Project } from "./Build.ts"
 import { stageLadder } from "./Query.ts"
@@ -58,26 +58,31 @@ export interface Implementable {
 /**
  * The work still to come that can be declared implemented after a run that ran `ran`: a spec or a
  * rule still to come whose every example passed on current evidence, at least one of them in this
- * run, with no rule or example open and no rule without an example. A spec that qualifies is named
- * alone; otherwise each rule that does.
+ * run, with no rule open and no rule without an example. A spec that qualifies is named
+ * with each of its rules that declares a maturity of its own, which declaring the spec would leave
+ * still to come; otherwise each rule that qualifies is named.
  */
 export const implementable = (project: Project, ran: ReadonlySet<string>): ReadonlyArray<Implementable> => {
   const { graph } = project
   const passed = (scenarios: ReadonlyArray<Scenario>) =>
     scenarios.length > 0 &&
-    scenarios.every((scenario) => !scenario.tags.includes(made.tags.open) && graph.node(scenario.id)?.attrs.status === "passed") &&
+    scenarios.every((scenario) => graph.node(scenario.id)?.attrs.status === "passed") &&
     scenarios.some((scenario) => ran.has(scenario.id))
   return project.specs.flatMap((spec): ReadonlyArray<Implementable> => {
     const examples = (rule?: string) => spec.scenarios.filter((scenario) => rule === undefined || scenario.rule === rule)
     const rules = spec.rules.map((rule) => ({ rule, node: graph.node(rule.id) })).filter((rule) => rule.node !== undefined)
     const whole = graph.node(spec.id)?.attrs.toCome === true && passed(examples()) &&
       rules.every(({ node, rule }) => !isOpen(node!) && examples(rule.id).length > 0)
-    if (whole) return [{ id: spec.id, file: spec.file, line: spec.attrLines.maturity ?? 1 }]
-    return rules.flatMap(({ node, rule }) =>
-      node!.attrs.toCome === true && !isOpen(node!) && passed(examples(rule.id))
-        ? [{ id: rule.id, file: spec.file, line: attribute(rule, "maturity") === undefined ? rule.line : rule.attrLines.maturity ?? rule.line }]
-        : []
-    )
+    const named = (rule: Rule): Implementable => ({
+      id: rule.id,
+      file: spec.file,
+      line: attribute(rule, "maturity") === undefined ? rule.line : rule.attrLines.maturity ?? rule.line
+    })
+    if (whole) {
+      const own = rules.filter(({ node, rule }) => node!.attrs.toCome === true && attribute(rule, "maturity") !== undefined)
+      return [{ id: spec.id, file: spec.file, line: spec.attrLines.maturity ?? 1 }, ...own.map(({ rule }) => named(rule))]
+    }
+    return rules.flatMap(({ node, rule }) => node!.attrs.toCome === true && !isOpen(node!) && passed(examples(rule.id)) ? [named(rule)] : [])
   })
 }
 

@@ -63,11 +63,11 @@ Feature: Guest checkout
   its own has its Feature's, so a change to a built feature is rules of it, each at the maturity it
   has reached, with `@replaces:<feature>#<rule>` on one that replaces a built rule; nothing moves
   when it is built. A spec that declares no maturity is implemented.
-- **An open question is a Rule or a Scenario tagged `@open`**, its name the question. Answering
-  it means renaming it into the rule that was chosen and deleting the tag. A question is still to
-  come, and has no examples. What is undecided or
-  waits on someone is written this way, on the spec it concerns, never kept in a chat or an
-  agent's memory: `sdp q 'rule[tags~open]'` lists it.
+- **An open question is a Rule tagged `@open`**, its name the question. Answering it means
+  renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
+  has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
+  someone is written this way, on the spec it concerns, never kept in a chat or an agent's memory:
+  `sdp q 'rule[tags~open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
   what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
   whoever reads a message citing it needs no lookup. Elements, patterns, milestones, phases and

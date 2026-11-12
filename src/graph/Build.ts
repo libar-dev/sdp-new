@@ -271,8 +271,13 @@ export const buildProject = (input: ProjectInput): Project => {
       edges.push({ from: rule.id, rel: made.relations.rule, to: spec.id, source: { file: spec.file, line: rule.line } })
     }
     // Work still to come is verified by all its examples; implemented work by those of its
-    // implemented rules, so that a rule still to come neither fails it nor makes it verified.
-    const counted = spec.scenarios.filter((scenario) => work.spec || !work.example(scenario)).map((scenario) => statuses.get(scenario.id))
+    // implemented rules, so that a rule still to come neither fails it nor makes it verified, and
+    // an implemented rule without an example yet counts as one that has not run.
+    const bare = spec.rules.filter((rule) => !work.rule(rule).toCome && !spec.scenarios.some((scenario) => scenario.rule === rule.id))
+    const counted = [
+      ...spec.scenarios.filter((scenario) => work.spec || !work.example(scenario)).map((scenario) => statuses.get(scenario.id)),
+      ...(work.spec ? [] : bare.map(() => undefined))
+    ]
     if (!nodes.has(spec.id)) verifications.set(spec.id, counted)
     const rulesToCome = spec.rules.filter((rule) => work.rule(rule).toCome).length
     const openQuestions = spec.openQuestions.length

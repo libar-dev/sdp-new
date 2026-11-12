@@ -45,8 +45,8 @@ Feature: Start a spec
       Examples:
         | kind    | title     | options | file                                  | tags                                    | next                                                                |
         | gizmo   | Sprocket  |         | specs/gizmo/sprocket.feature          | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
-        | pattern | Outbox    |         | specs/architecture/PAT-outbox.feature | @id=PAT-outbox                          | elements that apply it link `@instance-of:PAT-outbox`               |
-        | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk                   | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
+        | pattern | Outbox    |         | specs/architecture/PAT-outbox.feature | @id=PAT-outbox @maturity=idea           | elements that apply it link `@instance-of:PAT-outbox`               |
+        | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk @maturity=idea    | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
         | phase   | Hardening |         | specs/delivery/PH-hardening.feature   | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions

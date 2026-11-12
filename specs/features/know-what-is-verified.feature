@@ -132,10 +132,10 @@ Feature: Know what is verified
       And node "wishlist" has attribute verification = "partial"
       And node "wishlist" has attribute stage = "in-progress"
 
-    Scenario Outline: A spec without a maturity, or with a stage written as one, is implemented: it has no stage until its scenarios say more
+    Scenario: A spec without a maturity is implemented: it has no stage until its scenarios say more
       Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=export-to-csv <maturity>
+        @id=export-to-csv
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -153,10 +153,25 @@ Feature: Know what is verified
       Then node "export-to-csv" has attribute stage = "failing"
       And node "export-to-csv" has attribute toCome = "undefined"
 
-      Examples:
-        | maturity           |
-        |                    |
-        | @maturity=verified |
+    Scenario: A stage written as a maturity is implemented, and no run starts until it is fixed
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        @id=export-to-csv @maturity=verified
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          Rule: Every row is exported
+
+            Scenario: Export current rows
+              Then I get a CSV file
+        """
+      When the workspace is loaded
+      Then node "export-to-csv" has attribute stage = "undefined"
+      And node "export-to-csv" has attribute toCome = "undefined"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "specs/export-to-csv.feature:1 [maturity-value]"
 
     Scenario: Verification orders from none to passing, so a query can ask for everything short of it
       Given these specs:
@@ -173,8 +188,8 @@ Feature: Know what is verified
 
   Rule: An implemented feature is verified when its implemented rules pass
 
-    A rule still to come neither fails it nor makes it verified, and `rulesToCome` counts them; each
-    rule has a stage of its own.
+    A rule still to come neither fails it nor makes it verified, and `rulesToCome` counts them; an
+    implemented rule without an example yet keeps it from verified. Each rule has a stage of its own.
 
     Scenario Outline: A cart that holds what was added, with a rule still to come that <later> and a question
       Given a file "specs/cart.feature" containing:
@@ -215,6 +230,34 @@ Feature: Know what is verified
         | adding | later  | stage    | verification |
         | passes | fails  | verified | failing      |
         | fails  | passes | failing  | passing      |
+
+    Scenario Outline: A rule <declaring> that has no example yet keeps its feature from verified
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          <tags>
+          Rule: A cart is emptied once paid
+        """
+      And a step definition "the cart holds {int} item(s)" that passes
+      When the workspace is run
+      Then node "cart#a-cart-holds-what-was-added" has attribute stage = "verified"
+      And node "cart" has attribute stage = "in-progress"
+      When I query "feature[stage=verified]"
+      Then the result has 0 nodes
+
+      Examples:
+        | declaring                    | tags                  |
+        | with its feature's maturity  |                       |
+        | that declares it implemented | @maturity=implemented |
 
   Rule: Every report counts stages the same way, and failing ranks with in-progress
 

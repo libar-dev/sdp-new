@@ -516,11 +516,12 @@ Feature: Write a spec
       Then the exit code is 1
       And the output contains "specs/pay.feature:9 [duplicate-id]"
 
-  Rule: A Rule or a Scenario tagged `@open` is a question, its name the question
+  Rule: A Rule tagged `@open` is a question, its name the question
 
-    A question is a choice of what must hold, so it is written where the rule chosen will be.
+    A question is a choice of what must hold, so it is written where the rule chosen will be. A
+    Scenario is an example of a rule, tagged `@open` or not.
 
-    Scenario: An open Rule needs no example, and an open Scenario no step
+    Scenario: An open Rule needs no example, and an open Scenario is an example like any other
       Given a file "specs/explorer.feature" containing:
         """
         @id=explorer @maturity=draft
@@ -540,11 +541,12 @@ Feature: Write a spec
         """
       When "specs/explorer.feature" is parsed
       Then the parsed spec has open questions:
-        | question                                    | line |
-        | A static export, or a local server?         | 9    |
-        | Is the code behind an element shown always? | 14   |
+        | question                            | line |
+        | A static export, or a local server? | 9    |
       When the workspace is checked
-      Then sdp reports nothing
+      Then sdp reports:
+        | rule           | line |
+        | scenario-empty | 14   |
 
   Rule: An open question is still to come, and has no examples
 

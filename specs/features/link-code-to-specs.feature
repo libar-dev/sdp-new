@@ -14,8 +14,8 @@ Feature: Link code to specs
 
   Background:
     Given these specs:
-      | tags    | Feature |
-      | @id=pay | Pay     |
+      | tags                   | Feature |
+      | @id=pay @maturity=idea | Pay     |
 
   Rule: Annotated code is a code node linked to what it names, and an is link adds to its node only what no spec says
 
@@ -269,8 +269,8 @@ Feature: Link code to specs
       Then the JSON output has:
         | data | nothing |
       Given these specs:
-        | tags       | Feature |
-        | @id=export | Export  |
+        | tags                      | Feature |
+        | @id=export @maturity=idea | Export  |
       When I run "sdp check --json"
       Then the JSON output has:
         | data.rule | types-stale   |

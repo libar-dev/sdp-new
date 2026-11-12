@@ -44,14 +44,18 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   // The iterations in the order of the timeline: id, phase, plans (the nodes planned into it),
-  // stages (of those nodes, as `draft:1 verified:2`) and today (yes for the one the calendar is in).
+  // stages (of those nodes, as `draft:1 verified:2`), scenarios (their executed examples by status,
+  // as `passed:2`) and today (yes for the one the calendar is in).
   Then("the iterations are:", ({ table, world }) => {
     const report = computed(world)
+    const counts = (record: Readonly<Record<string, number>>) =>
+      Object.entries(record).sort(([a], [b]) => a.localeCompare(b)).map(([word, n]) => `${word}:${n}`).join(" ")
     const rows = report.work.map((iteration): Row => ({
       id: iteration.node.id,
       phase: report.phases.find((phase) => phase.iterations.some((i) => i.node.id === iteration.node.id))?.node.id ?? "",
       plans: iteration.items.map((item) => item.id).sort().join(", "),
-      stages: Object.entries(iteration.stages).sort(([a], [b]) => a.localeCompare(b)).map(([stage, n]) => `${stage}:${n}`).join(" "),
+      stages: counts(iteration.stages),
+      scenarios: counts(iteration.scenarios),
       today: report.current?.id === iteration.node.id ? "yes" : ""
     }))
     assertRows("iterations", rows, table, "in order")

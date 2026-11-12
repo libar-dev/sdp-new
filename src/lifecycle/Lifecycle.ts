@@ -15,7 +15,8 @@
  *              discipline is planned there, and a link named for a
  *              discipline plans that one into iterations of its own
  *              (`@activity.implementation:IT-beta @activity.test:IT-release`);
- *              a rule is work of its spec's kind
+ *              a rule is work of its spec's kind, and one planned on its own
+ *              takes its examples' evidence with it
  *
  * Plan facts are read as edges, and no other edge counts: a node is counted
  * once however many edges lead to the same iteration. The
@@ -205,10 +206,14 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   /** The scenarios of a node, in the order they are written, with the status of their last run. */
   const scenariosOf = (node: GraphNode) => examplesOf(node).map((scenario) => ({ name: scenario.title, status: String(scenario.attrs.status) }))
 
+  /** The examples that are evidence of a planned node: a spec's leave out those of its rules planned on their own. */
+  const evidenceOf = (node: GraphNode) =>
+    examplesOf(node).filter((scenario) => node.kind === made.kinds.rule || !planned.has(String(scenario.attrs.rule)))
+
   const iterationReport = (iteration: GraphNode): IterationReport => {
     const items = [...itemsOf.get(iteration.id)!]
-    // A scenario of a spec and of its rule, both planned, is counted once.
-    const statuses = unique(items.flatMap(examplesOf)).map((scenario) => String(scenario.attrs.status)).filter((status) => !notExecuted.has(status))
+    // A scenario of a spec and of its rule, both planned into it, is counted once.
+    const statuses = unique(items.flatMap(evidenceOf)).map((scenario) => String(scenario.attrs.status)).filter((status) => !notExecuted.has(status))
     return {
       node: iteration,
       items,

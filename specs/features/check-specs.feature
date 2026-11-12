@@ -151,7 +151,6 @@ Feature: Check specs
         | ready     | Rule: Archived rows too\n  Scenario: Archive\n    Then they are exported | nothing           |
         | ready     | Scenario: Import\n  When I import a file                                 | maturity-criteria |
         | ready     | @open\nRule: Archived rows too?                                          | maturity-criteria |
-        | ready     | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?      | maturity-criteria |
 
     Scenario: What keeps a spec from ready names the first open question and the first rule without an example
       Given a file "specs/export-to-csv.feature" containing:
@@ -199,7 +198,6 @@ Feature: Check specs
         | a rule without an example                          | implemented | Rule: Archived rows too                                                                                                     | maturity-criteria |
         | a rule still to come                               | implemented | @maturity=draft\nRule: Archived rows too\n\n  Analysts audit them.                                                          | nothing           |
         | a rule specified without an example                | implemented | @maturity=specified\nRule: Archived rows too                                                                                | maturity-criteria |
-        | an open question about what is built               | implemented | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?                                                         | maturity-criteria |
         | a question still to come                           | implemented | @open\nRule: Archived rows too?                                                                                             | nothing           |
         | a rule built ahead of its feature                  | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    Then they are exported | nothing           |
         | a rule built ahead, its example without an outcome | ready       | @maturity=implemented\nRule: Archived rows too\n\n  Analysts audit them.\n\n  Scenario: Archive\n    When I archive         | maturity-criteria |
@@ -249,6 +247,22 @@ Feature: Check specs
         | that declares nothing | @id=export-to-csv                 | maturity-missing | 1         |
         | that is still to come | @id=export-to-csv @maturity=ready | nothing          | 0         |
         | named by its path     |                                   | nothing          | 1         |
+
+    Scenario Outline: A spec <declaring>, before its first rule
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        <tags>
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | declaring             | tags              | reported         |
+        | that declares nothing | @id=export-to-csv | maturity-missing |
+        | named by its path     |                   | nothing          |
 
   Rule: Content ahead of its label is no error, only an info that the spec can be promoted
 
@@ -360,9 +374,9 @@ Feature: Check specs
 
     Scenario Outline: A planning link written as a value, an activity without its discipline, a tag without a value
       Given these specs:
-        | tags                        | Feature |
-        | @id=IT-beta @kind=iteration | Beta    |
-        | @id=reports <tags>          | Reports |
+        | tags                              | Feature |
+        | @id=IT-beta @kind=iteration       | Beta    |
+        | @id=reports @maturity=idea <tags> | Reports |
       When the workspace is checked
       Then sdp reports:
         | rule   | at                      | message   | hint   |
@@ -380,8 +394,8 @@ Feature: Check specs
 
     Scenario: A spec written as Markdown beside the feature files, and a README elsewhere
       Given these specs:
-        | tags        | Feature |
-        | @id=reports | Reports |
+        | tags                       | Feature |
+        | @id=reports @maturity=idea | Reports |
       And a file "specs/checkout.md" containing:
         """
         # Checkout

@@ -57,9 +57,7 @@ Feature: Write step definitions
         | returns a failed Effect                      |
         | wraps a failing Promise in Effect.tryPromise |
 
-  Rule: A handler gets typed arguments, a fresh world and a deadline it is asked to keep
-
-    A step runs in sdp's own thread, where code that never yields cannot be stopped.
+  Rule: A handler gets typed arguments, a fresh world and a signal that asks it to stop
 
     Scenario Outline: Parameters are typed by the expression, and a regular expression passes on the text it captured
       Given a file "specs/pricing.feature" containing:
@@ -139,17 +137,6 @@ Feature: Write step definitions
       And the step "an empty cart" reports "run.steps.ts: deliberate failure in the world factory"
       And the step "I add a lamp" has status "skipped"
 
-    Scenario Outline: A step that outlasts its timeout fails, even one that never yields and so cannot be stopped
-      Given a step definition "an empty cart" that <handler>
-      When the workspace is run with a step timeout of 50 ms
-      Then the step "an empty cart" has status "failed"
-      And the step "an empty cart" reports "step timed out"
-
-      Examples:
-        | handler                          |
-        | takes a second                   |
-        | keeps the thread busy for 200 ms |
-
     Scenario: A step that times out is told to stop through its signal
       Given a step definition "an empty cart" that waits for its signal
       When the workspace is run with a step timeout of 50 ms
@@ -168,13 +155,27 @@ Feature: Write step definitions
       When the workspace is run and interrupted while "an empty cart" runs
       Then the handler of "an empty cart" saw its signal abort
 
-  @maturity=idea @replaces:write-step-definitions#a-handler-gets-typed-arguments-a-fresh-world-and-a-deadline-it
+  Rule: A step runs in sdp's own thread, and fails once it outlasts its timeout
+
+    Code that never yields cannot be stopped there: it fails once it returns.
+
+    Scenario Outline: A step that outlasts its timeout fails, even one that never yields and so cannot be stopped
+      Given a step definition "an empty cart" that <handler>
+      When the workspace is run with a step timeout of 50 ms
+      Then the step "an empty cart" has status "failed"
+      And the step "an empty cart" reports "step timed out"
+
+      Examples:
+        | handler                          |
+        | takes a second                   |
+        | keeps the thread busy for 200 ms |
+
+  @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-fails-once-it-outlasts-its
   Rule: A step that overruns its timeout is stopped, whether or not it yields
 
-    Today a timeout is cooperative: an endless loop or a blocking call fails once it returns, and
-    never if it does not.
+    An endless loop or a blocking call would otherwise hold the run for as long as it lasts.
 
-  @maturity=idea @replaces:write-step-definitions#a-handler-gets-typed-arguments-a-fresh-world-and-a-deadline-it
+  @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-fails-once-it-outlasts-its
   Rule: No scenario sees the global state another scenario left
 
   Rule: Every step is matched against every definition

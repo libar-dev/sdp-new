@@ -11,7 +11,7 @@ import type { Attrs } from "../model/Graph.ts"
 import { isLinkKey, made, wordFor } from "../model/Vocabulary.ts"
 import { type GherkinError, type GherkinResult, type LinkDecl, type Paragraph, parseFeatureFile, type Rule, type Scenario } from "./Gherkin.ts"
 
-/** A Rule or a Scenario tagged `@open`: its name is the question. */
+/** A Rule tagged `@open`: its name is the question. */
 export interface OpenQuestion {
   readonly text: string
   readonly line: number
@@ -100,12 +100,11 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
 }
 annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
 
-/** A Rule or a Scenario tagged `@open` is a question still open, and its name is the question. */
+/** A Rule tagged `@open` is a question still open, and its name is the question; a Scenario is an example, tagged so or not. */
 const openIn = (gherkin: GherkinResult): ReadonlyArray<OpenQuestion> =>
-  [...gherkin.rules, ...gherkin.scenarios]
-    .filter((element) => element.tags.includes(made.tags.open))
-    .map((element) => ({ text: element.name, line: element.line }))
-    .sort((a, b) => a.line - b.line)
+  gherkin.rules
+    .filter((rule) => rule.tags.includes(made.tags.open))
+    .map((rule) => ({ text: rule.name, line: rule.line }))
 
 /** Parse errors cascade: the first one is what needs fixing. */
 const syntaxDiagnostics = (id: string, file: string, errors: ReadonlyArray<GherkinError>): ReadonlyArray<Diagnostic> =>

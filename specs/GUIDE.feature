@@ -195,15 +195,53 @@ Feature: sdp, shown by running it
       Then the output lines are "ARCHITECTURE.feature, GUIDE.feature, VISION.feature, decisions, features, plan, steps"
       And the query "feature[file!~^specs/features/]" returns no results
 
-  Rule: Every feature that is built is verified, and npm run verify fails when one is not
+  Rule: Everything that is built is verified, and npm run verify fails when it is not
 
     A run fails on an example of built work that does not pass; this gate also catches one that did
-    not run, so it runs with every verification, not only at a milestone.
+    not run, so it runs with every verification, not only at a milestone. A rule built ahead of its
+    feature is built work too.
 
     @gate
-    Scenario: The features that are built
+    Scenario: The features and the rules that are built
       Then the query "feature[!toCome]" returns at least 1 result
       And the query "feature[!toCome][stage!=verified]" returns no results
+      And the query "feature <-rule-of- rule[!toCome][stage!=verified]" returns no results
+
+    Scenario: A rule built ahead of its feature holds the gate until its example has passed
+      Given the workspace is a copy of "specs/GUIDE.feature"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then there are no error diagnostics
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=draft
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          @maturity=implemented
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then there are no error diagnostics
+        """
+      When I run "sdp run cart"
+      Then the exit code is 0
+      When I run "sdp gate GUIDE"
+      Then the exit code is 1
+      When I run "sdp run wishlist"
+      Then the exit code is 0
+      When I run "sdp gate GUIDE"
+      Then the exit code is 0
 
     Scenario: The build asks for this gate, and for no milestone's
       When I run "grep verify package.json" in the repository
