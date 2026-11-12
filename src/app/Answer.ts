@@ -7,7 +7,7 @@
  * not followed — a traversal stopped by a limit. So "nothing found" is never
  * said of a graph that could not be fully read.
  *
- * Both transports hand it over the same way (REQ-cli, REQ-mcp-server): as
+ * Both transports hand it over the same way (REQ-cli, serve-agents): as
  * JSON, the envelope itself; as text, the data on its own and the notes apart.
  */
 import { annotate } from "sdp/annotations"
