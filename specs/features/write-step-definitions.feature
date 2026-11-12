@@ -282,9 +282,9 @@ Feature: Write step definitions
         | tags                                                  | Feature      |
         | @id=REQ-search @maturity=idea @realized-by:ARCH-index | Search       |
         | @id=ARCH-index                                        | Search index |
-      And a file "specs/DEC-0001.feature" containing:
+      And a file "specs/DEC-inverted-index.feature" containing:
         """
-        @id=DEC-0001
+        @id=DEC-inverted-index
         Feature: Use an inverted index
 
           Rule: The index is rebuilt every night
@@ -324,15 +324,15 @@ Feature: Write step definitions
       And the step '<step>' reports '<reason>'
 
       Examples:
-        | step                                                      | reason                                                   |
-        | the query "requirement" returns 3 results                 | returned 2 result(s), expected 3                         |
-        | the query "requirement" returns no results                | REQ-search (requirement) specs/REQ-search.feature:1      |
-        | the query "element" returns at least 2 results            | returned 1 result(s), expected at least 2                |
-        | the query "requirement\|element" returns at most 1 result | returned 3 result(s), expected at most 1                 |
-        | every node matching "element" also matches "*[maturity]"  | ARCH-index (element) specs/ARCH-index.feature:1          |
-        | there are no warning diagnostics                          | [decision-shape] DEC-0001                                |
-        | there are no diagnostics for rule "decision-shape"        | DEC-0001 has a rule ("The index is rebuilt every night") |
-        | the node "REQ-search" has maturity "ready"                | REQ-search.maturity is "idea", expected "ready"          |
+        | step                                                      | reason                                                             |
+        | the query "requirement" returns 3 results                 | returned 2 result(s), expected 3                                   |
+        | the query "requirement" returns no results                | REQ-search (requirement) specs/REQ-search.feature:1                |
+        | the query "element" returns at least 2 results            | returned 1 result(s), expected at least 2                          |
+        | the query "requirement\|element" returns at most 1 result | returned 3 result(s), expected at most 1                           |
+        | every node matching "element" also matches "*[maturity]"  | ARCH-index (element) specs/ARCH-index.feature:1                    |
+        | there are no warning diagnostics                          | [decision-shape] DEC-inverted-index                                |
+        | there are no diagnostics for rule "decision-shape"        | DEC-inverted-index has a rule ("The index is rebuilt every night") |
+        | the node "REQ-search" has maturity "ready"                | REQ-search.maturity is "idea", expected "ready"                    |
 
     Scenario: A query result is compared with a table of ids, in any order, with or without a header
       Given a file "specs/guard.feature" containing:
@@ -457,6 +457,8 @@ Feature: Write step definitions
         | every node matching "member -knows-> member -knows-> member" also matches "member" | a step has more than 10000 paths      |
 
   Rule: Only a run imports step modules; every other command reads them as text, and says what it could not read
+
+    Asking must be safe: reading a workspace runs none of its code, and only a run is asked to.
 
     Scenario Outline: Reading a workspace runs none of its step files
       Given a file "specs/steps/cart.steps.ts" containing:

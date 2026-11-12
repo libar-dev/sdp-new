@@ -84,6 +84,9 @@ Feature: See the architecture
 
   Rule: A quality requirement, of kind nfr or of any kind whose type says so, is shown beside what it constrains
 
+    A team writes a quality requirement in whatever kind it writes the others in, a story or a
+    requirement, so its type marks it as well as the kind nfr does.
+
     Scenario Outline: Marked by its kind or by its type
       Given these specs:
         | tags                                   | Feature               |

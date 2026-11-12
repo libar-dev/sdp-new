@@ -281,6 +281,9 @@ Feature: Serve AI agents
 
   Rule: The server's instructions teach that code links to the architecture, and that the architecture is the architects' call
 
+    An agent connected over MCP may read nothing else about sdp before it acts, and which parts of a
+    system are significant is a judgement, not a metric of the code.
+
     Scenario: The server's instructions
       When an agent reads the MCP server's instructions
       Then the output contains 'Code links to the architecture, not to requirements'
@@ -317,6 +320,9 @@ Feature: Serve AI agents
         | sdp_query   | { "expression": "#N1 -next+-> #N14", "json": true } | "complete": false                          | "notes": [ | "cut short: a + edge reaches further than 12 hops"          |
 
   Rule: Input a tool cannot use is a tool error that says what it takes, and nothing is ignored
+
+    A misspelt argument that was ignored would answer another question than the one asked, and the
+    agent could not tell.
 
     Scenario: A malformed query comes back as a tool error that teaches the syntax
       When an agent calls the MCP tool "sdp_query" with:

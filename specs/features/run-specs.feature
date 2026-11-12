@@ -225,5 +225,5 @@ Feature: Run specs as tests
         | command          | file                      | content                                                                                     | line | rule                  |
         | sdp run          | specs/broken.feature      | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed | 6    | gherkin-syntax        |
         | sdp gate MS-beta | specs/search-copy.feature | @id=REQ-search\nFeature: Search again                                                       | 1    | duplicate-id          |
-        | sdp run          | specs/REQ-b.feature       | @id=REQ-b @iteration=C1\nFeature: B                                                         | 1    | link-syntax           |
+        | sdp run          | specs/REQ-b.feature       | @id=REQ-b @iteration=IT-beta\nFeature: B                                                    | 1    | link-syntax           |
         | sdp run          | specs/REQ-b.feature       | @id=REQ-b\nFeature: B\n  Scenario: Outside\n    Then there are no error diagnostics         | 3    | scenario-outside-rule |

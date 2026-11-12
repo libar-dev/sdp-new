@@ -170,6 +170,9 @@ Feature: Check specs
 
   Rule: Content ahead of its label is no error, only an info that the spec can be promoted
 
+    Maturity is the team's judgement of how well a thing is understood: a claim below what the
+    content supports is not false, and raising it is the team's call.
+
     Scenario: A draft whose scenario states an outcome
       Given a file "specs/REQ-csv.feature" containing:
         """
@@ -190,6 +193,10 @@ Feature: Check specs
         | maturity-promotable | info     | REQ-csv |
 
   Rule: A level a team adds has no criteria of its own, and takes its place in the order
+
+    sdp reads meaning into its own few words only: what a team's level asks for is the team's to
+    check, with a gate of its own as its Definition of Ready is. sdp reads only the level's place in
+    the order, so that a question compares it with the others.
 
     Scenario: approved, between draft and specified
       Given a file "sdp.config.yaml" containing:
@@ -232,6 +239,9 @@ Feature: Check specs
 
   Rule: The rule a decision leads to is a rule of what it constrains, which links back to the decision
 
+    There it is tested with the rest of what it constrains, and fails as soon as it is broken; the
+    link lets a question find all that rests on a decision before it changes.
+
     Scenario: A rule of legacy billing rests on the decision to retire it, and fails while code still calls it
       Given these specs:
         | tags                          | Feature               |
@@ -260,6 +270,9 @@ Feature: Check specs
       Then node "ARCH-legacy-billing#no-code-uses-it" has attribute status = "failed"
 
   Rule: A tag that as written would link nothing or say nothing is reported, not read as something else
+
+    Its author meant a link or a fact: read as written it would plan or say nothing, and read as
+    something else it would be a guess.
 
     Scenario Outline: A planning link written as a value, an activity without its discipline, a tag without a value
       Given these specs:
@@ -313,6 +326,9 @@ Feature: Check specs
         | not-a-spec | specs/billing/REQ-invoice.md:1 |
 
   Rule: A quote of template text or a mention of an annotation is not flagged
+
+    A guide or a comment that explains sdp quotes what sdp flags; only text where sdp would read it
+    as a template's, or as an annotation, is flagged.
 
     Scenario Outline: Words that only mention what sdp flags
       Given a file "<file>" containing:
