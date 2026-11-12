@@ -371,7 +371,8 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const graph = new Graph(nodes.values(), [...links, ...importsBetweenElements(annotations, importsOf, nodes, vocabulary)])
+  const codeFiles = new Set(input.codeFiles.map((file) => file.path))
+  const graph = new Graph(nodes.values(), [...links, ...importsBetweenElements(annotations, importsOf, codeFiles, nodes, vocabulary)])
   for (const conflict of graph.conflicts) {
     const { edge, key } = conflict
     diagnostics.push(diagnostic("link-conflict", {
@@ -403,11 +404,13 @@ annotate(buildProject, { is: "ARCH-graph-builder" })
  * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
  * constant from a module anchored to element B, at the line that names the module: the
  * dependencies between elements as the code has them. An import of types alone calls nothing, and
- * no element imports itself.
+ * no element imports itself. A name means the code file it resolves to among all of `codeFiles`,
+ * whether or not that file anchors an element.
  */
 const importsBetweenElements = (
   annotations: ReadonlyArray<Annotation>,
   importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
+  codeFiles: ReadonlySet<string>,
   nodes: ReadonlyMap<string, GraphNode>,
   vocabulary: Vocabulary
 ): ReadonlyArray<GraphEdge> => {
@@ -416,12 +419,11 @@ const importsBetweenElements = (
     const elements = annotation.targets.filter((id) => hasKind(vocabulary, "architectural", nodes.get(id)?.kind ?? ""))
     if (elements.length > 0) elementsOf.set(annotation.file, new Set([...elementsOf.get(annotation.file) ?? [], ...elements]))
   }
-  const modules = new Set(elementsOf.keys())
   const edges: Array<GraphEdge> = []
   for (const [file, elements] of elementsOf) {
     for (const { line, specifier } of importsOf.get(file) ?? []) {
-      const module = resolveModule(file, specifier, modules)
-      for (const used of module === undefined ? [] : elementsOf.get(module)!) {
+      const module = resolveModule(file, specifier, codeFiles)
+      for (const used of module === undefined ? [] : elementsOf.get(module) ?? []) {
         for (const element of elements) {
           if (element !== used) edges.push({ from: element, rel: made.relations.imports, to: used, source: { file, line } })
         }
@@ -431,14 +433,30 @@ const importsBetweenElements = (
   return edges
 }
 
-const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]
+/**
+ * The extensions TypeScript tries in its order, the TypeScript source before the JavaScript: added to
+ * a name, then in place of each extension a name is written with. Declaration files are left out, as
+ * they hold no code.
+ */
+const addedExtensions = [".ts", ".tsx", ".js", ".jsx"]
+const swappedExtensions = new Map<string, ReadonlyArray<string>>([
+  [".ts", addedExtensions],
+  [".js", addedExtensions],
+  [".tsx", [".tsx", ".ts", ".jsx", ".js"]],
+  [".jsx", [".tsx", ".ts", ".jsx", ".js"]],
+  [".mts", [".mts", ".mjs"]],
+  [".mjs", [".mts", ".mjs"]],
+  [".cts", [".cts", ".cjs"]],
+  [".cjs", [".cts", ".cjs"]]
+])
 
 /**
- * The module of `modules` that a relative specifier written in `file` names, as TypeScript resolves
- * it: the file as written, the source of a `.js` name, the name with an extension, or a directory's
- * index. A package name names no module of the workspace.
+ * The file of `files` that a relative specifier written in `file` names, as TypeScript resolves it:
+ * the name with its extension swapped, then with one added, then a directory's index. A name written
+ * with an extension TypeScript does not swap is first the file as written; a package name names no
+ * file of the workspace.
  */
-const resolveModule = (file: string, specifier: string, modules: ReadonlySet<string>): string | undefined => {
+const resolveModule = (file: string, specifier: string, files: ReadonlySet<string>): string | undefined => {
   if (!/^\.\.?(\/|$)/.test(specifier)) return undefined
   const parts: Array<string> = []
   for (const part of [...directoryOf(file).split("/"), ...specifier.split("/")]) {
@@ -447,13 +465,14 @@ const resolveModule = (file: string, specifier: string, modules: ReadonlySet<str
     else if (parts.pop() === undefined) return undefined
   }
   const path = parts.join("/")
+  const written = /\.[^./]*$/.exec(path)?.[0]
+  const stem = path.slice(0, path.length - (written?.length ?? 0))
   const candidates = [
-    path,
-    path.replace(/\.([cm]?)js(x?)$/, ".$1ts$2"),
-    ...extensions.map((extension) => `${path}${extension}`),
-    ...extensions.map((extension) => `${path}/index${extension}`)
+    ...written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path],
+    ...addedExtensions.map((extension) => `${path}${extension}`),
+    ...addedExtensions.map((extension) => `${path}/index${extension}`)
   ]
-  return candidates.find((candidate) => modules.has(candidate))
+  return candidates.find((candidate) => files.has(candidate))
 }
 
 /**

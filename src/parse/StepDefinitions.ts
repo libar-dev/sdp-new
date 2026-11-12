@@ -13,7 +13,7 @@
  */
 import { annotate } from "sdp/annotations"
 import { CucumberExpression, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
-import { isNode, type Node, parseScript } from "./Script.ts"
+import { children, isNode, type Node, parseScript } from "./Script.ts"
 
 export type StepKeyword = "Given" | "When" | "Then" | "Step"
 
@@ -44,8 +44,6 @@ const keywords: ReadonlySet<string> = new Set<StepKeyword>(["Given", "When", "Th
 const isKeyword = (name: unknown): name is StepKeyword => typeof name === "string" && keywords.has(name)
 
 const nameOf = (node: unknown): string | undefined => isNode(node) && node.type === "Identifier" ? node.name as string : undefined
-
-const children = (node: Node): ReadonlyArray<Node> => Object.values(node).flatMap((value) => (Array.isArray(value) ? value : [value]).filter(isNode))
 
 /** The identifiers inside `node` that name one of `names`, outside imports. */
 const references = (node: Node, names: ReadonlySet<string>): ReadonlyArray<Node> =>

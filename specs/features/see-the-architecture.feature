@@ -130,14 +130,47 @@ Feature: See the architecture
       Then the result is "<imports>"
 
       Examples:
-        | import                                     | imports     |
-        | import { Mailer } from "./mailer.ts"       | ARCH-mailer |
-        | import { Mailer } from "./mailer.js"       | ARCH-mailer |
-        | import { Mailer } from "./mailer"          | ARCH-mailer |
-        | export { Mailer } from "./mailer.ts"       | ARCH-mailer |
-        | const mailer = () => import("./mailer.ts") | ARCH-mailer |
-        | import type { Mailer } from "./mailer.ts"  | nothing     |
-        | import { type Mailer } from "./mailer.ts"  | nothing     |
+        | import                                          | imports     |
+        | import { Mailer } from "./mailer.ts"            | ARCH-mailer |
+        | import { Mailer } from "./mailer.js"            | ARCH-mailer |
+        | import { Mailer } from "./mailer"               | ARCH-mailer |
+        | export { Mailer } from "./mailer.ts"            | ARCH-mailer |
+        | import Mailer = require("./mailer.ts")          | ARCH-mailer |
+        | const mailer = () => import("./mailer.ts")      | ARCH-mailer |
+        | const mailer = () => import("./mailer\u002ets") | ARCH-mailer |
+        | const mailer = () => import(`./mailer\u002ets`) | ARCH-mailer |
+        | import type { Mailer } from "./mailer.ts"       | nothing     |
+        | import { type Mailer } from "./mailer.ts"       | nothing     |
+        | import type {} from "./mailer.ts"               | nothing     |
+
+    Scenario Outline: A name means the file TypeScript resolves it to, whether or not that file anchors an element
+      Given a file "src/<unanchored>" containing:
+        """
+        export const rate = 0.2
+        """
+      And a file "src/<anchored>" containing:
+        """
+        import { annotate } from "sdp/annotations"
+
+        export const rate = 0.25
+        annotate(rate, { is: "ARCH-tax" })
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+        import { rate } from "<name>"
+
+        export const bill = () => rate
+        annotate(bill, { is: "ARCH-billing" })
+        """
+      When I query "#ARCH-billing -imports-> *"
+      Then the result is "<imports>"
+
+      Examples:
+        | unanchored | anchored     | name     | imports  |
+        | tax.ts     | tax/index.ts | ./tax    | nothing  |
+        | tax.ts     | tax.js       | ./tax.js | nothing  |
+        | tax.js     | tax.tsx      | ./tax.js | ARCH-tax |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 
