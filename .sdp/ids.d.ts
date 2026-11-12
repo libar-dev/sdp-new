@@ -46,7 +46,6 @@ declare module "sdp/annotations" {
     "DEC-0018": "decision"
     "E1": "iteration"
     "E2": "iteration"
-    "GLOSSARY": "glossary"
     "I1": "iteration"
     "MS-IOC": "milestone"
     "MS-LCA": "milestone"

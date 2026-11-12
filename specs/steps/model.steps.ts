@@ -12,7 +12,7 @@ import { parseSync } from "oxc-parser"
 import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
-import { defaultVocabulary, made, vocabularyWords } from "../../src/model/Vocabulary.ts"
+import { defaultVocabulary, vocabularyWords } from "../../src/model/Vocabulary.ts"
 import { defineSteps } from "sdp/steps"
 import { load, newWorld, type World } from "./world.ts"
 
@@ -138,12 +138,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const found = world.scratch.interpreted as ReadonlyArray<string> | undefined
     assert.ok(found, "search the files first")
     assert.deepEqual([...found].sort(), expected.split(",").map((s) => s.trim()).filter((s) => s !== "nothing").sort())
-  })
-
-  Then("this glossary lists every attribute sdp derives", ({ project, scenario }) => {
-    const body = project.specById.get(scenario.specId)?.body ?? ""
-    const missing = [...made.attributes, ...made.scenarioAttributes].filter((key) => !body.includes(`\`${key}\``))
-    assert.deepEqual(missing, [], `derived attributes the glossary does not list: ${missing.join(", ")}`)
   })
 
   // --- the immutable graph (ARCH-graph) -------------------------------------
