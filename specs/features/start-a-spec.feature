@@ -212,6 +212,8 @@ Feature: Start a spec
       Then the output lines are "ARCH-платёж"
       When I run "sdp new element '🛒'"
       Then the output lines are "ARCH-0008"
+      When I run "sdp new element '◌́'"
+      Then the output lines are "ARCH-0008"
       When I run "sdp new element '🛒 2'"
       Then the output lines are "ARCH-2"
 

@@ -467,12 +467,13 @@ const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : 
 /**
  * The slug of a title, or of a rule's or a scenario's name: its words in any script, lower-case and
  * joined by `-`, a Latin letter without its accents, so "Die Größe zählt" → "die-große-zahlt" and
- * "Корзина пуста" → "корзина-пуста". Only a text without a letter or a digit has none.
+ * "Корзина пуста" → "корзина-пуста". A word is letters and digits with the marks they carry, so a
+ * mark on nothing is dropped: only a text without a letter or a digit has no slug.
  */
 export const slugify = (text: string): string =>
   shortened(
     text.normalize("NFKD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").normalize("NFC").toLowerCase()
-      .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-").replace(/^-+|-+$/g, "")
+      .split(/[^\p{L}\p{N}\p{M}]+/u).map((word) => word.replace(/^\p{M}+/u, "")).filter((word) => word !== "").join("-")
   )
 
 /** A slug of at most 64 characters, cut after the last whole word that fits, so an id never ends in half a word. */
