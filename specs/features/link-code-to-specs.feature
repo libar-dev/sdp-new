@@ -451,6 +451,8 @@ Feature: Link code to specs
     not. A variable is its written type, or else the function its value is: one written there, or
     the body `Effect.fn` and `Effect.fnUntraced` make one of, as their documentation has it. What any
     other call gives back only a type checker knows. An overloaded function is its public signatures.
+    As in a declaration file, a default value is left out, and only a literal's type said of it; the
+    body of a function is code, not surface, even where a class extends a call.
 
     Scenario: An interface and a function, each tagged in the comment that describes it
       Given a file "src/pricing.ts" containing:
@@ -510,8 +512,13 @@ Feature: Link code to specs
         | size   | export const size = Effect.fnUntraced(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n})                                    | function size(id: string): Effect.fn.Return<number>                                           |
         | parse  | export function parse(text: string): number\nexport function parse(text: string, radix: number): number\nexport function parse(text: string, radix = 10): number {\n  return Number.parseInt(text, radix)\n} | function parse(text: string): number; function parse(text: string, radix: number): number |
         | charge | export function charge(cents: number, retries = defaultRetries(), { delay = 100 }: Backoff = {}): number {\n  return cents\n} | function charge(cents: number, retries?, { delay }?: Backoff): number |
-        | Ledger | export class Ledger {\n  constructor(private readonly db: string, public name = "main") {}\n  post(entry: string): void\n  post(entry: number): void\n  post(entry: string \| number): void {\n    void entry\n  }\n  protected audit(): void {}\n} | class Ledger { constructor(db: string, public name?); post(entry: string): void; post(entry: number): void } |
-        | Billing | export class Billing extends Effect.Service<Billing>()("Billing", {\n  effect: Effect.gen(function*() {\n    const key = process.env.STRIPE_KEY ?? "sk_live_fallback"\n    return { key }\n  })\n}) {} | class Billing extends Effect.Service<Billing>()(…) {} |
+        | page   | export function page(size = 20, label = "all", open = true, big = -1n, last?: string): number {\n  return size\n}                                  | function page(size?: number, label?: string, open?: boolean, big?: bigint, last?: string): number |
+        | pad    | export function pad(width = 2, text: string, fill: string = " ", align = left()): string {\n  return text\n}                                       | function pad(width: number \| undefined, text: string, fill?: string, align?): string         |
+        | Ledger | export class Ledger {\n  constructor(private readonly db: string, public name = "main") {}\n  post(entry: string): void\n  post(entry: number): void\n  post(entry: string \| number): void {\n    void entry\n  }\n  protected audit(): void {}\n} | class Ledger { constructor(db: string, public name?: string); post(entry: string): void; post(entry: number): void } |
+        | Point  | export class Point {\n  constructor(public x: number = 0, y: number, onMove: (to: number) => void = () => {}, z: number) {}\n}                     | class Point { constructor(public x: number \| undefined, y: number, onMove: ((to: number) => void) \| undefined, z: number) } |
+        | Billing | export class Billing extends Effect.Service<Billing>()("Billing", {\n  effect: Effect.gen(function*() {\n    const key = process.env.STRIPE_KEY ?? "sk_live_fallback"\n    return { key }\n  }),\n  fallback: () => process.env.STRIPE_KEY\n}) {} | class Billing extends Effect.Service<Billing>()("Billing", { effect: Effect.gen(function*() {…}), fallback: () => … }) {} |
+        | Person | export class Person extends Schema.Class<Person>("Person")({ id: Schema.Number, name: Schema.String }) {}                                          | class Person extends Schema.Class<Person>("Person")({ id: Schema.Number, name: Schema.String }) {} |
+        | Missing | export class Missing extends Data.TaggedError("Missing")<{\n  readonly id: string\n}> {}                                                           | class Missing extends Data.TaggedError("Missing")<{ readonly id: string }> {}                 |
         | Base   | export abstract class Base<T> extends Object implements Iterable<T> {\n  abstract each(): void\n} | abstract class Base<T> extends Object implements Iterable<T> { abstract each(): void } |
 
     Scenario: A tag that opens a file gives the shapes of what the file exports
