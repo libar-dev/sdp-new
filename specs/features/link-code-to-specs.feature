@@ -14,8 +14,8 @@ Feature: Link code to specs
 
   Background:
     Given these specs:
-      | tags        | Feature |
-      | @id=REQ-pay | Pay     |
+      | tags    | Feature |
+      | @id=pay | Pay     |
 
   Rule: Annotated code is a code node linked to what it names, and an is link adds to its node only what no spec says
 
@@ -27,7 +27,7 @@ Feature: Link code to specs
         """
         // @sdp is ARCH-billing owner=platform tier=1
 
-        // @sdp implements REQ-pay
+        // @sdp implements pay
         // @sdp uses ARCH-ledger via=events
         export class Billing {}
         """
@@ -38,17 +38,17 @@ Feature: Link code to specs
         """
       When the workspace is loaded
       Then the workspace graph has exactly these nodes:
-        | id                          | kind        | title          | source                       |
-        | REQ-pay                     | requirement | Pay            | specs/REQ-pay.feature:1      |
-        | ARCH-billing                | element     | Billing        | specs/ARCH-billing.feature:1 |
-        | code:src/billing.ts         | code        | src/billing.ts | src/billing.ts:1             |
-        | code:src/billing.ts#Billing | code        | Billing        | src/billing.ts:3             |
-        | code:src/ledger.ts#Ledger   | code        | Ledger         | src/ledger.ts:1              |
-        | ARCH-ledger                 | element     | Ledger         | src/ledger.ts:1              |
+        | id                          | kind    | title          | source                       |
+        | pay                         | feature | Pay            | specs/pay.feature:1          |
+        | ARCH-billing                | element | Billing        | specs/ARCH-billing.feature:1 |
+        | code:src/billing.ts         | code    | src/billing.ts | src/billing.ts:1             |
+        | code:src/billing.ts#Billing | code    | Billing        | src/billing.ts:3             |
+        | code:src/ledger.ts#Ledger   | code    | Ledger         | src/ledger.ts:1              |
+        | ARCH-ledger                 | element | Ledger         | src/ledger.ts:1              |
       And the workspace graph has edges:
         | from                        | rel        | to           | attributes   |
         | code:src/billing.ts         | is         | ARCH-billing |              |
-        | code:src/billing.ts#Billing | implements | REQ-pay      |              |
+        | code:src/billing.ts#Billing | implements | pay          |              |
         | code:src/billing.ts#Billing | uses       | ARCH-ledger  | via="events" |
         | code:src/ledger.ts#Ledger   | is         | ARCH-ledger  |              |
       And node "ARCH-billing" has attribute owner = "payments"
@@ -57,12 +57,12 @@ Feature: Link code to specs
     Scenario: A maturity given in code decides the stage like one written in the spec
       Given a file "src/pay.py" containing:
         """
-        # @sdp is REQ-pay maturity=idea
+        # @sdp is pay maturity=idea
         def pay(): pass
         """
       When the workspace is loaded
-      Then node "REQ-pay" has attribute maturity = "idea"
-      And node "REQ-pay" has attribute stage = "idea"
+      Then node "pay" has attribute maturity = "idea"
+      And node "pay" has attribute stage = "idea"
 
   Rule: In TypeScript and JavaScript an annotation can be a call to the `annotate` that sdp exports, and to nothing else of that name
 
@@ -75,12 +75,12 @@ Feature: Link code to specs
         <import>
 
         export const pay = () => 0
-        <annotate>(pay, { implements: "REQ-pay" })
+        <annotate>(pay, { implements: "pay" })
         """
       When "src/pay.ts" is scanned for annotations
       Then the annotations are:
         | line | relation   | targets | binds to |
-        | 4    | implements | REQ-pay | pay      |
+        | 4    | implements | pay     | pay      |
 
       Examples:
         | import                                     | annotate     |
@@ -94,7 +94,7 @@ Feature: Link code to specs
         import { annotate } from "<module>"
 
         export const pay = () => 0
-        annotate(pay, { implements: "REQ-pay" })
+        annotate(pay, { implements: "pay" })
         """
       When "src/pay.ts" is scanned for annotations
       Then the annotations are:
@@ -139,13 +139,13 @@ Feature: Link code to specs
 
         export const pay = () => 0
         export const wrap = (annotate: (...a: Array<unknown>) => void) => annotate(pay, { is: "ARCH-fake" })
-        export const later = () => { annotate(pay, { implements: "REQ-pay" }) }
+        export const later = () => { annotate(pay, { implements: "pay" }) }
         annotate(wrap, { is: "ARCH-real" })
         """
       When "src/pay.ts" is scanned for annotations
       Then the annotations are:
         | line | relation   | targets   | binds to |
-        | 5    | implements | REQ-pay   | pay      |
+        | 5    | implements | pay       | pay      |
         | 6    | is         | ARCH-real | wrap     |
 
   Rule: An annotation links its target to each id it names, at the target's declaration and with its doc comment
@@ -167,14 +167,14 @@ Feature: Link code to specs
          */
         export class Graph {}
         a(Graph, { is: "ARCH-graph", "instance-of": ["PAT-derived-index"] })
-        a(import.meta, { implements: "REQ-graph" })
+        a(import.meta, { implements: "graph" })
         """
       When "src/graph.ts" is scanned for annotations
       Then the annotations are:
         | line | relation    | targets           | binds to | declared at | described as                           |
         | 11   | is          | ARCH-graph        | Graph    | 10          | The system graph. More detail follows. |
         | 11   | instance-of | PAT-derived-index | Graph    | 10          | The system graph. More detail follows. |
-        | 12   | implements  | REQ-graph         | the file | 1           | Graph module.                          |
+        | 12   | implements  | graph             | the file | 1           | Graph module.                          |
 
     Scenario: as const and satisfies change only types, so the objects inside are read
       Given a file "src/cache.ts" containing:
@@ -199,12 +199,12 @@ Feature: Link code to specs
 
         /** Charges the card on file. */
         export const pay = () => 0
-        annotate(pay, { implements: "REQ-pay" })
+        annotate(pay, { implements: "pay" })
         """
       When the workspace is loaded
       Then the workspace graph has edges:
-        | from                | rel        | to      |
-        | code:src/pay.ts#pay | implements | REQ-pay |
+        | from                | rel        | to  |
+        | code:src/pay.ts#pay | implements | pay |
       And node "code:src/pay.ts#pay" has attribute doc = "Charges the card on file."
       And node "code:src/pay.ts#pay" has attribute source = "src/pay.ts:4"
 
@@ -221,14 +221,14 @@ Feature: Link code to specs
         export const build = () => new Graph()
         annotate(Graph.prototype, { is: "ARCH-graph" })
         annotate(build, { is: "ARCH-builder" })
-        annotate(import.meta, { implements: "REQ-graph" })
+        annotate(import.meta, { implements: "graph" })
         """
       When "src/graph.ts" is scanned for annotations
       Then the annotations are:
         | line | relation   | targets      | binds to        |
         | 5    | is         | ARCH-graph   | Graph.prototype |
         | 6    | is         | ARCH-builder | build           |
-        | 7    | implements | REQ-graph    | the file        |
+        | 7    | implements | graph        | the file        |
       And sdp reports nothing
 
     Scenario Outline: A target declared inside a function, as a parameter, by an import, or nowhere
@@ -264,13 +264,13 @@ Feature: Link code to specs
     Scenario: The ids are declared, and fall behind when a spec is added
       When I run "sdp types"
       Then the exit code is 0
-      And the file ".sdp/ids.d.ts" contains '"REQ-pay": "requirement"'
+      And the file ".sdp/ids.d.ts" contains '"pay": "feature"'
       When I run "sdp check --json"
       Then the JSON output has:
         | data | nothing |
       Given these specs:
-        | tags           | Feature |
-        | @id=REQ-export | Export  |
+        | tags       | Feature |
+        | @id=export | Export  |
       When I run "sdp check --json"
       Then the JSON output has:
         | data.rule | types-stale   |
@@ -287,14 +287,14 @@ Feature: Link code to specs
         import { annotate } from "sdp/annotations"
 
         export const pay = () => 0
-        annotate(pay, { implements: "REQ-pay" })
+        annotate(pay, { implements: "pay" })
         """
       And a file "src/refund.ts" containing:
         """
         import { annotate } from "sdp/annotations"
 
         export const refund = () => 0
-        annotate(refund, { implements: "REQ-refund" })
+        annotate(refund, { implements: "refund" })
         """
       When I run "tsc --noEmit"
       Then the exit code is 0
@@ -316,20 +316,20 @@ Feature: Link code to specs
       When "<file>" is scanned for annotations
       Then the annotations are:
         | line | relation   | targets | binds to   |
-        | 1    | implements | REQ-pay | <binds to> |
+        | 1    | implements | pay     | <binds to> |
 
       Examples:
-        | file         | comment                          | code                             | binds to |
-        | src/pay.ts   | // @sdp implements REQ-pay       | export async function pay() {}   | pay      |
-        | src/pay.ts   | /** @sdp implements REQ-pay */   | export class Payment {}          | Payment  |
-        | src/pay.js   | // @sdp implements REQ-pay       | export const Pay = () => <form/> | Pay      |
-        | src/pay.py   | # @sdp implements REQ-pay        | def pay(order):                  | pay      |
-        | src/pay.go   | // @sdp implements REQ-pay       | func Pay(order Order) error {    | Pay      |
-        | src/pay.rs   | /// @sdp implements REQ-pay      | pub struct Payment {}            | Payment  |
-        | db/pay.sql   | -- @sdp implements REQ-pay       | create table payments (id int);  | the file |
-        | web/pay.html | <!-- @sdp implements REQ-pay --> | <form id="pay"></form>           | the file |
-        | src/pay.clj  | ; @sdp implements REQ-pay        | (defn pay [order])               | the file |
-        | src/pay.erl  | % @sdp implements REQ-pay        | pay(Order) -> ok.                | the file |
+        | file         | comment                      | code                             | binds to |
+        | src/pay.ts   | // @sdp implements pay       | export async function pay() {}   | pay      |
+        | src/pay.ts   | /** @sdp implements pay */   | export class Payment {}          | Payment  |
+        | src/pay.js   | // @sdp implements pay       | export const Pay = () => <form/> | Pay      |
+        | src/pay.py   | # @sdp implements pay        | def pay(order):                  | pay      |
+        | src/pay.go   | // @sdp implements pay       | func Pay(order Order) error {    | Pay      |
+        | src/pay.rs   | /// @sdp implements pay      | pub struct Payment {}            | Payment  |
+        | db/pay.sql   | -- @sdp implements pay       | create table payments (id int);  | the file |
+        | web/pay.html | <!-- @sdp implements pay --> | <form id="pay"></form>           | the file |
+        | src/pay.clj  | ; @sdp implements pay        | (defn pay [order])               | the file |
+        | src/pay.erl  | % @sdp implements pay        | pay(Order) -> ok.                | the file |
 
     Scenario: After a blank line, inside a doc comment, two in a row, with typed attributes
       Given a file "src/billing.ts" containing:
@@ -338,7 +338,7 @@ Feature: Link code to specs
 
         /**
          * Charges cards.
-         * @sdp implements REQ-pay, REQ-refund
+         * @sdp implements pay, refund
          */
         export class Billing {}
 
@@ -348,19 +348,19 @@ Feature: Link code to specs
         """
       When "src/billing.ts" is scanned for annotations
       Then the annotations are:
-        | line | relation    | targets             | binds to | attributes                                   |
-        | 1    | is          | ARCH-billing        | the file | kind="element" title="Billing engine" tier=1 |
-        | 5    | implements  | REQ-pay, REQ-refund | Billing  |                                              |
-        | 9    | uses        | ARCH-ledger         | post     | via="events"                                 |
-        | 10   | instance-of | PAT-outbox          | post     | role="publisher"                             |
+        | line | relation    | targets      | binds to | attributes                                   |
+        | 1    | is          | ARCH-billing | the file | kind="element" title="Billing engine" tier=1 |
+        | 5    | implements  | pay, refund  | Billing  |                                              |
+        | 9    | uses        | ARCH-ledger  | post     | via="events"                                 |
+        | 10   | instance-of | PAT-outbox   | post     | role="publisher"                             |
 
     Scenario: Mentioning the marker is not an annotation, and one that follows code on its line is reported as ignored
       Given a file "src/help.ts" containing:
         """
         // Write `@sdp <relation> <ID>` above a symbol to link it.
         // @sdp implements <ID>
-        const example = "@sdp implements REQ-pay"
-        export class Help {} // @sdp implements REQ-pay
+        const example = "@sdp implements pay"
+        export class Help {} // @sdp implements pay
         """
       When "src/help.ts" is scanned for annotations
       Then the annotations are:
@@ -414,7 +414,7 @@ Feature: Link code to specs
         import { annotate } from "sdp/annotations"
 
         export const pay = () => 0
-        const id = "REQ-pay"
+        const id = "pay"
         <call>
         """
       When "src/pay.ts" is scanned for annotations
@@ -425,10 +425,10 @@ Feature: Link code to specs
         | 5    | <problem> |
 
       Examples:
-        | call                                       | problem                              |
-        | annotate(pay, { implements: id })          | ids must be string literals          |
-        | annotate(pay(), { implements: "REQ-pay" }) | the annotation target must be a name |
-        | annotate(pay, links)                       | the links must be an object literal  |
+        | call                                   | problem                              |
+        | annotate(pay, { implements: id })      | ids must be string literals          |
+        | annotate(pay(), { implements: "pay" }) | the annotation target must be a name |
+        | annotate(pay, links)                   | the links must be an object literal  |
 
     Scenario Outline: A file that annotates but does not parse is reported, so none of its annotations is lost silently
       Given a file "src/pay.ts" containing:
@@ -451,7 +451,7 @@ Feature: Link code to specs
       Examples:
         | annotates                                  |
         | import { annotate } from "sdp/annotations" |
-        | // @sdp implements REQ-pay                 |
+        | // @sdp implements pay                     |
 
     Scenario: A file that does not parse and does not annotate is none of sdp's business
       Given a file "src/pay.ts" containing:

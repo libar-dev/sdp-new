@@ -19,11 +19,11 @@ Feature: Write a spec
     The official Gherkin parser reads it as it is, so any Gherkin tool reads a spec, and its
     scenarios run as tests unchanged.
 
-    Scenario: Every part of the format in one requirement
-      Given a file "specs/REQ-guest-checkout.feature" containing:
+    Scenario: Every part of the format in one feature
+      Given a file "specs/guest-checkout.feature" containing:
         """
-        @id=REQ-guest-checkout @maturity=specified @checkout   # what it is: = describes; a bare tag is a tag
-        @refines:EPIC-checkout @realized-by:ARCH-orders       # what it links to: one tag, one link
+        @id=guest-checkout @maturity=specified @checkout   # what it is: = describes; a bare tag is a tag
+        @refines:checkout @realized-by:ARCH-orders         # what it links to: one tag, one link
         @iteration:IT-payments @activity.implementation:IT-launch   # when it is written, when it is built
         Feature: Guest checkout
 
@@ -32,7 +32,7 @@ Feature: Write a spec
           Background:
             Given a cart with 2 items
 
-          @decided-by:DEC-no-sign-up-at-checkout
+          @decided-by:no-sign-up-at-checkout
           Rule: A guest pays without creating an account
 
             Scenario: By card
@@ -47,14 +47,14 @@ Feature: Write a spec
           Rule: Can a guest save the cart for later?
         """
       When the workspace is loaded
-      Then node "REQ-guest-checkout" has attribute kind = "requirement"
-      And node "REQ-guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
-      And node "REQ-guest-checkout" has attribute openQuestions = "1"
-      And node "REQ-guest-checkout" has attribute scenarios = "1"
-      And the edges from "REQ-guest-checkout" are "REQ-guest-checkout -refines-> EPIC-checkout, REQ-guest-checkout -realized-by-> ARCH-orders, REQ-guest-checkout -iteration-> IT-payments, REQ-guest-checkout -activity.implementation-> IT-launch"
-      And the edges from "REQ-guest-checkout#a-guest-pays-without-creating-an-account" are "REQ-guest-checkout#a-guest-pays-without-creating-an-account -rule-of-> REQ-guest-checkout, REQ-guest-checkout#a-guest-pays-without-creating-an-account -decided-by-> DEC-no-sign-up-at-checkout"
-      And node "REQ-guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
-      And node "REQ-guest-checkout#by-card" has attribute rule = "REQ-guest-checkout#a-guest-pays-without-creating-an-account"
+      Then node "guest-checkout" has attribute kind = "feature"
+      And node "guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
+      And node "guest-checkout" has attribute openQuestions = "1"
+      And node "guest-checkout" has attribute scenarios = "1"
+      And the edges from "guest-checkout" are "guest-checkout -refines-> checkout, guest-checkout -realized-by-> ARCH-orders, guest-checkout -iteration-> IT-payments, guest-checkout -activity.implementation-> IT-launch"
+      And the edges from "guest-checkout#a-guest-pays-without-creating-an-account" are "guest-checkout#a-guest-pays-without-creating-an-account -rule-of-> guest-checkout, guest-checkout#a-guest-pays-without-creating-an-account -decided-by-> no-sign-up-at-checkout"
+      And node "guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
+      And node "guest-checkout#by-card" has attribute rule = "guest-checkout#a-guest-pays-without-creating-an-account"
 
   @decided-by:specs-are-gherkin-files
   Rule: A file is one spec: its Feature, named by its tags or else by its path
@@ -74,32 +74,32 @@ Feature: Write a spec
       And the parsed spec has title "<title>"
 
       Examples:
-        | tags                          | name           | id                              | kind        | title          |
-        | @id=REQ-search                | Product search | REQ-search                      | requirement | Product search |
-        | @id=SEARCH-1 @kind=story @web | Product search | SEARCH-1                        | story       | Product search |
-        | @web                          | Product search | suite:features/search.feature   | suite       | Product search |
-        | @id=REQ-search                |                | REQ-search                      | requirement | REQ-search     |
-        | @id=true @kind=false          | Product search | true                            | false       | Product search |
+        | tags                                 | name           | id                            | kind    | title          |
+        | @id=search                           | Product search | search                        | feature | Product search |
+        | @id=search-by-voice @kind=story @web | Product search | search-by-voice               | story   | Product search |
+        | @web                                 | Product search | suite:features/search.feature | suite   | Product search |
+        | @id=search                           |                | search                        | feature | search         |
+        | @id=true @kind=false                 | Product search | true                          | false   | Product search |
 
     Scenario: A second Feature in a file is text of the description above it, and an error
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Shoppers pay.
 
         Feature: Refund
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then sdp reports:
         | rule           | severity | line | message                                                       |
         | gherkin-syntax | error    | 6    | "Feature: Refund" is read as text of the description above it |
 
     Scenario: A Feature line inside a doc string is content
-      Given a file "specs/REQ-docs.feature" containing:
+      Given a file "specs/docs.feature" containing:
         """
-        @id=REQ-docs
+        @id=docs
         Feature: Docs
 
           Rule: A feature file can be shown
@@ -110,9 +110,9 @@ Feature: Write a spec
                 Feature: Search
                 ```
         """
-      When "specs/REQ-docs.feature" is parsed
+      When "specs/docs.feature" is parsed
       Then sdp reports nothing
-      And the executable steps of "REQ-docs#describe-a-feature" are:
+      And the executable steps of "docs#describe-a-feature" are:
         | keyword | text                       | doc string      |
         | Given   | a feature file containing: | Feature: Search |
 
@@ -123,12 +123,12 @@ Feature: Write a spec
 
     Scenario: An idea
       Given these specs:
-        | tags                             | Feature   |
-        | @id=REQ-dark-mode @maturity=idea | Dark mode |
+        | tags                         | Feature   |
+        | @id=dark-mode @maturity=idea | Dark mode |
       When the workspace is loaded
-      Then node "REQ-dark-mode" has attribute kind = "requirement"
-      And node "REQ-dark-mode" has attribute title = "Dark mode"
-      And node "REQ-dark-mode" has attribute stage = "idea"
+      Then node "dark-mode" has attribute kind = "feature"
+      And node "dark-mode" has attribute title = "Dark mode"
+      And node "dark-mode" has attribute stage = "idea"
 
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag
@@ -136,14 +136,14 @@ Feature: Write a spec
     The first sign decides, so a value may hold the other, as a time does: `@due=2026-12-01T10:00`.
 
     Scenario: Values, lists, nested keys and links, each at the line of its tag
-      Given a file "specs/REQ-checkout.feature" containing:
+      Given a file "specs/checkout.feature" containing:
         """
-        @id=REQ-checkout @maturity=draft @web
+        @id=checkout @maturity=draft @web
         @estimate=8 @ratio=1.50 @public=false @due=2026-12-01T10:00 @owner.team=core @owner.lead=ada @label=a @label=b
-        @refines:EPIC-sales @iteration:IT-beta @activity.test:IT-beta @activity.test:IT-launch
+        @refines:sales @iteration:IT-beta @activity.test:IT-beta @activity.test:IT-launch
         Feature: Guest checkout
         """
-      When "specs/REQ-checkout.feature" is parsed
+      When "specs/checkout.feature" is parsed
       Then the parsed spec has exactly these attributes:
         | key      | json                         |
         | maturity | "draft"                      |
@@ -166,11 +166,11 @@ Feature: Write a spec
         | owner.lead | 2    |
         | label      | 2    |
       And the parsed spec has links:
-        | rel           | to         | line |
-        | refines       | EPIC-sales | 3    |
-        | iteration     | IT-beta    | 3    |
-        | activity.test | IT-beta    | 3    |
-        | activity.test | IT-launch  | 3    |
+        | rel           | to        | line |
+        | refines       | sales     | 3    |
+        | iteration     | IT-beta   | 3    |
+        | activity.test | IT-beta   | 3    |
+        | activity.test | IT-launch | 3    |
       And sdp reports nothing
 
   Rule: A tag is about the Feature, the Rule or the Scenario it sits on, and only Cucumber tags are inherited
@@ -179,15 +179,15 @@ Feature: Write a spec
     requirements.
 
     Scenario: Tags on every level, from the Feature to the Examples
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay @maturity=ready @checkout
+        @id=pay @maturity=ready @checkout
         Feature: Pay
 
-          @decided-by:DEC-charge-once @slow @owner=payments
+          @decided-by:charge-once @slow @owner=payments
           Rule: A wallet is charged once
 
-            @priority=1 @serial @covers:REQ-refund
+            @priority=1 @serial @covers:refund
             Scenario Outline: Retry
               When the payment is retried by <method>
               Then one charge is made
@@ -197,14 +197,14 @@ Feature: Write a spec
                 | method |
                 | card   |
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                               | line | tags  | attributes       | links                         |
-        | REQ-pay#a-wallet-is-charged-once | 5    | @slow | owner="payments" | -decided-by-> DEC-charge-once |
+        | id                           | line | tags  | attributes       | links                     |
+        | pay#a-wallet-is-charged-once | 5    | @slow | owner="payments" | -decided-by-> charge-once |
       And the parsed spec has scenarios:
-        | id            | rule                     | tags    | attributes | links                |
-        | REQ-pay#retry | A wallet is charged once | @serial | priority=1 | -covers-> REQ-refund |
-      And the executable tags of "REQ-pay#retry" are "@checkout, @requirement, @slow, @serial, @eu"
+        | id        | rule                     | tags    | attributes | links            |
+        | pay#retry | A wallet is charged once | @serial | priority=1 | -covers-> refund |
+      And the executable tags of "pay#retry" are "@checkout, @feature, @slow, @serial, @eu"
       And sdp reports nothing
 
   Rule: The text under a Feature, a Rule or a Scenario is its description, and the Feature's first paragraph is the summary
@@ -213,15 +213,15 @@ Feature: Write a spec
     drops a `#` line from a description without a word, so sdp says so.
 
     Scenario: Two paragraphs under the Feature, two lines under a Rule, one under a Scenario
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Shoppers without an account
           can pay by card.
 
-          A later paragraph names DEC-charge-once.
+          A later paragraph names charge-once.
 
           Rule: A wallet is charged once
 
@@ -233,21 +233,21 @@ Feature: Write a spec
 
               When the payment is retried
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has summary "Shoppers without an account can pay by card."
       And the parsed spec has links:
         | rel | to |
       And the parsed spec has rules:
-        | id                               | description                                                                                   |
-        | REQ-pay#a-wallet-is-charged-once | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
+        | id                           | description                                                                                   |
+        | pay#a-wallet-is-charged-once | A retry reuses the first charge.\nCharging twice is the one error a shopper does not forgive. |
       And the parsed spec has scenarios:
-        | id            | description                          |
-        | REQ-pay#retry | The network failed after the charge. |
+        | id        | description                          |
+        | pay#retry | The network failed after the charge. |
 
     Scenario: A # line inside a description is a comment, which Gherkin leaves out of it, and sdp says so
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Shoppers pay.
@@ -257,7 +257,7 @@ Feature: Write a spec
           # A comment after the description is only a comment.
           Rule: An order needs a payment
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has summary "Shoppers pay. Cards first, wallets later."
       And sdp reports:
         | rule                | severity | line | message                                        |
@@ -269,9 +269,9 @@ Feature: Write a spec
     stated. A suite without an id is someone else's, and runs as it is.
 
     Scenario: A scenario after a Rule, at the Feature's indentation, is still the Rule's
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Rule: A wallet is charged once
@@ -282,17 +282,17 @@ Feature: Write a spec
           Scenario: Refund
             When the order is refunded
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has scenarios:
-        | id             | rule                     |
-        | REQ-pay#retry  | A wallet is charged once |
-        | REQ-pay#refund | A wallet is charged once |
+        | id         | rule                     |
+        | pay#retry  | A wallet is charged once |
+        | pay#refund | A wallet is charged once |
       And sdp reports nothing
 
     Scenario: Two scenarios before the first Rule, and a suite named by its path
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Scenario: Card
@@ -314,8 +314,8 @@ Feature: Write a spec
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule                  | severity | at                      | message                                         |
-        | scenario-outside-rule | error    | specs/REQ-pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
+        | rule                  | severity | at                  | message                                         |
+        | scenario-outside-rule | error    | specs/pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
 
   Rule: A rule or a scenario is identified by the slug of its name: a scenario named like another or like a rule is numbered, a rule alike is an error
 
@@ -323,9 +323,9 @@ Feature: Write a spec
     name says what must hold, so two alike are one rule written twice.
 
     Scenario: An id is the slug of the name, numbered when the file has the name twice or a rule has it, and by position when there is no name
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Rule: A declined card is retried
@@ -342,35 +342,35 @@ Feature: Write a spec
             Scenario: A declined card is retried
               Given a card declined twice
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                                 | line |
-        | REQ-pay#a-declined-card-is-retried | 4    |
+        | id                             | line |
+        | pay#a-declined-card-is-retried | 4    |
       And the parsed spec has scenarios:
-        | id                                   | line |
-        | REQ-pay#retry                        | 6    |
-        | REQ-pay#retry-2                      | 9    |
-        | REQ-pay#scenario-3                   | 12   |
-        | REQ-pay#a-declined-card-is-retried-2 | 15   |
+        | id                               | line |
+        | pay#retry                        | 6    |
+        | pay#retry-2                      | 9    |
+        | pay#scenario-3                   | 12   |
+        | pay#a-declined-card-is-retried-2 | 15   |
       And sdp reports nothing
 
     Scenario: A long name is cut after the last whole word within 64 characters
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Rule: A card the bank declines is retried every hour for a whole day, then never again
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                                                                     | line |
-        | REQ-pay#a-card-the-bank-declines-is-retried-every-hour-for-a-whole-day | 4    |
+        | id                                                                 | line |
+        | pay#a-card-the-bank-declines-is-retried-every-hour-for-a-whole-day | 4    |
 
     Scenario: Two rules alike are one id twice, which stops a run
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Rule: A card is charged once
@@ -382,20 +382,20 @@ Feature: Write a spec
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule         | at                      | message                                                                          |
-        | duplicate-id | specs/REQ-pay.feature:9 | id REQ-pay#a-card-is-charged-once is already declared at specs/REQ-pay.feature:4 |
+        | rule         | at                  | message                                                                  |
+        | duplicate-id | specs/pay.feature:9 | id pay#a-card-is-charged-once is already declared at specs/pay.feature:4 |
       When I run "sdp run"
       Then the exit code is 1
-      And the output contains "specs/REQ-pay.feature:9 [duplicate-id]"
+      And the output contains "specs/pay.feature:9 [duplicate-id]"
 
   Rule: A Rule or a Scenario tagged `@open` is a question still open, its name the question, and it needs no example
 
     A question is a choice of what must hold, so it is written where the rule chosen will be.
 
     Scenario: An open Rule needs no example, and an open Scenario no step
-      Given a file "specs/REQ-explorer.feature" containing:
+      Given a file "specs/explorer.feature" containing:
         """
-        @id=REQ-explorer
+        @id=explorer
         Feature: Explorer
 
           Rule: A reader browses the architecture
@@ -408,7 +408,7 @@ Feature: Write a spec
             @open
             Scenario: Is the code behind an element shown always?
         """
-      When "specs/REQ-explorer.feature" is parsed
+      When "specs/explorer.feature" is parsed
       Then the parsed spec has open questions:
         | question                                    | line |
         | A static export, or a local server?         | 7    |
@@ -422,9 +422,9 @@ Feature: Write a spec
     Background where it is.
 
     Scenario: Under a Rule with a Background of its own
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Background:
@@ -439,11 +439,11 @@ Feature: Write a spec
               When the payment is retried
               Then one charge is made
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the parsed spec has scenarios:
-        | id            | line |
-        | REQ-pay#retry | 12   |
-      And the executable steps of "REQ-pay#retry" are:
+        | id        | line |
+        | pay#retry | 12   |
+      And the executable steps of "pay#retry" are:
         | keyword | text                   | line |
         | Given   | a shop                 | 5    |
         | Given   | a wallet               | 10   |
@@ -453,9 +453,9 @@ Feature: Write a spec
   Rule: An outline is one scenario, with an example per row
 
     Scenario: VAT in three countries
-      Given a file "specs/REQ-vat.feature" containing:
+      Given a file "specs/vat.feature" containing:
         """
-        @id=REQ-vat
+        @id=vat
         Feature: VAT
 
           Rule: VAT is charged at the buyer's rate
@@ -470,16 +470,16 @@ Feature: Write a spec
                 | HR      | 25  |
         """
       When the workspace is loaded
-      Then node "REQ-vat#vat-by-country" has attribute examples = "3"
+      Then node "vat#vat-by-country" has attribute examples = "3"
 
   Rule: An annotation that cannot mean what it says is an error at its line, and neither a fact nor a tag
 
     Its author meant a fact or a link, so it is not quietly read as a Cucumber tag instead.
 
     Scenario Outline: A list in one tag, a second id, an id that links, a key that is a value and a map, a key that names nothing, an id below the Feature, an annotation on Examples
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay <feature>
+        @id=pay <feature>
         Feature: Pay
 
           <rule>
@@ -494,33 +494,33 @@ Feature: Write a spec
                 | n |
                 | 1 |
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then sdp reports:
         | rule       | severity | line   | message   |
         | annotation | error    | <line> | <message> |
-      And the executable tags of "REQ-pay#card" are "@requirement"
+      And the executable tags of "pay#card" are "@feature"
 
       Examples:
-        | feature                     | rule    | scenario    | examples         | line | message                                      |
-        | @uses:A,B                   |         |             |                  | 1    | @uses:A,B: one tag is one link               |
-        | @id=REQ-other               |         |             |                  | 1    | @id=REQ-other: a spec has one id             |
-        | @id:REQ-other               |         |             |                  | 1    | @id:REQ-other: a spec's id is written with = |
-        | @owner=ada @owner.team=core |         |             |                  | 1    | owner is written as a value and as a map     |
-        | @owner..team=core           |         |             |                  | 1    | @owner..team=core: this key names nothing    |
-        |                             | @1st=ok |             |                  | 4    | @1st=ok: this key names nothing              |
-        |                             |         | @:REQ-b     |                  | 7    | @:REQ-b: this key names nothing              |
-        |                             | @id=R-1 |             |                  | 4    | @id=R-1: only a Feature says what it is      |
-        |                             |         | @kind=story |                  | 7    | @kind=story: only a Feature says what it is  |
-        |                             |         |             | @browser=firefox | 11   | an annotation on Examples is about no node   |
+        | feature                     | rule    | scenario    | examples         | line | message                                     |
+        | @uses:A,B                   |         |             |                  | 1    | @uses:A,B: one tag is one link              |
+        | @id=other                   |         |             |                  | 1    | @id=other: a spec has one id                |
+        | @id:other                   |         |             |                  | 1    | @id:other: a spec's id is written with =    |
+        | @owner=ada @owner.team=core |         |             |                  | 1    | owner is written as a value and as a map    |
+        | @owner..team=core           |         |             |                  | 1    | @owner..team=core: this key names nothing   |
+        |                             | @1st=ok |             |                  | 4    | @1st=ok: this key names nothing             |
+        |                             |         | @:b         |                  | 7    | @:b: this key names nothing                 |
+        |                             | @id=R-1 |             |                  | 4    | @id=R-1: only a Feature says what it is     |
+        |                             |         | @kind=story |                  | 7    | @kind=story: only a Feature says what it is |
+        |                             |         |             | @browser=firefox | 11   | an annotation on Examples is about no node  |
 
   Rule: A file the parser cannot read is an error at the line where it stopped, and no spec until it parses
 
     Nothing of it is guessed: the scenarios above the error do not run as if they were all there is.
 
     Scenario: A misspelt keyword in the last scenario
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Rule: An order needs a payment
@@ -532,7 +532,7 @@ Feature: Write a spec
               Given a wallet
               Whne I pay
         """
-      When "specs/REQ-pay.feature" is parsed
+      When "specs/pay.feature" is parsed
       Then the file is not a spec
       And sdp reports:
         | rule           | severity | line |
@@ -544,9 +544,9 @@ Feature: Write a spec
     same lines, the same steps.
 
     Scenario: CRLF line endings
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         @maturity=ready
         Feature: Pay
 
@@ -565,7 +565,7 @@ Feature: Write a spec
                 ```
               Then one charge is made
         """
-      When "specs/REQ-pay.feature" is parsed with CRLF line endings
+      When "specs/pay.feature" is parsed with CRLF line endings
       Then the parsed spec has summary "Shoppers pay by card."
       And the parsed spec has attribute lines:
         | key      | line |
@@ -574,7 +574,7 @@ Feature: Write a spec
       And the parsed spec has rules:
         | name                     | line | description                      |
         | A wallet is charged once | 9    | A retry reuses the first charge. |
-      And the executable steps of "REQ-pay#retry" are:
+      And the executable steps of "pay#retry" are:
         | keyword | text                         | line | doc string |
         | When    | the payment is retried with: | 13   | one\ntwo   |
         | Then    | one charge is made           | 18   |            |

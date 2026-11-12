@@ -18,9 +18,9 @@ Feature: Link specs into one graph
     same way it finds a spec's.
 
     Scenario: A rule with an example, a rule without one and an open question
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay
 
           Shoppers pay by card.
@@ -29,48 +29,48 @@ Feature: Link specs into one graph
 
             Charging twice is the one error a shopper does not forgive.
 
-            @decided-by:DEC-charge-once
+            @decided-by:charge-once
             Scenario: Retry
               The network failed after the charge.
 
               When the payment is retried
               Then one charge is made
 
-          @decided-by:DEC-charge-once
+          @decided-by:charge-once
           Rule: A refund returns the whole amount
 
           @open
           Rule: Are wallets charged too?
         """
       And these specs:
-        | tags                | Feature     |
-        | @id=DEC-charge-once | Charge once |
+        | tags                           | Feature     |
+        | @id=charge-once @kind=decision | Charge once |
       When the workspace is loaded
       Then the workspace graph has exactly these nodes:
-        | id                                        | kind        | title                             | source                          |
-        | REQ-pay                                   | requirement | Pay                               | specs/REQ-pay.feature:1         |
-        | REQ-pay#a-wallet-is-charged-once          | rule        | A wallet is charged once          | specs/REQ-pay.feature:6         |
-        | REQ-pay#retry                             | scenario    | Retry                             | specs/REQ-pay.feature:11        |
-        | REQ-pay#a-refund-returns-the-whole-amount | rule        | A refund returns the whole amount | specs/REQ-pay.feature:18        |
-        | REQ-pay#are-wallets-charged-too           | rule        | Are wallets charged too?          | specs/REQ-pay.feature:21        |
-        | DEC-charge-once                           | decision    | Charge once                       | specs/DEC-charge-once.feature:1 |
+        | id                                    | kind     | title                             | source                      |
+        | pay                                   | feature  | Pay                               | specs/pay.feature:1         |
+        | pay#a-wallet-is-charged-once          | rule     | A wallet is charged once          | specs/pay.feature:6         |
+        | pay#retry                             | scenario | Retry                             | specs/pay.feature:11        |
+        | pay#a-refund-returns-the-whole-amount | rule     | A refund returns the whole amount | specs/pay.feature:18        |
+        | pay#are-wallets-charged-too           | rule     | Are wallets charged too?          | specs/pay.feature:21        |
+        | charge-once                           | decision | Charge once                       | specs/charge-once.feature:1 |
       And the workspace graph has edges:
-        | from                                      | rel        | to                               | source                   |
-        | REQ-pay#a-wallet-is-charged-once          | rule-of    | REQ-pay                          | specs/REQ-pay.feature:6  |
-        | REQ-pay#retry                             | verifies   | REQ-pay#a-wallet-is-charged-once | specs/REQ-pay.feature:11 |
-        | REQ-pay#retry                             | verifies   | REQ-pay                          | specs/REQ-pay.feature:11 |
-        | REQ-pay#retry                             | decided-by | DEC-charge-once                  | specs/REQ-pay.feature:10 |
-        | REQ-pay#a-refund-returns-the-whole-amount | decided-by | DEC-charge-once                  | specs/REQ-pay.feature:17 |
-      And node "REQ-pay" has attribute summary = "Shoppers pay by card."
-      And node "REQ-pay" has attribute scenarios = "1"
-      And node "REQ-pay" has attribute openQuestions = "1"
-      And node "REQ-pay#a-wallet-is-charged-once" has attribute description = "Charging twice is the one error a shopper does not forgive."
-      And node "REQ-pay#a-wallet-is-charged-once" has attribute scenarios = "1"
-      And node "REQ-pay#a-refund-returns-the-whole-amount" has attribute verification = "none"
-      And node "REQ-pay#retry" has attribute rule = "REQ-pay#a-wallet-is-charged-once"
-      And node "REQ-pay#retry" has attribute description = "The network failed after the charge."
-      When I query "#DEC-charge-once <-decided-by- rule -rule-of-> *"
-      Then the result is "REQ-pay"
+        | from                                  | rel        | to                           | source               |
+        | pay#a-wallet-is-charged-once          | rule-of    | pay                          | specs/pay.feature:6  |
+        | pay#retry                             | verifies   | pay#a-wallet-is-charged-once | specs/pay.feature:11 |
+        | pay#retry                             | verifies   | pay                          | specs/pay.feature:11 |
+        | pay#retry                             | decided-by | charge-once                  | specs/pay.feature:10 |
+        | pay#a-refund-returns-the-whole-amount | decided-by | charge-once                  | specs/pay.feature:17 |
+      And node "pay" has attribute summary = "Shoppers pay by card."
+      And node "pay" has attribute scenarios = "1"
+      And node "pay" has attribute openQuestions = "1"
+      And node "pay#a-wallet-is-charged-once" has attribute description = "Charging twice is the one error a shopper does not forgive."
+      And node "pay#a-wallet-is-charged-once" has attribute scenarios = "1"
+      And node "pay#a-refund-returns-the-whole-amount" has attribute verification = "none"
+      And node "pay#retry" has attribute rule = "pay#a-wallet-is-charged-once"
+      And node "pay#retry" has attribute description = "The network failed after the charge."
+      When I query "#charge-once <-decided-by- rule -rule-of-> *"
+      Then the result is "pay"
 
   @decided-by:free-vocabulary
   Rule: Kinds, relations and attributes are whatever the authors write
@@ -80,16 +80,16 @@ Feature: Link specs into one graph
 
     Scenario: A bounded context that publishes to an event bus
       Given these specs:
-        | tags                                                                                                   | Feature           |
-        | @id=ARCH-orders @kind=bounded-context @publishes-to:ARCH-event-bus @guarded-by:DEC-events-over-calls | Orders            |
-        | @id=ARCH-event-bus @kind=element                                                                       | Event bus         |
-        | @id=DEC-events-over-calls                                                                              | Events over calls |
+        | tags                                                                                             | Feature           |
+        | @id=ARCH-orders @kind=bounded-context @publishes-to:ARCH-event-bus @guarded-by:events-over-calls | Orders            |
+        | @id=ARCH-event-bus @kind=element                                                                 | Event bus         |
+        | @id=events-over-calls @kind=decision                                                             | Events over calls |
       When the workspace is loaded
       Then node "ARCH-orders" has attribute kind = "bounded-context"
       And the workspace graph has edges:
-        | from        | rel          | to                    |
-        | ARCH-orders | publishes-to | ARCH-event-bus        |
-        | ARCH-orders | guarded-by   | DEC-events-over-calls |
+        | from        | rel          | to                |
+        | ARCH-orders | publishes-to | ARCH-event-bus    |
+        | ARCH-orders | guarded-by   | events-over-calls |
 
     Scenario: constructor, toString and __proto__ are words like any other
       Given a file "sdp.config.yaml" containing:
@@ -97,20 +97,20 @@ Feature: Link specs into one graph
         vocabulary: { maturity: [constructor, toString] }
         """
       And these specs:
-        | tags                                                                                            | Feature |
-        | @id=REQ-a @kind=constructor @maturity=toString @owner.__proto__.valueOf=1 @hasOwnProperty:REQ-a | A       |
+        | tags                                                                                    | Feature |
+        | @id=a @kind=constructor @maturity=toString @owner.__proto__.valueOf=1 @hasOwnProperty:a | A       |
       When the workspace is checked
       Then sdp reports nothing
       And sdp status counts the stages "toString:1"
       When I query "constructor[maturity>constructor]"
-      Then the result is "REQ-a"
-      When I query "*[owner.__proto__.valueOf=1, hasOwnProperty=REQ-a]"
-      Then the result is "REQ-a"
+      Then the result is "a"
+      When I query "*[owner.__proto__.valueOf=1, hasOwnProperty=a]"
+      Then the result is "a"
       When I query "*[toString]"
       Then the result is "nothing"
       When the graph is exported
       Then the output contains '"owner":{"__proto__":{"valueOf":1}}'
-      And the output contains '"rel":"hasOwnProperty","to":"REQ-a"'
+      And the output contains '"rel":"hasOwnProperty","to":"a"'
       When I run "sdp new constructor 'Odd one'"
       Then the exit code is 0
 
@@ -124,12 +124,12 @@ Feature: Link specs into one graph
         | tags                          | Feature |
         | @id=IT-beta @kind=iteration   | Beta    |
         | @id=IT-launch @kind=iteration | Launch  |
-        | @id=REQ-a <links>             | A       |
+        | @id=a <links>                 | A       |
       When I query "*[<rel>=IT-beta]"
-      Then the result is "REQ-a"
+      Then the result is "a"
       And the workspace graph has edges:
-        | from  | rel   | to      | source                |
-        | REQ-a | <rel> | IT-beta | specs/REQ-a.feature:1 |
+        | from | rel   | to      | source            |
+        | a    | <rel> | IT-beta | specs/a.feature:1 |
 
       Examples:
         | links                                   | rel                     |
@@ -139,18 +139,18 @@ Feature: Link specs into one graph
 
     Scenario: An id in a description is text
       Given these specs:
-        | tags                  | Feature       |
-        | @id=ARCH-orders       | Orders        |
-        | @id=DEC-refund-policy | Refund policy |
-      And a file "specs/REQ-refunds.feature" containing:
+        | tags                             | Feature       |
+        | @id=ARCH-orders                  | Orders        |
+        | @id=refund-policy @kind=decision | Refund policy |
+      And a file "specs/refunds.feature" containing:
         """
-        @id=REQ-refunds @realized-by:ARCH-orders
+        @id=refunds @realized-by:ARCH-orders
         Feature: Refunds
 
-          Follows the policy of DEC-refund-policy.
+          Follows refund-policy.
         """
       When the workspace is loaded
-      Then the edges from "REQ-refunds" are "REQ-refunds -realized-by-> ARCH-orders"
+      Then the edges from "refunds" are "refunds -realized-by-> ARCH-orders"
 
   Rule: Whether a tag or a key links is a property of how it is written, never of its value
 
@@ -166,27 +166,27 @@ Feature: Link specs into one graph
         <content>
         """
       When the workspace is loaded
-      Then the edges from "REQ-pay" are "<edges>"
+      Then the edges from "pay" are "<edges>"
       And sdp reports "<reported>"
 
       Examples:
-        | file                  | content                                                                                                                 | edges                        | reported      |
-        | specs/REQ-pay.feature | @id=REQ-pay @owner:ARCH-orders\nFeature: Pay                                                                            | REQ-pay -owner-> ARCH-orders | nothing       |
-        | specs/REQ-pay.feature | @id=REQ-pay @owner=ARCH-orders\nFeature: Pay                                                                            | nothing                      | nothing       |
-        | src/pay.py            | # @sdp is REQ-pay iteration=IT-beta\ndef pay(): pass                                                                    | REQ-pay -iteration-> IT-beta | nothing       |
-        | src/pay.py            | # @sdp is REQ-pay iteration=IT-gone\ndef pay(): pass                                                                    | REQ-pay -iteration-> IT-gone | dangling-link |
-        | src/pay.py            | # @sdp is REQ-pay owner=IT-beta\ndef pay(): pass                                                                        | nothing                      | nothing       |
-        | specs/REQ-pay.feature | @id=REQ-pay @iteration=IT-beta\nFeature: Pay                                                                            | nothing                      | link-syntax   |
-        | src/pay.ts            | import { annotate } from "sdp/annotations"\nexport const pay = 0\nannotate(pay, { is: "REQ-pay" }, { iteration: true }) | nothing                      | link-syntax   |
+        | file              | content                                                                                                             | edges                    | reported      |
+        | specs/pay.feature | @id=pay @owner:ARCH-orders\nFeature: Pay                                                                            | pay -owner-> ARCH-orders | nothing       |
+        | specs/pay.feature | @id=pay @owner=ARCH-orders\nFeature: Pay                                                                            | nothing                  | nothing       |
+        | src/pay.py        | # @sdp is pay iteration=IT-beta\ndef pay(): pass                                                                    | pay -iteration-> IT-beta | nothing       |
+        | src/pay.py        | # @sdp is pay iteration=IT-gone\ndef pay(): pass                                                                    | pay -iteration-> IT-gone | dangling-link |
+        | src/pay.py        | # @sdp is pay owner=IT-beta\ndef pay(): pass                                                                        | nothing                  | nothing       |
+        | specs/pay.feature | @id=pay @iteration=IT-beta\nFeature: Pay                                                                            | nothing                  | link-syntax   |
+        | src/pay.ts        | import { annotate } from "sdp/annotations"\nexport const pay = 0\nannotate(pay, { is: "pay" }, { iteration: true }) | nothing                  | link-syntax   |
 
   Rule: A link stated more than once is one edge that keeps every declaration, and where their attributes disagree the first holds
 
     So every place that states it is found from the edge, and stating a link again is no error.
 
     Scenario: The same link in two tags, and in two annotations that disagree
-      Given a file "specs/REQ-a.feature" containing:
+      Given a file "specs/a.feature" containing:
         """
-        @id=REQ-a @iteration:IT-beta
+        @id=a @iteration:IT-beta
         @iteration:IT-beta
         Feature: A
         """
@@ -202,9 +202,9 @@ Feature: Link specs into one graph
         """
       When the workspace is loaded
       Then the workspace graph has edges:
-        | from                        | rel       | to          | sources                                      | attributes              |
-        | REQ-a                       | iteration | IT-beta     | specs/REQ-a.feature:1, specs/REQ-a.feature:2 |                         |
-        | code:src/billing.ts#Billing | uses      | ARCH-ledger | src/billing.ts:1, src/billing.ts:2           | via="events" since=2026 |
+        | from                        | rel       | to          | sources                              | attributes              |
+        | a                           | iteration | IT-beta     | specs/a.feature:1, specs/a.feature:2 |                         |
+        | code:src/billing.ts#Billing | uses      | ARCH-ledger | src/billing.ts:1, src/billing.ts:2   | via="events" since=2026 |
       And sdp reports:
         | rule          | at               | message                                             |
         | link-conflict | src/billing.ts:2 | via is "http" here but "events" at src/billing.ts:1 |
@@ -213,19 +213,19 @@ Feature: Link specs into one graph
 
     So a link always reaches one node.
 
-    Scenario: Two files declare REQ-pay
+    Scenario: Two files declare pay
       Given a file "specs/a.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay by card
         """
       And a file "specs/b.feature" containing:
         """
-        @id=REQ-pay
+        @id=pay
         Feature: Pay by wallet
         """
       When the workspace is loaded
-      Then node "REQ-pay" has attribute title = "Pay by card"
+      Then node "pay" has attribute title = "Pay by card"
       And sdp reports:
         | rule         | severity | at                | message                               |
         | duplicate-id | error    | specs/b.feature:1 | already declared at specs/a.feature:1 |
@@ -236,29 +236,29 @@ Feature: Link specs into one graph
 
     Scenario: Two specs and a code annotation refer to ids nothing declares
       Given these specs:
-        | tags                                                         | Feature |
-        | @id=REQ-sync @depends-on:ARCH-queue @realized-by:ARCH-worker | Sync    |
-        | @id=REQ-backup @depends-on:ARCH-queue                        | Backup  |
+        | tags                                                     | Feature |
+        | @id=sync @depends-on:ARCH-queue @realized-by:ARCH-worker | Sync    |
+        | @id=backup @depends-on:ARCH-queue                        | Backup  |
       And a file "src/sync.ts" containing:
         """
-        // @sdp implements REQ-sink
+        // @sdp implements sink
         export function sync() {}
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule          | severity | at                         | message                                      |
-        | dangling-link | error    | specs/REQ-backup.feature:1 | REQ-backup -depends-on-> ARCH-queue          |
-        | dangling-link | error    | specs/REQ-sync.feature:1   | REQ-sync -depends-on-> ARCH-queue            |
-        | dangling-link | error    | specs/REQ-sync.feature:1   | REQ-sync -realized-by-> ARCH-worker          |
-        | dangling-link | error    | src/sync.ts:1              | code:src/sync.ts#sync -implements-> REQ-sink |
+        | rule          | severity | at                     | message                                  |
+        | dangling-link | error    | specs/backup.feature:1 | backup -depends-on-> ARCH-queue          |
+        | dangling-link | error    | specs/sync.feature:1   | sync -depends-on-> ARCH-queue            |
+        | dangling-link | error    | specs/sync.feature:1   | sync -realized-by-> ARCH-worker          |
+        | dangling-link | error    | src/sync.ts:1          | code:src/sync.ts#sync -implements-> sink |
       And the workspace graph has exactly these nodes:
-        | id                    | kind        | source                     |
-        | REQ-backup            | requirement | specs/REQ-backup.feature:1 |
-        | REQ-sync              | requirement | specs/REQ-sync.feature:1   |
-        | code:src/sync.ts#sync | code        | src/sync.ts:1              |
-        | ARCH-queue            | missing     |                            |
-        | ARCH-worker           | missing     |                            |
-        | REQ-sink              | missing     |                            |
+        | id                    | kind    | source                 |
+        | backup                | feature | specs/backup.feature:1 |
+        | sync                  | feature | specs/sync.feature:1   |
+        | code:src/sync.ts#sync | code    | src/sync.ts:1          |
+        | ARCH-queue            | missing |                        |
+        | ARCH-worker           | missing |                        |
+        | sink                  | missing |                        |
 
   Rule: What sdp derives cannot be written, wherever a node is declared
 
@@ -278,30 +278,30 @@ Feature: Link specs into one graph
       Then the result is "nothing"
 
       Examples:
-        | file              | content                                                                                     | at                  |
-        | src/pay.py        | # @sdp is REQ-pay kind=requirement stage=verified\ndef pay(): pass                          | src/pay.py:1        |
-        | specs/pay.feature | @id=REQ-f @stage=verified\nFeature: Pay                                                     | specs/pay.feature:1 |
-        | specs/pay.feature | @id=REQ-f\nFeature: Pay\n\n  @stage=verified\n  Rule: A card is charged once                | specs/pay.feature:4 |
-        | specs/pay.feature | @id=REQ-f\nFeature: Pay\n\n  Rule: R\n\n    @stage=verified\n    Scenario: S\n      Then ok | specs/pay.feature:6 |
+        | file              | content                                                                                   | at                  |
+        | src/pay.py        | # @sdp is pay kind=feature stage=verified\ndef pay(): pass                                | src/pay.py:1        |
+        | specs/pay.feature | @id=pay @stage=verified\nFeature: Pay                                                     | specs/pay.feature:1 |
+        | specs/pay.feature | @id=pay\nFeature: Pay\n\n  @stage=verified\n  Rule: A card is charged once                | specs/pay.feature:4 |
+        | specs/pay.feature | @id=pay\nFeature: Pay\n\n  Rule: R\n\n    @stage=verified\n    Scenario: S\n      Then ok | specs/pay.feature:6 |
 
     Scenario: A kind sdp makes itself, written in a spec and in code
-      Given a file "specs/REQ-a.feature" containing:
+      Given a file "specs/a.feature" containing:
         """
-        @id=REQ-a @kind=missing
+        @id=a @kind=missing
         Feature: A
         """
       And a file "src/pay.py" containing:
         """
-        # @sdp is REQ-pay kind=code
+        # @sdp is pay kind=code
         def pay(): pass
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule              | node    | at                    | message                                    |
-        | derived-attribute | REQ-a   | specs/REQ-a.feature:1 | sdp makes the nodes of kind missing itself |
-        | derived-attribute | REQ-pay | src/pay.py:1          | sdp makes the nodes of kind code itself    |
-      And node "REQ-a" has attribute kind = "requirement"
-      And node "REQ-pay" has attribute kind = "element"
+        | rule              | node | at                | message                                    |
+        | derived-attribute | a    | specs/a.feature:1 | sdp makes the nodes of kind missing itself |
+        | derived-attribute | pay  | src/pay.py:1      | sdp makes the nodes of kind code itself    |
+      And node "a" has attribute kind = "feature"
+      And node "pay" has attribute kind = "element"
 
     Scenario: A link sdp makes itself, written in a spec and in code
       Given a file "specs/ARCH-a.feature" containing:
@@ -345,8 +345,8 @@ Feature: Link specs into one graph
       Then the result is "nothing"
 
       Examples:
-        | file                | content                                                                    | at                    | name     | message                                | hint                               |
-        | specs/REQ-a.feature | @id=REQ-a @maturity:verified\nFeature: A                                   | specs/REQ-a.feature:1 | maturity | no link can be named maturity          | written with =: @maturity=verified |
-        | specs/REQ-a.feature | @id=REQ-a\nFeature: A\n\n  Rule: R\n\n    @stage:verified\n    Scenario: S | specs/REQ-a.feature:6 | stage    | no link can be named stage             | written with =: @stage=verified    |
-        | src/a.py            | # @sdp status verified\ndef a(): pass                                      | src/a.py:1            | status   | no link can be named status            | written with =                     |
-        | specs/REQ-a.feature | @id=REQ-a @owner=payments @owner:verified\nFeature: A                      | specs/REQ-a.feature:1 | owner    | owner is already an attribute of REQ-a | give the relation another name     |
+        | file            | content                                                                | at                | name     | message                            | hint                               |
+        | specs/a.feature | @id=a @maturity:verified\nFeature: A                                   | specs/a.feature:1 | maturity | no link can be named maturity      | written with =: @maturity=verified |
+        | specs/a.feature | @id=a\nFeature: A\n\n  Rule: R\n\n    @stage:verified\n    Scenario: S | specs/a.feature:6 | stage    | no link can be named stage         | written with =: @stage=verified    |
+        | src/a.py        | # @sdp status verified\ndef a(): pass                                  | src/a.py:1        | status   | no link can be named status        | written with =                     |
+        | specs/a.feature | @id=a @owner=payments @owner:verified\nFeature: A                      | specs/a.feature:1 | owner    | owner is already an attribute of a | give the relation another name     |
