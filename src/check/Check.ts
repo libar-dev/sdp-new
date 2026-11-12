@@ -423,10 +423,11 @@ const pairExamples = (before: ReadonlyArray<Example>, now: ReadonlyArray<Example
  * live here and has a live example: a replacement keeps the coverage it takes over. A link from a
  * live rule names what was live at the base, so a replacement can be designed and built in one
  * change. The base is parsed with its own configuration. An example whose Feature or Rule is
- * reported as demoted is not reported again. The notes say which files of the base could not be read.
+ * reported as demoted is not reported again. `missing` says which files of the base do not parse:
+ * their live examples were not compared, so the comparison may miss one turned off.
  */
-export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly notes: ReadonlyArray<string> } => {
-  const parsed = base.files.map((file) => ({ file: file.path, spec: parseFeatureSpec(file.path, file.content, base.config).spec }))
+export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly missing: ReadonlyArray<string> } => {
+  const parsed = base.files.map((file) => ({ file: file.path, ...parseFeatureSpec(file.path, file.content, base.config) }))
   const specs = parsed.flatMap(({ spec }) => spec === undefined ? [] : [spec])
   const { vocabulary } = project.config
   const before = liveTests(specs, base.config.vocabulary)
@@ -494,7 +495,8 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     }))
   }
 
-  const unread = parsed.filter(({ spec }) => spec === undefined).map(({ file }) => file)
-  const notes = unread.map((file) => `${file} at ${at} does not parse, so its live examples were not compared`)
-  return { diagnostics: sortDiagnostics(out), notes }
+  // A file without a Feature declares nothing; one that does not parse may have declared anything.
+  const unread = parsed.filter(({ diagnostics, spec }) => spec === undefined && diagnostics.length > 0).map(({ file }) => file)
+  const missing = unread.map((file) => `not compared: ${file} at ${at} does not parse, so its live examples were not compared`)
+  return { diagnostics: sortDiagnostics(out), missing }
 }

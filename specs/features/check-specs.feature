@@ -378,6 +378,24 @@ Feature: Check specs
         | data.rule | example-dropped |
         | data.node | cart#add-an-item |
 
+    Scenario Outline: A file of the base that <case>, deleted
+      Given a file "specs/basket.feature" containing:
+        """
+        <basket>
+        """
+      And the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/basket.feature && sdp check
+        """
+      Then the exit code is <exit code>
+      And the output contains "does not parse, so its live examples were not compared" <not compared>
+
+      Examples:
+        | case                 | basket                                                                                                                   | exit code | not compared |
+        | does not parse       | @id=basket\nFeature: Basket\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \| | 2         | 1 time       |
+        | holds only a comment | # Basket is now the cart.                                                                                                | 0         | 0 times      |
+
     Scenario: What a demotion and a dropped example say, and where
       Given a file "specs/cart.feature" containing:
         """
