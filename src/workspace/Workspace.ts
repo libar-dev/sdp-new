@@ -316,7 +316,8 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   // Node resolves modules to their real paths.
   const real = files.length > 0 ? yield* fs.realPath(root) : root
   const urlOf = (file: string) => pathToFileURL(path.join(real, file)).href
-  const modules: Array<StepModule<any>> = []
+  // A module exported under two names, or again by another file, is one module: its steps match once.
+  const modules = new Set<StepModule<any>>()
   const empty: Array<string> = []
   for (const file of files) {
     const exports = yield* Effect.tryPromise({
@@ -325,7 +326,7 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     })
     const found = Object.values(exports).filter(isStepModule)
     if (found.length === 0) empty.push(file)
-    modules.push(...found)
+    for (const module of found) modules.add(module)
   }
   /**
    * The step files and every local file they imported so far, directly or not, by module URL and
@@ -363,7 +364,7 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     }).map(({ file }) => file).sort()
   }
   const added = (steps: ReadonlyArray<string>) => steps.filter((file) => !files.includes(file))
-  return { files, modules, empty, imports, changed, added } satisfies LoadedSteps
+  return { files, modules: [...modules], empty, imports, changed, added } satisfies LoadedSteps
 })
 
 /** The first line of what went wrong; Node appends the code frame and a stack nobody needs here. */

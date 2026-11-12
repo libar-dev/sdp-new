@@ -202,6 +202,26 @@ Feature: Write step definitions
       And the step "an empty cart" reports "matches 2 definitions"
       And node "cart" has attribute verification = "failing"
 
+    Scenario: A module exported under two names, and again from another file, is one module
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export const steps = defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item", () => {})
+        })
+        export default steps
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        export { steps } from "./cart.steps.ts"
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "1 scenario(s): 1 passed"
+
     Scenario Outline: After a step that does not pass the rest are skipped but still matched, and the scenario takes the worst status
       Given a step definition "an empty cart" that <first step>
       And a step definition "I add a lamp" that passes
