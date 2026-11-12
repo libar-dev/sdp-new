@@ -62,6 +62,7 @@ const exits = (node: Node): boolean =>
  * Reads the step definitions of one step file without running it.
  *
  * @sdp is ARCH-spec-parser
+ * @sdp plays PAT-static-reading
  */
 export const scanStepDefinitions = (file: string, content: string): StepScan => {
   const script = parseScript(file, content)

@@ -15,6 +15,13 @@
 import type { Project } from "../graph/Build.ts"
 import { type Diagnostic, problemLine, unreadRules } from "../model/Diagnostic.ts"
 
+/**
+ * What a use case answers with: its data, whether that is complete, and what the reader should know
+ * before relying on it. Every use case answers this way, so the command line and the MCP server
+ * hand over each answer alike, and an incomplete one says so wherever it is read.
+ *
+ * @sdp is PAT-answer
+ */
 export interface Answer<A> {
   /** False when the data may miss something; the notes say what was not read or not followed. */
   readonly complete: boolean

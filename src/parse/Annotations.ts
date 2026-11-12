@@ -15,6 +15,7 @@
  * even inside a multi-line string — and their imports are not read.
  *
  * @sdp is ARCH-code-annotations
+ * @sdp plays PAT-static-reading
  */
 import { type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"

@@ -179,6 +179,7 @@ Feature: sdp, shown by running it
       Examples:
         | prefix | kind        |
         | ARCH   | element     |
+        | PAT    | pattern     |
         | MS     | milestone   |
         | IT     | iteration   |
 

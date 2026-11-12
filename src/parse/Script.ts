@@ -2,6 +2,8 @@
  * A TypeScript or JavaScript file, parsed and never run: what sdp reads out of
  * code statically — annotations, the modules it imports and step definitions —
  * it reads from this one parse, with the line of everything it finds.
+ *
+ * @sdp is PAT-static-reading
  */
 import { Predicate } from "effect"
 import { parseSync } from "oxc-parser"
