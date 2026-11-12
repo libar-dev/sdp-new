@@ -8,7 +8,8 @@
     "sdp": "./bin/sdp.js"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./annotations": "./src/annotations.ts"
   },
   "engines": {
     "node": ">=24"
@@ -27,6 +28,7 @@
     "@cucumber/tag-expressions": "^11.0.1",
     "@effect/platform-node": "^4.1.4",
     "effect": "^4.1.4",
+    "oxc-parser": "^0.158.0",
     "yaml": "^2.9.1"
   },
   "devDependencies": {
