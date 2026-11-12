@@ -27,7 +27,7 @@ const builtinLevels = ["idea", "draft", "specified", "ready"] as const
 export const gateReasons = (spec: Spec, level: string): ReadonlyArray<string> => {
   const reasons: Array<string> = []
   const index = builtinLevels.indexOf(level as (typeof builtinLevels)[number])
-  if (index >= 1 && spec.summary.trim() === "" && spec.body.replace(/^#.*$/gm, "").trim() === "") {
+  if (index >= 1 && spec.summary === "") {
     reasons.push("no description: write a paragraph on the problem or intent")
   }
   if (index >= 2 && spec.scenarios.length === 0) {
@@ -79,17 +79,10 @@ const placeholderStep = /^<[^<>]+>$/
 /** Template text still in a spec, with its line: prose, the open question, scenario names and steps. */
 export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
   const found: Array<{ text: string; line: number }> = []
-  let fence: string | undefined
-  spec.body.split("\n").forEach((raw, index) => {
-    const text = raw.trim()
-    const opens = /^(`{3,}|~{3,})/.exec(text)?.[1]
-    if (fence === undefined && opens) fence = opens
-    else if (fence !== undefined && text.startsWith(fence)) fence = undefined
-    else if (fence === undefined) {
-      const placeholder = placeholderLines.find((p) => text.startsWith(p))
-      if (placeholder) found.push({ text: placeholder, line: spec.bodyLine + index })
-    }
-  })
+  for (const prose of spec.prose) {
+    const placeholder = placeholderLines.find((p) => prose.text.startsWith(p))
+    if (placeholder) found.push({ text: placeholder, line: prose.line })
+  }
   for (const question of spec.openQuestions) if (question.text === placeholderQuestion) found.push(question)
   for (const scenario of spec.scenarios) {
     if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })
@@ -192,7 +185,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: "add `links: { supersedes: <old id> }` to the newer decision"
       })
     }
-    if (status === "accepted" && spec && !spec.headings.some((h) => /decision|outcome/i.test(h)) && !node.attrs.decision) {
+    if (status === "accepted" && spec && !spec.sections.some((s) => /decision|outcome/i.test(s.heading)) && !node.attrs.decision) {
       out.push({
         rule: "decision-content",
         severity: "info",

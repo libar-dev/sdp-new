@@ -21,7 +21,7 @@ results ([[REQ-executable-specs]]).
 | Level | The content must have |
 | --- | --- |
 | idea | a title |
-| draft | a description of the problem or intent |
+| draft | a description of the problem or intent: a paragraph, not just code, comments or headings |
 | specified | at least one scenario that states an outcome (`Then`) |
 | ready | no unresolved open questions; every scenario has steps and an outcome |
 

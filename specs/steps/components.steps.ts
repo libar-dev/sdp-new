@@ -29,6 +29,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("{string} is parsed", ({ args: [path], world }) => parse(world, path))
 
+  When("{string} is parsed with CRLF line endings and → as a tab", ({ args: [path], world }) => {
+    const content = world.files.get(path)
+    assert.ok(content !== undefined, `no file ${path}`)
+    setFile(world, path, content.replaceAll("→", "\t").replaceAll("\n", "\r\n"))
+    return parse(world, path)
+  })
+
   When("{string} is parsed again after replacing {string} with {string}", ({ args: [path, text, replacement], world }) => {
     const content = world.files.get(path) ?? ""
     assert.ok(content.includes(text), `${path} does not contain ${JSON.stringify(text)}`)
@@ -47,6 +54,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the parsed spec has exactly these attributes:", ({ table, world }) =>
     assertRows("attributes", Object.entries(spec(world).attrs).map(([key, value]) => ({ key, value: show(value) })), table, "exactly"))
+
+  Then("the parsed spec has attribute lines:", ({ table, world }) =>
+    assertRows("attribute lines", Object.entries(spec(world).attrLines).map(([key, line]) => ({ key, line: String(line) })), table, "exactly"))
 
   Then("the parsed spec has links:", ({ table, world }) =>
     assertRows(
@@ -81,7 +91,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
         title: n.title,
         line: String(n.line),
         attributes: attrsText(n.attrs),
-        links: n.links.map((l) => `-${l.rel}-> ${l.to}`).join(", ")
+        links: n.links.map((l) => `-${l.rel}-> ${l.to}`).join(", "),
+        "link lines": n.links.map((l) => l.line).join(", ")
       })),
       table,
       "in order"
@@ -94,6 +105,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       table,
       "in order"
     ))
+
+  Then("the parsed spec has no open questions", ({ world }) =>
+    assert.deepEqual(spec(world).openQuestions.map((q) => q.text), [], "the parsed spec has open questions"))
 
   Then("the parsed spec has no scenarios", ({ world }) =>
     assert.deepEqual(spec(world).scenarios.map((s) => s.id), [], "the parsed spec has scenarios"))

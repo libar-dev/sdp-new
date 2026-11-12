@@ -15,7 +15,7 @@ links:
 # Specifications at every maturity
 
 A product idea, a half-understood need and a fully designed feature are written in the same
-format: a Markdown file with YAML front matter. The file grows with understanding — a sentence
+format: a CommonMark file with YAML front matter. The file grows with understanding — a sentence
 becomes a description, the description gains scenarios, open questions get resolved — but it never
 moves to another tool or format. The scenarios later execute as tests, unchanged. Decisions,
 quality requirements, the plan, milestones, risks, the vision and the glossary use the same format.
@@ -58,7 +58,8 @@ Scenario: Guest pays by card
 
 - **A spec** is a Markdown file whose front matter has a non-empty `id`. `id`, `kind`, `title`,
   `links` and `nodes` have fixed meanings; every other key is an attribute ([[GLOSSARY]] lists the
-  ones sdp reads). `kind` is free text, inferred from the id prefix when omitted (`REQ-` →
+  ones sdp reads). Front matter holds plain data — text, numbers, booleans, lists and maps.
+  `kind` is free text, inferred from the id prefix when omitted (`REQ-` →
   requirement, [[REQ-configuration]]); `title` defaults to the first `#` heading, else the id.
 - **Links** in front matter map a relation to one target, several, or a target with attributes:
 
@@ -74,8 +75,9 @@ Scenario: Guest pays by card
   whose value is a node id links as well (`iteration: C2`). `nodes:` declares inline nodes, for
   things too small for a file of their own.
 - **Prose** mentions a node with `[[ID]]` or `[[ID|label]]`, or links it with a named relation:
-  `realized-by:: [[ARCH-orders]], [[ARCH-payments]]`. Inside code they are text. The first
-  paragraph is the spec's summary.
+  `realized-by:: [[ARCH-orders]], [[ARCH-payments]]`. Inside code — a code block or span — and
+  inside HTML comments they are text, as a Markdown viewer shows them. The first paragraph is the
+  spec's summary.
 - **Open questions** are the list items under a heading *Open questions*, *Questions*,
   *Unresolved* or *TBD*; `- [x]` or a ~~struck~~ item is resolved.
 - **Behaviour** is standard Gherkin in fenced blocks — ```` ```gherkin ````, `feature` or

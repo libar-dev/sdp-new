@@ -1,20 +1,17 @@
 /**
- * A line-oriented Markdown scanner. It extracts only what the graph needs
- * (front matter, headings, fenced blocks, links, open questions, a summary)
- * and keeps exact 1-based line numbers so every fact points back to a
- * greppable `file:line`.
+ * Reads one Markdown file — YAML front matter, then a CommonMark body — once, into everything
+ * later stages need: front matter as JSON data in which every value keeps its line, the fenced
+ * code blocks, the prose with its sections and summary, open questions and wiki-links. The body
+ * is parsed by a CommonMark parser, so what a renderer shows as code or HTML is never read as a
+ * scenario, a link or a question. Every fact keeps its 1-based file line.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import { parse as parseYaml } from "yaml"
+import type { Heading, List, Nodes, Paragraph } from "mdast"
+import { fromMarkdown } from "mdast-util-from-markdown"
+import { type Document, isAlias, isMap, isNode, isScalar, isSeq, LineCounter, parseDocument } from "yaml"
 
 annotate(import.meta, { is: "ARCH-spec-parser" })
-
-export interface Heading {
-  readonly level: number
-  readonly text: string
-  readonly line: number
-}
 
 export interface Fence {
   readonly lang: string
@@ -34,7 +31,7 @@ export interface Reference {
 
 export interface FrontMatterError {
   readonly message: string
-  /** File line the problem is on: the YAML error's line, or the opening `---`. */
+  /** File line the problem is on. */
   readonly line: number
 }
 
@@ -44,142 +41,245 @@ export interface OpenQuestion {
   readonly resolved: boolean
 }
 
+/** What front matter holds. */
+export type Json = string | number | boolean | null | ReadonlyArray<Json> | { readonly [key: string]: Json }
+
+/** A front matter value and the line it starts on; a map's entries and a list's items keep theirs. */
+export interface Located {
+  readonly line: number
+  readonly data: Json
+  readonly entries?: ReadonlyArray<Entry> | undefined
+  readonly items?: ReadonlyArray<Located> | undefined
+}
+
+/** The front matter: a mapping, as data and with the lines of its entries. */
+export interface FrontMatter extends Located {
+  readonly data: { readonly [key: string]: Json }
+  readonly entries: ReadonlyArray<Entry>
+}
+
+export interface Entry {
+  readonly key: string
+  /** Line of the key. */
+  readonly line: number
+  readonly value: Located
+}
+
+/** A paragraph, list or quote of the body, as written, its lines joined. */
+export interface Prose {
+  readonly line: number
+  readonly text: string
+}
+
+/** A heading and the prose under it, up to the next heading of the same or a higher level. */
+export interface Section {
+  readonly heading: string
+  readonly level: number
+  readonly line: number
+  readonly text: string
+}
+
 export interface MarkdownDoc {
-  readonly lines: ReadonlyArray<string>
-  readonly frontMatter: Readonly<Record<string, unknown>> | undefined
+  readonly frontMatter: FrontMatter | undefined
   readonly frontMatterError: FrontMatterError | undefined
-  /** Number of lines taken by the front matter block, including both `---` fences. */
-  readonly frontMatterLines: number
-  readonly headings: ReadonlyArray<Heading>
   readonly fences: ReadonlyArray<Fence>
   readonly references: ReadonlyArray<Reference>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
+  readonly prose: ReadonlyArray<Prose>
+  readonly sections: ReadonlyArray<Section>
+  /** The first paragraph, at most 280 characters. */
   readonly summary: string
+  /** The first top-level heading. */
   readonly title: string | undefined
   /** Body text below the front matter. */
   readonly body: string
 }
 
-const fenceOpen = /^(\s{0,3})(`{3,}|~{3,})\s*([\w+-]*)/
-const headingRe = /^(#{1,6})\s+(.*?)\s*#*\s*$/
 const wikiLinkRe = /\[\[([^\]|#\s][^\]|]*?)(?:\|[^\]]*)?\]\]/g
 const inlineFieldRe = /(?:^|[\s(*_-])([A-Za-z][\w-]*)::\s*((?:\[\[[^\]]+\]\][\s,;]*)+)/g
 const openQuestionsHeading = /^(open questions?|unresolved( questions)?|questions|tbd)\b/i
-const listItem = /^\s*[-*+]\s+(?:\[( |x|X)\]\s+)?(.*)$/
+const checkbox = /^\[([ xX])\]\s+/
 
 export const parseMarkdown = (content: string): MarkdownDoc => {
   const lines = content.replace(/\r\n?/g, "\n").split("\n")
   const fm = readFrontMatter(lines)
-  const headings: Array<Heading> = []
+  const body = lines.slice(fm.lines).join("\n")
+  const tree = fromMarkdown(body)
+  const lineOf = (node: Nodes) => node.position!.start.line + fm.lines
+  /** The node as written, its lines trimmed and joined. */
+  const joined = (node: Nodes) =>
+    body.slice(node.position!.start.offset, node.position!.end.offset).split("\n").map((line) => line.trim()).join(" ").trim()
+  /** A heading's text as written, without its `#` marks. */
+  const headingText = (node: Heading) => {
+    const first = node.children[0]
+    const last = node.children.at(-1)
+    return first && last ? body.slice(first.position!.start.offset, last.position!.end.offset).trim() : ""
+  }
+  const question = (paragraph: Paragraph): OpenQuestion => {
+    const written = joined(paragraph)
+    const box = checkbox.exec(written)
+    const text = box ? written.slice(box[0].length) : written
+    return { text, line: lineOf(paragraph), resolved: (box !== null && box[1] !== " ") || /^~~.*~~$/.test(text) }
+  }
+
   const fences: Array<Fence> = []
+  const code: Array<Nodes> = []
+  for (const node of descendants(tree)) {
+    if (node.type === "code" || node.type === "inlineCode" || node.type === "html") code.push(node)
+    if (node.type === "code" && node.lang) {
+      const line = lineOf(node)
+      fences.push({ lang: node.lang.toLowerCase(), line, contentLine: line + 1, lines: node.value === "" ? [] : node.value.split("\n") })
+    }
+  }
+
   const references: Array<Reference> = []
+  withoutCode(body, code).split("\n").forEach((text, index) => collectReferences(text, index + 1 + fm.lines, references))
+
+  const headings: Array<Omit<Section, "text">> = []
+  const prose: Array<Prose> = []
   const openQuestions: Array<OpenQuestion> = []
-  let summary = ""
-  let paragraph: Array<string> = []
-  let inQuestions: number | undefined
-
-  const flushParagraph = () => {
-    if (!summary && paragraph.length > 0) summary = paragraph.join(" ").trim()
-    paragraph = []
+  let summary: string | undefined
+  let questionsLevel: number | undefined
+  for (const node of tree.children) {
+    if (node.type === "heading") {
+      const heading = headingText(node)
+      headings.push({ heading, level: node.depth, line: lineOf(node) })
+      if (questionsLevel !== undefined && node.depth <= questionsLevel) questionsLevel = undefined
+      if (openQuestionsHeading.test(heading)) questionsLevel = node.depth
+    } else if ((node.type === "paragraph" || node.type === "list" || node.type === "blockquote") && hasText(node)) {
+      prose.push({ line: lineOf(node), text: joined(node) })
+      if (node.type === "paragraph") summary ??= joined(node)
+      if (node.type === "list" && questionsLevel !== undefined) openQuestions.push(...itemTexts(node).map(question))
+    }
   }
+  const sections = headings.map((heading, index): Section => {
+    const next = headings.slice(index + 1).find((h) => h.level <= heading.level)
+    const under = prose.filter((p) => p.line > heading.line && (next === undefined || p.line < next.line))
+    return { ...heading, text: under.map((p) => p.text).join(" ") }
+  })
 
-  let i = fm.lines
-  while (i < lines.length) {
-    const text = lines[i]!
-    const lineNo = i + 1
-    const fence = fenceOpen.exec(text)
-    if (fence) {
-      flushParagraph()
-      const marker = fence[2]!
-      const body: Array<string> = []
-      let j = i + 1
-      while (j < lines.length && !lines[j]!.trimStart().startsWith(marker)) {
-        body.push(lines[j]!)
-        j++
-      }
-      fences.push({ lang: fence[3]!.toLowerCase(), line: lineNo, contentLine: lineNo + 1, lines: body })
-      i = j + 1
-      continue
-    }
-    const heading = headingRe.exec(text)
-    if (heading) {
-      flushParagraph()
-      const level = heading[1]!.length
-      const headingText = heading[2]!
-      headings.push({ level, text: headingText, line: lineNo })
-      if (inQuestions !== undefined && level <= inQuestions) inQuestions = undefined
-      if (openQuestionsHeading.test(headingText)) inQuestions = level
-      collectReferences(headingText, lineNo, references)
-      i++
-      continue
-    }
-    collectReferences(text, lineNo, references)
-    if (inQuestions !== undefined) {
-      const item = listItem.exec(text)
-      if (item) {
-        const itemText = item[2]!.trim()
-        const struck = /^~~.*~~$/.test(itemText)
-        openQuestions.push({ text: itemText, line: lineNo, resolved: item[1] === "x" || item[1] === "X" || struck })
-      }
-    }
-    if (text.trim() === "") flushParagraph()
-    else if (!/^\s*([-*+>|]|\d+\.)\s/.test(text) && !/^\s*(<!--|\|)/.test(text)) paragraph.push(text.trim())
-    else flushParagraph()
-    i++
-  }
-  flushParagraph()
-
-  const h1 = headings.find((h) => h.level === 1)
   return {
-    lines,
     frontMatter: fm.data,
     frontMatterError: fm.error,
-    frontMatterLines: fm.lines,
-    headings,
     fences,
     references,
     openQuestions,
-    summary: truncate(summary, 280),
-    title: h1?.text,
-    body: lines.slice(fm.lines).join("\n")
+    prose,
+    sections,
+    summary: truncate(summary ?? "", 280),
+    title: headings.find((h) => h.level === 1)?.heading,
+    body
   }
 }
 
+/** Every node below `node`, in document order. */
+function* descendants(node: Nodes): Generator<Nodes> {
+  if (!("children" in node)) return
+  for (const child of node.children) {
+    yield child
+    yield* descendants(child)
+  }
+}
+
+/** The paragraph opening each item of a list, nested items too. */
+const itemTexts = (list: List): ReadonlyArray<Paragraph> =>
+  [...descendants(list)].flatMap((node) => node.type === "listItem" && node.children[0]?.type === "paragraph" ? [node.children[0]] : [])
+
+/** Whether a reader sees any text in `node`: text or code spans, not markup alone. */
+const hasText = (node: Nodes): boolean =>
+  [...descendants(node)].some((child) => (child.type === "text" || child.type === "inlineCode") && child.value.trim() !== "")
+
+/** The body with code, code spans and HTML blanked out, so line numbers stay as they are. */
+const withoutCode = (body: string, code: ReadonlyArray<Nodes>): string => {
+  let out = ""
+  let at = 0
+  for (const node of code) {
+    const { end, start } = node.position!
+    out += body.slice(at, start.offset) + body.slice(start.offset, end.offset).replace(/[^\n]/g, " ")
+    at = end.offset!
+  }
+  return out + body.slice(at)
+}
+
 const readFrontMatter = (lines: ReadonlyArray<string>): {
-  readonly data: Record<string, unknown> | undefined
+  readonly data: FrontMatter | undefined
   readonly error: FrontMatterError | undefined
   readonly lines: number
 } => {
   if (lines[0]?.trim() !== "---") return { data: undefined, error: undefined, lines: 0 }
   const end = lines.findIndex((line, idx) => idx > 0 && (line.trim() === "---" || line.trim() === "..."))
   if (end < 0) return { data: undefined, error: { message: "front matter is not closed with ---", line: 1 }, lines: 0 }
-  try {
-    const data: unknown = parseYaml(lines.slice(1, end).join("\n"))
-    if (data === null || data === undefined) return { data: {}, error: undefined, lines: end + 1 }
-    if (!Predicate.isObject(data) || Array.isArray(data)) {
-      return { data: undefined, error: { message: "front matter must be a YAML mapping", line: 1 }, lines: end + 1 }
-    }
-    return { data: data as Record<string, unknown>, error: undefined, lines: end + 1 }
-  } catch (error) {
-    return { data: undefined, error: yamlError(error), lines: end + 1 }
+  const counter = new LineCounter()
+  const doc = parseDocument(lines.slice(1, end).join("\n"), { lineCounter: counter, prettyErrors: false })
+  // The YAML starts on the file's second line.
+  const lineAt = (offset: number | undefined) => counter.linePos(offset ?? 0).line + 1
+  const yamlError = doc.errors[0]
+  if (yamlError) return { data: undefined, error: { message: yamlError.message.split("\n")[0]!, line: lineAt(yamlError.pos[0]) }, lines: end + 1 }
+  if (doc.contents === null) return { data: { line: 1, data: {}, entries: [] }, error: undefined, lines: end + 1 }
+  const { problem, value } = toJson(doc.contents, doc, lineAt)
+  if (problem) return { data: undefined, error: problem, lines: end + 1 }
+  if (!value.entries || !isMapping(value.data)) {
+    return { data: undefined, error: { message: "front matter must be a YAML mapping", line: value.line }, lines: end + 1 }
   }
+  return { data: { line: value.line, data: value.data, entries: value.entries }, error: undefined, lines: end + 1 }
 }
 
-/** YAML reports positions within the front matter block; point at the file line instead. */
-const yamlError = (error: unknown): FrontMatterError => {
-  const text = error instanceof Error ? error.message : String(error)
-  const position = (error as { linePos?: ReadonlyArray<{ line: number }> }).linePos?.[0]
-  return {
-    message: text.split("\n")[0]!.replace(/ at line \d+, column \d+:?$/, ""),
-    line: position ? position.line + 1 : 1
+const isMapping = (data: Json): data is { readonly [key: string]: Json } => Predicate.isObject(data) && !Array.isArray(data)
+
+const jsonTags = new Set(["str", "int", "float", "bool", "null", "map", "seq"].map((tag) => `tag:yaml.org,2002:${tag}`))
+
+/**
+ * A YAML node as JSON data with its lines. An alias stands for the value it names, unless it is
+ * inside that value; tags and numbers JSON cannot hold, and keys that are not text, are errors.
+ */
+const toJson = (
+  root: unknown,
+  doc: Document,
+  lineAt: (offset: number | undefined) => number
+): { readonly value: Located; readonly problem: FrontMatterError | undefined } => {
+  let problem: FrontMatterError | undefined
+  const fail = (message: string, line: number): Located => {
+    problem ??= { message, line }
+    return { line, data: null }
   }
+  const convert = (node: unknown, line: number, inside: ReadonlyArray<unknown>): Located => {
+    if (node === null || node === undefined) return { line, data: null }
+    if (isAlias(node)) {
+      const target = node.resolve(doc)
+      if (inside.includes(target)) return fail(`the alias *${node.source} repeats a value it is inside`, lineAt(node.range?.[0]))
+      return convert(target, line, inside)
+    }
+    if (!isScalar(node) && !isMap(node) && !isSeq(node)) return fail("not JSON data", line)
+    const at = lineAt(node.range?.[0])
+    if (node.tag !== undefined && !jsonTags.has(node.tag)) return fail(`${node.tag.replace("tag:yaml.org,2002:", "!!")} has no JSON type`, at)
+    if (isScalar(node)) {
+      const value = node.value
+      if (Predicate.isNumber(value) && !Number.isFinite(value)) return fail(`${node.source ?? value} is not a JSON number`, at)
+      if (Predicate.isString(value) || Predicate.isNumber(value) || Predicate.isBoolean(value) || value === null) return { line: at, data: value }
+      return fail("not JSON data", at)
+    }
+    const within = [...inside, node]
+    if (isSeq(node)) {
+      const items = node.items.map((item) => convert(item, at, within))
+      return { line: at, data: items.map((item) => item.data), items }
+    }
+    const entries: Array<Entry> = []
+    for (const pair of node.items) {
+      const key = pair.key
+      const keyLine = isNode(key) ? lineAt(key.range?.[0]) : at
+      if (!isScalar(key) || !(Predicate.isString(key.value) || Predicate.isNumber(key.value))) return fail("a key must be plain text", keyLine)
+      entries.push({ key: String(key.value), line: keyLine, value: convert(pair.value, keyLine, within) })
+    }
+    return { line: at, data: Object.fromEntries(entries.map((entry) => [entry.key, entry.value.data])), entries }
+  }
+  const value = convert(root, 1, [])
+  return { value, problem }
 }
 
 const collectReferences = (text: string, line: number, out: Array<Reference>) => {
   if (!text.includes("[[")) return
-  const withoutCode = text.replace(/`[^`]*`/g, "")
   const typed = new Set<string>()
-  for (const match of withoutCode.matchAll(inlineFieldRe)) {
+  for (const match of text.matchAll(inlineFieldRe)) {
     const rel = match[1]!
     for (const link of match[2]!.matchAll(wikiLinkRe)) {
       const id = link[1]!.trim()
@@ -187,30 +287,10 @@ const collectReferences = (text: string, line: number, out: Array<Reference>) =>
       out.push({ id, line, rel })
     }
   }
-  for (const link of withoutCode.matchAll(wikiLinkRe)) {
+  for (const link of text.matchAll(wikiLinkRe)) {
     const id = link[1]!.trim()
     if (!typed.has(id)) out.push({ id, line })
   }
 }
 
 const truncate = (text: string, max: number) => text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`
-
-/**
- * Finds the first line (1-based) within the front matter that mentions `needle` as a whole token,
- * for precise link locations: `REQ-cart` is not found in `REQ-cart-totals`.
- */
-export const frontMatterLineOf = (doc: MarkdownDoc, needle: string): number => {
-  const pattern = new RegExp(`(?<![\\w-])${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-]|\\.\\w)`)
-  for (let i = 1; i < doc.frontMatterLines - 1; i++) {
-    if (pattern.test(doc.lines[i]!)) return i + 1
-  }
-  return 1
-}
-
-/** The line (1-based) of a top-level front matter key, or 1 when it is not written out. */
-export const frontMatterKeyLine = (doc: MarkdownDoc, key: string): number => {
-  for (let i = 1; i < doc.frontMatterLines - 1; i++) {
-    if (doc.lines[i]!.startsWith(`${key}:`)) return i + 1
-  }
-  return 1
-}

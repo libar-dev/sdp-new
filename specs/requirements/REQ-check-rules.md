@@ -30,12 +30,12 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 
 | Rule | Severity | Reported when | Fix |
 | --- | --- | --- | --- |
-| `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping or is not closed; the file stays out of the graph | fix the YAML |
+| `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping, is not closed or holds what is not JSON data — an alias inside itself, a tag such as `!!set`, `.inf`, a key that is not text ([[ARCH-spec-parser]]); the file stays out of the graph | fix the YAML |
 | `missing-id` | warning | front matter declares a `kind` but no `id`, so the file is not part of the graph | add `id: <PREFIX>-<slug>` |
 | `duplicate-id` | error | a spec or inline node reuses an id declared elsewhere; the later one is left out | rename one of them |
 | `dangling-link` | error | a link, a `[[ID]]` mention or an `@sdp` code annotation names an id no node has; the target stays queryable as a `missing` node | create the node (`sdp new`) or fix the reference |
-| `link-syntax` | warning | an entry under `links:` has a shape sdp does not understand and is ignored | write `links: { <rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes } }` |
-| `inline-node` | warning | an entry under `nodes:` has no `id` and is ignored | give it an `id` |
+| `link-syntax` | error | `links:` is not a map or a list, or an entry under it has no target; it is ignored | write `links: { <rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes } }` |
+| `inline-node` | error | `nodes:` is not a list, or an entry under it is not a map with an `id`; it is ignored | write `nodes: [{ id: <ID>, … }]` |
 | `gherkin-syntax` | error | a gherkin block does not parse; the first error is reported, with the number of follow-on errors | fix the Gherkin at that line |
 | `scenario-empty` | warning | a scenario has no steps | write its steps or delete it |
 | `maturity-value` | warning | `maturity` is not on the configured ladder | use one of the configured levels |
@@ -77,8 +77,8 @@ Scenario Outline: Each rule reports its problem where it is
     | missing-id          | warning  | specs/REQ-a.md   | 1    | { kind: requirement }                                |                                                                                       |
     | duplicate-id        | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [{ id: I1 }, { id: I1 }] }        |                                                                                       |
     | dangling-link       | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: { depends-on: REQ-gone } }       |                                                                                       |
-    | link-syntax         | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, links: [REQ-b] }                        |                                                                                       |
-    | inline-node         | warning  | docs/PLAN.md     | 1    | { id: PLAN, nodes: [inception] }                     |                                                                                       |
+    | link-syntax         | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: [REQ-b] }                        |                                                                                       |
+    | inline-node         | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [inception] }                     |                                                                                       |
     | gherkin-syntax      | error    | specs/REQ-a.md   | 10   | { id: REQ-a }                                        | ```gherkin\nScenario: Rows\n  Given the rows:\n    \| a \| b \|\n    \| c \|\n```     |
     | scenario-empty      | warning  | specs/REQ-a.md   | 7    | { id: REQ-a }                                        | ```gherkin\nScenario: Nothing yet\n```                                                |
     | maturity-value      | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: someday }                     |                                                                                       |
@@ -87,7 +87,7 @@ Scenario Outline: Each rule reports its problem where it is
     | decision-status     | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision }                     |                                                                                       |
     | decision-supersede  | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: superseded } |                                                                                       |
     | decision-content    | info     | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: accepted }   | We release weekly.                                                                    |
-    | plan-reference      | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, iteration: C9 }                         |                                                                                       |
+    | plan-reference      | warning  | specs/REQ-a.md   | 2    | { id: REQ-a, iteration: C9 }                         |                                                                                       |
     | annotation-ignored  | warning  | src/cart.ts      | 6    |                                                      | export const total = 0 // @sdp implements REQ-a                                       |
     | template-placeholder | warning | docs/DEC-0001.md | 8    | { id: DEC-0001, kind: decision, status: proposed }   | ## Decision\n\nWe will …                                                             |
 

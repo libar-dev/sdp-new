@@ -8,8 +8,8 @@ import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
-import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
-import { frontMatterKeyLine, frontMatterLineOf, type MarkdownDoc, type OpenQuestion, parseMarkdown, type Reference } from "./Markdown.ts"
+import { parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
+import { type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
 
 export interface LinkDecl {
   readonly rel: string
@@ -24,7 +24,10 @@ export interface InlineNode {
   readonly kind: string
   readonly title: string
   readonly attrs: Attrs
+  /** Line of each attribute, as for a spec. */
+  readonly attrLines: Readonly<Record<string, number>>
   readonly links: ReadonlyArray<LinkDecl>
+  /** Line of its `id`. */
   readonly line: number
 }
 
@@ -41,14 +44,16 @@ export interface Spec {
   readonly inlineNodes: ReadonlyArray<InlineNode>
   readonly scenarios: ReadonlyArray<Scenario>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
+  /** The first paragraph: the description the draft gate asks for. */
   readonly summary: string
-  readonly headings: ReadonlyArray<string>
+  /** Paragraphs, lists and quotes, as written. */
+  readonly prose: ReadonlyArray<Prose>
+  readonly sections: ReadonlyArray<Section>
   readonly body: string
-  /** File line of the body's first line (the line after the front matter). */
-  readonly bodyLine: number
-  /** Fenced gherkin blocks present (even if empty or unparseable). */
-  readonly hasGherkin: boolean
-  /** Line of each top-level front matter attribute, so facts derived from one can point at it. */
+  /**
+   * Line of each front matter attribute, and of each entry of a map attribute as
+   * `<key>.<entry>`, so facts derived from one can point at it.
+   */
   readonly attrLines: Readonly<Record<string, number>>
 }
 
@@ -75,9 +80,11 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     })
     return { spec: undefined, diagnostics }
   }
-  const fm = md.frontMatter
-  if (!fm) return { spec: undefined, diagnostics }
-  if (!Predicate.isString(fm.id) || fm.id.trim() === "") {
+  const front = md.frontMatter
+  if (!front) return { spec: undefined, diagnostics }
+  const fm = front.data
+  const id = usableId(field(front, "id"))
+  if (id === undefined) {
     if (fm.kind !== undefined) {
       diagnostics.push({
         rule: "missing-id",
@@ -89,11 +96,10 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     }
     return { spec: undefined, diagnostics }
   }
-  const id = fm.id.trim()
   const kind = Predicate.isString(fm.kind) ? fm.kind : inferKind(id, config)
   const title = Predicate.isString(fm.title) ? fm.title : md.title ?? id
   const tags = normalizeTags(fm.tags)
-  const attrs = Object.fromEntries(Object.entries(fm).filter(([key]) => !reserved.has(key)))
+  const attrs = attributesOf(front)
   if (tags.length > 0) attrs.tags = tags
 
   const gherkin = parseGherkinFences({ specId: id, title, tags: [...tags, kind], fences: md.fences })
@@ -110,14 +116,6 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     })
   }
 
-  const links = normalizeLinks(fm.links, {
-    file,
-    owner: id,
-    line: frontMatterKeyLine(md, "links"),
-    lineOf: (to) => frontMatterLineOf(md, to)
-  }, diagnostics)
-  const inlineNodes = normalizeInlineNodes(fm.nodes, md, config, file, diagnostics)
-
   return {
     spec: {
       file,
@@ -127,17 +125,16 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       title,
       attrs,
       tags,
-      links,
+      links: readLinks(field(front, "links"), { file, owner: id }, diagnostics),
       references: md.references,
-      inlineNodes,
+      inlineNodes: readInlineNodes(field(front, "nodes"), config, file, diagnostics),
       scenarios: gherkin.scenarios,
       openQuestions: md.openQuestions,
       summary: md.summary,
-      headings: md.headings.map((h) => h.text),
+      prose: md.prose,
+      sections: md.sections,
       body: md.body,
-      bodyLine: md.frontMatterLines + 1,
-      hasGherkin: md.fences.some((fence) => gherkinLangs.has(fence.lang)),
-      attrLines: Object.fromEntries(Object.keys(attrs).map((key) => [key, frontMatterKeyLine(md, key)]))
+      attrLines: attributeLines(front)
     },
     diagnostics
   }
@@ -187,10 +184,9 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       scenarios: parsed.scenarios,
       openQuestions: [],
       summary: parsed.description?.split("\n\n")[0]?.replace(/\s+/g, " ") ?? "",
-      headings: [],
+      prose: [],
+      sections: [],
       body: content,
-      bodyLine: 1,
-      hasGherkin: true,
       attrLines: {}
     },
     diagnostics
@@ -215,94 +211,103 @@ const normalizeTags = (value: unknown): ReadonlyArray<string> => {
   return []
 }
 
+/** The value of a front matter key, if the mapping has it. */
+const field = (map: Located, key: string): Located | undefined => map.entries?.find((entry) => entry.key === key)?.value
+
+/** The rule for every id, of a spec or of an inline node: a string, trimmed, not empty. */
+const usableId = (value: Located | undefined): string | undefined =>
+  Predicate.isString(value?.data) && value.data.trim() !== "" ? value.data.trim() : undefined
+
+const attributesOf = (map: Located): Record<string, unknown> =>
+  Object.fromEntries((map.entries ?? []).filter((entry) => !reserved.has(entry.key)).map((entry) => [entry.key, entry.value.data]))
+
+/** The line of each attribute, and of each entry of a map attribute as `<key>.<entry>`. */
+const attributeLines = (map: Located): Record<string, number> =>
+  Object.fromEntries(
+    (map.entries ?? []).filter((entry) => !reserved.has(entry.key)).flatMap((entry) => [
+      [entry.key, entry.line] as const,
+      ...(entry.value.entries ?? []).map((inner) => [`${entry.key}.${inner.key}`, inner.line] as const)
+    ])
+  )
+
+const linkHint = "use `links: { <rel>: <ID> | [<ID>, ...] | { to: <ID>, ...attrs } }`"
+
 /**
- * Accepts every shape people naturally write:
+ * Accepts every shape people naturally write, each link at the line of its target:
  *   links: { refines: CAP-x, uses: [A, B], calls: { to: C, via: http } }
  *   links: [ { rel: uses, to: A, note: sync } ]
+ * An empty `links:` declares none; anything else is an error where it is written.
  */
-export const normalizeLinks = (
-  value: unknown,
-  at: {
-    readonly file: string
-    readonly owner: string
-    /** Where unusable links are reported: the `links:` key. */
-    readonly line: number
-    /** Where a link to `target` is written. */
-    readonly lineOf: (target: string) => number
-  },
+const readLinks = (
+  value: Located | undefined,
+  at: { readonly file: string; readonly owner: string },
   diagnostics: Array<Diagnostic>
 ): ReadonlyArray<LinkDecl> => {
-  const { file, lineOf, owner } = at
-  if (value === undefined || value === null) return []
+  if (value === undefined || value.data === null) return []
   const links: Array<LinkDecl> = []
-  const invalid = (what: string) =>
-    diagnostics.push({
-      rule: "link-syntax",
-      severity: "warning",
-      message: `ignored link ${what}`,
-      node: owner,
-      source: { file, line: at.line },
-      hint: "use `links: { <rel>: <ID> | [<ID>, ...] | { to: <ID>, ...attrs } }`"
-    })
-  const add = (rel: string, target: unknown) => {
-    if (Predicate.isString(target)) {
-      for (const to of target.split(",").map((t) => t.trim()).filter(Boolean)) links.push({ rel, to, line: lineOf(to) })
-    } else if (Predicate.isNumber(target)) {
-      links.push({ rel, to: String(target), line: lineOf(String(target)) })
-    } else if (Array.isArray(target)) {
-      for (const t of target) add(rel, t)
-    } else if (Predicate.isObject(target) && Predicate.isString((target as Record<string, unknown>).to)) {
-      const { to, rel: _rel, ...attrs } = target as Record<string, unknown>
-      links.push({ rel, to: String(to), attrs, line: lineOf(String(to)) })
+  const invalid = (message: string, line: number) =>
+    diagnostics.push({ rule: "link-syntax", severity: "error", message, node: at.owner, source: { file: at.file, line }, hint: linkHint })
+  const add = (rel: string, target: Located) => {
+    const { data } = target
+    const to = target.entries ? field(target, "to")?.data : undefined
+    if (Predicate.isString(data)) {
+      for (const id of data.split(",").map((t) => t.trim()).filter(Boolean)) links.push({ rel, to: id, line: target.line })
+    } else if (Predicate.isNumber(data)) {
+      links.push({ rel, to: String(data), line: target.line })
+    } else if (target.items) {
+      for (const item of target.items) add(rel, item)
+    } else if (Predicate.isString(to)) {
+      const attrs = Object.fromEntries((target.entries ?? []).filter((e) => e.key !== "to" && e.key !== "rel").map((e) => [e.key, e.value.data]))
+      links.push({ rel, to, attrs, line: target.line })
     } else {
-      invalid(`${rel}: ${JSON.stringify(target)}`)
+      invalid(`${rel}: ${JSON.stringify(data)} has no target`, target.line)
     }
   }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      if (Predicate.isObject(item) && Predicate.isString((item as Record<string, unknown>).rel)) {
-        add(String((item as Record<string, unknown>).rel), item)
-      } else invalid(JSON.stringify(item))
+  if (value.items) {
+    for (const item of value.items) {
+      const rel = item.entries ? field(item, "rel")?.data : undefined
+      if (Predicate.isString(rel) && Predicate.isString(field(item, "to")?.data)) add(rel, item)
+      else invalid(`a link in a list needs rel and to: ${JSON.stringify(item.data)}`, item.line)
     }
-  } else if (Predicate.isObject(value)) {
-    for (const [rel, target] of Object.entries(value)) add(rel, target)
+  } else if (value.entries) {
+    for (const entry of value.entries) add(entry.key, entry.value)
   } else {
-    invalid(JSON.stringify(value))
+    invalid(`links must be a map or a list, not ${JSON.stringify(value.data)}`, value.line)
   }
   return links
 }
 
-const normalizeInlineNodes = (
-  value: unknown,
-  md: MarkdownDoc,
+/** `nodes:` is a list of maps, each with an id; an empty `nodes:` declares none. */
+const readInlineNodes = (
+  value: Located | undefined,
   config: Config,
   file: string,
   diagnostics: Array<Diagnostic>
 ): ReadonlyArray<InlineNode> => {
-  if (!Array.isArray(value)) return []
+  if (value === undefined || value.data === null) return []
+  const invalid = (message: string, line: number) =>
+    diagnostics.push({ rule: "inline-node", severity: "error", message, source: { file, line }, hint: "write `nodes: [{ id: <ID>, kind: <kind>, ... }]`" })
+  if (!value.items) {
+    invalid(`nodes must be a list, not ${JSON.stringify(value.data)}`, value.line)
+    return []
+  }
   const nodes: Array<InlineNode> = []
-  for (const item of value) {
-    if (!Predicate.isObject(item) || !Predicate.isString((item as Record<string, unknown>).id)) {
-      diagnostics.push({
-        rule: "inline-node",
-        severity: "warning",
-        message: `ignored entry under nodes: ${JSON.stringify(item)}`,
-        source: { file, line: frontMatterKeyLine(md, "nodes") },
-        hint: "each entry needs at least an `id`"
-      })
+  for (const item of value.items) {
+    const id = item.entries ? usableId(field(item, "id")) : undefined
+    if (id === undefined) {
+      invalid(`an entry under nodes needs an id: ${JSON.stringify(item.data)}`, item.line)
       continue
     }
-    const record = item as Record<string, unknown>
-    const id = String(record.id)
-    const declared = frontMatterLineOf(md, `id: ${id}`)
-    const line = declared === 1 ? frontMatterLineOf(md, id) : declared
-    const attrs = Object.fromEntries(Object.entries(record).filter(([key]) => !reserved.has(key)))
+    const kind = field(item, "kind")?.data
+    const title = field(item, "title")?.data
+    const line = item.entries!.find((entry) => entry.key === "id")!.line
     nodes.push({
       id,
-      kind: Predicate.isString(record.kind) ? record.kind : inferKind(id, config),
-      title: Predicate.isString(record.title) ? record.title : id,
-      attrs,
-      links: normalizeLinks(record.links, { file, owner: id, line, lineOf: () => line }, diagnostics),
+      kind: Predicate.isString(kind) ? kind : inferKind(id, config),
+      title: Predicate.isString(title) ? title : id,
+      attrs: attributesOf(item),
+      attrLines: attributeLines(item),
+      links: readLinks(field(item, "links"), { file, owner: id }, diagnostics),
       line
     })
   }

@@ -44,7 +44,10 @@ people, natural for LLMs to read and write, diff well in git, and be greppable.
 
 ## Decision
 
-We use option 8. A spec is any Markdown file whose front matter has an `id`. All gherkin blocks in
+We use option 8. The format is **CommonMark with YAML front matter, fenced Gherkin and
+`[[wiki-links]]` in prose**: a spec is any such file whose front matter has an `id`. The front
+matter is JSON data written as YAML; the body is read by a CommonMark parser, so what a renderer
+shows as code or as an HTML comment is never read as a scenario or a link. All gherkin blocks in
 a file form one Feature, compiled to pickles by `@cucumber/gherkin` and bound to step definitions
 with Cucumber Expressions. Classic `.feature` files are accepted too (metadata in `@key:value`
 tags), so existing suites join the graph without conversion. Nothing stops a team from writing
@@ -53,6 +56,9 @@ EARS sentences or formal models *inside* a spec; option 8 is a container, not a 
 ## Consequences
 
 - Maturity is visible in the content itself: no Gherkin yet means not specified yet.
+- What sdp reads is what any Markdown viewer shows: an example of a scenario inside a ```` ```text ````
+  block stays an example, and the edge cases of fences, indentation and line endings are
+  CommonMark's, not sdp's ([[ARCH-spec-parser]]).
 - Quality requirements use the same format as quality attribute scenarios (source/environment →
   *Given*, stimulus → *When*, response and measure → *Then*).
 - Decisions, architecture rules and milestone gates can carry executable scenarios too, through

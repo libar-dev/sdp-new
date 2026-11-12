@@ -173,29 +173,9 @@ const measures = (spec: Spec | undefined): ReadonlyArray<string> =>
 /** What was decided: a `decision` attribute, else the `## Decision` (or Outcome) section, else the summary. */
 const decisionText = (node: GraphNode, spec: Spec | undefined): string | undefined => {
   if (Predicate.isString(node.attrs.decision)) return node.attrs.decision
-  const section = spec ? sectionText(spec.body, /^(decision|outcome)\b/i) : ""
+  const section = spec?.sections.find((s) => /^(decision|outcome)\b/i.test(s.heading))?.text ?? ""
   if (section) return section.length > 280 ? `${section.slice(0, 279).trimEnd()}…` : section
   return Predicate.isString(node.attrs.summary) ? node.attrs.summary : undefined
-}
-
-/** The prose under the first heading matching `heading`, up to the next heading of that level or above. */
-const sectionText = (body: string, heading: RegExp): string => {
-  const lines = body.split("\n")
-  const start = lines.findIndex((line) => {
-    const m = /^(#{1,6})\s+(.*)$/.exec(line)
-    return m !== null && heading.test(m[2]!.trim())
-  })
-  if (start < 0) return ""
-  const level = /^#+/.exec(lines[start]!)![0].length
-  const text: Array<string> = []
-  let fenced = false
-  for (const line of lines.slice(start + 1)) {
-    const m = /^(#{1,6})\s/.exec(line)
-    if (!fenced && m && m[1]!.length <= level) break
-    if (/^\s*(`{3,}|~{3,})/.test(line)) fenced = !fenced
-    else if (!fenced) text.push(line.trim())
-  }
-  return text.join(" ").replace(/\s+/g, " ").trim()
 }
 
 const statusOf = (node: GraphNode) => {
