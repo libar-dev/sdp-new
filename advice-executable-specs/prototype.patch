@@ -1,0 +1,842 @@
+diff --git a/specs/architecture/ARCH-graph-builder.md b/specs/architecture/ARCH-graph-builder.md
+index fc88f72..74435a8 100644
+--- a/specs/architecture/ARCH-graph-builder.md
++++ b/specs/architecture/ARCH-graph-builder.md
+@@ -172,7 +172,7 @@ Scenario Outline: What sdp derives cannot be written, wherever a node is declare
+     | specs/REQ-a.md    | ---\nid: REQ-a\nmaturity: idea\nstage: verified\n---\n# A                   | specs/REQ-a.md:4    |
+     | specs/plan.md      | ---\nid: PLAN\nnodes:\n  - { id: REQ-b, kind: requirement, stage: verified }\n---\n# Plan | specs/plan.md:4      |
+     | src/pay.py        | # @sdp is REQ-pay kind=requirement stage=verified\ndef pay(): pass               | src/pay.py:1        |
+-    | specs/pay.feature | @id:REQ-f @stage:verified\nFeature: Pay                                         | specs/pay.feature:1 |
++    | specs/pay.feature | @id=REQ-f @stage=verified\nFeature: Pay                                         | specs/pay.feature:1 |
+ 
+ Scenario Outline: A link cannot take the name of an attribute, wherever it is declared
+   Given a file "specs/model.md" containing:
+diff --git a/specs/architecture/ARCH-spec-parser.md b/specs/architecture/ARCH-spec-parser.md
+index d53e037..1528452 100644
+--- a/specs/architecture/ARCH-spec-parser.md
++++ b/specs/architecture/ARCH-spec-parser.md
+@@ -661,7 +661,7 @@ Scenario Outline: A feature file is identified by its tags, else by its path
+ 
+   Examples:
+     | tags                           | id                              | kind        |
+-    | @id:REQ-search @maturity:ready | REQ-search                      | requirement |
+-    | @id:SEARCH-1 @kind:story @web  | SEARCH-1                        | story       |
++    | @id=REQ-search @maturity=ready | REQ-search                      | requirement |
++    | @id=SEARCH-1 @kind=story @web  | SEARCH-1                        | story       |
+     | @web                           | feature:features/search.feature | feature     |
+ ~~~
+diff --git a/specs/requirements/REQ-agent-context.md b/specs/requirements/REQ-agent-context.md
+index 930ee60..a8a5a05 100644
+--- a/specs/requirements/REQ-agent-context.md
++++ b/specs/requirements/REQ-agent-context.md
+@@ -90,9 +90,10 @@ Scenario: The bundle leads with the contract: the scenario names with their stat
+     ```
+     """
+   When I ask for the context of "REQ-cart"
+-  Then the sections of the output are "Scenarios (2), Specification"
+-  And the output section "Scenarios" contains "- [unrun] A new cart is empty — specs/REQ-cart.md:10"
+-  And the line after the output line with "### A cart holds each item once" contains "- [unrun] Adding an item twice raises its quantity — specs/REQ-cart.md:15"
++  Then the sections of the output are "Contract, Specification"
++  And the output section "Contract" contains "- [unrun] A new cart is empty — specs/REQ-cart.md:10"
++  And the line after the output line with "### A cart holds each item once" contains "[unrun] — specs/REQ-cart.md:13"
++  And the output section "Contract" contains "- [unrun] Adding an item twice raises its quantity — specs/REQ-cart.md:15"
+ 
+ Scenario: A spec below ready says what keeps it from ready
+   Given a file "specs/REQ-checkout.md" containing:
+@@ -199,9 +200,9 @@ Scenario: A step without a definition is listed before any run, with a suggested
+     })
+     """
+   When I run "sdp context REQ-cart"
+-  Then the output section "Scenarios" contains "[unrun] Add an item — specs/REQ-cart.md:10"
+-  And the output section "Scenarios" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
+-  And the output section "Scenarios" does not contain "an empty cart"
++  Then the output section "Contract" contains "[unrun] Add an item — specs/REQ-cart.md:10"
++  And the output section "Contract" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
++  And the output section "Contract" does not contain "an empty cart"
+   And the output section "Step definitions" contains "Step files: specs/steps/cart.steps.ts"
+ 
+ Scenario: After a run, each scenario has its status and only the steps still undefined are listed
+@@ -225,11 +226,11 @@ Scenario: After a run, each scenario has its status and only the steps still und
+   And a step definition "an empty cart" that passes
+   When the scenarios are run
+   And I ask for the context of "REQ-cart"
+-  Then the output section "Scenarios" contains "[undefined] Add an item — specs/REQ-cart.md:10"
+-  And the output section "Scenarios" contains "undefined: When I add a lamp"
+-  And the output section "Scenarios" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
+-  And the output section "Scenarios" contains 'suggested: `Then("the cart holds {int} item", ({ world, args: [int] }) => pending())`'
+-  And the output section "Scenarios" does not contain "an empty cart"
++  Then the output section "Contract" contains "[undefined] Add an item — specs/REQ-cart.md:10"
++  And the output section "Contract" contains "undefined: When I add a lamp"
++  And the output section "Contract" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
++  And the output section "Contract" contains 'suggested: `Then("the cart holds {int} item", ({ world, args: [int] }) => pending())`'
++  And the output section "Contract" does not contain "an empty cart"
+ 
+ Scenario: A step that failed in the last run is listed with its error and where it is defined
+   Given a file "specs/REQ-cart.md" containing:
+@@ -256,8 +257,8 @@ Scenario: A step that failed in the last run is listed with its error and where
+     """
+   When I run "sdp run"
+   And I run "sdp context REQ-cart"
+-  Then the output section "Scenarios" contains "- [failed] Add an item — specs/REQ-cart.md:7"
+-  And the output section "Scenarios" contains "failed: Given an empty cart — the cart service is down (defined at specs/steps/cart.steps.ts:4)"
++  Then the output section "Contract" contains "- [failed] Add an item — specs/REQ-cart.md:7"
++  And the output section "Contract" contains "failed: Given an empty cart — the cart service is down (defined at specs/steps/cart.steps.ts:4)"
+ 
+ Scenario: A registration that cannot be read is named and leaves the bundle incomplete, so its step is not mistaken for undefined
+   Given a file "specs/REQ-cart.md" containing:
+@@ -283,7 +284,7 @@ Scenario: A registration that cannot be read is named and leaves the bundle inco
+     """
+   When I run "sdp context REQ-cart"
+   Then the exit code is 2
+-  And the output section "Scenarios" contains "undefined: Given an empty cart"
++  And the output section "Contract" contains "undefined: Given an empty cart"
+   And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: this statement registers steps under a condition, in a loop or through another name"
+   When I run "sdp steps cart"
+   Then the exit code is 2
+diff --git a/specs/requirements/REQ-configuration.md b/specs/requirements/REQ-configuration.md
+index 41a0758..70bf7fd 100644
+--- a/specs/requirements/REQ-configuration.md
++++ b/specs/requirements/REQ-configuration.md
+@@ -50,7 +50,7 @@ Background:
+     """
+   And a file "features/search.feature" containing:
+     """
+-    @id:REQ-search @maturity:ready
++    @id=REQ-search @maturity=ready
+     Feature: Search
+     """
+   And a file "src/orders.ts" containing:
+@@ -312,7 +312,7 @@ Scenario: sdp vocabulary prints the profile in force
+   Then the output is valid JSON
+   And the output field "data.vocabulary.links" holds "owner"
+   And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
+-  And the output field "data.made.kinds" holds "scenario, code, missing"
++  And the output field "data.made.kinds" holds "scenario, rule, code, missing"
+   And the output field "data.made.stages" holds "failing, in-progress, verified"
+   And the output field "data.made.reservedRelations" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status"
+   When I run "sdp vocabulary"
+diff --git a/specs/requirements/REQ-executable-specs.md b/specs/requirements/REQ-executable-specs.md
+index 3c6ccf1..18df20a 100644
+--- a/specs/requirements/REQ-executable-specs.md
++++ b/specs/requirements/REQ-executable-specs.md
+@@ -259,7 +259,7 @@ Scenario: A scenario that reads the graph also goes stale when a spec changes
+   And a step definition "the cart holds {int} item(s)" that passes
+   And a file "specs/catalogue.feature" containing:
+     """
+-    @id:REQ-catalogue
++    @id=REQ-catalogue
+     Feature: Catalogue
+       Scenario: The cart is specified
+         Then the query "#REQ-cart" returns 1 result
+@@ -573,7 +573,7 @@ Scenario: Doc strings and data tables reach the handler
+ Scenario Outline: Every scenario gets a fresh world, shared by the modules on one world factory
+   Given a file "specs/shop.feature" containing:
+     """
+-    @id:REQ-shop
++    @id=REQ-shop
+     Feature: Shop
+       Scenario: One lamp
+         When I add a lamp
+@@ -819,7 +819,7 @@ Scenario: A malformed step expression stops the run in one line that names the d
+   When I run "sdp context REQ-cart"
+   Then the exit code is 2
+   And the output contains "incomplete: this answer may miss something"
+-  And the output section "Scenarios" contains "undefined: Given an empty cart"
++  And the output section "Contract" contains "undefined: Given an empty cart"
+   And the output section "Step definitions" contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}"'
+ 
+ Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
+@@ -898,7 +898,7 @@ Scenario: A partial run keeps the results of everything else
+   And a step definition "the cart holds {int} item(s)" that passes
+   And a file "specs/wishlist.feature" containing:
+     """
+-    @id:REQ-wishlist
++    @id=REQ-wishlist
+     Feature: Wishlist
+       Scenario: Keep a lamp for later
+         Then the query "#REQ-cart" returns 1 result
+@@ -906,7 +906,7 @@ Scenario: A partial run keeps the results of everything else
+   When the workspace is run
+   And a file "specs/wishlist.feature" containing:
+     """
+-    @id:REQ-wishlist
++    @id=REQ-wishlist
+     Feature: Wishlist
+       Scenario: Remember a lamp
+         Then the query "#REQ-cart" returns 1 result
+@@ -919,7 +919,7 @@ Scenario: A partial run keeps the results of everything else
+ Scenario: Two runs at once each record what they executed, and neither restores what the other replaced
+   Given a file "specs/wishlist.feature" containing:
+     """
+-    @id:REQ-wishlist
++    @id=REQ-wishlist
+     Feature: Wishlist
+       Scenario: Keep a lamp for later
+         Given a wishlist
+@@ -968,7 +968,7 @@ Scenario: A run that cannot get the lock on the results says which file is in it
+ Scenario Outline: Progress is reported once per scenario and in order, whatever finishes first and however slow the reporter
+   Given a file "specs/timing.feature" containing:
+     """
+-    @id:REQ-timing
++    @id=REQ-timing
+     Feature: Timing
+       Scenario: One
+         Given a first step
+@@ -992,7 +992,7 @@ Scenario Outline: Progress is reported once per scenario and in order, whatever
+ Scenario: Scenarios run concurrently when asked to, except those tagged @serial
+   Given a file "specs/timing.feature" containing:
+     """
+-    @id:REQ-timing
++    @id=REQ-timing
+     Feature: Timing
+       Scenario: One
+         Given a slow step
+@@ -1013,7 +1013,7 @@ Scenario: Scenarios run concurrently when asked to, except those tagged @serial
+ Scenario: --tags selects examples, and a scenario passes only when all its examples ran
+   Given a file "specs/payment.feature" containing:
+     """
+-    @id:REQ-payment
++    @id=REQ-payment
+     Feature: Payment
+       Scenario Outline: Pay by <method>
+         Given a payment by <method>
+@@ -1039,7 +1039,7 @@ Scenario: --tags selects examples, and a scenario passes only when all its examp
+ Scenario: Whether a scenario runs alone depends on the examples a run selects
+   Given a file "specs/timing.feature" containing:
+     """
+-    @id:REQ-timing
++    @id=REQ-timing
+     Feature: Timing
+       Scenario: One
+         Given a slow step
+@@ -1112,7 +1112,7 @@ Rule: Gates run last
+     And a step definition "the cart holds {int} item(s)" that passes
+     And a file "specs/release.feature" containing:
+       """
+-      @id:REQ-release
++      @id=REQ-release
+       Feature: Release
+         Scenario Outline: The cart is <state>
+           Then the node "REQ-cart" has <attribute> "<state>"
+@@ -1136,7 +1136,7 @@ Rule: Gates run last
+     And a step definition "the cart holds {int} item(s)" that passes
+     And a file "specs/audit.feature" containing:
+       """
+-      @id:REQ-audit
++      @id=REQ-audit
+       Feature: Audit
+         Scenario: Look at the graph
+           Then the graph shows no results
+@@ -1150,7 +1150,7 @@ Rule: Gates run last
+   Scenario Outline: An ordinary scenario that asserts on results is told to become a gate
+     Given a file "specs/progress.feature" containing:
+       """
+-      @id:REQ-progress
++      @id=REQ-progress
+       Feature: Progress
+         Scenario: Delivery state
+           Then <step>
+diff --git a/specs/requirements/REQ-progressive-specs.md b/specs/requirements/REQ-progressive-specs.md
+index f7b978d..adf9a7a 100644
+--- a/specs/requirements/REQ-progressive-specs.md
++++ b/specs/requirements/REQ-progressive-specs.md
+@@ -137,7 +137,7 @@ Scenario: An outline is one scenario with one executable example per row
+ Scenario: A classic feature file is a spec too, with its id and attributes in the tags of its Feature
+   Given a file "features/search.feature" containing:
+     """
+-    @id:REQ-search @maturity:ready
++    @id=REQ-search @maturity=ready
+     Feature: Product search
+       Scenario: Search by name
+         When I search for "lamp"
+diff --git a/specs/steps/docs.steps.ts b/specs/steps/docs.steps.ts
+index 2c3b09a..952c874 100644
+--- a/specs/steps/docs.steps.ts
++++ b/specs/steps/docs.steps.ts
+@@ -17,6 +17,7 @@ import type { Project } from "../../src/graph/Build.ts"
+ import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
+ import { formatSource, type SourceRef } from "../../src/model/Graph.ts"
+ import { defineSteps } from "sdp/steps"
++import { made } from "../../src/model/Vocabulary.ts"
+ import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+ import { findFiles } from "../../src/workspace/Workspace.ts"
+ import { ids, load, newWorld, reload, setFile, type World } from "./world.ts"
+@@ -148,7 +149,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
+         for (const source of edge.sources ?? [edge.source]) {
+           const line = await lineAt(source)
+           if (line === undefined) untraceable.push(label)
+-          else if (edge.rel !== config.vocabulary.relations.scenario && !line.includes(edge.to)) unnamed.push(`${label} ${formatSource(source)}`)
++          else if (edge.rel !== config.vocabulary.relations.scenario && edge.rel !== made.relations.rule && !line.includes(edge.to)) unnamed.push(`${label} ${formatSource(source)}`)
+         }
+       }
+       world.scratch.untraceable = untraceable
+diff --git a/specs/steps/sdp.steps.ts b/specs/steps/sdp.steps.ts
+index e3fb799..f4bfc2d 100644
+--- a/specs/steps/sdp.steps.ts
++++ b/specs/steps/sdp.steps.ts
+@@ -62,6 +62,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
+ 
+   Given("an empty workspace", () => {})
+ 
++  // One spec per row: its tag line and the name of its Feature are the whole file.
++  Given("these specs:", ({ table, world }) => {
++    const [, ...rows] = table ?? []
++    for (const [tags = "", name = ""] of rows) {
++      const id = /@id=(\S+)/.exec(tags)?.[1]
++      assert.ok(id, `a spec needs an @id= tag: ${tags}`)
++      setFile(world, `specs/${id}.feature`, `${tags}\nFeature: ${name}\n`)
++    }
++  })
++
+   When("the workspace is loaded", ({ world }) => Effect.asVoid(reload(world)))
+ 
+   Then("the workspace graph has node {string} of kind {string}", ({ args: [id, kind], world }) =>
+diff --git a/src/check/Check.ts b/src/check/Check.ts
+index b2f1ea7..a5f6437 100644
+--- a/src/check/Check.ts
++++ b/src/check/Check.ts
+@@ -32,7 +32,7 @@ import type { Project } from "../graph/Build.ts"
+ import { idsDeclaration } from "../graph/Types.ts"
+ import { declaredActivity } from "../lifecycle/Lifecycle.ts"
+ import type { OpenQuestion } from "../parse/Markdown.ts"
+-import type { Scenario } from "../parse/Gherkin.ts"
++import type { Rule, Scenario } from "../parse/Gherkin.ts"
+ import type { Spec } from "../parse/Spec.ts"
+ 
+ const builtinLevels: ReadonlyArray<string> = Object.values(criteria)
+@@ -42,10 +42,11 @@ interface Content {
+   readonly summary: string
+   readonly body: string
+   readonly scenarios: ReadonlyArray<Scenario>
++  readonly rules: ReadonlyArray<Rule>
+   readonly openQuestions: ReadonlyArray<OpenQuestion>
+ }
+ 
+-const noContent: Content = { summary: "", body: "", scenarios: [], openQuestions: [] }
++const noContent: Content = { summary: "", body: "", scenarios: [], rules: [], openQuestions: [] }
+ 
+ /** Why `content` does not meet `level` (empty when it does). Custom levels have no criteria. */
+ export const unmetCriteria = (content: Content, level: string): ReadonlyArray<string> => {
+@@ -63,6 +64,8 @@ export const unmetCriteria = (content: Content, level: string): ReadonlyArray<st
+   if (index >= 3) {
+     const open = content.openQuestions.filter((q) => !q.resolved)
+     if (open.length > 0) reasons.push(`${open.length} open question(s), e.g. "${open[0]!.text}" (line ${open[0]!.line})`)
++    const bare = content.rules.filter((rule) => rule.scenarios.length === 0 && !open.some((q) => q.line === rule.line))
++    if (bare.length > 0) reasons.push(`rule "${bare[0]!.name}" has no example (line ${bare[0]!.line})`)
+     const noOutcome = content.scenarios.filter((s) => !s.hasOutcome)
+     if (noOutcome.length > 0) reasons.push(`scenario "${noOutcome[0]!.name}" has no Then step`)
+   }
+@@ -290,7 +293,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
+ 
+   for (const spec of project.specs) {
+     for (const scenario of spec.scenarios) {
+-      if (scenario.steps.length === 0) {
++      if (scenario.steps.length === 0 && !spec.openQuestions.some((q) => q.line === scenario.line)) {
+         out.push(diagnostic("scenario-empty", {
+           message: `${scenario.id} has no steps`,
+           node: scenario.id,
+diff --git a/src/graph/Build.ts b/src/graph/Build.ts
+index 53f71e4..6c92450 100644
+--- a/src/graph/Build.ts
++++ b/src/graph/Build.ts
+@@ -182,7 +182,9 @@ export const buildProject = (input: ProjectInput): Project => {
+           spec: spec.id,
+           keyword: scenario.keyword,
+           tags: scenario.tags.length > 0 ? scenario.tags : undefined,
++          ...scenario.attrs,
+           rule: scenario.rule,
++          description: scenario.description || undefined,
+           steps: scenario.steps.length,
+           examples: scenario.pickles.length > 1 ? scenario.pickles.length : undefined,
+           status: status ?? (stale ? "stale" : "unrun"),
+@@ -193,6 +195,31 @@ export const buildProject = (input: ProjectInput): Project => {
+         source: { file: spec.file, line: scenario.line }
+       })
+       edges.push({ from: scenario.id, rel: vocabulary.relations.scenario, to: spec.id, source: { file: spec.file, line: scenario.line } })
++      // A scenario under a Rule is an example of it, and what its own tags link is linked from it.
++      if (scenario.ruleId !== undefined) {
++        edges.push({ from: scenario.id, rel: vocabulary.relations.scenario, to: scenario.ruleId, source: { file: spec.file, line: scenario.line } })
++      }
++      for (const link of scenario.links) edges.push({ from: scenario.id, rel: link.rel, to: link.to, source: { file: spec.file, line: link.line } })
++    }
++    // A rule is a node from the day it is written: what it says, why, and what its examples show so far.
++    for (const rule of spec.rules) {
++      const examples = spec.scenarios.filter((scenario) => scenario.ruleId === rule.id)
++      declare({
++        id: rule.id,
++        kind: made.kinds.rule,
++        title: rule.name,
++        attrs: compact({
++          ...rule.attrs,
++          spec: spec.id,
++          description: rule.description || undefined,
++          tags: rule.tags.length > 0 ? rule.tags : undefined,
++          scenarios: examples.length,
++          verification: verificationOf(examples.map((scenario) => (evidence?.settle(scenario) ?? unrun).status))
++        }),
++        source: { file: spec.file, line: rule.line }
++      })
++      edges.push({ from: rule.id, rel: made.relations.rule, to: spec.id, source: { file: spec.file, line: rule.line } })
++      for (const link of rule.links) edges.push({ from: rule.id, rel: link.rel, to: link.to, source: { file: spec.file, line: link.line } })
+     }
+     const verification: Verification = verificationOf(statuses)
+     if (!nodes.has(spec.id)) verifications.set(spec.id, verification)
+diff --git a/src/graph/Context.ts b/src/graph/Context.ts
+index cd2cd5f..772bf63 100644
+--- a/src/graph/Context.ts
++++ b/src/graph/Context.ts
+@@ -46,15 +46,34 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
+   }
+   if (spec) out.push(...notReady(project, spec))
+ 
+-  // The contract first: a scenario's name is the rule it pins, so the names with their status are the reference page.
+-  if (spec && spec.scenarios.length > 0) {
+-    out.push(`## Scenarios (${spec.scenarios.length})`, "")
++  // The contract first: the rules, each with its reason, what it rests on and its examples with their
++  // status. A scenario outside a Rule is its own rule: its name says it.
++  if (spec && spec.scenarios.length + spec.rules.length > 0) {
++    const open = spec.openQuestions.filter((q) => !q.resolved)
++    const counts = [`${spec.rules.length} rule(s)`, `${spec.scenarios.length} scenario(s)`, ...(open.length > 0 ? [`${open.length} open`] : [])]
++    out.push("## Contract", "", counts.join(", "))
++    const isOpen = (line: number) => open.some((q) => q.line === line)
++    const ruleLine = (ruleId: string) => {
++      const rule = spec.rules.find((r) => r.id === ruleId)!
++      const rests = rule.links.map((link) => `${link.rel} ${link.to}`).join(", ")
++      const state = isOpen(rule.line) ? "open question" : rule.scenarios.length === 0 ? "no example yet" : String(graph.node(rule.id)?.attrs.verification)
++      out.push("", `### ${rule.name}`, `[${state}]${rests ? ` ${rests}` : ""} — ${spec.file}:${rule.line}`)
++      if (rule.description) out.push("", ...rule.description.split("\n").map((line) => `> ${line}`))
++      if (rule.scenarios.length > 0) out.push("")
++    }
++    const scenarioIds = new Set(spec.scenarios.map((s) => s.ruleId))
+     let rule: string | undefined
++    // Rules without an example yet come where they are written: before the first scenario of a later rule.
++    const pending = spec.rules.filter((r) => !scenarioIds.has(r.id))
++    const flush = (before: number) => {
++      while (pending.length > 0 && pending[0]!.line < before) ruleLine(pending.shift()!.id)
++    }
+     for (const s of spec.scenarios) {
+-      if (s.rule !== undefined && s.rule !== rule) out.push("", `### ${s.rule}`)
+-      rule = s.rule
++      flush(s.line)
++      if (s.ruleId !== undefined && s.ruleId !== rule) ruleLine(s.ruleId)
++      rule = s.ruleId
+       const status = graph.node(s.id)?.attrs.status ?? "unrun"
+-      out.push(`- [${String(status)}] ${s.name} — ${spec.file}:${s.line}`)
++      out.push(`- [${isOpen(s.line) ? "open question" : String(status)}] ${s.name} — ${spec.file}:${s.line}`)
+       // What only a run knows (failures, pending steps) comes from fresh results; what is not
+       // automated yet comes from matching the current step definitions, so it needs no run.
+       const result = project.results?.scenarios[s.id]
+@@ -81,8 +100,9 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
+         }
+       }
+     }
++    flush(Infinity)
+     out.push("")
+-    if (steps) {
++    if (steps && spec.scenarios.length > 0) {
+       out.push(
+         "## Step definitions",
+         "",
+@@ -100,8 +120,20 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
+ 
+   if (spec) out.push("## Specification", "", spec.body.trim(), "")
+ 
+-  const outgoing = graph.out(id).filter((e) => e.rel !== vocabulary.relations.scenario)
+-  const incoming = graph.in(id).filter((e) => e.rel !== vocabulary.relations.scenario)
++  const structural = (rel: string) => rel === vocabulary.relations.scenario || rel === made.relations.rule
++  const outgoing = graph.out(id).filter((e) => !structural(e.rel))
++  const incoming = graph.in(id).filter((e) => !structural(e.rel))
++  // What rests on this node rule by rule: the rules and scenarios of other specs that link to it.
++  const resting = incoming.filter((e) => [made.kinds.rule, made.kinds.scenario].some((kind) => graph.node(e.from)?.kind === kind))
++  if (resting.length > 0) {
++    out.push("## Rules that rest on this", "")
++    for (const e of resting) {
++      const from = graph.node(e.from)!
++      const state = from.kind === made.kinds.rule ? from.attrs.verification : from.attrs.status
++      out.push(`- [${String(state)}] ${from.title} (${e.rel}) — ${String(from.attrs.spec)} ${formatSource(from.source)}`)
++    }
++    out.push("")
++  }
+   if (outgoing.length + incoming.length > 0) {
+     out.push("## Relationships", "")
+     // A node that several links lead to says what it is once.
+@@ -115,7 +147,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
+       const other = graph.node(e.to)
+       out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`, ...words(other))
+     }
+-    for (const e of incoming) {
++    for (const e of incoming.filter((e) => !resting.includes(e))) {
+       const other = graph.node(e.from)
+       out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`, ...words(other))
+     }
+diff --git a/src/model/Vocabulary.ts b/src/model/Vocabulary.ts
+index 56eaeda..27dea2a 100644
+--- a/src/model/Vocabulary.ts
++++ b/src/model/Vocabulary.ts
+@@ -134,11 +134,15 @@ export const defaultVocabulary: Vocabulary = {
+ export const made = {
+   kinds: {
+     scenario: "scenario",
++    /** A `Rule:` of a spec. */
++    rule: "rule",
+     /** An annotated declaration or file. */
+     code: "code",
+     /** What an unresolved reference points at. */
+     missing: "missing"
+   },
++  /** The relation from a rule to the spec it is a rule of. */
++  relations: { rule: "rule-of" },
+   /** Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error. */
+   attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
+   /** Facts sdp computes on scenario nodes. */
+diff --git a/src/parse/Gherkin.ts b/src/parse/Gherkin.ts
+index 69eab90..b2c7733 100644
+--- a/src/parse/Gherkin.ts
++++ b/src/parse/Gherkin.ts
+@@ -46,6 +46,13 @@ export interface Scenario {
+   readonly tags: ReadonlyArray<string>
+   readonly line: number
+   readonly rule?: string | undefined
++  /** Id of the `Rule:` the scenario is an example of. */
++  readonly ruleId?: string | undefined
++  /** The free text under its keyword line, as written. */
++  readonly description: string
++  /** What its own `@key=value` and `@rel:ID` tags say. */
++  readonly attrs: Readonly<Record<string, unknown>>
++  readonly links: ReadonlyArray<TagLink>
+   readonly steps: ReadonlyArray<ScenarioStep>
+   readonly pickles: ReadonlyArray<Pickle>
+   /** Stable hash of what a handler can observe — names, tags, steps and their arguments; results recorded for another hash are stale. */
+@@ -54,6 +61,82 @@ export interface Scenario {
+   readonly hasOutcome: boolean
+ }
+ 
++/** `@rel:ID` on a Feature, Rule or Scenario: a link from that node, at the line of the tag. */
++export interface TagLink {
++  readonly rel: string
++  readonly to: string
++  readonly line: number
++}
++
++/** A `Rule:`: a node of its own, with the reason under it and the scenarios that are its examples. */
++export interface Rule {
++  readonly id: string
++  readonly specId: string
++  readonly name: string
++  readonly description: string
++  readonly tags: ReadonlyArray<string>
++  readonly attrs: Readonly<Record<string, unknown>>
++  readonly links: ReadonlyArray<TagLink>
++  readonly line: number
++  readonly scenarios: ReadonlyArray<string>
++}
++
++/** What a tag line says: `@key=value` describes, `@rel:ID` links, any other tag is a Cucumber tag. */
++export interface Tags {
++  readonly plain: ReadonlyArray<string>
++  readonly attrs: Readonly<Record<string, unknown>>
++  /** Line of each attribute. */
++  readonly attrLines: Readonly<Record<string, number>>
++  readonly links: ReadonlyArray<TagLink>
++}
++
++const annotation = /^@([A-Za-z][\w.-]*)([=:])(.+)$/
++
++/** Whether a tag is an annotation — a fact about the node it sits on — and not a Cucumber tag. */
++export const isAnnotation = (tag: string): boolean => annotation.test(tag)
++
++/** A value that reads back as the number it is written as is a number; true and false are booleans; the rest is text. */
++const tagValue = (text: string): unknown =>
++  text === "true" ? true : text === "false" ? false : text.trim() !== "" && String(Number(text)) === text ? Number(text) : text
++
++export const readTags = (tags: ReadonlyArray<{ readonly name: string; readonly line: number }>): Tags => {
++  const plain: Array<string> = []
++  const attrs: Array<[string, unknown]> = []
++  const attrLines: Array<[string, number]> = []
++  const links: Array<TagLink> = []
++  for (const tag of tags) {
++    const m = annotation.exec(tag.name)
++    if (!m) plain.push(tag.name)
++    else if (m[2] === ":") links.push({ rel: m[1]!, to: m[3]!, line: tag.line })
++    else {
++      // A key written again holds a list.
++      const earlier = attrs.find(([key]) => key === m[1])
++      if (earlier) earlier[1] = [...(Array.isArray(earlier[1]) ? earlier[1] : [earlier[1]]), tagValue(m[3]!)]
++      else {
++        attrs.push([m[1]!, tagValue(m[3]!)])
++        attrLines.push([m[1]!, tag.line])
++      }
++    }
++  }
++  return { plain, attrs: nested(attrs), attrLines: Object.fromEntries(attrLines), links }
++}
++
++/** `@owner.team=core` is the attribute `owner`, a map with the entry `team`. */
++const nested = (entries: ReadonlyArray<readonly [string, unknown]>): Record<string, unknown> => {
++  const out: Array<[string, unknown]> = []
++  for (const [key, value] of entries) {
++    const [head, ...rest] = key.split(".")
++    if (rest.length === 0) out.push([key, value])
++    else {
++      const earlier = out.find(([k]) => k === head)
++      const inner: ReadonlyArray<readonly [string, unknown]> = [[rest.join("."), value]]
++      if (earlier && typeof earlier[1] === "object" && earlier[1] !== null) earlier[1] = { ...earlier[1], ...nested(inner) }
++      else out.push([head!, nested(inner)])
++    }
++  }
++  return Object.fromEntries(out)
++}
++
+ export interface GherkinError {
+   readonly message: string
+   readonly line: number
+@@ -61,11 +144,14 @@ export interface GherkinError {
+ 
+ export interface GherkinResult {
+   readonly scenarios: ReadonlyArray<Scenario>
++  readonly rules: ReadonlyArray<Rule>
+   readonly errors: ReadonlyArray<GherkinError>
+   /** Description text of an explicit `Feature:` (used for `.feature` files). */
+   readonly description: string | undefined
+   readonly featureName: string | undefined
+   readonly featureTags: ReadonlyArray<string>
++  /** What the tags above `Feature:` say. */
++  readonly feature: Tags
+ }
+ 
+ export const gherkinLangs: ReadonlySet<string> = new Set(["gherkin", "feature", "cucumber"])
+@@ -116,7 +202,8 @@ export const parseGherkinFences = (options: {
+ export const parseFeatureFile = (specId: string, content: string): GherkinResult =>
+   parseVirtual(specId, content, (line) => line)
+ 
+-const empty: GherkinResult = { scenarios: [], errors: [], description: undefined, featureName: undefined, featureTags: [] }
++const noTags: Tags = { plain: [], attrs: {}, attrLines: {}, links: [] }
++const empty: GherkinResult = { scenarios: [], rules: [], errors: [], description: undefined, featureName: undefined, featureTags: [], feature: noTags }
+ 
+ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number) => number): GherkinResult => {
+   const newId = IdGenerator.incrementing()
+@@ -133,14 +220,17 @@ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number)
+ 
+   const astLines = new Map<string, number>()
+   const astSteps = new Map<string, Messages.Step>()
+-  const scenarioDefs: Array<{ readonly scenario: Messages.Scenario; readonly rule: string | undefined }> = []
++  const scenarioDefs: Array<{ readonly scenario: Messages.Scenario; readonly rule: Messages.Rule | undefined }> = []
++  const tagsOf = (tags: ReadonlyArray<Messages.Tag>) => readTags(tags.map((tag) => ({ name: tag.name, line: mapLine(tag.location.line) })))
++  /** Free text as written, without the indentation of its block. */
++  const text = (description: string) => description.split("\n").map((line) => line.trim()).join("\n").trim()
+   const visitSteps = (steps: ReadonlyArray<Messages.Step>) => {
+     for (const step of steps) {
+       astLines.set(step.id, mapLine(step.location.line))
+       astSteps.set(step.id, step)
+     }
+   }
+-  const visitScenario = (scenario: Messages.Scenario, rule: string | undefined) => {
++  const visitScenario = (scenario: Messages.Scenario, rule: Messages.Rule | undefined) => {
+     astLines.set(scenario.id, mapLine(scenario.location.line))
+     visitSteps(scenario.steps)
+     for (const examples of scenario.examples) {
+@@ -154,7 +244,7 @@ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number)
+     if (child.rule) {
+       for (const ruleChild of child.rule.children) {
+         if (ruleChild.background) visitSteps(ruleChild.background.steps)
+-        if (ruleChild.scenario) visitScenario(ruleChild.scenario, child.rule.name)
++        if (ruleChild.scenario) visitScenario(ruleChild.scenario, child.rule)
+       }
+     }
+   }
+@@ -168,10 +258,22 @@ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number)
+   }
+ 
+   const usedIds = new Set<string>()
++  const unique = (slug: string) => {
++    let id = `${specId}#${slug}`
++    for (let n = 2; usedIds.has(id); n++) id = `${specId}#${slug}-${n}`
++    usedIds.add(id)
++    return id
++  }
++  // Rules first, in the order written, so a rule keeps its id whatever its examples are called.
++  const ruleIds = new Map<Messages.Rule, string>()
++  feature.children.forEach((child, index) => {
++    if (child.rule) ruleIds.set(child.rule, unique(slugify(child.rule.name) || `rule-${index + 1}`))
++  })
+   const scenarios = scenarioDefs.map(({ rule, scenario }, index): Scenario => {
+     const compiled = (picklesByScenario.get(scenario.id) ?? []).map((pickle): Pickle => ({
+       name: pickle.name,
+-      tags: pickle.tags.map((tag) => tag.name),
++      // An annotation is a fact about one node: it is not inherited, filtered on or shown to a handler.
++      tags: pickle.tags.map((tag) => tag.name).filter((tag) => !isAnnotation(tag)),
+       exampleLine: pickle.astNodeIds[1] ? astLines.get(pickle.astNodeIds[1]) : undefined,
+       steps: pickle.steps.map((step): PickleStep => {
+         const ast = astSteps.get(step.astNodeIds[0]!)
+@@ -185,18 +287,20 @@ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number)
+         }
+       })
+     }))
+-    const slug = slugify(scenario.name) || `scenario-${index + 1}`
+-    let id = `${specId}#${slug}`
+-    for (let n = 2; usedIds.has(id); n++) id = `${specId}#${slug}-${n}`
+-    usedIds.add(id)
++    const id = unique(slugify(scenario.name) || `scenario-${index + 1}`)
++    const own = tagsOf(scenario.tags)
+     return {
+       id,
+       specId,
+       name: scenario.name,
+       keyword: scenario.keyword,
+-      tags: scenario.tags.map((tag) => tag.name),
++      tags: own.plain,
+       line: mapLine(scenario.location.line),
+-      rule,
++      rule: rule?.name,
++      ruleId: rule && ruleIds.get(rule),
++      description: text(scenario.description),
++      attrs: own.attrs,
++      links: own.links,
+       steps: scenario.steps.map((step) => ({ keyword: step.keyword.trim(), text: step.text, line: mapLine(step.location.line) })),
+       pickles: compiled,
+       hash: hashPickles(compiled),
+@@ -204,12 +308,28 @@ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number)
+     }
+   })
+ 
++  const rules = [...ruleIds].map(([rule, id]): Rule => {
++    const own = tagsOf(rule.tags)
++    return {
++      id,
++      specId,
++      name: rule.name,
++      description: text(rule.description),
++      tags: own.plain,
++      attrs: own.attrs,
++      links: own.links,
++      line: mapLine(rule.location.line),
++      scenarios: scenarios.filter((scenario) => scenario.ruleId === id).map((scenario) => scenario.id)
++    }
++  })
+   return {
+     scenarios,
++    rules,
+     errors: [],
+-    description: feature.description.trim() || undefined,
++    description: text(feature.description) || undefined,
+     featureName: feature.name,
+-    featureTags: feature.tags.map((tag) => tag.name)
++    featureTags: feature.tags.map((tag) => tag.name),
++    feature: tagsOf(feature.tags)
+   }
+ }
+ 
+diff --git a/src/parse/Spec.ts b/src/parse/Spec.ts
+index 92620e9..314ba2a 100644
+--- a/src/parse/Spec.ts
++++ b/src/parse/Spec.ts
+@@ -9,7 +9,7 @@ import type { Config } from "../model/Config.ts"
+ import { type Diagnostic, diagnostic } from "../model/Diagnostic.ts"
+ import type { Attrs } from "../model/Graph.ts"
+ import { activityRelation, linkKeys, made, type Vocabulary } from "../model/Vocabulary.ts"
+-import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
++import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Rule, type Scenario } from "./Gherkin.ts"
+ import { type Json, type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
+ 
+ export interface LinkDecl {
+@@ -44,6 +44,8 @@ export interface Spec {
+   readonly references: ReadonlyArray<Reference>
+   readonly inlineNodes: ReadonlyArray<InlineNode>
+   readonly scenarios: ReadonlyArray<Scenario>
++  /** The `Rule:` blocks, each with the ids of the scenarios that are its examples. */
++  readonly rules: ReadonlyArray<Rule>
+   readonly openQuestions: ReadonlyArray<OpenQuestion>
+   /** The first paragraph: the description the criteria of draft ask for. */
+   readonly summary: string
+@@ -129,6 +131,7 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
+       references: md.references,
+       inlineNodes: readInlineNodes(field(front, "nodes"), config, file, diagnostics),
+       scenarios: gherkin.scenarios,
++      rules: gherkin.rules,
+       openQuestions: md.openQuestions,
+       summary: md.summary,
+       prose: md.prose,
+@@ -142,53 +145,63 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
+ annotate(parseMarkdownSpec, { is: "ARCH-spec-parser", "instance-of": "PAT-pipes-and-filters" })
+ 
+ /**
+- * Classic `.feature` files join the graph too. Metadata travels in tags:
+- * `@id:REQ-x @kind:requirement @maturity:ready`; other `@key:value` tags become attributes.
++ * A spec is a Gherkin file. The tags above `Feature:` say what it is: `@id=REQ-x`, `@kind=…` and any
++ * other `@key=value` are its identity and attributes, `@rel:ID` is a link, and every other tag is a
++ * Cucumber tag. The Feature's name is the title, the first paragraph under it the summary; a Rule or
++ * a Scenario tagged with the open-question tag is a question still open.
+  */
+ export const parseFeatureSpec = (file: string, content: string, config: Config): ParsedFile => {
+-  const tagValue = /^@([\w-]+):(.+)$/
+   const fallbackId = `feature:${file}`
+   const firstPass = parseFeatureFile(fallbackId, content)
+-  const meta: Record<string, string> = {}
+-  for (const tag of firstPass.featureTags) {
+-    const m = tagValue.exec(tag)
+-    if (m) meta[m[1]!] = m[2]!
+-  }
+-  const id = meta.id ?? fallbackId
++  const written = firstPass.feature.attrs.id
++  const id = Predicate.isString(written) && written.trim() !== "" ? written.trim() : fallbackId
+   const parsed = id === fallbackId ? firstPass : parseFeatureFile(id, content)
+   const diagnostics: Array<Diagnostic> = parsed.errors.map((error) =>
+     diagnostic("gherkin-syntax", { message: error.message, node: id, source: { file, line: error.line }, hint: gherkinHint })
+   )
+   if (!parsed.featureName && parsed.errors.length === 0) return { spec: undefined, diagnostics }
+-  const plainTags = parsed.featureTags.filter((tag) => !tagValue.test(tag)).map((tag) => tag.slice(1))
+-  const { id: _id, kind: rawKind, title: rawTitle, ...rest } = meta
++  const { attrLines, links, plain } = parsed.feature
++  const { id: _id, kind: rawKind, ...rest } = parsed.feature.attrs
+   const attrs: Record<string, unknown> = { ...rest }
+-  if (plainTags.length > 0) attrs.tags = plainTags
+-  // Tags sit on the lines above `Feature:`; the first line is where to look.
+-  const at = { file, owner: id, line: 1 }
++  const tags = plain.map((tag) => tag.slice(1))
++  if (tags.length > 0) attrs.tags = tags
++  // The plan of each discipline, as the lifecycle reads it: `@activity.test:C1` plans testing in C1.
++  const activityKey = config.vocabulary.attributes.activity
++  const planned = links.filter((link) => link.rel.startsWith(`${activityKey}.`))
++  if (planned.length > 0) {
++    const disciplines = [...new Set(planned.map((link) => link.rel.slice(activityKey.length + 1)))]
++    attrs[activityKey] = Object.fromEntries(disciplines.map((d) => [d, planned.filter((link) => link.rel === `${activityKey}.${d}`).map((link) => link.to)]))
++  }
++  const at = { file, owner: id, line: attrLines.kind ?? 1 }
++  const open = (element: { readonly name: string; readonly line: number; readonly tags: ReadonlyArray<string> }) =>
++    element.tags.includes(openTag) ? [{ text: element.name, line: element.line, resolved: false }] : []
+   return {
+     spec: {
+       file,
+       format: "feature",
+       id,
+-      kind: writtenKind(rawKind, at, diagnostics) ?? (meta.id ? inferKind(id, config) : "feature"),
+-      title: rawTitle ?? parsed.featureName ?? id,
++      kind: writtenKind(rawKind, at, diagnostics) ?? (id === fallbackId ? "feature" : inferKind(id, config)),
++      title: parsed.featureName ?? id,
+       attrs,
+-      tags: plainTags,
+-      links: linksOfKeys(rest, config.vocabulary, at, diagnostics),
++      tags,
++      links,
+       references: [],
+       inlineNodes: [],
+       scenarios: parsed.scenarios,
+-      openQuestions: [],
++      rules: parsed.rules,
++      openQuestions: [...parsed.rules.flatMap(open), ...parsed.scenarios.flatMap(open)].sort((a, b) => a.line - b.line),
+       summary: parsed.description?.split("\n\n")[0]?.replace(/\s+/g, " ") ?? "",
+       prose: [],
+       sections: [],
+       body: content,
+-      attrLines: {}
++      attrLines
+     },
+     diagnostics
+   }
+ }
++
++/** The tag of a Rule or Scenario that is still a question. */
++const openTag = "@open"
+ annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
+ 
+ /**

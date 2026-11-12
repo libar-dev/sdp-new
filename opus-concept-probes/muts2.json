@@ -1,0 +1,22 @@
+[
+ {"name":"N1 lifecycle: unplanned no longer requires maturity","file":"src/lifecycle/Lifecycle.ts","from":"Predicate.isString(n.attrs.maturity) && !planned.has(n.id)","to":"!planned.has(n.id)"},
+ {"name":"N2 builtin: unknown relation guard removed","file":"src/run/Builtin.ts","from":"if (unknown.relations.length > 0) {","to":"if (false) {"},
+ {"name":"N3 builtin: unknown kind guard removed","file":"src/run/Builtin.ts","from":"if (unknown.kinds.length > 0) {","to":"if (false) {"},
+ {"name":"N4 builtin: truncated guard removed","file":"src/run/Builtin.ts","from":"if (result.truncated) {","to":"if (false) {"},
+ {"name":"N5 lifecycle: current phase only from current iteration","file":"src/lifecycle/Lifecycle.ts","from":"const latest = current ?? started.at(-1)","to":"const latest = current"},
+ {"name":"N6 build: rel:: [[ID]] ignored","file":"src/graph/Build.ts","from":"rel: ref.rel ?? \"mentions\"","to":"rel: \"mentions\""},
+ {"name":"N7 arch: significant attr on any kind not architectural","file":"src/arch/Architecture.ts","from":"project.config.architecture.kinds.includes(node.kind) || node.attrs.significant !== undefined","to":"project.config.architecture.kinds.includes(node.kind)"},
+ {"name":"N8 lifecycle render: every gate due","file":"src/lifecycle/Lifecycle.ts","from":"const due = !report.dated || index <= currentIndex","to":"const due = true"},
+ {"name":"N9 check: types-stale removed","file":"src/check/Check.ts","from":"if (project.types !== undefined && project.types !== idsDeclaration(project)) {","to":"if (false) {"},
+ {"name":"N10 stage: no maturity reads as draft","file":"src/graph/Build.ts","from":"    : Predicate.isString(maturity)\n    ? maturity\n    : undefined","to":"    : Predicate.isString(maturity)\n    ? maturity\n    : \"draft\""},
+ {"name":"N11 check: unknown discipline accepted","file":"src/check/Check.ts","from":"if (!Object.hasOwn(config.disciplines, discipline)) {","to":"if (false) {"},
+ {"name":"N12 lifecycle: empty activity list falls back to iteration","file":"src/lifecycle/Lifecycle.ts","from":"const iterations = named === undefined","to":"const iterations = named === undefined || named.length === 0"},
+ {"name":"N13 query: false counts as set","file":"src/graph/Query.ts","from":"value !== undefined && value !== null && value !== false && value !== \"\"","to":"value !== undefined && value !== null && value !== \"\""},
+ {"name":"N14 context: decisions include inactive","file":"src/graph/Context.ts","from":"n.kind === \"decision\" && n.id !== id && isActive(n)","to":"n.kind === \"decision\" && n.id !== id"},
+ {"name":"N15 status: stages over all nodes","file":"src/graph/Status.ts","from":"[...graph.nodes.values()].filter((n) => n.attrs.maturity !== undefined).map((n) => n.attrs.stage)","to":"[...graph.nodes.values()].map((n) => n.attrs.stage)"},
+ {"name":"N16 check: plan-reference ignores phase relations","file":"src/check/Check.ts","from":"  ...config.phaseRelations.map((key) => [key, \"phase\"] as const)\n","to":"\n"},
+ {"name":"N17 build: implicit links to self allowed","file":"src/graph/Build.ts","from":"Predicate.isString(v) && v !== node.id && nodes.has(v)","to":"Predicate.isString(v) && nodes.has(v)"},
+ {"name":"N18 staleness: specs fingerprint ignored","file":"src/graph/Build.ts","from":"    : result.evidence.specs !== undefined && result.evidence.specs !== now.specs\n    ? \"specs-changed\"\n","to":""},
+ {"name":"N19 export statusCell: decisions show stage","file":"src/graph/Export.ts","from":"String((n.kind === \"decision\" ? n.attrs.status : undefined) ?? n.attrs.stage","to":"String(n.attrs.stage"},
+ {"name":"N20 code is-annotation default kind","file":"src/graph/Build.ts","from":"kind: Predicate.isString(kind) ? kind : \"element\",","to":"kind: Predicate.isString(kind) ? kind : \"code\","}
+]

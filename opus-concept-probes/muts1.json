@@ -1,0 +1,22 @@
+[
+ {"name":"M1 stage: pending no longer in-progress","file":"src/graph/Build.ts","from":"verification === \"failing\" || verification === \"pending\"","to":"verification === \"failing\""},
+ {"name":"M2 stage: failing reads as verified","file":"src/graph/Build.ts","from":"verification === \"passing\"\n    ? \"verified\"","to":"verification === \"passing\" || verification === \"failing\"\n    ? \"verified\""},
+ {"name":"M3 verification: some passed = passing","file":"src/run/Results.ts","from":"if (statuses.every((s) => s === \"passed\")) return \"passing\"","to":"if (statuses.some((s) => s === \"passed\")) return \"passing\""},
+ {"name":"M4 significance: 'yes' not significant","file":"src/arch/Architecture.ts","from":" || node.attrs.significant === \"yes\"","to":""},
+ {"name":"M5 arch view: patterns not pulled in","file":"src/arch/Architecture.ts","from":"o && (o.kind === \"pattern\" || isDriver(project, o))","to":"o && isDriver(project, o)"},
+ {"name":"M6 drivers: type: quality ignored","file":"src/arch/Architecture.ts","from":"||\n  [\"quality\", \"non-functional\", \"nfr\", \"constraint\"].includes(String(node.attrs.type ?? \"\").toLowerCase())","to":""},
+ {"name":"M7 candidates: mentions count as design links","file":"src/arch/Architecture.ts","from":"edge.rel !== \"verifies\" && edge.rel !== \"mentions\" &&","to":"edge.rel !== \"verifies\" &&"},
+ {"name":"M8 lifecycle: iteration plans every discipline","file":"src/lifecycle/Lifecycle.ts","from":"? kinds.includes(node.kind) ? home : []","to":"? home"},
+ {"name":"M9 lifecycle: overdue includes current phase","file":"src/lifecycle/Lifecycle.ts","from":"const overdue = index < currentIndex &&","to":"const overdue = index <= currentIndex &&"},
+ {"name":"M10 lifecycle: milestones count as planned work","file":"src/lifecycle/Lifecycle.ts","from":"const structural = new Set([\"phase\", \"iteration\", \"milestone\",","to":"const structural = new Set([\"phase\", \"iteration\","},
+ {"name":"M11 check: ready ignores open questions","file":"src/check/Check.ts","from":"if (open.length > 0) reasons.push(","to":"if (false) reasons.push("},
+ {"name":"M12 check: promotable from draft too","file":"src/check/Check.ts","from":"builtinLevels.indexOf(achievable as (typeof builtinLevels)[number]) >= 2","to":"builtinLevels.indexOf(achievable as (typeof builtinLevels)[number]) >= 1"},
+ {"name":"M13 check: no decision-supersede for missing supersedes","file":"src/check/Check.ts","from":"if (status === \"superseded\" && !graph.in(node.id).some((e) => e.rel === \"supersedes\")) {","to":"if (false) {"},
+ {"name":"M14 inactive: rejected counts as active","file":"src/graph/Build.ts","from":"new Set([\"superseded\", \"rejected\", \"deprecated\"])","to":"new Set([\"superseded\", \"deprecated\"])"},
+ {"name":"M15 gates: milestones are not gates","file":"src/graph/Build.ts","from":"spec.kind === \"milestone\" || pickles","to":"pickles"},
+ {"name":"M16 build: implicit links skip map entries","file":"src/graph/Build.ts","from":"Predicate.isObject(value) && !Array.isArray(value)\n        ?","to":"false\n        ?"},
+ {"name":"M17 query: maturity ladder ignored for <","file":"src/graph/Query.ts","from":"if (ladder && ladder.includes(String(value)) && ladder.includes(expected)) {","to":"if (false) {"},
+ {"name":"M18 check: specified needs no outcome","file":"src/check/Check.ts","from":"if (index >= 2 && spec.scenarios.length > 0 && !spec.scenarios.some((s) => s.hasOutcome)) {","to":"if (false) {"},
+ {"name":"M19 check: ready allows a scenario without steps","file":"src/check/Check.ts","from":"if (empty.length > 0) reasons.push(","to":"if (false) reasons.push("},
+ {"name":"M20 verification: ambiguous not failing","file":"src/run/Results.ts","from":"s === \"failed\" || s === \"ambiguous\")) return \"failing\"","to":"s === \"failed\")) return \"failing\""}
+]
