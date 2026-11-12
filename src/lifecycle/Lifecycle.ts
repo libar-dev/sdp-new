@@ -69,7 +69,10 @@ export interface LifecycleReport {
   readonly milestones: ReadonlyArray<MilestoneReport>
   /** Where the project is: the first milestone that is not met. */
   readonly next: MilestoneReport | undefined
-  /** The iterations after the last milestone: nothing closes them. */
+  /**
+   * The iterations no milestone ends: those of the timeline after the last milestone, then those
+   * without a first and a last day that no milestone closes.
+   */
   readonly unclosed: ReadonlyArray<GraphNode>
   /** The phases, in the order of their first iteration. */
   readonly phases: ReadonlyArray<PhaseReport>
@@ -80,7 +83,10 @@ export interface LifecycleReport {
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
-  /** Every iteration, in the order of the timeline: by its last day, then its first. */
+  /**
+   * Every iteration: those on the timeline in its order, by their last day, then their first; then
+   * those without a first and a last day, which have no place on it.
+   */
   readonly iterations: ReadonlyArray<GraphNode>
   /** The planned work and its evidence for each of `iterations`, in the same order. */
   readonly work: ReadonlyArray<IterationReport>
@@ -168,12 +174,16 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     graph.out(node.id).flatMap((edge) => hasRelation(vocabulary, role, edge.rel) ? [graph.node(edge.to)] : []).find(Predicate.isNotUndefined)
 
   // By the last day first: a milestone is dated by the end of what it closes, and met in that order.
+  // An iteration without a first and a last day has no place on the timeline, and comes after it.
+  const dated = (iteration: GraphNode) => day(iteration, start) !== undefined && day(iteration, end) !== undefined
   const iterations = graph.ofKind(vocabulary.kinds.iteration).slice().sort((a, b) =>
+    Number(!dated(a)) - Number(!dated(b)) ||
     (day(a, end) ?? "").localeCompare(day(b, end) ?? "") ||
     (day(a, start) ?? "").localeCompare(day(b, start) ?? "") ||
     a.id.localeCompare(b.id)
   )
-  const position = new Map(iterations.map((iteration, index) => [iteration.id, index]))
+  const timeline = iterations.filter(dated)
+  const position = new Map(timeline.map((iteration, index) => [iteration.id, index]))
   const phaseOf = (iteration: GraphNode) => {
     const phase = target(iteration, "phase")
     return phase && hasKind(vocabulary, "phase", phase.kind) ? phase : undefined
@@ -231,12 +241,12 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 
   // A milestone ends the timeline at the last iteration of what it closes; one that closes
   // nothing on the timeline comes after the others, beyond the last iteration.
-  const beyond = iterations.length
+  const beyond = timeline.length
   const closing = graph.ofKind(vocabulary.kinds.milestone).map((node) => {
     const closes = target(node, "closes")
     const iteration = closes && position.has(closes.id) ? closes : undefined
     const closed = phases.find((phase) => phase.node.id === closes?.id)
-    const last = iteration ?? closed?.iterations.at(-1)?.node
+    const last = iteration ?? closed?.iterations.findLast((it) => position.has(it.node.id))?.node
     return {
       node,
       closes,
@@ -249,7 +259,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 
   let covered = -1
   const milestones = closing.map(({ at, closes, node, phase }): MilestoneReport => {
-    const stretch = at < beyond ? iterations.slice(covered + 1, at + 1) : []
+    const stretch = at < beyond ? timeline.slice(covered + 1, at + 1) : []
     if (at < beyond) covered = Math.max(covered, at)
     const met = metOn(vocabulary, node)
     return {
@@ -258,7 +268,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
       phase,
       iterations: stretch,
       work: unique(stretch.flatMap((iteration) => [...itemsOf.get(iteration.id)!])),
-      planned: day(iterations[at], end),
+      planned: day(timeline[at], end),
       met,
       gate: met === undefined ? scenariosOf(node) : undefined
     }
@@ -274,7 +284,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   const listed = new Set(unplanned.map((n) => n.id))
   const withSpec = (n: GraphNode) => n.kind === made.kinds.rule && (planned.has(String(n.attrs.spec)) || listed.has(String(n.attrs.spec)))
   const alone = unplanned.filter((n) => !withSpec(n))
-  const current = iterations.find((it) => {
+  const current = timeline.find((it) => {
     const first = day(it, start)
     const last = day(it, end)
     return today !== undefined && first !== undefined && last !== undefined && first <= today && today <= last
@@ -282,7 +292,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   return {
     milestones,
     next: milestones.find((milestone) => milestone.met === undefined),
-    unclosed: iterations.slice(covered + 1),
+    unclosed: [...timeline.slice(covered + 1), ...iterations.filter((it) => !dated(it) && !closing.some(({ closes }) => closes?.id === it.id))],
     phases,
     unplanned: alone,
     disciplines,
@@ -303,10 +313,10 @@ export const unmetBefore = (report: LifecycleReport, milestone: MilestoneReport)
     other.met === undefined && other.planned !== undefined && milestone.planned !== undefined && other.planned < milestone.planned
   )
 
-/** Where a phase begins on the timeline; one without iterations comes last. */
+/** Where a phase begins on the timeline; one without iterations on it comes last. */
 const firstOf = (phase: PhaseReport, position: ReadonlyMap<string, number>) => {
   const [first] = phase.iterations
-  return first ? position.get(first.node.id)! : position.size
+  return (first && position.get(first.node.id)) ?? position.size
 }
 
 const shades = [" ", "░", "▒", "▓", "█"]

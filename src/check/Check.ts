@@ -193,13 +193,13 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }))
   }
 
-  // An iteration's days place it on the timeline; anything else written there places nothing.
+  // An iteration's days place it on the timeline: without both, it has no place there.
   for (const node of graph.ofKind(vocabulary.kinds.iteration)) {
     for (const key of [vocabulary.attributes.start, vocabulary.attributes.end]) {
       const written = attribute(node, key)
-      if (written === undefined || dayOf(node, key) !== undefined) continue
+      if (dayOf(node, key) !== undefined) continue
       out.push(diagnostic("plan-date", {
-        message: `${node.id}: ${key} is ${JSON.stringify(written)}, which is not a date, so the timeline ignores it`,
+        message: `${node.id}: ${written === undefined ? `${key} is not written` : `${key} is ${JSON.stringify(written)}, which is not a date`}, so the timeline leaves it out`,
         node: node.id,
         source: writtenAt(node, key),
         hint: `write \`@${key}=YYYY-MM-DD\``

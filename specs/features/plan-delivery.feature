@@ -103,10 +103,11 @@ Feature: Plan delivery
       Then the output contains 'sdp new stage "Elaboration"'
       And the output contains 'sdp new sprint "<title>"'
 
-  Rule: The timeline is the iterations in the order they end, each under its phase
+  Rule: The timeline is the iterations in the order they end, each under its phase, and one without a first and a last day has no place on it
 
     A milestone is dated by the end of what it closes, and milestones are met in the order of their
-    dates: so an iteration inside a longer one comes before it.
+    dates: so an iteration inside a longer one comes before it. An iteration without both days is
+    planned work all the same, after the timeline, and dates no milestone.
 
     Scenario: Inception's iteration, then Elaboration's two
       When the lifecycle is computed
@@ -130,6 +131,25 @@ Feature: Plan delivery
         | MS-objectives   | 2026-01-30 |      |
         | MS-architecture | 2026-02-27 |      |
         | MS-long         | 2026-03-27 |      |
+
+    Scenario: An end that is no date, and no end, come after the timeline
+      Given these specs:
+        | tags                                                                    | Feature   |
+        | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-30 | Baseline  |
+        | @id=IT-hardening @phase:PH-elaboration @start=2026-03-02                | Hardening |
+        | @id=MS-hardened @closes:IT-hardening                                    | Hardened  |
+      When the lifecycle is computed
+      Then the iterations are:
+        | id           | phase          |
+        | IT-scope     | PH-inception   |
+        | IT-prototype | PH-elaboration |
+        | IT-baseline  | PH-elaboration |
+        | IT-hardening | PH-elaboration |
+      And the milestones are:
+        | id              | iterations   | planned    | next |
+        | MS-objectives   | IT-scope     | 2026-01-30 | yes  |
+        | MS-architecture | IT-prototype | 2026-02-13 |      |
+        | MS-hardened     |              |            |      |
 
   Rule: A milestone closes a phase or an iteration, and ends every iteration since the milestone before it
 
