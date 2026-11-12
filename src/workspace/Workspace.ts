@@ -426,10 +426,11 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   if (files.length > 0) hookImports()
   // Node resolves modules to their real paths.
   const real = files.length > 0 ? yield* fs.realPath(root) : root
-  const urlOf = (file: string) => pathToFileURL(path.join(real, file)).href
+  // A step file is named relative to the root, unless the glob that found it is absolute.
+  const urlOf = (file: string) => pathToFileURL(path.resolve(real, file)).href
   // A step file that is a link is loaded from where it leads.
   const realUrls = new Map(
-    yield* Effect.forEach(files, (file) => Effect.map(fs.realPath(path.join(real, file)), (to) => [urlOf(file), pathToFileURL(to).href] as const))
+    yield* Effect.forEach(files, (file) => Effect.map(fs.realPath(path.resolve(real, file)), (to) => [urlOf(file), pathToFileURL(to).href] as const))
   )
   // A module exported under two names, or again by another file, is one module: its steps match once.
   const modules = new Set<StepModule<any>>()

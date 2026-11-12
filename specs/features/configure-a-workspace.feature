@@ -90,6 +90,31 @@ Feature: Configure a workspace
       Then the file "out/results.json" contains '"cart#a-new-cart-is-empty"'
       And node "cart" has attribute verification = "passing"
 
+    Scenario: Step modules where a steps glob written as an absolute path says
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart starts empty
+
+            Scenario: A new cart is empty
+              Then the cart is empty
+        """
+      And a file "acceptance/steps/cart.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart is empty", () => {})
+        })
+        """
+      When I run "sh -c 'echo steps: [$PWD/acceptance/steps/*.ts] > sdp.config.yaml'"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "1 scenario(s): 1 passed"
+
   Rule: An id's prefix says its kind, in any case, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
     So an id says what it is wherever it is cited, and a team's own prefixes name the specs sdp new
