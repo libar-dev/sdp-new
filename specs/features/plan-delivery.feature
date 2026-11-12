@@ -105,8 +105,8 @@ Feature: Plan delivery
 
     A milestone is dated by the end of what it closes, and milestones are met in the order of their
     dates: so an iteration inside a longer one comes before it, and one needs no first day to have
-    its place. An iteration without a last day is planned work all the same, after the timeline,
-    and dates no milestone.
+    its place. An iteration without a last day is planned work all the same, after the timeline: it
+    dates no milestone, and is ended by the milestone that closes it, or else its phase.
 
     Scenario: Inception's iteration, then Elaboration's two
       When the lifecycle is computed
@@ -146,10 +146,11 @@ Feature: Plan delivery
         | IT-hardening | PH-elaboration |
         | IT-baseline  | PH-elaboration |
       And the milestones are:
-        | id              | iterations   | planned    | next |
-        | MS-objectives   | IT-scope     | 2026-01-30 | yes  |
-        | MS-architecture | IT-prototype | 2026-02-13 |      |
-        | MS-hardened     |              |            |      |
+        | id              | phase          | iterations                | planned    | next |
+        | MS-objectives   | PH-inception   | IT-scope                  | 2026-01-30 | yes  |
+        | MS-architecture | PH-elaboration | IT-prototype, IT-baseline | 2026-02-13 |      |
+        | MS-hardened     | PH-elaboration | IT-hardening              |            |      |
+      And the output does not contain "no milestone"
       When the workspace is checked
       Then sdp reports:
         | rule      | at                             | message                                                                                |
