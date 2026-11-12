@@ -1,5 +1,5 @@
 @id=steps-that-hang-are-stopped @kind=change @maturity=idea
-@changes:write-step-definitions
+@changes:write-step-definitions @changes:run-specs
 Feature: Steps that hang are stopped
 
   Developers whose step code can hang want a run to stop it at its timeout and go on. Today a
