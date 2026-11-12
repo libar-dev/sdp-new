@@ -33,7 +33,7 @@ accepted, not when they were first built. Gates of later milestones are shown as
 
 | Phase | Iterations | Milestone | The gate checks |
 | --- | --- | --- | --- |
-| Inception | I1 | [[MS-LCO]] Lifecycle Objectives | capabilities, requirements and main risks identified; foundational decisions accepted |
+| Inception | I1 | [[MS-LCO]] Lifecycle Objectives | vision, capabilities, requirements and main risks identified; foundational decisions accepted |
 | Elaboration | E1, E2 | [[MS-LCA]] Lifecycle Architecture | elaboration requirements ready; architecture curated and justified |
 | Construction | C1–C4 | [[MS-IOC]] Initial Operational Capability | ready construction requirements verified; no errors, no failing scenarios |
 | Transition | T1, T2 | [[MS-PR]] Product Release | everything planned is verified; package published |

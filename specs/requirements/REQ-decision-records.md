@@ -12,11 +12,21 @@ links:
 
 # Decision records for any decision
 
-Teams record decisions the way they record requirements: Markdown with front matter, linked into
-the graph. Architecture decisions are one category among many — product, process, technology,
-organisation — set by a free-text `category`. A decision has a `status` (`proposed`, `accepted`,
-`rejected`, `deprecated`, `superseded`), names what it `affects`, and may `supersede` an older
-one. When a decision can be checked mechanically, its record carries the check as a scenario.
+Teams record decisions the way they record requirements: a spec with `kind: decision`, linked
+into the graph. Architecture decisions are one category among many — `category` is free text:
+`architecture`, `product`, `process`, `technology`, `organization`, …
+
+A record follows MADR-like sections — Context, Options, Decision, Consequences — and has a
+`status`: `proposed`, `accepted`, `rejected`, `deprecated` or `superseded`. It names what it
+`affects`, and may `supersede` an older decision. `sdp check` keeps records consistent: a known
+status (`decision-status`), `supersedes` links and `superseded` statuses that agree
+(`decision-supersede`), and an accepted decision that states what was decided
+(`decision-content`). Rejected, deprecated and superseded records keep their text but no longer
+guard anything: `sdp run` skips their scenarios.
+
+When a decision can be checked mechanically, its record carries the check as a guard scenario —
+[[DEC-0001]] asserts that all Gherkin parses, [[DEC-0002]] that every reference resolves. Whether
+a changed decision is superseded or rewritten in place is the team's policy; sdp supports both.
 
 ## Scenarios
 

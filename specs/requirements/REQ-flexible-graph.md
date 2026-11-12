@@ -14,18 +14,23 @@ links:
 # A free-form system graph
 
 The full state of the system — specs, scenarios, decisions, architecture, plan, code links — is
-one graph. Node kinds and relation names are whatever the authors write; the tool attaches no
-meaning to a fixed vocabulary, so teams model what matters to them and agents can follow any edge.
+one graph. Node kinds and relation names are whatever the authors write ([[DEC-0002]]); the tool
+attaches no meaning to a fixed vocabulary, so teams model what matters to them and agents can
+follow any edge. The graph is derived from the files on every command ([[DEC-0003]]), and every
+node and edge records the `file:line` it came from.
 
-## Ways to create an edge
-
-| Where | Syntax | Edge |
-| --- | --- | --- |
-| Front matter | `links: { uses: ARCH-x }` | `-uses->` |
-| Front matter attribute naming a node | `iteration: E2` | `-iteration->` |
-| Prose | `[[DEC-0001]]` | `-mentions->` |
-| Prose, typed | `realized-by:: [[ARCH-x]]` | `-realized-by->` |
-| Code comment | `@sdp implements REQ-x` | `code:… -implements->` |
+| Source | Becomes |
+| --- | --- |
+| a Markdown file with `id` in its front matter | a node; the other front matter keys are its attributes |
+| an entry of a `nodes:` list in front matter | an inline node, for things too small for a file of their own (phases, iterations, terms) |
+| `links: { uses: ARCH-x }` in front matter | an edge named by its key, `-uses->`, optionally with attributes (`{ to: ARCH-x, note: … }`) |
+| an attribute whose value is a node id (`iteration: E2`) | an implicit edge named after the key, `-iteration->` |
+| `[[DEC-0001]]` in prose | a `-mentions->` edge |
+| `realized-by:: [[ARCH-x]]` in prose | an edge named by the prefix, `-realized-by->` |
+| each Gherkin scenario | a `scenario` node with `-verifies->` to its spec |
+| `@sdp implements REQ-x` in a code comment | a `code` node for the declaration below it (or the file) with `-implements->` to the id |
+| `@sdp is ARCH-x key=value` in a code comment | the code anchors that node, and declares it if no spec does |
+| a reference to an unknown id | a `missing` node and a `dangling-link` error |
 
 ## Scenarios
 

@@ -31,7 +31,7 @@ vocabulary they were not told about.
 Option 3. The graph has nodes (`id`, `kind`, `title`, attributes) and edges (`from`, `rel`, `to`,
 attributes), and no code path depends on a closed vocabulary. The few conventions the tool uses
 (`maturity`, `significant`, `status`, `decision`, `phase`, `iteration`, `milestone`) are documented
-and configurable where it matters. Queries treat relation names as data (`-a|b->`, `-*->`).
+in the [[GLOSSARY]] and configurable where it matters ([[REQ-configuration]]). Queries treat relation names as data (`-a|b->`, `-*->`).
 
 ## Consequences
 

@@ -13,16 +13,25 @@ links:
 
 # Curated architecture
 
-Only a small share of a system's abstractions and patterns are architecturally significant: they
-carry quality attributes, are expensive to change, or constrain many other parts. Those are the
-ones worth naming in the architecture; listing everything buries them.
+Most abstractions in a codebase — classes, modules, functions — are design detail. A small share
+carry quality attributes, are expensive to change, or constrain many other parts; those are the
+architecture, and listing everything else next to them buries them. Which ones they are is the
+architect's call ([[DEC-0008]]).
 
-Which ones they are is the architect's call ([[DEC-0008]]). Architects mark elements and patterns
-`significant: true` and record why in `rationale`. sdp does not compute, limit or check
-significance. It shows the curated set — in `sdp arch`, in context bundles and over MCP — together
-with the patterns it applies and the decisions and quality requirements linked to it, and leaves
-everything else out. `sdp arch --candidates` can suggest elements worth a look; it never marks
-anything.
+- **Declaring** an element or pattern is cheap: a Markdown file (`kind: element` or `kind: pattern`),
+  an inline node, or a code comment `@sdp is ARCH-x kind=element`. Patterns are nodes; elements link
+  to them with any relation, conventionally `instance-of` with an optional `role`. Relationships
+  among elements are free-form (`feeds`, `reads`, `publishes-to`, …).
+- **Marking significance** is an explicit act by an architect: `significant: true`, with a
+  `rationale` saying why. sdp never computes, limits or checks it.
+- **The curated view** — `sdp arch`, context bundles, MCP `sdp_architecture` — holds only the
+  significant nodes, the patterns they apply, and the architectural drivers linked to them:
+  decisions and quality requirements (`architecture.drivers` in [[REQ-configuration]]).
+- **The tool helps, people decide.** `sdp arch --candidates` suggests nodes worth a look, ranked by
+  links from decisions and quality requirements, requirements that depend on them, and fan-in. It
+  never marks anything.
+- **Rules are the team's.** A team that wants one writes it as a scenario, for example in a
+  milestone gate: `Then the query "*[significant, !rationale]" returns no results`.
 
 ## Scenarios
 
