@@ -425,8 +425,12 @@ export const buildProject = (input: ProjectInput): Project => {
       : hasRelation(vocabulary, "closes", edge.rel)
       ? { what: "phase or iteration", ids: [...phases, ...iterations] }
       : undefined
+    // `cart#slug` names a rule or an example of the spec cart, which its file declares.
+    const [spec, part] = edge.to.split("#")
     return known && known.ids.length > 0
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
+      : part !== undefined
+      ? `write the \`Rule:\` or the \`Scenario:\` named ${part} in the file of the spec ${spec}, or fix the reference`
       : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
   }
   // Live work may name what it replaced in the change that deletes it: what the link names is the

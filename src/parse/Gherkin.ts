@@ -212,6 +212,8 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
       problem(tag, `only a Feature says what it is with @${key}=`, "move it above `Feature:`: a Rule or a Scenario is a node sdp names itself")
     } else if ((key === "id" || key === "kind") && separator === ":") {
       problem(tag, `a spec's ${key} is written with =, so this links nothing`, `write @${key}=${value}`)
+    } else if (key === "id" && value.includes("#")) {
+      problem(tag, "a spec's id holds no #, which names a rule or an example of a spec", "write the id without #; a rule is a `Rule:` in its spec's file")
     } else if ((key === "id" || key === "kind") && values.has(key)) {
       problem(tag, `a spec has one ${key}`, `keep one @${key}= tag: another node is a file of its own`)
     } else if (separator === ":" && value.includes(",")) {

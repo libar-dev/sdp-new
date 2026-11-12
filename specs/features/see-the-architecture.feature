@@ -544,7 +544,6 @@ Feature: See the architecture
         - still to come: receipts (idea) — Receipts
         """
 
-  @replaces:see-the-architecture#an-element-that-work-still-to-come-names-and-no-code-declares
   Rule: An element that only work still to come names is shown as still to come
 
     Once that work is live, the element must be in the code.

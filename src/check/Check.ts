@@ -516,6 +516,15 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
       for (const { from, links, toCome } of linked) {
         for (const link of links.filter((candidate) => hasRelation(words, "replaces", candidate.rel))) {
           const to = names.get(link.to) ?? there.get(link.to)
+          // Once a replacement has landed, its base has no more what it replaced: the tag is done.
+          if (to === undefined && names === here && !toCome) {
+            out.push(diagnostic("replaces-nothing", {
+              message: `${from.id} -${link.rel}-> ${link.to}: neither the workspace nor ${at} has ${link.to}, so the link replaces nothing`,
+              node: from.id,
+              source: { file: spec.file, line: link.line },
+              hint: `delete \`@${link.rel}:${link.to}\`: what it replaced is gone from the base too`
+            }))
+          }
           if (to === undefined) continue
           const problem = cannotReplace(from, to, words)
           if (problem === undefined) {

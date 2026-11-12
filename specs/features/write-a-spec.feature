@@ -249,7 +249,9 @@ Feature: Write a spec
     What it replaces stays live until the change that builds the replacement deletes it, so no two
     replace each other; a link to a feature, or from one, stands for all of its rules. Built, the
     replacement may keep the link in that change, where it names what the base had: sdp check holds
-    the change to its base. Removing behaviour is written as what happens instead.
+    the change to its base. Merged, the link names nothing — the default branch is its own base — so
+    check warns until it is deleted, and does not fail. Removing behaviour is written as what
+    happens instead.
 
     Scenario Outline: A rule that replaces <case>
       Given a file "specs/cart.feature" containing:
@@ -733,6 +735,7 @@ Feature: Write a spec
         | feature                     | rule        | scenario    | examples         | line | message                                     |
         | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link              |
         | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                |
+        | @id=pay#card                |             |             |                  | 1    | @id=pay#card: a spec's id holds no #        |
         | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =    |
         | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map    |
         | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing   |
