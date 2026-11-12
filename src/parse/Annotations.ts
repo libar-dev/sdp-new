@@ -9,11 +9,11 @@
  * In TypeScript and JavaScript the file is parsed, never run: a tag annotates the module-level
  * declaration its comment documents, or the file when its comment opens the file, and the rest of
  * that comment describes the code. A tag anywhere else, or one written after code or words on its
- * line, is not read, and is reported; a string is never a tag. The modules a file anchored to a node
- * imports come from the same parse. Other languages have no parser here: a line that opens with a
- * comment marker and the tag annotates the declaration directly below it, or else the file — best
- * effort, even inside a multi-line string — the comment lines around it describe that code, and
- * their imports are not read.
+ * line, is not read, and is reported; a string is never a tag, nor is a line of an `@example`. The
+ * modules a file anchored to a node imports come from the same parse. Other languages have no
+ * parser here: a line that opens with a comment marker and the tag annotates the declaration
+ * directly below it, past its decorators, or else the file — best effort, even inside a multi-line
+ * string — the comment lines around it describe that code, and their imports are not read.
  *
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
@@ -186,6 +186,10 @@ const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /** A tag after words on a comment's line. */
 const afterWords = /\s@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 
+/** In a doc comment, the line that opens an example of code, and one that opens any tag, which ends it. */
+const exampleTag = /^[\s*]*@example\b/
+const blockTag = /^[\s*]*@\w/
+
 /** What a tag annotates: a module-level declaration, or the file, with what the comment and the code say of it. */
 type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "returnType" | "exports">
 
@@ -212,8 +216,12 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
   const firstCode = program.body[0] === undefined ? content.length : leadingStart(program.body[0])
   const shaped = shapes(content, script)
   for (const group of groups) {
-    const tags = group.flatMap((comment, at) =>
-      comment.value.split(/\r?\n/).flatMap((text, index) => {
+    const tags = group.flatMap((comment, at) => {
+      let example = false
+      return comment.value.split(/\r?\n/).flatMap((text, index) => {
+        // An example in a doc comment is code, whatever it says.
+        if (comment.type === "Block" && (exampleTag.test(text) || (example && blockTag.test(text)))) example = exampleTag.test(text)
+        if (example) return []
         const line = lineOf(comment.start) + index
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
@@ -221,7 +229,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
         if (!match) ignored.push(...wordsBefore(text, line))
         return tag && !("unread" in tag) ? [{ ...tag, line, trailing: index === 0 && afterCode(comment.start), at }] : []
       })
-    )
+    })
     if (tags.length === 0) continue
     const end = group.at(-1)!.end
     const next = program.body.find((statement) => leadingStart(statement) >= end)
@@ -336,6 +344,8 @@ const description = (comments: ReadonlyArray<string>): string | undefined => {
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /** An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any script. */
 const idToken = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*$/u
+/** A line of code that only decorates the declaration below it: `@Service`, `@app.route("/pay")`. */
+const decorator = /^\s*@[A-Za-z_$][\w$.]*(?:\(.*\))?\s*$/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
@@ -429,7 +439,7 @@ const nextSymbol = (lines: ReadonlyArray<string>, from: number): { readonly name
   for (let i = from + 1; i < Math.min(lines.length, from + 8); i++) {
     const line = lines[i]!
     if (line.trim() === "") return undefined
-    if (commentOnly.test(line) || line.includes("@sdp")) continue
+    if (commentOnly.test(line) || line.includes("@sdp") || decorator.test(line)) continue
     const name = declaration.exec(line)?.[1]
     return name === undefined ? undefined : { name, line: i + 1 }
   }
