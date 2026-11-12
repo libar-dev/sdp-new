@@ -625,7 +625,8 @@ Scenario: Each result is compared with the files its own run imported
     export const lamps = 1
     """
   When I run "sdp run REQ-cart"
-  And I run "sdp run REQ-wishlist"
+  Then the output contains "1 scenario(s): 1 passed"
+  When I run "sdp run REQ-wishlist"
   Then the output contains "1 scenario(s): 1 passed"
   And the output does not contain "stale"
   Given a file "specs/steps/lamps.ts" containing:

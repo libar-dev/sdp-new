@@ -144,9 +144,12 @@ node src/cli/main.ts --help       # every command, one line each
 Scenario: Start in a repository of your own
   Given an empty workspace
   When I run "sdp init"
-  And I run "sdp new idea 'Gift wrapping'"
-  And I run "sdp new decision 'Use Postgres for orders'"
-  And I run "sdp check"
+  Then the output contains "created sdp.config.yaml"
+  When I run "sdp new idea 'Gift wrapping'"
+  Then the output contains "REQ-gift-wrapping"
+  When I run "sdp new decision 'Use Postgres for orders'"
+  Then the output contains "DEC-0001"
+  When I run "sdp check"
   Then the exit code is 0
   When I run "sdp q 'requirement[maturity=idea]' --ids"
   Then the output contains "REQ-gift-wrapping"

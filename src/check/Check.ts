@@ -48,7 +48,7 @@ interface Content {
 const noContent: Content = { summary: "", body: "", scenarios: [], openQuestions: [] }
 
 /** Why `content` does not meet `level` (empty when it does). Custom levels have no criteria. */
-export const gateReasons = (content: Content, level: string): ReadonlyArray<string> => {
+export const unmetCriteria = (content: Content, level: string): ReadonlyArray<string> => {
   const reasons: Array<string> = []
   const index = builtinLevels.indexOf(level)
   if (index >= 1 && content.summary === "") {
@@ -73,7 +73,7 @@ export const gateReasons = (content: Content, level: string): ReadonlyArray<stri
 const achievableMaturity = (content: Content): string => {
   let best: string = builtinLevels[0]!
   for (const level of builtinLevels) {
-    if (gateReasons(content, level).length === 0) best = level
+    if (unmetCriteria(content, level).length === 0) best = level
     else break
   }
   return best
@@ -144,7 +144,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       continue
     }
     const content = spec ?? noContent
-    const reasons = gateReasons(content, maturity)
+    const reasons = unmetCriteria(content, maturity)
     if (reasons.length > 0) {
       out.push(diagnostic("maturity-criteria", {
         message: `${node.id} claims maturity "${maturity}" but ${reasons.join("; ")}`,
@@ -162,7 +162,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         builtinLevels.indexOf(achievable) >= builtinLevels.indexOf(criteria.specified)
       ) {
         out.push(diagnostic("maturity-promotable", {
-          message: `${node.id} meets the "${achievable}" gate but is marked "${maturity}"`,
+          message: `${node.id} meets the criteria of "${achievable}" but is marked "${maturity}"`,
           node: node.id,
           source,
           hint: `set maturity: ${achievable} if the team agrees`

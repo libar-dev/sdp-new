@@ -23,8 +23,7 @@ what an architect declares is, by that act, significant ([[DEC-0008]]).
   `kind: pattern`), an inline node, or an `is` annotation in code (`annotate(x, { is: "ARCH-x" })`,
   `@sdp is ARCH-x`). Its description says why it matters; its links to decisions and quality
   requirements say what shaped it. Elements link to patterns, conventionally with `instance-of` and
-  an optional `role`; relationships among elements are free-form (`feeds`, `reads`, `publishes-to`,
-  …).
+  an optional `role`; relationships among elements are free-form (`uses`, `publishes-to`, …).
 - **The view** — `sdp arch`, context bundles, MCP `sdp_architecture` — holds every node of an
   architectural kind and the architectural drivers linked to them: decisions and quality
   requirements (`vocabulary.kinds` in [[REQ-configuration]]). A prose mention links nothing, so it

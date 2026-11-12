@@ -52,7 +52,7 @@ the checker and the context bundle never read Markdown themselves.
 - **Attributes.** `tags` becomes a list without `@`, from a list or a comma- or space-separated
   string; every other value is kept as YAML parsed it.
 - **Prose** is the paragraphs, lists and quotes of the body, as written. The first paragraph is the
-  summary (at most 280 characters) and the description the `draft` gate asks for
+  summary (at most 280 characters) and the description the criteria of `draft` ask for
   ([[REQ-maturity-criteria]]); each heading's section is the prose under it, up to the next heading
   of the same or a higher level.
 - **Open questions** are the list items, nested ones included, under an open-questions heading,

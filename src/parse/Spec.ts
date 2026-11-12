@@ -45,7 +45,7 @@ export interface Spec {
   readonly inlineNodes: ReadonlyArray<InlineNode>
   readonly scenarios: ReadonlyArray<Scenario>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
-  /** The first paragraph: the description the draft gate asks for. */
+  /** The first paragraph: the description the criteria of draft ask for. */
   readonly summary: string
   /** Paragraphs, lists and quotes, as written. */
   readonly prose: ReadonlyArray<Prose>

@@ -43,7 +43,7 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `scenario-empty` | warning | a scenario has no steps | write its steps or delete it |
 | `maturity-value` | error | `maturity` is not on the configured ladder; the node gets no stage from it | use one of the configured levels |
 | `maturity-criteria` | error | the content does not support the declared maturity — of a spec, an inline node or a node declared in code ([[REQ-maturity-criteria]]) | complete the content or lower the maturity |
-| `maturity-promotable` | info | the content meets the `specified` or `ready` gate, above the declared maturity | raise the maturity if the team agrees |
+| `maturity-promotable` | info | the content meets the criteria of `specified` or `ready`, above the declared maturity | raise the maturity if the team agrees |
 | `decision-status` | warning | a decision has no `status`, or one other than `proposed`, `accepted`, `rejected`, `deprecated`, `superseded` | set `status` |
 | `decision-supersede` | warning | a decision supersedes one whose status is not `superseded`, or a superseded decision has no successor | make both records agree |
 | `decision-content` | info | an accepted decision has no "Decision" or "Outcome" section ([[REQ-decision-records]]) | state the decision under `## Decision` |
