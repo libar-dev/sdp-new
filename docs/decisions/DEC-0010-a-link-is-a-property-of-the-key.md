@@ -45,3 +45,26 @@ the `*` relation of a query does not follow it.
 - A typo in a link key's target is an error instead of an inert value; a typo in a value key stays
   a value, as with any free-form attribute ([[DEC-0002]]).
 - A workspace that wants another key to link names it under `vocabulary.links`.
+
+~~~gherkin
+Scenario: A value that happens to be an id does not link, and a link key that names nothing is an error
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    owner: REQ-b
+    iteration: E9
+    ---
+    # Alpha
+    """
+  And a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    ---
+    # Beta
+    """
+  When the workspace is checked
+  Then the workspace graph has no "owner" edges
+  And the check reports "dangling-link" for "REQ-a"
+~~~
