@@ -88,10 +88,10 @@ const sharedStart = (a: string, b: string): number => {
 
 /** Why `from` cannot replace `to`, whatever either's maturity, or undefined when it can. */
 const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): string | undefined => {
-  const replacing = (node: Replacing) => isExample(node) || node.kind === made.kinds.rule || hasKind(vocabulary, "feature", node.kind)
-  return !replacing(from)
+  const replaceable = (node: Replacing) => isExample(node) || node.kind === made.kinds.rule || hasKind(vocabulary, "feature", node.kind)
+  return !replaceable(from)
     ? `${from.id} is a ${from.kind}: only a rule, a feature or an example replaces another`
-    : !replacing(to)
+    : !replaceable(to)
     ? `${to.id} is a ${to.kind}, not a rule, a feature or an example`
     : isExample(from) !== isExample(to)
     ? "an example replaces only an example, and a rule or a feature only a rule or a feature"
@@ -480,15 +480,15 @@ const pairExamples = (
 /**
  * Whether anything live at a base revision stops being live in the workspace, as errors: a maturity
  * or `@open` on what was built there — a live rule, or a Feature with one — whatever its examples
- * (`demotion`), and a
- * live example of the base that is gone, a gate or still to come here (`example-dropped`), unless
- * what replaces its rule or its feature — a rule or a feature linked to it, here or at the base, that
- * may replace it — is live here and has a live example the base did not have live: a replacement
- * keeps the coverage it takes over. A link from a live rule names what was live at the base, so a
- * replacement can be designed and built in one change, and is judged as check() judges a link to
- * what is there. The base is parsed with its own configuration. An example whose Feature or Rule is
- * reported as demoted is not reported again. `missing` says which files of the base do not parse:
- * their live examples were not compared, so the comparison may miss one turned off.
+ * (`demotion`), and a live example of the base that is gone, a gate or still to come here
+ * (`example-dropped`), unless what replaces its rule or its feature — a rule or a feature linked to
+ * it, here or at the base, that may replace it — is live here and has a live example the base did not
+ * have live: a replacement keeps the coverage it takes over. A link from a live rule names what was
+ * live at the base, so a replacement can be designed and built in one change, and is judged as
+ * check() judges a link to what is there. The base is parsed with its own configuration. An example
+ * whose Feature or Rule is reported as demoted is not reported again. `missing` says which files of
+ * the base do not parse: their live examples were not compared, so the comparison may miss one
+ * turned off.
  */
 export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly missing: ReadonlyArray<string> } => {
   const parsed = base.files.map((file) => ({ file: file.path, ...parseFeatureSpec(file.path, file.content, base.config) }))

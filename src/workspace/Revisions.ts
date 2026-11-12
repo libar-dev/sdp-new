@@ -247,8 +247,8 @@ const treeEntries = (out: Buffer, repository: string) =>
  *
  * What the walk reads there that the commit cannot say — a directory it lists, or a file it accepts,
  * out of the repository, through a link in a circle, in a submodule that is not checked out here, or
- * by a name the tree has only in another case — is recorded in `unread`. A link it only passes over is not: on disk as here, `**`
- * follows none, so whatever it leads to is never read.
+ * by a name the tree has only in another case — is recorded in `unread`. A link it only passes over
+ * is not: on disk as here, `**` follows none, so whatever it leads to is never read.
  */
 const commitFiles = (git: Git, top: Entry, checkout: string) => {
   /** Each directory listed so far, by its path, and those listed with all below them. */
@@ -289,7 +289,10 @@ const commitFiles = (git: Git, top: Entry, checkout: string) => {
     for (const [at, child] of listed) {
       const slash = at.lastIndexOf("/")
       listingAt(at.slice(0, Math.max(0, slash))).set(at.slice(slash + 1), child)
-      if (deep && child.mode === tree) whole.add(at)
+      if (deep && child.mode === tree) {
+        listingAt(at)
+        whole.add(at)
+      }
     }
     for (const { content, path: at } of links) targets.set(at, content)
     return listingAt(path)
@@ -312,8 +315,8 @@ const commitFiles = (git: Git, top: Entry, checkout: string) => {
   })
 
   /**
-   * The listing of the directory at `path`, `entry` in the tree, read when first reached — with all
-   * below it if `deep` —, or what it is when the commit cannot say, or undefined when it is no directory.
+   * The listing of the directory at `path`, `entry` in the tree, listed when first reached, with all
+   * below it if `deep`; what it is, when the commit cannot say; or undefined, when it is no directory.
    */
   const listingOf = Effect.fnUntraced(function*(path: string, entry: Entry, deep: boolean) {
     if (whole.has(path) || (!deep && listings.has(path))) return listings.get(path)!

@@ -299,8 +299,7 @@ Feature: Check specs
   Rule: An example keeps its test under a new name, in a new place or with new steps, and another takes it over only by naming it
 
     A test is what a reader would call the same example, each row of an outline on its own, so one
-    that is gone is not made up for by another that tests the same; one renamed with its steps edited,
-    or merged into another, is named where it went (write-a-spec).
+    that is gone is not made up for by another that tests the same.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -646,8 +645,9 @@ Feature: Check specs
   Rule: The specs of the base are those its own configuration finds in it, and what of them sdp cannot read makes the answer incomplete
 
     The base is read as it was configured and today's specs as today's configuration says, so a live
-    test that a configuration leaves out is dropped like any other; what sdp cannot read at the base
-    may be a test turned off.
+    test that a configuration leaves out is dropped like any other. What of its specs sdp cannot read
+    there may be a test turned off; what its globs do not reach, such as a link `**` passes over, is
+    none of them.
 
     Background:
       Given a file "specs/cart.feature" containing:
