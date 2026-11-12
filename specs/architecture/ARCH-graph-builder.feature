@@ -140,7 +140,7 @@ Feature: Graph builder
         | specs/pay.feature | @id=REQ-f\nFeature: Pay\n\n  @stage=verified\n  Rule: A card is charged once                | specs/pay.feature:4 |
         | specs/pay.feature | @id=REQ-f\nFeature: Pay\n\n  Rule: R\n\n    @stage=verified\n    Scenario: S\n      Then ok | specs/pay.feature:6 |
 
-    Scenario: A kind sdp makes itself, written in a spec and in code; the node has the kind its id says
+    Scenario: A kind sdp makes itself, written in a spec and in code
       Given a file "specs/REQ-a.feature" containing:
         """
         @id=REQ-a @kind=missing
