@@ -49,6 +49,11 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
         ? Effect.fail(notFound("readDirectoryEntries", path))
         : Effect.succeed([...entries].map(([name, type]) => ({ name, type })))
     },
+    // No path is a link.
+    realPath: (path) =>
+      path === memoryRoot || files.has(rel(path)) || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))
+        ? Effect.succeed(path)
+        : Effect.fail(notFound("realPath", path)),
     // Only the type: whether a path is a file or a directory is all sdp asks.
     stat: (path) =>
       files.has(rel(path))

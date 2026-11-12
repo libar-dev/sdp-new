@@ -216,7 +216,7 @@ export interface Workspace {
   readonly project: Project
   /** Fingerprints of the workspace as it was read, and of the ordinary results as this view shows them. */
   readonly now: Snapshot
-  /** The files `now.sources` covers: files a run imports later join them (`readFiles`, `fingerprint`). */
+  /** The files `now.sources` covers: files a run imports later join them (`readImports`, `fingerprint`). */
   readonly sources: ReadonlyArray<SourceFile>
   /**
    * The results stored when it was read, read before the specs: one of a scenario that is not among
@@ -225,13 +225,39 @@ export interface Workspace {
   readonly stored: RunResults | undefined
 }
 
-/** Reads `files` (relative to the root) that are files; an import recorded by an earlier run may be gone, or be no file now. */
+/** Reads `files` (relative to the root) that are files: a lockfile may be missing, or be no file. */
 export const readFiles = Effect.fn("readFiles")(function*(root: string, files: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const isFile = (file: string) =>
     fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type === "File"), Effect.orElseSucceed(() => false))
   return yield* readAll(root, yield* Effect.filter(files, isFile))
+})
+
+/** How a run records a path it reached a file through that leads elsewhere — a link, or a path through one — with where it led. */
+const arrow = " → "
+const leadingTo = (file: string, to: string) => `${file}${arrow}${to}`
+
+/**
+ * Reads what the step definitions of a run imported, as it recorded them, relative to the real
+ * root: a file while no link leads it elsewhere, and a link, `L → R`, while it leads where it led,
+ * which is all it holds. A link is part of what ran: the code that runs is the code it leads to.
+ * Anything else is gone.
+ */
+export const readImports = Effect.fn("readImports")(function*(root: string, imports: ReadonlyArray<string>) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  if (imports.length === 0) return []
+  const real = yield* fs.realPath(root)
+  const read = Effect.fnUntraced(function*(entry: string) {
+    const [file = entry, to] = entry.split(arrow)
+    const absolute = path.resolve(real, file)
+    const at = yield* fs.realPath(absolute).pipe(Effect.map((target) => path.relative(real, target)), Effect.orElseSucceed(() => undefined))
+    if (to !== undefined) return at === to ? [{ path: entry, content: "" }] : []
+    const type = yield* fs.stat(absolute).pipe(Effect.map((info) => info.type), Effect.orElseSucceed(() => undefined))
+    return at === file && type === "File" ? [{ path: file, content: yield* fs.readFileString(absolute) }] : []
+  })
+  return (yield* Effect.forEach(imports, read, { concurrency: 32 })).flat()
 })
 
 /**
@@ -266,7 +292,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const recorded = Object.entries(stored?.imports ?? {})
   const imports = options.imports ?? []
   const imported = new Map(
-    (yield* readFiles(root, [...new Set([...recorded.flatMap(([, files]) => files), ...imports])])).map((file) => [file.path, file])
+    (yield* readImports(root, [...new Set([...recorded.flatMap(([, files]) => files), ...imports])])).map((file) => [file.path, file])
   )
   /** What a run whose step definitions imported `files` ran against, as the workspace is now. */
   const sourcesWith = (files: ReadonlyArray<string>) => [
@@ -329,11 +355,11 @@ const sdpExports = new Map([
 let hooked = false
 /**
  * What this process has imported of workspaces, by module URL: the local files each module
- * imports, as Node resolved them, and the source Node loaded. Node keeps every module for the life
- * of the process, and so do these records: a process loads step modules once, and what it runs is
- * what it loaded, whatever the file says later.
+ * imports, by the URL the import names and the real one Node resolved it to, and the source Node
+ * loaded. Node keeps every module for the life of the process, and so do these records: a process
+ * loads step modules once, and what it runs is what it loaded, whatever the file says later.
  */
-const importGraph = new Map<string, Set<string>>()
+const importGraph = new Map<string, Map<string, string>>()
 const loadedSources = new Map<string, string>()
 
 const isWorkspaceFile = (url: string) => url.startsWith("file:") && !url.includes("/node_modules/")
@@ -352,9 +378,12 @@ const hookImports = () => {
       const own = sdpExports.get(specifier)
       if (own !== undefined) return { url: own, shortCircuit: true }
       const resolved = nextResolve(specifier, context)
+      const parent = context.parentURL
       // This module imports the step files of every workspace this process runs: that is no import of theirs.
-      if (context.parentURL?.startsWith("file:") && context.parentURL !== import.meta.url && isWorkspaceFile(resolved.url)) {
-        importGraph.set(context.parentURL, (importGraph.get(context.parentURL) ?? new Set()).add(resolved.url))
+      if (parent?.startsWith("file:") && parent !== import.meta.url && isWorkspaceFile(resolved.url)) {
+        // Node names a module by its real path; a path that leads there through a link is named too.
+        const named = /^(\.{1,2}\/|\/|file:)/.test(specifier) ? new URL(specifier, parent).href : resolved.url
+        importGraph.set(parent, (importGraph.get(parent) ?? new Map()).set(named, resolved.url))
       }
       return resolved
     },
@@ -375,14 +404,14 @@ export interface LoadedSteps {
   readonly empty: ReadonlyArray<string>
   /**
    * Local files the step definition files have imported so far, directly or not, relative to the
-   * root, those outside it included. Ask again after a run: a handler may import a file only when
-   * it executes.
+   * real root, those outside it included, and each link they were reached through, `L → R`. Ask
+   * again after a run: a handler may import a file only when it executes.
    */
   readonly imports: () => ReadonlyArray<string>
   /**
    * The step files and their imports that `sources` holds with another content than this process
-   * loaded, or no longer holds at all: a run against them would record evidence about code that
-   * did not run.
+   * loaded, or no longer holds at all, and the links they were reached through that lead elsewhere
+   * now: a run against them would record evidence about code that did not run.
    */
   readonly changed: (sources: ReadonlyArray<SourceFile>) => ReadonlyArray<string>
   /** The step files of `steps` that this process did not load, which were added since: their definitions did not run either. */
@@ -398,6 +427,10 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   // Node resolves modules to their real paths.
   const real = files.length > 0 ? yield* fs.realPath(root) : root
   const urlOf = (file: string) => pathToFileURL(path.join(real, file)).href
+  // A step file that is a link is loaded from where it leads.
+  const realUrls = new Map(
+    yield* Effect.forEach(files, (file) => Effect.map(fs.realPath(path.join(real, file)), (to) => [urlOf(file), pathToFileURL(to).href] as const))
+  )
   // A module exported under two names, or again by another file, is one module: its steps match once.
   const modules = new Set<StepModule<any>>()
   const empty: Array<string> = []
@@ -410,40 +443,49 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     if (found.length === 0) empty.push(file)
     for (const module of found) modules.add(module)
   }
+  /** A file by its path relative to the real root, one outside it — a monorepo's shared code — too. */
+  const name = (url: string) => path.relative(real, fileURLToPath(url))
   /**
-   * The step files and every local file they imported so far, directly or not, by module URL and
-   * relative to the root. One outside the root — a monorepo's shared code — is named from the root
-   * as given, which reaches it whether or not the root is a link.
+   * The step files and every local file they imported so far, directly or not, by the real URL
+   * Node loaded each from, and every path that led to one of them through a link, with where it led.
    */
   const reached = () => {
-    const seen = new Set(files.map(urlOf))
+    const seen = new Set(realUrls.values())
+    const links = new Map([...realUrls].filter(([named, url]) => named !== url))
     const queue = [...seen]
     for (const url of queue) {
-      for (const next of importGraph.get(url) ?? []) {
+      for (const [named, next] of importGraph.get(url) ?? []) {
+        if (named !== next) links.set(named, next)
         if (seen.has(next)) continue
         seen.add(next)
         queue.push(next)
       }
     }
-    return [...seen].map((url) => {
-      const absolute = fileURLToPath(url)
-      const inside = path.relative(real, absolute)
-      return { url, file: inside.startsWith("..") || path.isAbsolute(inside) ? path.relative(root, absolute) : inside }
-    })
+    return {
+      modules: [...seen].map((url) => ({ url, file: name(url) })),
+      links: [...links].map(([named, url]) => ({ file: name(named), link: leadingTo(name(named), name(url)) }))
+    }
   }
   const own = new Set(files)
-  const imports = () => reached().map(({ file }) => file).filter((file) => !own.has(file)).sort()
+  const imports = () => {
+    const { links, modules } = reached()
+    return [...new Set([...modules.map(({ file }) => file).filter((file) => !own.has(file)), ...links.map(({ link }) => link)])].sort()
+  }
   const changed = (sources: ReadonlyArray<SourceFile>) => {
     const present = new Map(sources.map((file) => [file.path, file.content]))
-    return reached().filter(({ file, url }) => {
-      const content = present.get(file)
-      // Deleted: Node still runs what it loaded.
-      if (content === undefined) return true
-      // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
-      const loaded = loadedSources.get(url) ?? content
-      loadedSources.set(url, loaded)
-      return loaded !== content
-    }).map(({ file }) => file).sort()
+    const { links, modules } = reached()
+    return [
+      ...modules.filter(({ file, url }) => {
+        const content = present.get(file)
+        // Deleted: Node still runs what it loaded.
+        if (content === undefined) return true
+        // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
+        const loaded = loadedSources.get(url) ?? content
+        loadedSources.set(url, loaded)
+        return loaded !== content
+      }),
+      ...links.filter(({ link }) => !present.has(link))
+    ].map(({ file }) => file).sort()
   }
   const added = (steps: ReadonlyArray<string>) => steps.filter((file) => !files.includes(file))
   return { files, modules: [...modules], empty, imports, changed, added } satisfies LoadedSteps

@@ -33,7 +33,7 @@ import { snippetModule } from "../run/Match.ts"
 import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
 import { commitResults } from "../run/Store.ts"
-import { type LoadedSteps, loadConfig, loadProject, loadSteps, loadWorkspace, readFiles, SourcesChanged, type Workspace } from "../workspace/Workspace.ts"
+import { type LoadedSteps, loadConfig, loadProject, loadSteps, loadWorkspace, readImports, SourcesChanged, type Workspace } from "../workspace/Workspace.ts"
 import { type Answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
@@ -178,7 +178,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     complete: (result: ScenarioResult) => ScenarioResult = (result) => result
   ) {
     const known = new Set(ranAgainst.sources.map((file) => file.path))
-    const late = yield* readFiles(root, imports().filter((file) => !known.has(file)))
+    const late = yield* readImports(root, imports().filter((file) => !known.has(file)))
     const files = [...ranAgainst.sources, ...late]
     // A batch with no result records nothing that could rest on what this process did not load.
     if (batch.length > 0) yield* asLoaded(ranAgainst, files)

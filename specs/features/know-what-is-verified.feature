@@ -309,7 +309,7 @@ Feature: Know what is verified
       And the output contains 'cart.stage is "unrun", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
-    Scenario: In a monorepo, a file outside the workspace that the step definitions import changes
+    Scenario Outline: In a monorepo, a file outside the workspace that the step definitions import changes, after a run <where>
       Given a file "shop/sdp.config.yaml" containing:
         """
         features: ["specs/**/*.feature"]
@@ -341,8 +341,13 @@ Feature: Know what is verified
         """
         export const lamps = 1
         """
-      When I run "sdp run" in "shop"
+      When I run "sh -c 'mkdir links && ln -s ../shop links/shop'"
+      Then the exit code is 0
+      When I run "sdp -C <root> run"
       Then the output contains "1 scenario(s): 1 passed"
+      When I run "sdp status --json" in "shop"
+      Then the JSON output has:
+        | data.stale | {} |
       Given a file "shared/lamps.ts" containing:
         """
         export const lamps = 2
@@ -350,6 +355,61 @@ Feature: Know what is verified
       When I run "sdp status --json" in "shop"
       Then the JSON output has:
         | data.stale.code-changed | 1 |
+
+      Examples:
+        | where                           | root       |
+        | in the workspace                | shop       |
+        | through a link to the workspace | links/shop |
+
+    Scenario Outline: The step definitions run through links, and <what>
+      Given a file "shop/sdp.config.yaml" containing:
+        """
+        features: ["specs/**/*.feature"]
+        """
+      And a file "shop/specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "shared/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "shared/one.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "shared/two.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sh -c 'ln -s ../../shared/cart.steps.ts shop/specs/cart.steps.ts && ln -s one.ts shared/lamps.ts'"
+      Then the exit code is 0
+      When I run "sdp run" in "shop"
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "<change>"
+      Then the exit code is 0
+      When I run "sdp q scenario[status=stale] --ids" in "shop"
+      Then the output lines are "cart#add-an-item"
+
+      Examples:
+        | what                                                 | change                         |
+        | the file a link leads to changes                     | cp shared/two.ts shared/one.ts |
+        | a link is made to lead to another, unchanged file    | ln -sf two.ts shared/lamps.ts  |
 
     Scenario: An outline whose ordinary row changed the code while it ran, and whose gate row ran after
       Given a file "src/cart.ts" containing:
