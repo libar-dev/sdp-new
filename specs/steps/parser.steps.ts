@@ -72,10 +72,10 @@ const annotationRow = (a: Annotation): Row => ({
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("{string} is parsed", ({ args: [path], world }) => parse(world, path))
 
-  When("{string} is parsed with CRLF line endings and → as a tab", ({ args: [path], world }) => {
+  When("{string} is parsed with CRLF line endings", ({ args: [path], world }) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
-    setFile(world, path, content.replaceAll("→", "\t").replaceAll("\n", "\r\n"))
+    setFile(world, path, content.replaceAll("\n", "\r\n"))
     return parse(world, path)
   })
 

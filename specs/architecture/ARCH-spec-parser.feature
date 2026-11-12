@@ -44,7 +44,7 @@ Feature: Spec parser
         """
       When "specs/REQ-pay.feature" is parsed
       Then sdp reports:
-        | rule           | severity | line | message                                                        |
+        | rule           | severity | line | message                                                       |
         | gherkin-syntax | error    | 6    | "Feature: Refund" is read as text of the description above it |
 
     Scenario: A Feature line inside a doc string is content
@@ -236,6 +236,47 @@ Feature: Spec parser
       And sdp reports:
         | rule                | severity | line | message                                        |
         | description-comment | warning  | 5    | "# Why" is a comment, so Gherkin leaves it out |
+
+  Rule: A file reads the same whatever its line endings
+
+    Scenario: CRLF line endings
+      Given a file "specs/REQ-pay.feature" containing:
+        """
+        @id=REQ-pay
+        @maturity=ready
+        Feature: Pay
+
+          Shoppers pay
+          # Why
+          by card.
+
+          Rule: A wallet is charged once
+            A retry reuses the first charge.
+
+            Scenario: Retry
+              When the payment is retried with:
+                ```
+                one
+                two
+                ```
+              Then one charge is made
+        """
+      When "specs/REQ-pay.feature" is parsed with CRLF line endings
+      Then the parsed spec has summary "Shoppers pay by card."
+      And the parsed spec has attribute lines:
+        | key      | line |
+        | id       | 1    |
+        | maturity | 2    |
+      And the parsed spec has rules:
+        | name                     | line | description                      |
+        | A wallet is charged once | 9    | A retry reuses the first charge. |
+      And the executable steps of "REQ-pay#retry" are:
+        | keyword | text                         | line | doc string |
+        | When    | the payment is retried with: | 13   | one\ntwo   |
+        | Then    | one charge is made           | 18   |            |
+      And sdp reports:
+        | rule                | line |
+        | description-comment | 6    |
 
   Rule: Every scenario is an example of the Rule above it, and one outside every Rule is an error, except in a suite named by its path
 
