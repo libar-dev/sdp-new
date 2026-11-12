@@ -70,8 +70,8 @@ as scenarios.
 constant — from a module anchored to `B`. A module is anchored by its `is` annotation
 (`annotate(import.meta, { is: "ARCH-runner" })`, [[ARCH-code-annotations]]); an import of types
 alone is not a use, since it calls no code of the other element, and a module that no annotation
-anchors belongs to no element. Elements are joined by no other relation: what an element reads
-or feeds is the data flow above, and saying it twice let the two disagree.
+anchors belongs to no element. It is the one relation declared between elements: where data
+flows is the picture above, what depends on what is these links.
 
 Because the meaning is mechanical, the links are checked: the `uses` links declared between
 elements are exactly the value imports between their modules, so the declared architecture cannot

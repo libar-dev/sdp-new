@@ -141,7 +141,9 @@ export const check = Effect.fn("check")(function*(root: string, input: { readonl
 export const steps = Effect.fn("steps")(function*(root: string, input: { readonly text?: string | undefined } = {}) {
   const project = yield* loadProject(root, { withResults: false })
   const data: ReadonlyArray<ListedStep> = listSteps(project, input.text)
-  return answer(project, data, { missing: stepsMissing(project) })
+  // The listing is read from the step files alone: a spec that was not read takes nothing from it.
+  const notes = stepsMissing(project)
+  return { complete: notes.length === 0, notes, data } satisfies Answer<typeof data>
 })
 
 /** The steps of one spec that no definition matches yet, or more than one, with a module that defines the undefined ones. */

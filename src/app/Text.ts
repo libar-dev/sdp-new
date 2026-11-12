@@ -167,14 +167,15 @@ const total = (counts: Readonly<Record<string, number>>) => Object.values(counts
 export const runSummary = (report: RunReport | GateReport): string => {
   const scenarios = total(report.summary)
   const gates = total(report.gates)
-  const of = "milestones" in report && report.milestones.length > 0 ? ` of ${report.milestones.join(", ")}` : ""
+  const gated = "milestones" in report
+  const of = gated && report.milestones.length > 0 ? ` of ${report.milestones.join(", ")}` : ""
   const unselected = report.scenarios.flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
   const stale = total(report.stale)
   const undefinedSteps = report.scenarios.some((r) => r.examples.some((p) => p.steps.some((s) => s.snippet !== undefined)))
   return [
     "",
-    ...(scenarios > 0 || gates === 0 ? [`${scenarios} scenario(s): ${tallied(report.summary)}`] : []),
-    ...(gates > 0 || of !== "" ? [`${gates} gate scenario(s)${of}: ${tallied(report.gates)}`] : []),
+    ...(scenarios > 0 || (gates === 0 && !gated) ? [`${scenarios} scenario(s): ${tallied(report.summary)}`] : []),
+    ...(gates > 0 || gated ? [`${gates} gate scenario(s)${of}: ${tallied(report.gates)}`] : []),
     ...(unselected > 0
       ? [c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`)]
       : []),
