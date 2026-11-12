@@ -18,17 +18,19 @@ Feature: See the architecture
       | @id=publish-through-an-outbox @kind=decision                                                               | Orders publish events through an outbox |
       | @id=json-logs @kind=decision                                                                               | Logs are JSON                           |
       | @id=order-latency @kind=nfr                                                                                | Order latency                           |
-      | @id=receipt-delay @kind=nfr                                                                                | A receipt within a minute               |
       | @id=numbered-receipts @kind=decision                                                                       | Receipts are numbered without gaps      |
       | @id=refunds @depends-on:receipts @decided-by:credit-notes                                                  | Refunds                                 |
       | @id=credit-notes @kind=decision                                                                            | A refund is a credit note               |
     And a file "specs/receipts.feature" containing:
       """
-      @id=receipts @realized-by:ARCH-orders @constrained-by:receipt-delay
+      @id=receipts @realized-by:ARCH-orders
       Feature: Receipts
 
         @decided-by:numbered-receipts
         Rule: Every receipt is numbered
+
+        @type=quality
+        Rule: A receipt is sent within a minute
       """
     And a file "specs/ARCH-billing.feature" containing:
       """
@@ -69,8 +71,8 @@ Feature: See the architecture
       Then the exit code is 0
       And the JSON output has:
         | data.architecture          | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox                                                                 |
-        | data.drivers               | publish-through-an-outbox, order-latency, receipt-delay, numbered-receipts                                         |
-        | data.drivers.through.nodes | ARCH-orders, receipts, receipt-delay, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts |
+        | data.drivers               | publish-through-an-outbox, order-latency, receipts#a-receipt-is-sent-within-a-minute, numbered-receipts            |
+        | data.drivers.through.nodes | ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts |
         | data.anchors               | code:src/mailer.ts#Mailer, code:src/orders.ts#place                                                                |
         | data.edges.rel             | constrained-by, decided-by, imports, instance-of, is, is                                                           |
 
@@ -94,7 +96,7 @@ Feature: See the architecture
         ARCH-orders -constrained-by-> order-latency  Order latency
         ARCH-orders -imports-> ARCH-mailer
         ARCH-orders <-is- code:src/orders.ts#place  place
-        receipt-delay, through receipts  A receipt within a minute
+        receipts#a-receipt-is-sent-within-a-minute, through receipts  A receipt is sent within a minute
         numbered-receipts, through receipts  Receipts are numbered without gaps
 
         PAT-outbox — Transactional outbox (pattern)
@@ -202,8 +204,10 @@ Feature: See the architecture
 
   Rule: A quality requirement, of kind nfr or of any kind whose type says so, is shown beside what it constrains
 
-    A team writes a quality requirement in whatever kind it writes the others in, a story or a
-    requirement, so its type marks it as well as the kind nfr does.
+    A quality requirement is most often a rule of the feature it constrains, with a measurable
+    example; `@type=quality` on that rule shows it beside the elements that realize the feature, as
+    the receipts' delivery time is in the view above. A team that writes them as specs of their own
+    marks them by kind or by type.
 
     Scenario Outline: Marked by its kind or by its type
       Given these specs:
