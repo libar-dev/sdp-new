@@ -15,6 +15,10 @@ the skill, `.claude/skills/sdp/SKILL.md`: read it first. Here is only what is sp
 - There are no tests but the scenarios. Their step definitions live in `specs/steps/*.steps.ts`
   and share one world (`specs/steps/world.ts`); they drive the real pipeline against an in-memory
   workspace, or the real CLI in a temporary directory (`cli.steps.ts`).
+- `sdp steps` is the vocabulary scenarios are written in, one family per subject and a module per
+  family: assert on data — a table of nodes, of what sdp reports, of JSON fields — before wording,
+  and add a column before a step. After a command, an exit code other than 0 is stated before
+  its output is read; the steps fail otherwise.
 - `npm run verify` must pass before a change is done. After adding or renaming a spec, run
   `npm run types` so the compiler knows its id.
 - Node.js 24 runs `.ts` directly: erasable syntax only (no enums, namespaces, parameter
