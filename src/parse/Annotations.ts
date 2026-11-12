@@ -9,11 +9,12 @@
  * In TypeScript and JavaScript the file is parsed, never run: a tag annotates the module-level
  * declaration its comment documents, or the file when its comment opens the file, and the rest of
  * that comment describes the code. A tag anywhere else, or one written after code or words on its
- * line, is not read, and is reported; a string is never a tag, nor is a line of an `@example`. The
- * modules a file anchored to a node imports come from the same parse. Other languages have no
- * parser here: a line that opens with a comment marker and the tag annotates the declaration
- * directly below it, past its decorators, or else the file — best effort, even inside a multi-line
- * string — the comment lines around it describe that code, and their imports are not read.
+ * line, is not read, and is reported; a string is never a tag, nor is a line of code a doc comment
+ * shows, in an `@example` or a fenced block. The modules a file anchored to a node imports come
+ * from the same parse. Other languages have no parser here: a line that opens with a comment marker
+ * and the tag annotates the declaration directly below it, past its decorators, or else the file —
+ * best effort, even inside a multi-line string — the comment lines around it describe that code,
+ * and their imports are not read.
  *
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
@@ -189,9 +190,16 @@ const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /** A tag after words on a comment's line. */
 const afterWords = /\s@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 
-/** In a doc comment, the line that opens an example of code, and one that opens any tag, which ends it. */
+/**
+ * In a doc comment, the line that opens an example of code, and one that opens any tag — a word
+ * after `@`, then a space or the line's end — which ends it, as a decorator such as `@Injectable()`
+ * does not.
+ */
 const exampleTag = /^[\s*]*@example\b/
-const blockTag = /^[\s*]*@\w/
+const blockTag = /^[\s*]*@\w+(?:\s|$)/
+
+/** In a doc comment, a line that opens or closes a fenced block of code. */
+const fence = /^[\s*]*(?:```|~~~)/
 
 /** What a tag annotates: a module-level declaration, or the file, with what the comment and the code say of it. */
 type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "returnType" | "exports">
@@ -221,10 +229,17 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
   for (const group of groups) {
     const tags = group.flatMap((comment, at) => {
       let example = false
+      let fenced = false
       return comment.value.split(/\r?\n/).flatMap((text, index) => {
-        // An example in a doc comment is code, whatever it says.
-        if (comment.type === "Block" && (exampleTag.test(text) || (example && blockTag.test(text)))) example = exampleTag.test(text)
-        if (example) return []
+        // Code a doc comment shows, as an example or in a fenced block, is code, whatever it says.
+        if (comment.type === "Block") {
+          if (fence.test(text)) {
+            fenced = !fenced
+            return []
+          }
+          if (!fenced && (exampleTag.test(text) || (example && blockTag.test(text)))) example = exampleTag.test(text)
+          if (fenced || example) return []
+        }
         const line = lineOf(comment.start) + index
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)

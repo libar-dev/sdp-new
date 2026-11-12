@@ -376,14 +376,6 @@ Feature: Link code to specs
         // @sdp implements <ID>
         const example = "@sdp implements pay"
         export class Help {} // @sdp implements pay
-
-        /**
-         * Prints the help.
-         *
-         * @example
-         * // @sdp implements pay
-         */
-        export const help = (): string => ""
         """
       When the workspace is loaded
       Then sdp reports:
@@ -391,6 +383,29 @@ Feature: Link code to specs
         | annotation-ignored | src/help.ts:4 | follows code on the same line       |
       When I query "code"
       Then the result is "nothing"
+
+    Scenario Outline: A doc comment's own tags are read, not those of code it shows: <shown>
+      Given a file "src/mailer.ts" containing:
+        """
+        /**
+         * Registers the mailer.
+         *
+        <lines>
+         */
+        export const register = (): number => 0
+        """
+      When the workspace is loaded
+      Then sdp reports nothing
+      When I query "code -*-> *"
+      Then the result is "<links>"
+
+      Examples:
+        | shown                                      | lines                                                                       | links   |
+        | an example                                 | * @example\n * // @sdp implements pay                                       | nothing |
+        | an example with a decorator in it          | * @example\n * @Injectable()\n * // @sdp implements pay\n * class Mailer {} | nothing |
+        | a fenced block                             | * ```ts\n * // @sdp implements pay\n * ```                                  | nothing |
+        | an example, then the comment's own tag     | * @example\n * register()\n *\n * @sdp implements pay                       | pay     |
+        | a fenced block, then the comment's own tag | * ```ts\n * // @sdp is ARCH-mailer\n * ```\n *\n * @sdp implements pay      | pay     |
 
     Scenario Outline: A tag after words on its line is not read, and is reported: <language>
       Given a file "<file>" containing:
