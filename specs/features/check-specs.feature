@@ -187,9 +187,10 @@ Feature: Check specs
   Rule: Nothing live stops being live without an error
 
     Built work cannot go back to work still to come, or a test is turned off in silence, so check
-    compares the specs with a base revision: a maturity or `@open` on a Feature or a Rule that was
-    live there is an error, whatever its examples were, and so is a live example of the base that is
-    gone, a gate or still to come, for neither fails a run.
+    compares the specs with a base revision: a maturity or `@open` on what was built there — a live
+    rule, or a Feature with one — is an error, whatever its examples were, and so is a live example
+    of the base that is gone, a gate or still to come, for neither fails a run. A Feature without a
+    live rule has nothing to test, so it may become an idea.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -242,6 +243,27 @@ Feature: Check specs
         | The live rule whose example is a gate deleted with it | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp               |
         | The rule still to come built                          | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                  |
         | The rule still to come deleted with its example       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                                         |
+
+    Scenario: A live feature without rules made an idea
+      Given a file "specs/basket.feature" containing:
+        """
+        @id=basket
+        Feature: Basket
+
+          Shoppers keep what they might buy later.
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/basket.feature" containing:
+        """
+        @id=basket @maturity=idea
+        Feature: Basket
+
+          Shoppers keep what they might buy later.
+        """
+      When I run "sdp check --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.rule | nothing |
 
     Scenario: What a demotion and a dropped example say, and where
       Given a file "specs/cart.feature" containing:

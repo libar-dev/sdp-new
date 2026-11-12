@@ -67,8 +67,9 @@ Feature: Guest checkout
   `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
   Nothing live goes back: `sdp check` compares the specs with the git base (where HEAD meets the
   default branch, or `--base`; without one its answer is incomplete, and `--base none` waives it),
-  and a maturity on what was live there, or a live example that is gone, a gate or still to come, is
-  an error — unless what replaces its rule or its feature is live with a new live example of its own.
+  and a maturity on what was built there (a live rule, or a Feature with one), or a live example
+  that is gone, a gate or still to come, is an error — unless what replaces its rule or its feature
+  is live with a new live example of its own.
   Examples are compared one for one, each row of an outline on its own: a new name or place for one
   is no removal, one edited under its name is the same example, and one renamed with its steps
   edited is the example its Scenario names with `@replaces:<feature>#<example>`.

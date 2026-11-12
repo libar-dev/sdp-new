@@ -393,7 +393,7 @@ interface Example {
   readonly tests: string
 }
 
-/** The examples of a set of specs, and the Features and Rules that are live. */
+/** The examples of a set of specs, and the Features and Rules that are built. */
 const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
   const examples = specs.flatMap((spec) => {
     const work = workOf(spec)
@@ -405,10 +405,12 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
       })
     )
   })
-  // What is built is live whatever its examples are, gates and none included.
+  // What is built is what has something to test, a live rule or a Feature with one, whatever its
+  // examples are, gates and none included.
   const built = new Set(specs.filter((spec) => isSuite(spec, vocabulary)).flatMap((spec) => {
     const work = workOf(spec)
-    return [...(work.spec ? [] : [spec.id]), ...spec.rules.filter((rule) => !work.rule(rule).toCome).map((rule) => rule.id)]
+    const rules = spec.rules.filter((rule) => !work.rule(rule).toCome).map((rule) => rule.id)
+    return rules.length === 0 ? [] : [spec.id, ...rules]
   }))
   return { examples, built }
 }
@@ -456,7 +458,8 @@ const pairExamples = (
 
 /**
  * Whether anything live at a base revision stops being live in the workspace, as errors: a maturity
- * or `@open` on a Feature or a Rule that was live there, whatever its examples (`demotion`), and a
+ * or `@open` on what was built there — a live rule, or a Feature with one — whatever its examples
+ * (`demotion`), and a
  * live example of the base that is gone, a gate or still to come here (`example-dropped`), unless
  * what replaces its rule or its feature — a rule or a feature linked to it, here or at the base, that
  * may replace it — is live here and has a live example the base did not have live: a replacement
