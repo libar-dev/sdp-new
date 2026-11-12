@@ -81,14 +81,14 @@ const functionOf = (value: Node | null | undefined, effect: ReadonlySet<string>)
 
 /** The shapes of the declarations of one parsed file. */
 export const shapes = (content: string, script: Script): Shapes => {
-  /** The source between two offsets, without its comments or the `skipped` ranges in it, on one line. */
-  const written = (start: number, end: number, skipped: ReadonlyArray<readonly [number, number]> = []): string => {
+  /** The source between two offsets, without its comments, and with each `skipped` range in it left out or put as it says, on one line. */
+  const written = (start: number, end: number, skipped: ReadonlyArray<readonly [number, number, string?]> = []): string => {
     let text = ""
     let at = start
     const left = [...script.comments.map((comment) => [comment.start, comment.end] as const), ...skipped].sort(([a], [b]) => a - b)
-    for (const [from, to] of left) {
+    for (const [from, to, put = ""] of left) {
       if (from < at || to > end) continue
-      text += content.slice(at, from)
+      text += content.slice(at, from) + put
       at = to
     }
     // A line break between two members of a type, which separates them as written, stays a separator.
@@ -105,21 +105,30 @@ export const shapes = (content: string, script: Script): Shapes => {
       ? [[(node.left as Node).end, (node.right as Node).end], ...defaults(node.left as Node)]
       : children(node).flatMap(defaults)
   /**
-   * A parameter as a declaration file has it: one with a default value optional, without the value,
-   * and a property it declares only if public — a private one is a parameter like any other.
+   * A parameter as a declaration file has it: one with a default value without the value, of the
+   * type written or else the literal value's, optional — or, before a parameter that is not, of that
+   * type or undefined — and a property it declares only if public: a private one is a parameter like
+   * any other.
    */
-  const parameter = (node: Node): string => {
+  const parameter = (node: Node, beforeRequired: boolean): string => {
     if (node.type === "TSParameterProperty") {
       const inner = node.parameter as Node
       const hidden = node.accessibility === "private" || node.accessibility === "protected"
-      return hidden ? parameter(inner) : `${written(node.start, inner.start)} ${parameter(inner)}`.trim()
+      return hidden ? parameter(inner, beforeRequired) : `${written(node.start, inner.start)} ${parameter(inner, beforeRequired)}`.trim()
     }
     if (node.type !== "AssignmentPattern") return written(node.start, node.end, defaults(node))
     const left = node.left as Node
-    const type = isNode(left.typeAnnotation) ? left.typeAnnotation : undefined
-    return `${written(left.start, type?.start ?? left.end, defaults(left))}?${type ? `: ${typeOf(type)}` : ""}`
+    const annotation = isNode(left.typeAnnotation) ? left.typeAnnotation : undefined
+    const name = written(left.start, annotation?.start ?? left.end, defaults(left))
+    const type = annotation === undefined ? literalType(node.right as Node) : typeOf(annotation)
+    if (!beforeRequired) return `${name}?${type ? `: ${type}` : ""}`
+    const bare = isNode(annotation?.typeAnnotation) && looseTypes.has(annotation.typeAnnotation.type) ? `(${type})` : type
+    return `${name}${type ? `: ${bare} | undefined` : ""}`
   }
-  const parameters = (fn: Node) => (fn.params as ReadonlyArray<Node>).map(parameter).join(", ")
+  const parameters = (fn: Node) => {
+    const params = fn.params as ReadonlyArray<Node>
+    return params.map((param, index) => parameter(param, params.slice(index + 1).some(required))).join(", ")
+  }
 
   const signature = (fn: Node, name: string): Shape => {
     const returns = typeOf(fn.returnType)
@@ -150,19 +159,14 @@ export const shapes = (content: string, script: Script): Shapes => {
     return body.filter((node) => !overloaded.has(method(node)) || !isNode((node.value as Node).body)).flatMap((node) => classMember(node) ?? [])
   }
 
-  /** What a class extends as a declaration file would have it: a call without its arguments, which may hold any code. */
-  const heritage = (node: Node): string => {
-    switch (node.type) {
-      case "Identifier":
-        return node.name as string
-      case "MemberExpression":
-        return node.computed ? `${heritage(node.object as Node)}[…]` : `${heritage(node.object as Node)}.${of(node.property as Node)}`
-      case "CallExpression":
-        return `${heritage(node.callee as Node)}${of(node.typeArguments as Node)}(${(node.arguments as ReadonlyArray<Node>).length > 0 ? "…" : ""})`
-      default:
-        return typeOnly.has(node.type) ? heritage(node.expression as Node) : "…"
-    }
+  /** Where an expression holds the body of a function, and what is put in its place: `{…}`, or `…` for an arrow's expression. */
+  const bodies = (node: Node): ReadonlyArray<readonly [number, number, string]> => {
+    if (!functions.has(node.type) || !isNode(node.body)) return children(node).flatMap(bodies)
+    const body = node.body
+    return [...children(node).filter((child) => child !== body).flatMap(bodies), [body.start, body.end, body.type === "BlockStatement" ? "{…}" : "…"]]
   }
+  /** What a class extends, as written but for the bodies of the functions in it, which are code and no surface. */
+  const heritage = (node: Node): string => written(node.start, node.end, bodies(node))
 
   const declarationShape = (declared: Node, name: string): Shape | undefined => {
     switch (declared.type) {
@@ -268,6 +272,27 @@ export const shapes = (content: string, script: Script): Shapes => {
   }
 
   return { of: (statement) => declarations(statement)[0]?.[1], exports }
+}
+
+/** Whether a parameter must be given: one with no default value, not marked optional and not a rest parameter. */
+const required = (node: Node): boolean => {
+  const inner = node.type === "TSParameterProperty" ? node.parameter as Node : node
+  return inner.type !== "AssignmentPattern" && inner.type !== "RestElement" && inner.optional !== true
+}
+
+/** The types that a union with `undefined` has to put in parentheses. */
+const looseTypes: ReadonlySet<string> = new Set(["TSFunctionType", "TSConstructorType", "TSConditionalType"])
+
+/** The type a declaration file gives a parameter whose default value is a literal: a string's, a number's, a boolean's or a bigint's. */
+const literalType = (value: Node): string | undefined => {
+  if (value.type === "TemplateLiteral") return "string"
+  if (value.type === "UnaryExpression" && (value.operator === "-" || value.operator === "+")) {
+    const of = literalType(value.argument as Node)
+    return of === "number" || (of === "bigint" && value.operator === "-") ? of : undefined
+  }
+  if (value.type !== "Literal") return undefined
+  if (typeof value.bigint === "string") return "bigint"
+  return typeof value.value === "string" || typeof value.value === "number" || typeof value.value === "boolean" ? typeof value.value : undefined
 }
 
 const nameOf = (node: Node | undefined): string | undefined =>

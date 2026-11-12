@@ -9,11 +9,13 @@
  * In TypeScript and JavaScript the file is parsed, never run: a tag annotates the module-level
  * declaration its comment documents, or the file when its comment opens the file, and the rest of
  * that comment describes the code. A tag anywhere else, or one written after code or words on its
- * line, is not read, and is reported; a string is never a tag, nor is a line of an `@example`. The
- * modules a file anchored to a node imports come from the same parse. Other languages have no
- * parser here: a line that opens with a comment marker and the tag annotates the declaration
- * directly below it, past its decorators, or else the file — best effort, even inside a multi-line
- * string — the comment lines around it describe that code, and their imports are not read.
+ * line, is not read, and is reported; a string is never a tag, nor is a line of code a doc comment
+ * shows, in an `@example` or a fenced block. The modules a file anchored to a node imports come
+ * from the same parse. Other languages have no parser here: a line that opens with a comment marker
+ * and the tag annotates the declaration directly below it, past its decorators, or else the file —
+ * best effort, even inside a multi-line string — the comment lines around it describe that code,
+ * and their imports are not read. A tag in a Python docstring annotates the module, the class or the
+ * function the docstring opens, and the docstring describes it.
  *
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
@@ -189,9 +191,16 @@ const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /** A tag after words on a comment's line. */
 const afterWords = /\s@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 
-/** In a doc comment, the line that opens an example of code, and one that opens any tag, which ends it. */
+/**
+ * In a doc comment, the line that opens an example of code, and one that opens any tag — a word
+ * after `@`, then a space or the line's end — which ends it, as a decorator such as `@Injectable()`
+ * does not.
+ */
 const exampleTag = /^[\s*]*@example\b/
-const blockTag = /^[\s*]*@\w/
+const blockTag = /^[\s*]*@\w+(?:\s|$)/
+
+/** In a doc comment, a line that opens or closes a fenced block of code. */
+const fence = /^[\s*]*(?:```|~~~)/
 
 /** What a tag annotates: a module-level declaration, or the file, with what the comment and the code say of it. */
 type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "returnType" | "exports">
@@ -221,10 +230,17 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
   for (const group of groups) {
     const tags = group.flatMap((comment, at) => {
       let example = false
+      let fenced = false
       return comment.value.split(/\r?\n/).flatMap((text, index) => {
-        // An example in a doc comment is code, whatever it says.
-        if (comment.type === "Block" && (exampleTag.test(text) || (example && blockTag.test(text)))) example = exampleTag.test(text)
-        if (example) return []
+        // Code a doc comment shows, as an example or in a fenced block, is code, whatever it says.
+        if (comment.type === "Block") {
+          if (fence.test(text)) {
+            fenced = !fenced
+            return []
+          }
+          if (!fenced && (exampleTag.test(text) || (example && blockTag.test(text)))) example = exampleTag.test(text)
+          if (fenced || example) return []
+        }
         const line = lineOf(comment.start) + index
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
@@ -263,19 +279,21 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
 
 /**
  * What the comment that carries a tag says: its block, or the run of line comments that holds it —
- * or, when that says nothing but tags, the doc comment directly above it. Another comment above, a
- * licence or a copyright, describes no code.
+ * or, when that says nothing but tags, the comment directly above it, a block or a run of line
+ * comments. A comment further up, a licence or a copyright, describes no code.
  */
 const carrying = (group: ReadonlyArray<Script["comments"][number]>, at: number): string | undefined => {
-  let first = at
-  let last = at
-  if (group[at]!.type === "Line") {
-    while (group[first - 1]?.type === "Line") first--
-    while (group[last + 1]?.type === "Line") last++
+  const run = (index: number) => {
+    let first = index
+    let last = index
+    if (group[index]!.type === "Line") {
+      while (group[first - 1]?.type === "Line") first--
+      while (group[last + 1]?.type === "Line") last++
+    }
+    return { first, said: description(group.slice(first, last + 1).map((comment) => comment.value)) }
   }
-  const above = group[first - 1]
-  return description(group.slice(first, last + 1).map((comment) => comment.value)) ??
-    (above?.type === "Block" && above.value.startsWith("*") ? description([above.value]) : undefined)
+  const { first, said } = run(at)
+  return said ?? (first > 0 ? run(first - 1).said : undefined)
 }
 
 /** A tag that a comment's line has after words, which is not read: well formed, it was meant as one. */
@@ -331,24 +349,34 @@ const declaredName = (statement: Node): string | undefined => {
 }
 
 /**
- * What a comment says of the code it documents: its first paragraph without its tags, before any
- * other tag of the comment's own (`@internal`, `@param`).
+ * What a comment says of the code it documents: its first paragraph without its tags or a tool's
+ * directives, before any other tag of the comment's own (`@internal`, `@param`).
  */
 const description = (comments: ReadonlyArray<string>): string | undefined => {
   const lines = comments
     .flatMap((comment) => comment.split(/\r?\n/))
     .map((line) => line.replace(/^\s*\*+ ?/, "").replace(/^[/!]+ ?/, "").trimEnd())
-    .filter((line) => !commentMarker.test(line))
+    .filter((line) => !commentMarker.test(line) && !directive.test(line))
   const tagged = lines.findIndex((line) => /^\s*@\w/.test(line))
   const words = tagged < 0 ? lines : lines.slice(0, tagged)
   return words.join("\n").split(/\n\s*\n/).map((text) => text.replace(/\s+/g, " ").trim()).find((text) => text !== "")
 }
 
+/**
+ * A comment's line that directs a tool, not the reader: a linter, a type checker, a formatter or a
+ * coverage tool, in any language.
+ */
+const directive =
+  /^\s*(?:eslint-(?:disable|enable|env)\b|eslint [\w@/-]+:|@ts-[a-z-]+|prettier-ignore|biome-ignore|oxlint-[a-z-]+|deno-(?:lint|fmt)-ignore|tslint:|jshint\b|istanbul ignore|[cv]8 ignore|<reference\b|noqa\b|type: ?ignore|pylint: ?[a-z-]+|pyright: ?\w+|mypy: ?\w+|fmt: ?(?:off|on|skip)|isort: ?\w+|pragma: ?no cover|nolint\b|NOLINT|go:[a-z]+|\+build\b|clang-format (?:off|on)|#(?:end)?region\b)/
+
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
-/** An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any script. */
-const idToken = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*$/u
-/** A line of code that only decorates the declaration below it: `@Service`, `@app.route("/pay")`. */
-const decorator = /^\s*@[A-Za-z_$][\w$.]*(?:\(.*\))?\s*$/
+/**
+ * An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any
+ * script — but for a full stop at its end, which ends a sentence.
+ */
+const idToken = /^[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}_.:#/-]*[\p{L}\p{M}\p{N}_:#/-])?$/u
+/** A placeholder for an id, as a guide writes the form of a tag: `<ID>`. */
+const placeholder = /^<[^<>\s]+>$/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
@@ -357,6 +385,7 @@ const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
 const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" | "unreadable"> => {
   const lines = content.split(/\r?\n/)
   const unreadable: Array<Unread> = []
+  const docstrings = /\.pyi?$/.test(file) ? pythonDocstrings(content, lines) : []
   const annotations = lines.flatMap((text, index) => {
     const match = lineMarker.exec(text)
     const tag = match && readTag(match[1]!, match[2]!)
@@ -365,10 +394,77 @@ const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" 
       unreadable.push({ line: index + 1, ...tag.unread })
       return []
     }
+    const docstring = docstrings.find(({ first, last }) => first <= index && index <= last)
+    if (docstring) return [{ file, line: index + 1, ...tag, symbol: docstring.of?.name, symbolLine: docstring.of?.line ?? 1, doc: docstring.doc }]
     const below = nextSymbol(lines, index)
     return [{ file, line: index + 1, ...tag, symbol: below?.name, symbolLine: below?.line ?? 1, doc: lineCommentDoc(lines, index) }]
   })
   return { annotations, unreadable }
+}
+
+/** A Python docstring: the lines it spans, what it says, and the class or function it documents — none for the module's. */
+interface Docstring {
+  readonly first: number
+  readonly last: number
+  readonly doc: string | undefined
+  readonly of: { readonly name: string; readonly line: number } | undefined
+}
+
+/** A line of Python that opens a class or a function. */
+const pythonDeclaration = /^\s*(?:async\s+def|def|class)\s+([A-Za-z_]\w*)/
+
+/**
+ * The docstrings of Python source, its doc comments (PEP 257): a string in triple quotes that is
+ * the first statement of the module, or of the class or function whose header ends on the line above.
+ */
+const pythonDocstrings = (content: string, lines: ReadonlyArray<string>): ReadonlyArray<Docstring> => {
+  const breaks = [...content.matchAll(/\n/g)].map((match) => match.index)
+  const lineOf = (offset: number) => breaks.filter((at) => at < offset).length
+  const significant = (line: string) => line.trim() !== "" && !line.trimStart().startsWith("#")
+  return tripleQuoted(content).flatMap(({ end, start }): ReadonlyArray<Docstring> => {
+    const [first, last] = [lineOf(start), lineOf(end)]
+    if (!/^\s*[rRuU]?$/.test(content.slice(content.lastIndexOf("\n", start - 1) + 1, start))) return []
+    if (!/^\s*(?:#.*)?$/.test(lines[last]!.slice(end - (content.lastIndexOf("\n", end - 1) + 1)))) return []
+    const doc = description([content.slice(start + 3, end - 3)])
+    let header = first - 1
+    while (header >= 0 && !significant(lines[header]!)) header--
+    if (header < 0) return [{ first, last, doc, of: undefined }]
+    if (!/:\s*(?:#.*)?$/.test(lines[header]!)) return []
+    let opens = header
+    while (opens >= 0 && !pythonDeclaration.test(lines[opens]!)) opens--
+    if (opens < 0) return []
+    // A header of several lines opens brackets on its first line that only its last closes.
+    let open = 0
+    for (let at = opens; at < header; at++) {
+      open += brackets(lines[at]!)
+      if (open <= 0) return []
+    }
+    if (open + brackets(lines[header]!) !== 0) return []
+    return [{ first, last, doc, of: { name: pythonDeclaration.exec(lines[opens]!)![1]!, line: opens + 1 } }]
+  })
+}
+
+/** Where the strings in triple quotes of Python source start and end, past its comments and its other strings. */
+const tripleQuoted = (content: string): ReadonlyArray<{ readonly start: number; readonly end: number }> => {
+  const strings: Array<{ readonly start: number; readonly end: number }> = []
+  let at = 0
+  while (at < content.length) {
+    const char = content[at]!
+    if (char === "#") {
+      const next = content.indexOf("\n", at)
+      at = next < 0 ? content.length : next
+    } else if (char === "\"" || char === "'") {
+      const quote = content.startsWith(char.repeat(3), at) ? char.repeat(3) : char
+      let end = at + quote.length
+      while (end < content.length && !content.startsWith(quote, end) && (quote.length === 3 || content[end] !== "\n")) {
+        end += content[end] === "\\" ? 2 : 1
+      }
+      end = Math.min(content.length, end + quote.length)
+      if (quote.length === 3) strings.push({ start: at, end })
+      at = end
+    } else at++
+  }
+  return strings
 }
 
 /** A line comment's text, without the marker that opens it or the one that closes a block. */
@@ -403,8 +499,8 @@ const ignoredLines = (content: string): ReadonlyArray<Unread> =>
 /**
  * The relation, ids and attributes `@sdp <rel> <ids> [key=value ...]` says, its ids separated by
  * commas. A tag that names something that is no id, or goes on after its ids with other words, was
- * meant as a tag and cannot be read; one whose ids are placeholders, `@sdp implements <ID>`, only
- * mentions the form, and is undefined.
+ * meant as a tag and cannot be read; one whose ids are whole placeholders, `@sdp implements <ID>`,
+ * only mentions the form, and is undefined.
  */
 const readTag = (
   rel: string,
@@ -426,9 +522,10 @@ const readTag = (
       listing = token.endsWith(",")
     } else after.push(token)
   }
-  if (targets.length > 0 && targets.every((t) => t.startsWith("<"))) return undefined
+  if (targets.length > 0 && targets.every((t) => placeholder.test(t))) return undefined
   const wrong = targets.filter((t) => !idToken.test(t))
-  const hint = "write the ids it links to, separated by commas, then any key=value: an id is a letter or a digit, then letters, digits and - _ . : # /"
+  const hint =
+    "write the ids it links to, separated by commas, then any key=value: an id is a letter or a digit, then letters, digits and - _ . : # /, with no full stop at its end"
   const unread = (says: string) => ({ unread: { message: `"@sdp ${rel} ${text}" ${says}, so the tag is not read`, hint } })
   if (wrong.length > 0) return unread(`names ${wrong.join(", ")}, which ${wrong.length === 1 ? "is" : "are"} no id`)
   if (after.length > 0) return unread(`goes on after its ids with "${after.join(" ")}"`)
@@ -437,16 +534,68 @@ const readTag = (
   return { rel, targets, attrs: Object.fromEntries(attrs) }
 }
 
-/** A tag directly above a declaration annotates it; one followed by a blank line, the file. */
+/**
+ * A tag directly above a declaration annotates it, past the comments and the decorators between
+ * them, however many lines a decorator's arguments take; one followed by a blank line, the file.
+ */
 const nextSymbol = (lines: ReadonlyArray<string>, from: number): { readonly name: string; readonly line: number } | undefined => {
-  for (let i = from + 1; i < Math.min(lines.length, from + 8); i++) {
+  // The brackets a decorator has opened and not closed yet: its arguments go on.
+  let open = 0
+  for (let i = from + 1; i < lines.length; i++) {
     const line = lines[i]!
+    if (open > 0) {
+      open += brackets(line)
+      continue
+    }
     if (line.trim() === "") return undefined
-    if (commentOnly.test(line) || line.includes("@sdp") || decorator.test(line)) continue
+    const decorated = decorating(line)
+    if (decorated !== undefined) {
+      open = decorated
+      continue
+    }
+    if (commentOnly.test(line) || line.includes("@sdp")) continue
     const name = declaration.exec(line)?.[1]
     return name === undefined ? undefined : { name, line: i + 1 }
   }
   return undefined
+}
+
+/**
+ * Whether a line of code only decorates the declaration below it, with one decorator or attribute or
+ * more — `@Service`, `@app.route("/pay")`, `@RequestMapping("/pay") @ResponseBody`, `[ApiController]`,
+ * `#[derive(Debug)]` — and if so, how many brackets they leave open for the lines below to close.
+ */
+const decorating = (line: string): number | undefined => {
+  let open = 0
+  let decorators = 0
+  let at = 0
+  while (at < line.length) {
+    const char = line[at]!
+    if (open > 0) {
+      if (char === "\"" || char === "'") {
+        const close = line.indexOf(char, at + 1)
+        at = close < 0 ? line.length : close + 1
+        continue
+      }
+      open += "([{".includes(char) ? 1 : ")]}".includes(char) ? -1 : 0
+    } else if (line.startsWith("//", at) || (char === "#" && line[at + 1] !== "[")) {
+      break
+    } else if (char === "@" || char === "[" || char === "#") {
+      const name = /^@[A-Za-z_$][\w$.]*|^#?/.exec(line.slice(at))![0]
+      at += name.length
+      decorators++
+      if (line[at] === "(" || line[at] === "[") open = 1
+      else if (!name.startsWith("@")) return undefined
+    } else if (!/\s/.test(char)) return undefined
+    at++
+  }
+  return decorators > 0 ? open : undefined
+}
+
+/** How many more brackets a line of code opens than it closes, outside its strings. */
+const brackets = (line: string): number => {
+  const code = line.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "")
+  return (code.match(/[([{]/g)?.length ?? 0) - (code.match(/[)\]}]/g)?.length ?? 0)
 }
 
 const tokenize = (text: string): ReadonlyArray<string> => text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []

@@ -705,9 +705,8 @@ Feature: See the architecture
 
     The code every instance goes through is the pattern's, and its comment says what the pattern
     is; an anchor declares a node of the kind its id's prefix names. `plays` is the team's word, and
-    like any link it only names a pattern, which an anchor declares: the view shows every link from
-    code to a pattern, and the elements that code is, or the file that holds it. Elements import
-    elements: a pattern imports nothing, and nothing imports it.
+    like any link it only names a pattern, which an anchor declares. Elements import elements: a
+    pattern imports nothing, and nothing imports it.
 
     Scenario: A retry pattern, declared by its code and played by billing
       Given a file "src/retry.ts" containing:
@@ -748,34 +747,7 @@ Feature: See the architecture
         """
       And the output contains "PAT-retry <-is- code:src/retry.ts#retry  retry"
       And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
-      And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
-
-    Scenario: A retry pattern played by a declaration of the file that is billing
-      Given a file "src/retry.ts" containing:
-        """
-        /** @sdp is PAT-retry */
-        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
-        """
-      And a file "src/billing.ts" containing:
-        """
-        /**
-         * Charges cards.
-         *
-         * @sdp is ARCH-billing
-         */
-        import { retry } from "./retry.ts"
-
-        /**
-         * Charges the card on file.
-         *
-         * @sdp plays PAT-retry
-         */
-        export const charge = (): Promise<number> => retry(async () => 0)
-        """
-      When I run "sdp arch"
-      Then the exit code is 0
-      And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
-      And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
+      And the output contains "PAT-retry <-plays- ARCH-billing  Billing"
 
     Scenario: A pattern that no code declares, played by billing
       Given a file "src/billing.ts" containing:
@@ -792,6 +764,61 @@ Feature: See the architecture
       Then sdp reports:
         | rule          | at               | message                                             |
         | dangling-link | src/billing.ts:5 | -plays-> PAT-retry: no node has id PAT-retry        |
+
+  Rule: An element links to each pattern its code links to, by the relation the code wrote, at the tag
+
+    Code is part of each element anchored in its file, as its imports are: what it plays, they
+    play. The relation is the code's own word, not one sdp makes, so a question asks for it as the
+    code wrote it.
+
+    Scenario Outline: The retry pattern played by <code>
+      Given a file "src/retry.ts" containing:
+        """
+        /** @sdp is PAT-retry */
+        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
+        """
+      And a file "src/billing.ts" containing:
+        """
+        <billing>
+        """
+      When I query "#PAT-retry <-plays- element"
+      Then the result is "<elements>"
+
+      Examples:
+        | code                                                            | billing                                                                                                                               | elements     |
+        | the declaration that is billing                                 | /**\n * @sdp is ARCH-billing\n * @sdp plays PAT-retry\n */\nexport const charge = (): number => 0                                     | ARCH-billing |
+        | a declaration of the file that is billing                       | /** @sdp is ARCH-billing */\nimport { retry } from "./retry.ts"\n\n/** @sdp plays PAT-retry */\nexport const charge = (): number => 0 | ARCH-billing |
+        | a declaration of a file another declaration of which is billing | /** @sdp is ARCH-billing */\nexport class Billing {}\n\n/** @sdp plays PAT-retry */\nexport const charge = (): number => 0            | ARCH-billing |
+        | code of no element                                              | /** @sdp plays PAT-retry */\nexport const charge = (): number => 0                                                                    | nothing      |
+
+    Scenario: Billing plays the retry pattern in every answer
+      Given a file "src/retry.ts" containing:
+        """
+        /** @sdp is PAT-retry */
+        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
+        """
+      And a file "src/billing.ts" containing:
+        """
+        /** @sdp is ARCH-billing */
+        import { retry } from "./retry.ts"
+
+        /** @sdp plays PAT-retry */
+        export const charge = (): Promise<number> => retry(async () => 0)
+        """
+      When the workspace is loaded
+      Then the workspace graph has edges:
+        | from         | rel   | to        | source           |
+        | ARCH-billing | plays | PAT-retry | src/billing.ts:4 |
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains "ARCH-billing -plays-> PAT-retry"
+      And the output contains "PAT-retry <-plays- ARCH-billing  Billing"
+      When I run "sdp arch --mermaid"
+      Then the exit code is 0
+      And the output contains "-->|plays|"
+      When I run "sdp context PAT-retry"
+      Then the exit code is 0
+      And the output contains "PAT-retry <-plays- ARCH-billing"
 
   Rule: Each element is shown with its public surface: the shape of what its code exports
 
