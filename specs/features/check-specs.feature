@@ -520,7 +520,11 @@ Feature: Check specs
     clone without the history, or without a default branch there is nothing to compare: a check that
     compared nothing may have missed a test turned off, so it exits with 2, as every answer that may
     miss something does, unless the comparison is waived with `--base none` or `base: none`. A base
-    that is named and cannot be read stops the check.
+    that is named and cannot be read stops the check. The base a change names in its own
+    configuration is believed: the comparison guards against a live test turned off as a side
+    effect, while a change to `base:`, like one to the build script, is a decision in the diff its
+    reviewer reads; CI that must hold every change names the base with `--base`, which wins over the
+    configuration.
 
     Background:
       Given a file "specs/cart.feature" containing:
