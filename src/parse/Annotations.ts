@@ -362,8 +362,14 @@ const description = (comments: ReadonlyArray<string>): string | undefined => {
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /** An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any script. */
 const idToken = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*$/u
-/** A line of code that only decorates the declaration below it: `@Service`, `@app.route("/pay")`. */
-const decorator = /^\s*@[A-Za-z_$][\w$.]*(?:\(.*\))?\s*$/
+/**
+ * A line of code that only decorates the declaration below it, with one decorator or attribute or
+ * more: `@Service`, `@app.route("/pay")`, `@RequestMapping("/pay") @ResponseBody`, `[ApiController]`,
+ * `#[derive(Debug)]`.
+ */
+const decorators = /^\s*(?:(?:@[A-Za-z_$][\w$.]*(?:\(.*?\))?|#?\[.*?\])\s*)+(?:(?:\/\/|#).*)?$/
+/** A line that opens with a decorator or an attribute, whose arguments may go on over the lines below it. */
+const decoration = /^\s*(?:@[A-Za-z_$][\w$.]*|#?\[)/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
@@ -452,16 +458,36 @@ const readTag = (
   return { rel, targets, attrs: Object.fromEntries(attrs) }
 }
 
-/** A tag directly above a declaration annotates it; one followed by a blank line, the file. */
+/**
+ * A tag directly above a declaration annotates it, past the comments and the decorators between
+ * them, however many lines a decorator's arguments take; one followed by a blank line, the file.
+ */
 const nextSymbol = (lines: ReadonlyArray<string>, from: number): { readonly name: string; readonly line: number } | undefined => {
-  for (let i = from + 1; i < Math.min(lines.length, from + 8); i++) {
+  // The brackets a decorator has opened and not closed yet: its arguments go on.
+  let open = 0
+  for (let i = from + 1; i < lines.length; i++) {
     const line = lines[i]!
+    if (open > 0) {
+      open += brackets(line)
+      continue
+    }
     if (line.trim() === "") return undefined
-    if (commentOnly.test(line) || line.includes("@sdp") || decorator.test(line)) continue
+    if (decorators.test(line)) continue
+    if (decoration.test(line) && brackets(line) > 0) {
+      open = brackets(line)
+      continue
+    }
+    if (commentOnly.test(line) || line.includes("@sdp")) continue
     const name = declaration.exec(line)?.[1]
     return name === undefined ? undefined : { name, line: i + 1 }
   }
   return undefined
+}
+
+/** How many more brackets a line of code opens than it closes, outside its strings. */
+const brackets = (line: string): number => {
+  const code = line.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "")
+  return (code.match(/[([{]/g)?.length ?? 0) - (code.match(/[)\]}]/g)?.length ?? 0)
 }
 
 const tokenize = (text: string): ReadonlyArray<string> => text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []

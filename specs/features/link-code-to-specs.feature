@@ -339,6 +339,10 @@ Feature: Link code to specs
         | src/pay.erl  | % @sdp implements pay        | pay(Order) -> ok.                | code:src/pay.erl         |
         | src/pay.py   | # @sdp implements pay        | @app.route("/pay")\ndef pay():   | code:src/pay.py#pay      |
         | src/Pay.java | /** @sdp implements pay */   | @Service\npublic class Payment {} | code:src/Pay.java#Payment |
+        | src/pay.py   | # @sdp implements pay        | @app.route(\n    "/pay",\n    methods=["POST"],\n)\n@login_required\ndef pay(): | code:src/pay.py#pay      |
+        | src/Pay.java | /** @sdp implements pay */   | @RequestMapping("/pay") @ResponseBody\npublic class Payment {} | code:src/Pay.java#Payment |
+        | src/Pay.cs   | /// @sdp implements pay      | [ApiController]\n[Route("api/[controller]")]\npublic class Payment {} | code:src/Pay.cs#Payment  |
+        | src/pay.rs   | /// @sdp implements pay      | #[derive(\n    Debug,\n)]\npub struct Payment {} | code:src/pay.rs#Payment  |
 
     Scenario: After a blank line, inside a doc comment, two in a row, with typed attributes
       Given a file "src/billing.ts" containing:
