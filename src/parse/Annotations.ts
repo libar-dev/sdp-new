@@ -377,14 +377,6 @@ const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@
 const idToken = /^[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}_.:#/-]*[\p{L}\p{M}\p{N}_:#/-])?$/u
 /** A placeholder for an id, as a guide writes the form of a tag: `<ID>`. */
 const placeholder = /^<[^<>\s]+>$/
-/**
- * A line of code that only decorates the declaration below it, with one decorator or attribute or
- * more: `@Service`, `@app.route("/pay")`, `@RequestMapping("/pay") @ResponseBody`, `[ApiController]`,
- * `#[derive(Debug)]`.
- */
-const decorators = /^\s*(?:(?:@[A-Za-z_$][\w$.]*(?:\(.*?\))?|#?\[.*?\])\s*)+(?:(?:\/\/|#).*)?$/
-/** A line that opens with a decorator or an attribute, whose arguments may go on over the lines below it. */
-const decoration = /^\s*(?:@[A-Za-z_$][\w$.]*|#?\[)/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
@@ -556,9 +548,9 @@ const nextSymbol = (lines: ReadonlyArray<string>, from: number): { readonly name
       continue
     }
     if (line.trim() === "") return undefined
-    if (decorators.test(line)) continue
-    if (decoration.test(line) && brackets(line) > 0) {
-      open = brackets(line)
+    const decorated = decorating(line)
+    if (decorated !== undefined) {
+      open = decorated
       continue
     }
     if (commentOnly.test(line) || line.includes("@sdp")) continue
@@ -566,6 +558,38 @@ const nextSymbol = (lines: ReadonlyArray<string>, from: number): { readonly name
     return name === undefined ? undefined : { name, line: i + 1 }
   }
   return undefined
+}
+
+/**
+ * Whether a line of code only decorates the declaration below it, with one decorator or attribute or
+ * more — `@Service`, `@app.route("/pay")`, `@RequestMapping("/pay") @ResponseBody`, `[ApiController]`,
+ * `#[derive(Debug)]` — and if so, how many brackets they leave open for the lines below to close.
+ */
+const decorating = (line: string): number | undefined => {
+  let open = 0
+  let decorators = 0
+  let at = 0
+  while (at < line.length) {
+    const char = line[at]!
+    if (open > 0) {
+      if (char === "\"" || char === "'") {
+        const close = line.indexOf(char, at + 1)
+        at = close < 0 ? line.length : close + 1
+        continue
+      }
+      open += "([{".includes(char) ? 1 : ")]}".includes(char) ? -1 : 0
+    } else if (line.startsWith("//", at) || (char === "#" && line[at + 1] !== "[")) {
+      break
+    } else if (char === "@" || char === "[" || char === "#") {
+      const name = /^@[A-Za-z_$][\w$.]*|^#?/.exec(line.slice(at))![0]
+      at += name.length
+      decorators++
+      if (line[at] === "(" || line[at] === "[") open = 1
+      else if (!name.startsWith("@")) return undefined
+    } else if (!/\s/.test(char)) return undefined
+    at++
+  }
+  return decorators > 0 ? open : undefined
 }
 
 /** How many more brackets a line of code opens than it closes, outside its strings. */
