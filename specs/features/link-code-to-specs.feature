@@ -509,6 +509,10 @@ Feature: Link code to specs
         | spanned | export const spanned = Effect.fn("spanned")(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n}, Effect.withSpan("cart"))   | function spanned(id: string): Effect.fn.Return<number>                                        |
         | size   | export const size = Effect.fnUntraced(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n})                                    | function size(id: string): Effect.fn.Return<number>                                           |
         | parse  | export function parse(text: string): number\nexport function parse(text: string, radix: number): number\nexport function parse(text: string, radix = 10): number {\n  return Number.parseInt(text, radix)\n} | function parse(text: string): number; function parse(text: string, radix: number): number |
+        | charge | export function charge(cents: number, retries = defaultRetries(), { delay = 100 }: Backoff = {}): number {\n  return cents\n} | function charge(cents: number, retries?, { delay }?: Backoff): number |
+        | Ledger | export class Ledger {\n  constructor(private readonly db: string, public name = "main") {}\n  post(entry: string): void\n  post(entry: number): void\n  post(entry: string \| number): void {\n    void entry\n  }\n  protected audit(): void {}\n} | class Ledger { constructor(db: string, public name?); post(entry: string): void; post(entry: number): void } |
+        | Billing | export class Billing extends Effect.Service<Billing>()("Billing", {\n  effect: Effect.gen(function*() {\n    const key = process.env.STRIPE_KEY ?? "sk_live_fallback"\n    return { key }\n  })\n}) {} | class Billing extends Effect.Service<Billing>()(…) {} |
+        | Base   | export abstract class Base<T> extends Object implements Iterable<T> {\n  abstract each(): void\n} | abstract class Base<T> extends Object implements Iterable<T> { abstract each(): void } |
 
     Scenario: A tag that opens a file gives the shapes of what the file exports
       Given a file "src/pricing.ts" containing:
@@ -534,11 +538,18 @@ Feature: Link code to specs
         }
 
         const audit = (): void => {}
+
+        class Rates {
+          vat(country: string): number {
+            return country === "DE" ? 19 : 20
+          }
+        }
+        export default Rates
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
         | id                  | doc                             | exports                                                                                                                                                 |
-        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number, function cents(euros: number): Cents; function cents(euros: string): Cents |
+        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number, function cents(euros: number): Cents; function cents(euros: string): Cents, class Rates { vat(country: string): number } |
 
   Rule: sdp check asks an annotated function to state its return type
 
