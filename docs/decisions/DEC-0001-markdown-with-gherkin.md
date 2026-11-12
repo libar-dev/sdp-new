@@ -4,11 +4,9 @@ kind: decision
 title: Markdown with embedded Gherkin is the one specification format
 status: accepted
 category: architecture
-date: 2026-09-03
+date: 2026-11-03
 deciders: [product, architecture]
 iteration: I1
-links:
-  affects: [REQ-progressive-specs, REQ-executable-specs, ARCH-spec-parser]
 ---
 
 # Markdown with embedded Gherkin is the one specification format

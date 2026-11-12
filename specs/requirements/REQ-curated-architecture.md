@@ -3,7 +3,7 @@ id: REQ-curated-architecture
 kind: requirement
 title: Curated architecture
 maturity: ready
-iteration: E2
+iteration: I1
 tags: [architecture]
 links:
   refines: CAP-curated-architecture

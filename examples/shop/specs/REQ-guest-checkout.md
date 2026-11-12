@@ -3,7 +3,7 @@ id: REQ-guest-checkout
 title: Guest checkout
 maturity: specified
 links:
-  refines: REQ-cart-totals
+  depends-on: REQ-cart-totals
   decided-by: DEC-0002
 ---
 

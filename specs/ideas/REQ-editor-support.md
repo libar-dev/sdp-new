@@ -3,17 +3,27 @@ id: REQ-editor-support
 kind: requirement
 title: Editor support
 maturity: draft
+iteration: C1
 links:
   refines: CAP-living-specs
 ---
 
 # Editor support
 
-Authors want completion for ids and relation names in front matter, go-to-definition on `[[ID]]`
-links and `@sdp` comments, and inline diagnostics from `sdp check` — through a language server, so
-every editor benefits. Completing relation names from those already in use also keeps the free-form
-vocabulary from drifting.
+Authors write specs in their editor, and today the editor knows nothing about them: an id typed
+wrong or a relation spelled differently shows up only when `sdp check` runs, and finding the spec
+behind `[[DEC-0003]]` means a search. A language server would give every editor the same help:
+
+- completion for ids in front matter and in `[[…]]`, and for relation names from those already in
+  use in the workspace, most used first — which keeps the free-form vocabulary from drifting
+  ([[RISK-0001]]);
+- go to definition on an id in front matter, a `[[ID]]` link or an `@sdp` comment;
+- `sdp check` diagnostics inline, at their `file:line`, with their hint.
 
 ## Open questions
 
-- [ ] Which relation names to suggest when the vocabulary is free-form — the ones already used in the workspace?
+- [x] Which relation names to suggest when the vocabulary is free-form? Those already used in the
+  workspace, most used first.
+- [ ] Served by `sdp lsp` next to `sdp mcp`, or as a separate package?
+- [ ] Does a long-running server rebuild the graph on every change, or keep it and patch it per
+  file ([[DEC-0003]])?

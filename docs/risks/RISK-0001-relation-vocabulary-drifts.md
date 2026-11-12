@@ -4,7 +4,6 @@ kind: risk
 title: Relation vocabulary drifts
 status: open
 exposure: medium
-iteration: I1
 links:
   affects: [REQ-flexible-graph, REQ-graph-query]
   mitigated-by: REQ-editor-support

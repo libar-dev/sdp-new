@@ -3,10 +3,10 @@ id: NFR-no-build-step
 kind: nfr
 title: Runs from source
 maturity: ready
-type: quality
 quality: modifiability
-iteration: C3
+iteration: I1
 links:
+  refines: CAP-agent-collaboration
   decided-by: DEC-0004
 ---
 
@@ -17,8 +17,12 @@ that edits a source file can run the result immediately; there is no stale `dist
 
 ## Scenarios
 
+A quality attribute scenario: *Given* is the environment, *When* the stimulus, *Then* the response.
+`sdp` here is `node src/cli/main.ts`.
+
 ~~~gherkin
-Scenario: The CLI starts straight from TypeScript sources
+Scenario: The command line runs straight from its TypeScript sources
+  Given this repository has no build output
   When I run "sdp --version" in the repository
-  Then the output contains "0.1.0"
+  Then the exit code is 0
 ~~~

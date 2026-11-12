@@ -3,6 +3,3 @@ specs: ["*.md", "specs/**/*.md", "docs/**/*.md"]
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
-architecture:
-  kinds: [element, pattern]
-  drivers: [decision, nfr]

@@ -4,11 +4,9 @@ kind: decision
 title: Maturity is declared and checked; delivery stage is derived from evidence
 status: accepted
 category: product
-date: 2026-09-30
+date: 2026-11-06
 deciders: [product]
-iteration: E2
-links:
-  affects: [REQ-maturity-gates, REQ-executable-specs, ARCH-runner]
+iteration: I1
 ---
 
 # Maturity is declared and checked; delivery stage is derived from evidence

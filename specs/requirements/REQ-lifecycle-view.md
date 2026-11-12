@@ -3,7 +3,7 @@ id: REQ-lifecycle-view
 kind: requirement
 title: Lifecycle view
 maturity: ready
-iteration: C3
+iteration: I1
 tags: [lifecycle]
 links:
   refines: CAP-living-specs
@@ -33,22 +33,12 @@ shown as *not due* next to its status: a future milestone is expected to be unme
 iteration starts, no gate is due.
 
 **Discipline activity** is computed from the plan, not drawn: the familiar RUP "hump" chart, one
-row per discipline, one column per iteration, shaded relative to the busiest iteration of that
-row. Implementation counts planned specs that are in progress or verified; test counts executed
-scenarios (passed, failed or pending) of planned specs; every other discipline counts planned
-nodes of its kinds. The chart shows the plan, not what happened; [[REQ-history-lifecycle]] would
-derive activity from git history instead.
-
-```text
-DISCIPLINE ACTIVITY (relative per discipline)
-                     I1  E1  E2  C1  C2  C3  C4  T1  T2
-  business-modeling  ███
-  requirements           ▒▒▒ ███ ▓▓▓ ▒▒▒ ▒▒▒ ░░░
-  analysis-design    ▒▒▒ ███ ▒▒▒ ▒▒▒
-  implementation     ░░░ ▒▒▒ ███ ▒▒▒ ▒▒▒ ▒▒▒
-  test               ░░░ ▓▓▓ ███ ▓▓▓ ░░░ ░░░
-  deployment                                     ███ ███
-```
+row per discipline and one column per iteration, each cell shaded `░ ▒ ▓ █` relative to the
+busiest iteration of its row. Implementation counts planned specs that are in progress or
+verified; test counts executed scenarios (passed, failed or pending) of planned specs; every other
+discipline counts planned nodes of its kinds. The chart shows the plan, not what happened;
+[[REQ-history-lifecycle]] would derive activity from git history instead. `sdp lifecycle` prints
+it for this repository's [[PLAN]].
 
 ## Scenarios
 
@@ -131,6 +121,28 @@ Scenario: Discipline activity is computed from planned work
   Then "requirements" activity in iteration "E1" is 1
   And "analysis-design" activity in iteration "E1" is 1
   And "requirements" activity in iteration "E2" is 0
+
+Scenario: The chart shades each discipline relative to its busiest iteration
+  Given a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    maturity: idea
+    iteration: E2
+    ---
+    # Beta
+    """
+  And a file "specs/REQ-c.md" containing:
+    """
+    ---
+    id: REQ-c
+    maturity: idea
+    iteration: E2
+    ---
+    # Gamma
+    """
+  When the lifecycle is computed on "2026-01-20"
+  Then the output line with "requirements" contains "    ▒▒▒ ███"
 
 Scenario: Implementation and test activity come from evidence
   Given a file "specs/REQ-b.md" containing:

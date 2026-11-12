@@ -2,7 +2,6 @@
 id: NFR-pricing-latency
 title: Pricing stays fast for large carts
 maturity: ready
-type: quality
 quality: performance
 ---
 

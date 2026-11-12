@@ -4,9 +4,9 @@ kind: risk
 title: Step definitions sprawl
 status: open
 exposure: medium
-iteration: I1
 links:
   affects: REQ-executable-specs
+  mitigated-by: [REQ-builtin-steps, REQ-executable-specs]
 ---
 
 # Step definitions sprawl
@@ -20,10 +20,10 @@ more likely.
 ## Mitigation
 
 - Built-in steps cover rules over the graph, so gates, guards and architecture rules need no glue
-  code at all.
+  code at all ([[REQ-builtin-steps]]).
 - Typed Cucumber Expressions and suggested definitions for undefined steps steer authors to one
-  phrasing per behaviour.
-- Ambiguous matches are reported as such, never silently resolved.
-- Agents are told to search existing phrases before adding one.
+  phrasing per behaviour, and ambiguous matches are reported as such, never silently resolved
+  ([[REQ-executable-specs]]).
+- Agents are told to extend existing steps before adding one ([[AGENTS]]).
 
 **Watch for:** ambiguous results in `sdp run`, and step modules that grow faster than specs.

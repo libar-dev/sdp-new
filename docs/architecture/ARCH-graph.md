@@ -6,7 +6,7 @@ significant: true
 rationale: >-
   Every command, check, gate and agent reads it; its free-form shape (DEC-0002) is the product's
   main modifiability bet, and changing it touches every feature.
-iteration: E1
+iteration: I1
 links:
   decided-by: [DEC-0002, DEC-0003]
   instance-of: { to: PAT-derived-index, role: index }

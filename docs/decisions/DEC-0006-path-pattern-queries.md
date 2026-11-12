@@ -6,9 +6,7 @@ status: accepted
 category: architecture
 date: 2026-11-10
 deciders: [architecture]
-iteration: C1
-links:
-  affects: [REQ-graph-query, ARCH-query-engine]
+iteration: I1
 ---
 
 # One-line, Cypher-like path patterns (SDPQ)
@@ -29,10 +27,11 @@ decision". The question has to fit a shell argument and a single Gherkin step.
 
 ## Decision
 
-Option 3: `requirement[maturity<ready] -realized-by-> element[significant]`. Filters with `!`/`?`
-express absence and presence; `+` gives transitive closure. A query returns nodes or paths, nothing
-more — aggregation stays with `jq`/`awk` over `--json` output, and the JSON/JSONL exports remain
-for jq users.
+Option 3: `requirement[maturity<ready] -realized-by-> element[significant]`. An edge prefixed
+with `!` or `?` keeps the nodes without or with such a neighbour; a trailing `+` follows a
+relation transitively. A query returns nodes or paths, nothing more — aggregation stays with
+`jq`/`awk` over `--json` output, and the JSON/JSONL exports remain for jq users. The language is
+specified in [[REQ-graph-query]].
 
 ## Consequences
 

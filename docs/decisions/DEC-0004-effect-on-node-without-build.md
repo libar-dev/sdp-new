@@ -4,11 +4,9 @@ kind: decision
 title: TypeScript with Effect 4 on Node.js 24, no build step
 status: accepted
 category: technology
-date: 2026-09-18
+date: 2026-11-05
 deciders: [engineering]
-iteration: E1
-links:
-  affects: [NFR-no-build-step, ARCH-runner, ARCH-workspace, ARCH-mcp]
+iteration: I1
 ---
 
 # TypeScript with Effect 4 on Node.js 24, no build step

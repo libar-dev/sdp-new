@@ -4,8 +4,6 @@ title: Free shipping above 50 EUR
 status: proposed
 category: product
 date: 2026-11-02
-links:
-  affects: [REQ-guest-checkout]
 ---
 
 # Free shipping above 50 EUR

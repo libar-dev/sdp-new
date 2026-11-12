@@ -4,7 +4,6 @@ kind: risk
 title: The plan drifts from what happened
 status: open
 exposure: low
-iteration: I1
 links:
   affects: REQ-lifecycle-view
   mitigated-by: REQ-history-lifecycle

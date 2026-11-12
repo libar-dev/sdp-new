@@ -3,9 +3,8 @@ id: NFR-query-performance
 kind: nfr
 title: Interactive queries on large graphs
 maturity: ready
-type: quality
 quality: performance
-iteration: C1
+iteration: I1
 links:
   refines: CAP-agent-collaboration
 ---
@@ -21,19 +20,19 @@ of nodes.
 
 ~~~gherkin
 @slow @serial
-Scenario: Two-hop query on a graph of 20,000 nodes
+Scenario: A two-hop query over 20,000 nodes answers within 250 ms
   Given a generated graph of 20000 nodes and 60000 edges
   When the query "requirement[maturity=ready] -realized-by-> element -decided-by-> decision" runs on it
   Then the median run completes within 250 ms
 
 @slow @serial
-Scenario: Negative filter across the whole graph
+Scenario: A negative filter over 20,000 nodes answers within 250 ms
   Given a generated graph of 20000 nodes and 60000 edges
   When the query "element[significant] !-*- decision" runs on it
   Then the median run completes within 250 ms
 
 @slow @serial
-Scenario: Building the graph from 5,000 specs
+Scenario: The graph of 5,000 specs builds within a second
   Given a generated workspace of 5000 specs
   When the graph is built from it
   Then the median run completes within 1000 ms

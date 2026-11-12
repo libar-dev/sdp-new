@@ -2,30 +2,31 @@
 id: GLOSSARY
 kind: glossary
 title: Glossary
-iteration: I1
 nodes:
   # Specifications and the graph
   - id: TERM-spec
     kind: term
     title: Specification (spec)
     definition: >-
-      A Markdown file whose front matter has an `id`, or a `.feature` file tagged `@id:`. Every
-      artifact of delivery is one: an idea, a requirement, a decision, the plan, a milestone, a
-      risk, this glossary. Each spec is a node of the graph.
+      A Markdown file whose front matter has an `id`, or any `.feature` file — identified by its
+      `@id:` tag, else as `feature:<path>`. Every artifact of delivery is one: an idea, a
+      requirement, a decision, the plan, a milestone, a risk, this glossary. Each spec is a node of
+      the graph.
     links: { specified-by: REQ-progressive-specs }
   - id: TERM-kind
     kind: term
     title: Kind
     definition: >-
       The type of a node in the authors' words (`requirement`, `decision`, `term`). Inferred from
-      the id prefix when omitted.
+      the id prefix when omitted ([[REQ-configuration]]).
     links: { specified-by: REQ-flexible-graph }
   - id: TERM-relation
     kind: term
     title: Relation
     definition: >-
-      The name of an edge, chosen by its author (`refines`, `realized-by`, `decided-by`). sdp gives
-      no relation a fixed meaning.
+      The name of an edge, chosen by its author (`refines`, `realized-by`, `decided-by`). sdp
+      creates `verifies` and `mentions` edges itself, and reads only `is` in code annotations and
+      `supersedes` between decisions; every other relation means what its authors say.
     links: { specified-by: REQ-flexible-graph }
   - id: TERM-inline-node
     kind: term
@@ -33,14 +34,14 @@ nodes:
     definition: >-
       A node declared in another spec's `nodes:` front matter list, for things too small for a
       file of their own: phases, iterations, principles, terms.
-    links: { specified-by: REQ-flexible-graph }
+    links: { specified-by: ARCH-graph-builder }
   - id: TERM-implicit-link
     kind: term
     title: Implicit link
     definition: >-
       An edge created by an attribute whose value is a node id, named after the key:
       `iteration: E2` gives `-iteration-> E2`.
-    links: { specified-by: REQ-flexible-graph }
+    links: { specified-by: ARCH-graph-builder }
   - id: TERM-mention
     kind: term
     title: Mention
@@ -55,14 +56,14 @@ nodes:
       A comment `@sdp <relation> <ID>` that links the declaration below it, or the whole file, into
       the graph as a `code` node. `@sdp is <ID>` anchors a node in code and declares it if no spec
       does.
-    links: { specified-by: REQ-flexible-graph }
+    links: { specified-by: ARCH-code-annotations }
   - id: TERM-dangling-link
     kind: term
     title: Dangling link
     definition: >-
       A reference to an id no node has. It stays visible as a node of kind `missing` and is
       reported as an error.
-    links: { specified-by: REQ-flexible-graph }
+    links: { specified-by: ARCH-graph-builder }
   - id: TERM-sdpq
     kind: term
     title: SDPQ
@@ -74,15 +75,17 @@ nodes:
     kind: term
     title: Workspace
     definition: >-
-      The directory sdp reads, optionally configured by `sdp.config.yaml` at its root.
+      The directory sdp reads, optionally configured by `sdp.config.yaml` (or `.yml`, `.json`) at
+      its root.
     links: { specified-by: REQ-configuration }
   # Maturity and execution
   - id: TERM-maturity
     kind: term
     title: Maturity
     definition: >-
-      How far a spec's authoring has come: idea, draft, specified or ready. Authors declare it;
-      `sdp check` verifies that the content supports it.
+      How far a spec's authoring has come: idea, draft, specified or ready, unless the workspace
+      configures its own ladder. Authors declare it; `sdp check` verifies that the content supports
+      it.
     links: { specified-by: REQ-maturity-gates }
   - id: TERM-maturity-gate
     kind: term
@@ -95,9 +98,9 @@ nodes:
     kind: term
     title: Open question
     definition: >-
-      A list item under an "Open questions" heading; `- [x]` marks it resolved. A ready spec has
-      none unresolved.
-    links: { specified-by: REQ-maturity-gates }
+      A list item under an *Open questions*, *Questions*, *Unresolved* or *TBD* heading; `- [x]`
+      or strike-through marks it resolved. A ready spec has none unresolved.
+    links: { specified-by: REQ-progressive-specs }
   - id: TERM-scenario
     kind: term
     title: Scenario
@@ -116,8 +119,8 @@ nodes:
     kind: term
     title: Step definition
     definition: >-
-      Code that gives a step its behaviour, matched by a Cucumber Expression and kept in a
-      `*.steps.ts` module.
+      Code that gives a step its behaviour, matched by a Cucumber Expression or a regular
+      expression, in a step module (`*.steps.ts` by default).
     links: { specified-by: REQ-executable-specs }
   - id: TERM-world
     kind: term
@@ -139,7 +142,7 @@ nodes:
     definition: >-
       A step that ships with sdp and asserts against the project graph, such as
       `the query "…" returns no results`. Gates, guards and architecture rules are written with them.
-    links: { specified-by: REQ-executable-specs }
+    links: { specified-by: REQ-builtin-steps }
   - id: TERM-verification
     kind: term
     title: Verification
@@ -151,8 +154,9 @@ nodes:
     kind: term
     title: Stage
     definition: >-
-      Where a spec is in delivery: its maturity until its scenarios run, then in-progress or
-      verified. Derived from evidence, never declared.
+      Where a spec is in delivery: its declared maturity until a scenario passes, fails or pends;
+      then in-progress, or verified when all its scenarios pass. Derived from evidence, never
+      declared.
     links: { specified-by: REQ-executable-specs }
   # Quality, decisions and architecture
   - id: TERM-quality-attribute-scenario
@@ -264,9 +268,10 @@ nodes:
     kind: term
     title: Gate
     definition: >-
-      The scenarios that decide whether a milestone is met. Gates run after all other scenarios,
-      against fresh results; an unmet gate of a later phase is not due yet.
-    links: { specified-by: REQ-lifecycle-view }
+      The scenarios that run after all others, against their fresh results: a milestone's, which
+      decide whether it is met, and any tagged `@gate`. An unmet gate does not fail `sdp run`;
+      `sdp gate <milestone>` exits with 1 while that milestone's is unmet.
+    links: { specified-by: REQ-executable-specs }
   - id: TERM-discipline
     kind: term
     title: Discipline
@@ -293,8 +298,9 @@ nodes:
     title: Risk
     definition: >-
       A threat to delivery, with a `status` (open, mitigated, accepted) and an `exposure` (high,
-      medium, low), linked to what it affects and what mitigates it.
-    links: { specified-by: MS-LCO }
+      medium, low), linked with `affects` to what it threatens and with `mitigated-by` to what
+      reduces it.
+    links: { specified-by: DEC-0007 }
 ---
 
 # Glossary
@@ -320,7 +326,7 @@ valid and simply carried along.
 | `phase` | iterations, milestones | the phase they belong to |
 | `order` | phases | position in the lifecycle |
 | `start`, `end` | iterations | ISO dates |
-| `type` | any spec | `quality` marks a quality requirement |
+| `type` | any spec | `quality`, `non-functional`, `nfr` or `constraint` marks a quality requirement of any kind |
 | `quality` | quality requirements | the quality attribute: performance, modifiability, … |
 | `status` | decisions, risks | proposed, accepted, rejected, deprecated, superseded; open, mitigated, accepted |
 | `category` | decisions | architecture, product, process, technology, organization, … |

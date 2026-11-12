@@ -1,18 +1,22 @@
 /**
  * Step definitions for the specs that replace the design document: lifecycle
- * on a given date, configuration, query paths and graph build time. Shares its
- * world with every other module (world.ts); module-local state lives in
- * `world.scratch`.
+ * on a given date, configuration, graph build time, and the quality attribute
+ * scenarios that look at this repository itself. Shares its world with every
+ * other module (world.ts); module-local state lives in `world.scratch`.
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
+import { existsSync } from "node:fs"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
 import { newId } from "../../src/cli/templates.ts"
-import { formatPath } from "../../src/graph/Query.ts"
+import type { Project } from "../../src/graph/Build.ts"
+import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
 import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
 import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { findFiles } from "../../src/workspace/Workspace.ts"
-import { ids, load, newWorld, reload, setFile } from "./world.ts"
+import { ids, load, newWorld, reload, setFile, type World } from "./world.ts"
 
 const outputLine = (output: string, text: string) => {
   const line = output.split("\n").find((l) => l.includes(text))
@@ -42,14 +46,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the output line with {string} does not contain {string}", ({ args: [anchor, text], world }) => {
     const line = outputLine(world.output, anchor)
     assert.ok(!line.includes(text), `${JSON.stringify(line)} contains ${JSON.stringify(text)}`)
-  })
-
-  // --- query ----------------------------------------------------------------
-
-  Then("one of the paths is {string}", ({ args: [expected], world }) => {
-    assert.ok(world.result, `query failed: ${world.queryError}`)
-    const paths = world.result.paths.map(formatPath)
-    assert.ok(paths.includes(expected), `paths are:\n${paths.join("\n")}`)
   })
 
   // --- configuration --------------------------------------------------------
@@ -105,4 +101,53 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       }
       world.durationMs = samples.sort((a, b) => a - b)[1]!
     }))
+
+  // --- this repository ------------------------------------------------------
+
+  Given("an agent that explores this repository with grep", ({ project, world }) => {
+    world.scratch.repository = project
+  })
+
+  // Scenario and code ids are derived (`<spec id>#<slug>`, `code:<path>#<symbol>`), so only
+  // declared ids are searched for.
+  When("it searches each file for the ids of the nodes declared there", ({ world }) =>
+    Effect.promise(async () => {
+      const project = repository(world)
+      const files = new Map<string, string>()
+      const misses: Array<string> = []
+      for (const node of project.graph.nodes.values()) {
+        if (!node.source || node.kind === "scenario" || node.kind === "code") continue
+        const file = node.source.file
+        if (!files.has(file)) files.set(file, await readFile(join(project.root, file), "utf8"))
+        if (!files.get(file)!.includes(node.id)) misses.push(`${node.id} (${file})`)
+      }
+      world.scratch.misses = misses
+    }))
+
+  Then("every id is found in the file that declares it", ({ world }) => {
+    const misses = world.scratch.misses as ReadonlyArray<string> | undefined
+    assert.ok(misses, "search the files first")
+    assert.equal(misses.length, 0, `not found: ${misses.join(", ")}`)
+  })
+
+  When("it exports the graph as {word}", ({ args: [format], world }) => {
+    world.output = exportGraph(repository(world).graph, format as GraphFormat)
+  })
+
+  Then("every line of the export ends with a file and line", ({ world }) => {
+    const lines = world.output.trimEnd().split("\n")
+    const offenders = lines.filter((line) => !/\t[^\t]+:\d+$/.test(line))
+    assert.equal(offenders.length, 0, `${offenders.length} of ${lines.length} lines:\n${offenders.slice(0, 10).join("\n")}`)
+  })
+
+  Given("this repository has no build output", ({ project }) => {
+    const found = ["dist", "build", "out"].filter((dir) => existsSync(join(project.root, dir)))
+    assert.equal(found.length, 0, `build output found: ${found.join(", ")}`)
+  })
 })
+
+const repository = (world: World): Project => {
+  const project = world.scratch.repository as Project | undefined
+  assert.ok(project, "start with: Given an agent that explores this repository with grep")
+  return project
+}

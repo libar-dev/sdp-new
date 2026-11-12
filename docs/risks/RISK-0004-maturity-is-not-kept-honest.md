@@ -4,7 +4,6 @@ kind: risk
 title: Teams do not keep maturity honest
 status: open
 exposure: medium
-iteration: I1
 links:
   affects: REQ-maturity-gates
   mitigated-by: [REQ-executable-specs, REQ-review-bot]

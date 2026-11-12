@@ -4,11 +4,9 @@ kind: decision
 title: Free-form node kinds and relation names
 status: accepted
 category: architecture
-date: 2026-09-16
+date: 2026-11-04
 deciders: [architecture]
-iteration: E1
-links:
-  affects: [ARCH-graph, REQ-flexible-graph]
+iteration: I1
 ---
 
 # Free-form node kinds and relation names
@@ -29,9 +27,9 @@ vocabulary they were not told about.
 ## Decision
 
 Option 3. The graph has nodes (`id`, `kind`, `title`, attributes) and edges (`from`, `rel`, `to`,
-attributes), and no code path depends on a closed vocabulary. The few conventions the tool uses
-(`maturity`, `significant`, `status`, `decision`, `phase`, `iteration`, `milestone`) are documented
-in the [[GLOSSARY]] and configurable where it matters ([[REQ-configuration]]). Queries treat relation names as data (`-a|b->`, `-*->`).
+attributes), and no code path depends on a closed vocabulary. The few conventions the tool reads
+are documented in the [[GLOSSARY]] and configurable where it matters ([[REQ-configuration]]).
+Queries treat relation names as data (`-a|b->`, `-*->`).
 
 ## Consequences
 
