@@ -88,19 +88,23 @@ Feature: Write a spec
         @id=pay
         <feature>: Pay
 
-          Shoppers pay.
+          <above>
 
         <feature>: Refund
         """
       When "specs/pay.feature" is parsed
       Then sdp reports:
-        | rule           | severity | line | message                                                         |
-        | gherkin-syntax | error    | 7    | "<feature>: Refund" is read as text of the description above it |
+        | rule           | severity | line   | message                                                         |
+        | gherkin-syntax | error    | <line> | "<feature>: Refund" is read as text of the description above it |
 
       Examples:
-        | language | feature        |
-        | en       | Feature        |
-        | fr       | Fonctionnalité |
+        | language | feature        | above                                                        | line |
+        | en       | Feature        | Shoppers pay.                                                | 7    |
+        | fr       | Fonctionnalité | Shoppers pay.                                                | 7    |
+        | en       | Feature        | Background: Paid                                             | 7    |
+        | fr       | Fonctionnalité | Contexte: Payé                                               | 7    |
+        | en       | Feature        | Rule: R\n    Scenario: S\n      Then ok\n      Examples: E    | 10   |
+        | fr       | Fonctionnalité | Règle: R\n    Scénario: S\n      Alors ok\n      Exemples: E | 10   |
 
     Scenario: A Feature line inside a doc string is content
       Given a file "specs/docs.feature" containing:

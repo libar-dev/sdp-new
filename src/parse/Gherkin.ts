@@ -333,20 +333,25 @@ const readFeature = (
     visitSteps(scenario.steps)
     described.push(scenario)
     for (const examples of scenario.examples) {
+      described.push(examples)
       readTags(examples.tags, "Examples", links, problems)
       for (const row of examples.tableBody) astLines.set(row.id, row.location.line)
     }
     scenarioDefs.push({ scenario, rule })
   }
   const writtenRules: Array<Messages.Rule> = []
+  const visitBackground = (background: Messages.Background) => {
+    visitSteps(background.steps)
+    described.push(background)
+  }
   for (const child of feature.children) {
-    if (child.background) visitSteps(child.background.steps)
+    if (child.background) visitBackground(child.background)
     if (child.scenario) visitScenario(child.scenario, undefined)
     if (child.rule) {
       writtenRules.push(child.rule)
       described.push(child.rule)
       for (const ruleChild of child.rule.children) {
-        if (ruleChild.background) visitSteps(ruleChild.background.steps)
+        if (ruleChild.background) visitBackground(ruleChild.background)
         if (ruleChild.scenario) visitScenario(ruleChild.scenario, child.rule)
       }
     }
