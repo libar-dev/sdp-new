@@ -9,7 +9,13 @@
  *     Then("the total is {float}", ({ world, args: [total] }) => Effect.gen(function*() { ... }))
  *   })
  *
- * Each module gets a fresh world per scenario; modules do not share worlds.
+ * Each scenario gets a fresh world per world factory. Modules that pass the same factory
+ * function share one world, so a step library can be split across files:
+ *
+ *   // world.ts
+ *   export const newWorld = () => ({ cart: [] as Array<string> })
+ *   // cart.steps.ts and checkout.steps.ts
+ *   export default defineSteps(newWorld, ({ Given }) => { ... })
  */
 import { Data, Effect } from "effect"
 import { fileURLToPath } from "node:url"

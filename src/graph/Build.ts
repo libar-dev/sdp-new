@@ -235,6 +235,12 @@ export const buildProject = (input: ProjectInput): Project => {
   }
 }
 
+/** Records that no longer apply keep their text but stop guarding anything. */
+export const inactiveStatuses: ReadonlySet<string> = new Set(["superseded", "rejected", "deprecated"])
+
+export const isActive = (spec: { readonly attrs: Readonly<Record<string, unknown>> }): boolean =>
+  !inactiveStatuses.has(String(spec.attrs.status ?? ""))
+
 /**
  * Where a spec is in delivery: its declared authoring maturity until automation
  * exists, then `in-progress` while scenarios are pending/failing and `verified`

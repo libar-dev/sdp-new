@@ -8,7 +8,9 @@ import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "eff
 import { Argument, Command, Flag } from "effect/cli"
 import { architectureView, rankCandidates, significance } from "../arch/Significance.ts"
 import { check } from "../check/Check.ts"
-import type { Project } from "../graph/Build.ts"
+import { isActive, type Project } from "../graph/Build.ts"
+import type { Scenario } from "../parse/Gherkin.ts"
+import type { Spec } from "../parse/Spec.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
 import { formatPath, projectOrderings, query } from "../graph/Query.ts"
@@ -197,7 +199,8 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   const wanted = (scenarioId: string, specId: string, file: string) =>
     options.targets.length === 0 ||
     options.targets.some((t) => t === specId || t === scenarioId || file === t || file.startsWith(t.endsWith("/") ? t : `${t}/`))
-  const select = (gates: boolean) => (scenario: { id: string; pickles: ReadonlyArray<{ tags: ReadonlyArray<string> }> }, spec: { id: string; kind: string; file: string }) =>
+  const select = (gates: boolean) => (scenario: Scenario, spec: Spec) =>
+    isActive(spec) &&
     (gateKinds.has(spec.kind) || scenario.pickles.some((p) => p.tags.includes("@gate"))) === gates &&
     wanted(scenario.id, spec.id, spec.file) &&
     (Option.isNone(tagExpression) || scenario.pickles.some((p) => tagExpression.value.evaluate([...p.tags])))
@@ -281,7 +284,7 @@ const archCommand = Command.make(
     if (format === "json") {
       return yield* printJson({
         ratio: report.ratio,
-        budget: report.budget,
+        guideline: report.guideline,
         population: report.population,
         nodes: view.nodes.map(nodeJson),
         edges: view.edges
@@ -293,8 +296,8 @@ const archCommand = Command.make(
     }
     const pct = (r: number) => `${(r * 100).toFixed(1)}%`
     yield* Console.log(
-      `${c.bold("Significant")}: ${report.significant.length} of ${report.population} abstractions (${pct(report.ratio)}; budget ${pct(report.budget)})${
-        report.overBudget ? c.red("  OVER BUDGET") : ""
+      `${c.bold("Significant")}: ${report.significant.length} of ${report.population} abstractions (${pct(report.ratio)}; guideline ~${pct(report.guideline)})${
+        report.aboveGuideline ? c.yellow("  above guideline: worth a review, not a failure") : ""
       }`
     )
     for (const n of report.significant) {
@@ -318,7 +321,7 @@ const lifecycleCommand = Command.make(
   { json },
   Effect.fn(function*({ json }) {
     const project = yield* loadProject(yield* workspaceRoot)
-    const report = lifecycle(project)
+    const report = lifecycle(project, DateTime.formatIsoDate(yield* DateTime.now))
     if (json) {
       return yield* printJson({
         phases: report.phases.map((p) => ({
@@ -328,6 +331,8 @@ const lifecycleCommand = Command.make(
         })),
         disciplines: Object.fromEntries(report.disciplines.map((d) => [d.discipline, d.activity])),
         iterations: report.iterations.map((i) => i.id),
+        current: report.current?.id,
+        currentPhase: report.currentPhase?.id,
         unplanned: report.unplanned.map((n) => n.id)
       })
     }
@@ -357,7 +362,7 @@ const statusCommand = Command.make(
     yield* Console.log(
       `${c.bold("architecture".padEnd(13))} ${sig.significant} significant of ${sig.population} abstractions (${
         (sig.ratio * 100).toFixed(1)
-      }%, budget ${(sig.budget * 100).toFixed(0)}%)`
+      }%, guideline ~${(sig.guideline * 100).toFixed(0)}%)`
     )
     yield* Console.log(line("check", summary.diagnostics, ["error", "warning", "info"]))
   })

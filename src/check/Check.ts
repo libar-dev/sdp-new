@@ -180,14 +180,14 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       hint: "link the decision or quality attribute that makes it significant, or demote it"
     })
   }
-  if (report.overBudget) {
+  if (report.aboveGuideline) {
     out.push({
-      rule: "significance-budget",
-      severity: config.architecture.enforceBudget ? "error" : "warning",
-      message: `${report.significant.length} of ${report.population} abstractions (${pct(report.ratio)}) are marked significant; the ${
-        pct(report.budget)
-      } budget allows ${report.allowed}`,
-      hint: "significance is curated: demote elements whose change would not affect qualities, risks or many teams (sdp arch)"
+      rule: "significance-guideline",
+      severity: config.architecture.guidelineSeverity,
+      message: `${report.significant.length} of ${report.population} abstractions (${pct(report.ratio)}) are marked significant, above the ~${
+        pct(report.guideline)
+      } guideline`,
+      hint: "a heuristic, not a limit: review whether each significant element still carries a quality, risk or high cost of change (sdp arch)"
     })
   }
   const significantIds = new Set(report.significant.map((n) => n.id))

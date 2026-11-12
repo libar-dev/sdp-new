@@ -14,8 +14,8 @@ export const ConfigFile = Schema.Struct({
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   architecture: Schema.optional(Schema.Struct({
     kinds: Schema.optional(Schema.Array(Schema.String)),
-    significanceBudget: Schema.optional(Schema.Number),
-    enforceBudget: Schema.optional(Schema.Boolean),
+    significanceGuideline: Schema.optional(Schema.Number),
+    guidelineSeverity: Schema.optional(Schema.Literals(["info", "warning", "error"])),
     justifiedBy: Schema.optional(Schema.Array(Schema.String)),
     inventory: Schema.optional(Schema.Struct({
       include: Schema.optional(Globs),
@@ -44,10 +44,13 @@ export interface Config {
   readonly architecture: {
     /** Kinds that count as architectural abstractions (candidates for significance). */
     readonly kinds: ReadonlyArray<string>
-    /** Maximum share of abstractions that may be marked significant. */
-    readonly significanceBudget: number
-    /** When true, exceeding the budget is an error instead of a warning. */
-    readonly enforceBudget: boolean
+    /**
+     * Rough share of abstractions expected to be significant (a heuristic, not a limit).
+     * Going above it only prompts a review of the curated set.
+     */
+    readonly significanceGuideline: number
+    /** Severity of the hint when the guideline is exceeded; `info` unless a team wants it stricter. */
+    readonly guidelineSeverity: "info" | "warning" | "error"
     /** Kinds whose links justify significance (decisions, quality requirements, ...). */
     readonly justifiedBy: ReadonlyArray<string>
     readonly inventory: {
@@ -83,8 +86,8 @@ export const defaults: Config = {
   },
   architecture: {
     kinds: ["element", "pattern"],
-    significanceBudget: 0.1,
-    enforceBudget: false,
+    significanceGuideline: 0.1,
+    guidelineSeverity: "info",
     justifiedBy: ["decision", "nfr"],
     inventory: {
       include: [`src/${sourceGlob}`, `lib/${sourceGlob}`, `app/${sourceGlob}`, `packages/${sourceGlob}`],
@@ -116,8 +119,8 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     ids: { ...defaults.ids, ...file.ids },
     architecture: {
       kinds: arch?.kinds ?? defaults.architecture.kinds,
-      significanceBudget: arch?.significanceBudget ?? defaults.architecture.significanceBudget,
-      enforceBudget: arch?.enforceBudget ?? defaults.architecture.enforceBudget,
+      significanceGuideline: arch?.significanceGuideline ?? defaults.architecture.significanceGuideline,
+      guidelineSeverity: arch?.guidelineSeverity ?? defaults.architecture.guidelineSeverity,
       justifiedBy: arch?.justifiedBy ?? defaults.architecture.justifiedBy,
       inventory: {
         include: arch?.inventory?.include ?? file.code ?? defaults.architecture.inventory.include,

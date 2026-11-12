@@ -30,4 +30,4 @@ declared.
 
 - Elaboration ends only when the architecture baseline is curated and justified, by construction.
 - Gates of future milestones fail until their time; `sdp run` reports them but does not fail on
-  them, `sdp gate` does.
+  them, `sdp gate` does, and `sdp lifecycle` shows them as *not due* until their phase starts.

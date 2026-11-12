@@ -36,6 +36,10 @@ export interface LifecycleReport {
   readonly unplanned: ReadonlyArray<GraphNode>
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
   readonly iterations: ReadonlyArray<GraphNode>
+  /** The iteration whose start…end contains `today`, if any. */
+  readonly current: GraphNode | undefined
+  /** The phase of the current iteration; milestones of later phases are not due yet. */
+  readonly currentPhase: GraphNode | undefined
 }
 
 const structural = new Set(["phase", "iteration", "milestone", "scenario", "missing", "code"])
@@ -48,7 +52,8 @@ const order = (node: GraphNode) => {
 const byStart = (a: GraphNode, b: GraphNode) =>
   String(a.attrs.start ?? "").localeCompare(String(b.attrs.start ?? "")) || order(a) - order(b) || a.id.localeCompare(b.id)
 
-export const lifecycle = (project: Project): LifecycleReport => {
+/** `today` is an ISO date (YYYY-MM-DD); without it nothing is marked current. */
+export const lifecycle = (project: Project, today?: string): LifecycleReport => {
   const { graph } = project
   const linked = (node: GraphNode, kind: string) =>
     graph.neighbours(node.id).map(({ other }) => graph.node(other)).filter((n): n is GraphNode => n?.kind === kind)
@@ -91,7 +96,11 @@ export const lifecycle = (project: Project): LifecycleReport => {
   const unplanned = [...graph.nodes.values()].filter((n) =>
     Predicate.isString(n.attrs.maturity) && !planned.has(n.id) && !structural.has(n.kind)
   )
-  return { phases: phaseReports, unplanned, disciplines, iterations: orderedIterations }
+  const current = today === undefined
+    ? undefined
+    : orderedIterations.find((it) => String(it.attrs.start ?? "￿") <= today && today <= String(it.attrs.end ?? ""))
+  const currentPhase = current && phaseReports.find((p) => p.iterations.some((i) => i.node.id === current.id))?.node
+  return { phases: phaseReports, unplanned, disciplines, iterations: orderedIterations, current, currentPhase }
 }
 
 const activity = (project: Project, discipline: string, kinds: ReadonlyArray<string>, items: ReadonlyArray<GraphNode>) => {
@@ -119,22 +128,26 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   if (report.phases.length === 0) {
     return "No phases defined. Declare `kind: phase` and `kind: iteration` nodes (see docs/delivery/plan.md for an example).\n"
   }
+  const currentIndex = report.phases.findIndex((p) => p.node.id === report.currentPhase?.id)
   out.push("PHASES")
-  for (const phase of report.phases) {
-    const its = phase.iterations.map((i) => i.node.id).join(" ") || "—"
-    out.push(`  ${pad(phase.node.title, 14)} ${pad(its, 14)}`)
+  report.phases.forEach((phase, index) => {
+    const its = phase.iterations.map((i) => i.node.id === report.current?.id ? `${i.node.id}*` : i.node.id).join(" ") || "—"
+    const now = index === currentIndex ? "◀ now" : ""
+    out.push(`  ${pad(phase.node.title, 14)} ${pad(its, 14)}${now}`)
+    const due = currentIndex < 0 || index <= currentIndex
     for (const m of phase.milestones) {
       const v = String(m.attrs.verification ?? "none")
-      const mark = v === "passing" ? "✔" : v === "failing" ? "✘" : "…"
-      out.push(`    ◆ ${pad(m.id, 6)} ${pad(m.title, 30)} gate ${mark} ${v}`)
+      const mark = !due ? "·" : v === "passing" ? "✔" : v === "failing" ? "✘" : "…"
+      out.push(`    ◆ ${pad(m.id, 6)} ${pad(m.title, 31)} gate ${mark} ${due ? v : `not due (${v})`}`)
     }
-  }
+  })
   out.push("", "ITERATIONS")
   for (const phase of report.phases) {
     for (const it of phase.iterations) {
       const dates = it.node.attrs.start ? ` ${String(it.node.attrs.start)}…${String(it.node.attrs.end ?? "")}` : ""
       const stages = Object.entries(it.stages).map(([s, n]) => `${s}:${n}`).join("  ")
-      out.push(`  ${pad(it.node.id, 4)} ${pad(it.node.title, 22)}${pad(dates, 25)} ${it.items.length} item(s)  ${stages}`)
+      const id = it.node.id === report.current?.id ? `${it.node.id}*` : it.node.id
+      out.push(`  ${pad(id, 4)} ${pad(it.node.title, 28)}${pad(dates, 25)} ${it.items.length} item(s)  ${stages}`)
     }
   }
   if (report.unplanned.length > 0) {

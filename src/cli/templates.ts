@@ -163,7 +163,7 @@ results: .sdp/results.json
 maturity: [idea, draft, specified, ready]
 architecture:
   kinds: [element, pattern]     # kinds that are architectural abstractions
-  significanceBudget: 0.10      # at most 10% of abstractions may be marked significant
+  significanceGuideline: 0.10   # ~10% of abstractions tend to be significant: a heuristic, reported as info
   justifiedBy: [decision, nfr]  # significance must be justified by links to these
   inventory:
     include: ["src/**/*"]       # counted to compute the significance ratio

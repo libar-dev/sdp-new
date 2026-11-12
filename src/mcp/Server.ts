@@ -58,7 +58,7 @@ const SdpContext = Tool.make("sdp_context", {
 })
 
 const SdpCheck = Tool.make("sdp_check", {
-  description: "Validate the workspace: dangling links, maturity gates, decision hygiene, significance budget. Each item has a hint.",
+  description: "Validate the workspace: dangling links, maturity gates, decision hygiene, significance curation. Each item has a hint.",
   parameters: Schema.Struct({
     severity: Schema.optional(Schema.Literals(["error", "warning", "info"])).annotate({ description: "Minimum severity (default warning)" })
   }),
@@ -126,8 +126,8 @@ const handlers = (root: string) =>
           const view = architectureView(project)
           return JSON.stringify(
             {
-              significant: `${report.significant.length} of ${report.population} abstractions (${(report.ratio * 100).toFixed(1)}%, budget ${
-                (report.budget * 100).toFixed(0)
+              significant: `${report.significant.length} of ${report.population} abstractions (${(report.ratio * 100).toFixed(1)}%; guideline ~${
+                (report.guideline * 100).toFixed(0)
               }%)`,
               nodes: view.nodes.map(nodeJson),
               edges: view.edges.map((e) => `${e.from} -${e.rel}-> ${e.to}`)

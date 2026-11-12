@@ -25,7 +25,7 @@ export const statusSummary = (project: Project) => {
       significant: report.significant.length,
       population: report.population,
       ratio: report.ratio,
-      budget: report.budget
+      guideline: report.guideline
     },
     diagnostics: tally(check(project).map((d) => d.severity))
   }

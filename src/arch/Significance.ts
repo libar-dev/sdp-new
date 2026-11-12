@@ -1,9 +1,11 @@
 /**
- * Architectural significance is curated, not inferred. Typically 10% or fewer
- * of a system's abstractions shape its architecture; the rest is design detail.
- * This module measures the curated set against that budget, checks that every
- * significant element earns its place (a rationale and a link to a decision or
- * quality requirement), and suggests candidates for humans to promote or demote.
+ * Architectural significance is curated, not inferred. Typically around 10% or
+ * fewer of a system's abstractions shape its architecture; the rest is design
+ * detail. That share is a heuristic, not a rule: early on (inception) the
+ * inventory is small and the curated set is still being discovered. This module
+ * reports the share against the guideline, checks that every significant
+ * element earns its place (a rationale and a link to a decision or quality
+ * requirement), and suggests candidates for humans to promote or demote.
  */
 import { Predicate } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
@@ -20,10 +22,11 @@ export interface SignificanceReport {
   /** max(inventory, declared architecture nodes): the population significance is measured against. */
   readonly population: number
   readonly ratio: number
-  readonly budget: number
-  /** How many significant nodes the budget allows: max(1, floor(budget × population)). */
-  readonly allowed: number
-  readonly overBudget: boolean
+  readonly guideline: number
+  /** How many significant nodes the guideline suggests: max(1, ceil(guideline × population)). */
+  readonly suggested: number
+  /** More significant nodes than the guideline suggests — a prompt to review, nothing more. */
+  readonly aboveGuideline: boolean
   /** Significant nodes without a rationale. */
   readonly withoutRationale: ReadonlyArray<GraphNode>
   /** Significant nodes not linked to any decision or quality requirement. */
@@ -48,18 +51,18 @@ export const significance = (project: Project): SignificanceReport => {
   const declared = architectural.filter((node) => !isSignificant(node))
   const population = Math.max(project.inventory, architectural.length)
   const ratio = population === 0 ? 0 : significant.length / population
-  const budget = project.config.architecture.significanceBudget
-  // A percentage must not forbid small systems from naming their one significant element.
-  const allowed = Math.max(1, Math.floor(budget * population))
+  const guideline = project.config.architecture.significanceGuideline
+  // A percentage of a small inventory is meaningless; never suggest fewer than one.
+  const suggested = Math.max(1, Math.ceil(guideline * population))
   return {
     significant,
     declared,
     inventory: project.inventory,
     population,
     ratio,
-    budget,
-    allowed,
-    overBudget: significant.length > allowed,
+    guideline,
+    suggested,
+    aboveGuideline: significant.length > suggested,
     withoutRationale: significant.filter((node) => !Predicate.isString(node.attrs.rationale) || node.attrs.rationale.trim() === ""),
     unjustified: significant.filter((node) => !justifiers(project, node).length)
   }

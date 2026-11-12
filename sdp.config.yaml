@@ -5,7 +5,7 @@ code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
 architecture:
   kinds: [element, pattern]
-  significanceBudget: 0.10
+  significanceGuideline: 0.10   # a heuristic, not a limit (reported as info)
   justifiedBy: [decision, nfr]
   inventory:
     include: ["src/**/*.ts"]

@@ -53,7 +53,8 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
   const where = (location: string) => location.startsWith("/") ? relative(root, location) || location : location
 
   const runPickle = Effect.fnUntraced(function*(spec: Spec, scenario: Scenario, pickle: Pickle) {
-    const worlds = new Map<StepModule<any>, unknown>()
+    // One world per scenario per world factory: modules built on the same factory share state.
+    const worlds = new Map<() => unknown, unknown>()
     const steps: Array<StepResult> = []
     let blocked = false
     for (const step of pickle.steps) {
@@ -82,9 +83,9 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
         continue
       }
       const { args, c } = matches[0]!
-      if (!worlds.has(c.module)) worlds.set(c.module, c.module.world())
+      if (!worlds.has(c.module.world)) worlds.set(c.module.world, c.module.world())
       const context: StepContext<unknown, ReadonlyArray<unknown>> = {
-        world: worlds.get(c.module),
+        world: worlds.get(c.module.world),
         args: args.map((arg) => arg.getValue(null)),
         doc: step.docString,
         table: step.dataTable,

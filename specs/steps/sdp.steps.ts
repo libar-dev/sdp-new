@@ -1,7 +1,7 @@
 /**
- * Step definitions for sdp's own specifications. Each scenario builds a small
- * workspace in memory and runs the real pipeline (FileSystem → parse → graph →
- * check/query/run) against it.
+ * Core step definitions for sdp's own specifications: building workspaces,
+ * graph assertions, queries, checks, runs, context, exports, lifecycle, MCP and
+ * quality measurements. Shares its world with every other module (world.ts).
  */
 import { Effect, Layer, Path, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
@@ -21,66 +21,26 @@ import type { RunResults } from "../../src/run/Results.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
 import { runScenarios } from "../../src/run/Runner.ts"
 import { defineSteps, pending, type StepModule } from "../../src/run/Steps.ts"
-import { layerMemory, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { layerMemory, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
 
-interface World {
-  files: Map<string, string>
-  project: Project | undefined
-  result: QueryResult | undefined
-  queryError: string | undefined
-  diagnostics: ReadonlyArray<Diagnostic> | undefined
-  definitions: Array<{ expression: string; behaviour: string }>
-  run: RunResults | undefined
-  output: string
-  lifecycle: LifecycleReport | undefined
-  graph: Graph | undefined
-  durationMs: number
-}
-
-const load = (world: World) =>
-  Effect.gen(function*() {
-    if (!world.project) world.project = yield* loadMemoryProject(world.files)
-    return world.project
-  })
-
-const reload = (world: World) => {
-  world.project = undefined
-  world.diagnostics = undefined
-  return load(world)
-}
-
-const ids = (list: string) => list.split(",").map((s) => s.trim()).filter((s) => s && s !== "nothing").sort()
-
-const node = (project: Project, id: string): GraphNode => {
-  const found = project.graph.node(id)
-  assert.ok(found, `no node ${id}; nodes are: ${[...project.graph.nodes.keys()].join(", ")}`)
-  return found
-}
-
-export default defineSteps<World>(() => ({
-  files: new Map(),
-  project: undefined,
-  result: undefined,
-  queryError: undefined,
-  diagnostics: undefined,
-  definitions: [],
-  run: undefined,
-  output: "",
-  lifecycle: undefined,
-  graph: undefined,
-  durationMs: 0
-}), ({ Given, Then, When }) => {
+export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- workspace ------------------------------------------------------------
 
-  Given("a file {string} containing:", ({ args: [path], doc, world }) => {
-    world.files.set(path, doc ?? "")
-    world.project = undefined
-  })
+  Given("a file {string} containing:", ({ args: [path], doc, world }) => setFile(world, path, doc ?? ""))
 
   Given("an empty workspace", () => {})
 
   Given("{int} exported abstractions in {string}", ({ args: [count, path], world }) => {
     world.files.set(path, Array.from({ length: count }, (_, i) => `export class Abstraction${i} {}`).join("\n"))
+  })
+
+  Given("{int} significant element(s), each justified by a decision", ({ args: [count], world }) => {
+    const nodes = Array.from({ length: count }, (_, i) =>
+      `  - { id: ARCH-s${i}, kind: element, significant: true, rationale: "reason ${i}", links: { decided-by: DEC-s${i} } }\n` +
+      `  - { id: DEC-s${i}, kind: decision, status: accepted }`)
+    world.files.set("docs/significant.md", `---\nid: SIGNIFICANT\nkind: view\nnodes:\n${nodes.join("\n")}\n---\n# Significant\n`)
+    world.project = undefined
   })
 
   When("the workspace is loaded", ({ world }) => Effect.asVoid(reload(world)))

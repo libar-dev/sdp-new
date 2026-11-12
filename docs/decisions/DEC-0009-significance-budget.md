@@ -2,7 +2,7 @@
 id: DEC-0009
 kind: decision
 title: At most 10% of abstractions are marked architecturally significant
-status: accepted
+status: superseded
 category: architecture
 date: 2026-10-02
 deciders: [architecture]
@@ -30,8 +30,5 @@ below 10%. Exceeding it is a warning by default (`enforceBudget: true` makes it 
 Adding a significant element is a conversation, sometimes demoting another one. The curated view
 (`sdp arch`) stays small enough to read in a minute and to fit into an agent's context.
 
-~~~gherkin
-Scenario: This repository stays within its own budget
-  Then the significance ratio is at most 10%
-  And the query "*[significant] !-*- decision|nfr" returns no results
-~~~
+Superseded by [[DEC-0010]]: the percentage turned out to be a heuristic, not a rule. The guard
+that asserted it was removed with the change; inactive records do not run scenarios anyway.
