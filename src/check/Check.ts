@@ -67,8 +67,15 @@ const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string
 interface Replacing {
   readonly id: string
   readonly kind: string
-  readonly spec?: unknown
+  readonly spec?: string | undefined
 }
+
+/** A node of the graph as a link that replaces names it. */
+const replacing = (node: GraphNode): Replacing => ({
+  id: node.id,
+  kind: node.kind,
+  spec: typeof node.attrs.spec === "string" ? node.attrs.spec : undefined
+})
 
 const isExample = (node: Replacing) => node.kind === made.kinds.scenario
 
@@ -175,7 +182,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     // A target that does not exist is a dangling link, or, from live work, what the base had, which
     // the comparison with the base judges.
     if (!from || !to || to.kind === made.kinds.missing) continue
-    const problem = cannotReplace({ ...from, spec: from.attrs.spec }, { ...to, spec: to.attrs.spec }, vocabulary) ??
+    const problem = cannotReplace(replacing(from), replacing(to), vocabulary) ??
       (isExample(from)
         ? `${edge.to} is still here: an example names the one it was in the change that renames it`
         : from.attrs.toCome !== true
@@ -409,14 +416,14 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
 /**
  * Each example of the base paired with one example of the workspace at most, and no example of
  * the workspace with two: the same example unchanged, then the same id, edited, then the example
- * whose Scenario names it as the one it was (`renamed`, by the id of the Scenario that names it),
+ * whose Scenario names it as the one it was (`namedBy`, given the id of the Scenario that names it),
  * then the same steps under another name or in another place. Rows of one outline pair in their
  * order, a live row with a live one before any other.
  */
 const pairExamples = (
   before: ReadonlyArray<Example>,
   now: ReadonlyArray<Example>,
-  renamed: ReadonlyMap<string, ReadonlyArray<string>>
+  namedBy: (id: string) => ReadonlyArray<string>
 ): ReadonlyMap<Example, Example> => {
   const free = new Set(now)
   const paired = new Map<Example, Example>()
@@ -432,7 +439,7 @@ const pairExamples = (
   const passes: ReadonlyArray<(example: Example) => Example | undefined> = [
     index((example) => `${example.scenario.id}\u0000${example.tests}`),
     index((example) => example.scenario.id),
-    index((example) => example.scenario.id, (example) => renamed.get(example.scenario.id) ?? []),
+    index((example) => example.scenario.id, (example) => namedBy(example.scenario.id)),
     index((example) => example.tests)
   ]
   for (const find of passes) {
@@ -492,9 +499,8 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     }
   }
 
-  // What replaces each rule or feature, here and at the base — a feature that replaces stands for its
-  // rules too — and the example each example here names as the one it was. A link counts only where
-  // what it starts from may replace what it names, read here or, once that is gone, at the base.
+  // Every link that replaces, here and at the base, with what it starts from and what it names, read
+  // here or, once that is gone, at the base, and why the one may not replace the other.
   const known = (written: ReadonlyArray<Spec>) =>
     new Map<string, Replacing>(written.flatMap((spec) => [
       [spec.id, { id: spec.id, kind: spec.kind }],
@@ -503,49 +509,52 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     ]))
   const there = known(specs)
   const here = known(project.specs)
-  const replacedBy = new Map<string, Set<string>>()
-  const renamed = new Map<string, Array<string>>()
-  for (const [written, words, names] of [[specs, base.config.vocabulary, there], [project.specs, vocabulary, here]] as const) {
-    for (const spec of written) {
+  const sides = [
+    { written: specs, words: base.config.vocabulary, names: there, inWorkspace: false },
+    { written: project.specs, words: vocabulary, names: here, inWorkspace: true }
+  ]
+  const links = sides.flatMap(({ inWorkspace, names, words, written }) =>
+    written.flatMap((spec) => {
       const work = workOf(spec)
-      const linked = [
-        { from: names.get(spec.id)!, links: spec.links, toCome: work.spec },
-        ...spec.rules.map((rule) => ({ from: names.get(rule.id)!, links: rule.links, toCome: work.rule(rule).toCome })),
-        ...spec.scenarios.map((scenario) => ({ from: names.get(scenario.id)!, links: scenario.links, toCome: work.example(scenario) }))
-      ]
-      for (const { from, links, toCome } of linked) {
-        for (const link of links.filter((candidate) => hasRelation(words, "replaces", candidate.rel))) {
+      return [
+        { from: names.get(spec.id)!, declared: spec.links, toCome: work.spec },
+        ...spec.rules.map((rule) => ({ from: names.get(rule.id)!, declared: rule.links, toCome: work.rule(rule).toCome })),
+        ...spec.scenarios.map((scenario) => ({ from: names.get(scenario.id)!, declared: scenario.links, toCome: work.example(scenario) }))
+      ].flatMap(({ declared, from, toCome }) =>
+        declared.filter((link) => hasRelation(words, "replaces", link.rel)).map((link) => {
           const to = names.get(link.to) ?? there.get(link.to)
-          // Once a replacement has landed, its base has no more what it replaced: the tag is done.
-          if (to === undefined && names === here && !toCome) {
-            out.push(diagnostic("replaces-nothing", {
-              message: `${from.id} -${link.rel}-> ${link.to}: neither the workspace nor ${at} has ${link.to}, so the link replaces nothing`,
-              node: from.id,
-              source: { file: spec.file, line: link.line },
-              hint: `delete \`@${link.rel}:${link.to}\`: what it replaced is gone from the base too`
-            }))
-          }
-          if (to === undefined) continue
-          const problem = cannotReplace(from, to, words)
-          if (problem === undefined) {
-            if (!isExample(from)) replacedBy.set(link.to, (replacedBy.get(link.to) ?? new Set()).add(from.id))
-            else if (names === here) renamed.set(from.id, [...renamed.get(from.id) ?? [], link.to])
-            continue
-          }
-          // check() judges a link to what is here; one from work still to come to what is gone dangles.
-          if (names !== here || toCome || here.has(link.to)) continue
-          out.push(diagnostic("replacement", {
-            message: `${from.id} -${link.rel}-> ${link.to}, which ${at} has: ${problem}`,
-            node: from.id,
-            source: { file: spec.file, line: link.line },
-            hint: replacementHint(link.rel, from)
-          }))
-        }
-      }
-    }
+          return { spec, from, link, to, toCome, inWorkspace, problem: to === undefined ? undefined : cannotReplace(from, to, words) }
+        })
+      )
+    })
+  )
+  // A link counts only where what it starts from may replace what it names: a rule or a feature
+  // replaces each rule or feature it names — a feature stands for its rules too — and an example here
+  // names the examples it was.
+  const counted = links.filter(({ problem, to }) => to !== undefined && problem === undefined)
+  const replacersOf = (id: string) => counted.filter(({ from, link }) => !isExample(from) && link.to === id).map(({ from }) => from.id)
+  const namedBy = (id: string) => counted.filter(({ from, inWorkspace }) => inWorkspace && from.id === id).map(({ link }) => link.to)
+  // Once a replacement has landed, its base has no more what it replaced: the tag is done.
+  for (const { from, link, spec } of links.filter(({ inWorkspace, to, toCome }) => inWorkspace && to === undefined && !toCome)) {
+    out.push(diagnostic("replaces-nothing", {
+      message: `${from.id} -${link.rel}-> ${link.to}: neither the workspace nor ${at} has ${link.to}, so the link replaces nothing`,
+      node: from.id,
+      source: { file: spec.file, line: link.line },
+      hint: `delete \`@${link.rel}:${link.to}\`: what it replaced is gone from the base too`
+    }))
+  }
+  // check() judges a link to what is here; one from work still to come to what is gone dangles.
+  const broken = links.filter(({ inWorkspace, link, problem, toCome }) => inWorkspace && problem !== undefined && !toCome && !here.has(link.to))
+  for (const { from, link, problem, spec } of broken) {
+    out.push(diagnostic("replacement", {
+      message: `${from.id} -${link.rel}-> ${link.to}, which ${at} has: ${problem}`,
+      node: from.id,
+      source: { file: spec.file, line: link.line },
+      hint: replacementHint(link.rel, from)
+    }))
   }
 
-  const paired = pairExamples(before.examples.filter((example) => example.live), now.examples, renamed)
+  const paired = pairExamples(before.examples.filter((example) => example.live), now.examples, namedBy)
   // A replacement counts once it is live and has a live example the base did not have live: a test
   // that was already there takes over no other, and a gate enforces nothing.
   const kept = new Set(paired.values())
@@ -553,7 +562,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])]
   ))
   const replaced = (example: Example) =>
-    [example.scenario.rule, example.spec.id].some((id) => id !== undefined && [...replacedBy.get(id) ?? []].some((by) => newlyTested.has(by)))
+    [example.scenario.rule, example.spec.id].some((id) => id !== undefined && replacersOf(id).some((by) => newlyTested.has(by)))
   for (const example of before.examples.filter((candidate) => candidate.live)) {
     const { pickle, scenario, spec } = example
     const still = paired.get(example)
