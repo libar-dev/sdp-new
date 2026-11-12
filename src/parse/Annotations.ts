@@ -3,6 +3,7 @@
  *
  *     @sdp <relation> <ID>[,<ID>...] [key=value ...]
  *
+ * (the marker opens the comment's text; a string or prose that mentions it is not an annotation)
  * links the code (the declaration directly below, or the whole file when a blank line follows) to graph
  * nodes. The relation is free text (`implements`, `is`, `instance-of`, ...).
  * `is` anchors a node in code and declares it if no spec defines it.
@@ -19,7 +20,7 @@ export interface Annotation {
   readonly symbol: string | undefined
 }
 
-const marker = /@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
+const marker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 const idToken = /^[A-Za-z][\w.:#/-]*$/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/

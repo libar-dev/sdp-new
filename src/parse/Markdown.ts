@@ -29,6 +29,12 @@ export interface Reference {
   readonly rel?: string | undefined
 }
 
+export interface FrontMatterError {
+  readonly message: string
+  /** File line the problem is on: the YAML error's line, or the opening `---`. */
+  readonly line: number
+}
+
 export interface OpenQuestion {
   readonly text: string
   readonly line: number
@@ -38,7 +44,7 @@ export interface OpenQuestion {
 export interface MarkdownDoc {
   readonly lines: ReadonlyArray<string>
   readonly frontMatter: Readonly<Record<string, unknown>> | undefined
-  readonly frontMatterError: string | undefined
+  readonly frontMatterError: FrontMatterError | undefined
   /** Number of lines taken by the front matter block, including both `---` fences. */
   readonly frontMatterLines: number
   readonly headings: ReadonlyArray<Heading>
@@ -138,21 +144,31 @@ export const parseMarkdown = (content: string): MarkdownDoc => {
 
 const readFrontMatter = (lines: ReadonlyArray<string>): {
   readonly data: Record<string, unknown> | undefined
-  readonly error: string | undefined
+  readonly error: FrontMatterError | undefined
   readonly lines: number
 } => {
   if (lines[0]?.trim() !== "---") return { data: undefined, error: undefined, lines: 0 }
   const end = lines.findIndex((line, idx) => idx > 0 && (line.trim() === "---" || line.trim() === "..."))
-  if (end < 0) return { data: undefined, error: "front matter is not closed with ---", lines: 0 }
+  if (end < 0) return { data: undefined, error: { message: "front matter is not closed with ---", line: 1 }, lines: 0 }
   try {
     const data: unknown = parseYaml(lines.slice(1, end).join("\n"))
     if (data === null || data === undefined) return { data: {}, error: undefined, lines: end + 1 }
     if (!Predicate.isObject(data) || Array.isArray(data)) {
-      return { data: undefined, error: "front matter must be a YAML mapping", lines: end + 1 }
+      return { data: undefined, error: { message: "front matter must be a YAML mapping", line: 1 }, lines: end + 1 }
     }
     return { data: data as Record<string, unknown>, error: undefined, lines: end + 1 }
   } catch (error) {
-    return { data: undefined, error: error instanceof Error ? error.message : String(error), lines: end + 1 }
+    return { data: undefined, error: yamlError(error), lines: end + 1 }
+  }
+}
+
+/** YAML reports positions within the front matter block; point at the file line instead. */
+const yamlError = (error: unknown): FrontMatterError => {
+  const text = error instanceof Error ? error.message : String(error)
+  const position = (error as { linePos?: ReadonlyArray<{ line: number }> }).linePos?.[0]
+  return {
+    message: text.split("\n")[0]!.replace(/ at line \d+, column \d+:?$/, ""),
+    line: position ? position.line + 1 : 1
   }
 }
 
@@ -176,10 +192,22 @@ const collectReferences = (text: string, line: number, out: Array<Reference>) =>
 
 const truncate = (text: string, max: number) => text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`
 
-/** Finds the first line (1-based) within the front matter that mentions `needle`, for precise link locations. */
+/**
+ * Finds the first line (1-based) within the front matter that mentions `needle` as a whole token,
+ * for precise link locations: `REQ-cart` is not found in `REQ-cart-totals`.
+ */
 export const frontMatterLineOf = (doc: MarkdownDoc, needle: string): number => {
+  const pattern = new RegExp(`(?<![\\w-])${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\w-]|\\.\\w)`)
   for (let i = 1; i < doc.frontMatterLines - 1; i++) {
-    if (doc.lines[i]!.includes(needle)) return i + 1
+    if (pattern.test(doc.lines[i]!)) return i + 1
+  }
+  return 1
+}
+
+/** The line (1-based) of a top-level front matter key, or 1 when it is not written out. */
+export const frontMatterKeyLine = (doc: MarkdownDoc, key: string): number => {
+  for (let i = 1; i < doc.frontMatterLines - 1; i++) {
+    if (doc.lines[i]!.startsWith(`${key}:`)) return i + 1
   }
   return 1
 }

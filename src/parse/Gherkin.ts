@@ -84,19 +84,28 @@ export const parseGherkinFences = (options: {
     text.push(line)
     lineMap.push(source)
   }
-  // Only a `Feature:` heading the first block counts; one inside a doc string is content.
-  const firstLine = blocks[0]!.lines.find((line) => line.trim() !== "" && !/^\s*(#|@)/.test(line))
-  const explicitFeature = firstLine !== undefined && featureLine.test(firstLine)
+  // Only a `Feature:` line opening the first block counts; one inside a doc string is content.
+  // Either way the feature carries the spec's tags: an explicit one gets them on its first tag
+  // line, after any leading comments such as `# language:`.
+  const lines = blocks[0]!.lines
+  const opening = lines.findIndex((line) => line.trim() !== "" && !/^\s*(#|@)/.test(line))
+  const explicitFeature = opening >= 0 && featureLine.test(lines[opening]!)
+  const specTags = options.tags.map(toTag).join(" ")
+  const firstTag = lines.findIndex((line, idx) => idx < opening && /^\s*@/.test(line))
+  const tagsAt = explicitFeature && specTags ? (firstTag >= 0 ? firstTag : opening) : -1
   if (!explicitFeature) {
     const first = blocks[0]!.line
-    if (options.tags.length > 0) emit(options.tags.map(toTag).join(" "), first)
+    if (specTags) emit(specTags, first)
     emit(`Feature: ${options.title.replace(/\n/g, " ")}`, first)
     emit("", first)
   }
-  for (const block of blocks) {
-    block.lines.forEach((line, idx) => emit(line, block.contentLine + idx))
+  blocks.forEach((block, index) => {
+    block.lines.forEach((line, idx) => {
+      if (index === 0 && idx === tagsAt) emit(specTags, block.contentLine + idx)
+      emit(line, block.contentLine + idx)
+    })
     emit("", block.contentLine + block.lines.length)
-  }
+  })
   return parseVirtual(options.specId, text.join("\n"), (line) => lineMap[line] ?? 1)
 }
 
