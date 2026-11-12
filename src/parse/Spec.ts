@@ -8,7 +8,7 @@ import type { Config } from "../model/Config.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
 import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
-import { frontMatterLineOf, type MarkdownDoc, type OpenQuestion, parseMarkdown, type Reference } from "./Markdown.ts"
+import { frontMatterKeyLine, frontMatterLineOf, type MarkdownDoc, type OpenQuestion, parseMarkdown, type Reference } from "./Markdown.ts"
 
 export interface LinkDecl {
   readonly rel: string
@@ -61,8 +61,8 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     diagnostics.push({
       rule: "front-matter",
       severity: "error",
-      message: `invalid front matter: ${md.frontMatterError}`,
-      source: { file, line: 1 }
+      message: `invalid front matter: ${md.frontMatterError.message}`,
+      source: { file, line: md.frontMatterError.line }
     })
     return { spec: undefined, diagnostics }
   }
@@ -94,7 +94,12 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     diagnostics.push({ rule: "gherkin-syntax", severity: "error", message: `${error.message}${more}`, node: id, source: { file, line: error.line } })
   }
 
-  const links = normalizeLinks(fm.links, (to) => frontMatterLineOf(md, to), file, id, diagnostics)
+  const links = normalizeLinks(fm.links, {
+    file,
+    owner: id,
+    line: frontMatterKeyLine(md, "links"),
+    lineOf: (to) => frontMatterLineOf(md, to)
+  }, diagnostics)
   const inlineNodes = normalizeInlineNodes(fm.nodes, md, config, file, diagnostics)
 
   return {
@@ -194,11 +199,17 @@ const normalizeTags = (value: unknown): ReadonlyArray<string> => {
  */
 export const normalizeLinks = (
   value: unknown,
-  lineOf: (target: string) => number,
-  file: string,
-  owner: string,
+  at: {
+    readonly file: string
+    readonly owner: string
+    /** Where unusable links are reported: the `links:` key. */
+    readonly line: number
+    /** Where a link to `target` is written. */
+    readonly lineOf: (target: string) => number
+  },
   diagnostics: Array<Diagnostic>
 ): ReadonlyArray<LinkDecl> => {
+  const { file, lineOf, owner } = at
   if (value === undefined || value === null) return []
   const links: Array<LinkDecl> = []
   const invalid = (what: string) =>
@@ -207,7 +218,7 @@ export const normalizeLinks = (
       severity: "warning",
       message: `ignored link ${what}`,
       node: owner,
-      source: { file, line: 1 },
+      source: { file, line: at.line },
       hint: "use `links: { <rel>: <ID> | [<ID>, ...] | { to: <ID>, ...attrs } }`"
     })
   const add = (rel: string, target: unknown) => {
@@ -253,21 +264,22 @@ const normalizeInlineNodes = (
         rule: "inline-node",
         severity: "warning",
         message: `ignored entry under nodes: ${JSON.stringify(item)}`,
-        source: { file, line: 1 },
+        source: { file, line: frontMatterKeyLine(md, "nodes") },
         hint: "each entry needs at least an `id`"
       })
       continue
     }
     const record = item as Record<string, unknown>
     const id = String(record.id)
-    const line = frontMatterLineOf(md, `id: ${id}`) === 1 ? frontMatterLineOf(md, id) : frontMatterLineOf(md, `id: ${id}`)
+    const declared = frontMatterLineOf(md, `id: ${id}`)
+    const line = declared === 1 ? frontMatterLineOf(md, id) : declared
     const attrs = Object.fromEntries(Object.entries(record).filter(([key]) => !reserved.has(key)))
     nodes.push({
       id,
       kind: Predicate.isString(record.kind) ? record.kind : inferKind(id, config),
       title: Predicate.isString(record.title) ? record.title : id,
       attrs,
-      links: normalizeLinks(record.links, () => line, file, id, diagnostics),
+      links: normalizeLinks(record.links, { file, owner: id, line, lineOf: () => line }, diagnostics),
       line
     })
   }

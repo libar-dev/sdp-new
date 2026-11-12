@@ -76,7 +76,9 @@ export interface QueryResult {
 export interface QueryOptions {
   /** Ordered value ladders for `<`/`>` on non-numeric attributes, e.g. `{ maturity: ["idea", ...] }`. */
   readonly orderings?: Readonly<Record<string, ReadonlyArray<string>>> | undefined
+  /** Paths kept per step (default 10 000); more mark the result `truncated`. */
   readonly maxPaths?: number | undefined
+  /** Hops a `+` step follows (default 12); a longer reach marks the result `truncated`. */
   readonly maxDepth?: number | undefined
 }
 
@@ -108,6 +110,12 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     node
   ) => ({ path: { start: node.id, steps: [] }, end: node.id }))
 
+  const reach = (from: string, edge: EdgeStep) => {
+    const reached = reachable(graph, from, edge, maxDepth)
+    if (reached.cut) truncated = true
+    return reached.hops
+  }
+
   for (const { edge, node } of query.steps) {
     const accept = (id: string) => {
       const candidate = graph.node(id)
@@ -115,7 +123,7 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     }
     if (edge.mode !== "move") {
       paths = paths.filter(({ end }) => {
-        const found = reachable(graph, end, edge, maxDepth).some((hop) => accept(hop.node))
+        const found = reach(end, edge).some((hop) => accept(hop.node))
         return edge.mode === "exists" ? found : !found
       })
       continue
@@ -123,7 +131,7 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
     const next: Array<{ path: QueryPath; end: string }> = []
     const seen = new Set<string>()
     for (const { path, end } of paths) {
-      for (const hop of reachable(graph, end, edge, maxDepth)) {
+      for (const hop of reach(end, edge)) {
         if (!accept(hop.node)) continue
         const key = `${pathKey(path)}>${hop.rel}>${hop.node}`
         if (seen.has(key)) continue
@@ -422,8 +430,14 @@ const hops = (graph: Graph, id: string, step: EdgeStep): Array<PathStep> => {
   return result
 }
 
-const reachable = (graph: Graph, from: string, step: EdgeStep, maxDepth: number): Array<PathStep> => {
-  if (!step.transitive) return hops(graph, from, step)
+/** Hops for one edge step; `cut` when a transitive step stopped at `maxDepth` with nodes left to visit. */
+const reachable = (
+  graph: Graph,
+  from: string,
+  step: EdgeStep,
+  maxDepth: number
+): { readonly hops: ReadonlyArray<PathStep>; readonly cut: boolean } => {
+  if (!step.transitive) return { hops: hops(graph, from, step), cut: false }
   const result: Array<PathStep> = []
   const visited = new Set<string>([from])
   let frontier = [from]
@@ -439,7 +453,8 @@ const reachable = (graph: Graph, from: string, step: EdgeStep, maxDepth: number)
     }
     frontier = next
   }
-  return result
+  const cut = frontier.some((id) => hops(graph, id, step).some((hop) => !visited.has(hop.node)))
+  return { hops: result, cut }
 }
 
 const pathKey = (path: QueryPath) => [path.start, ...path.steps.map((s) => `${s.rel}>${s.node}`)].join(">")
