@@ -23,9 +23,9 @@ import {
   type Vocabulary
 } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
-import type { Import } from "../parse/Script.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { type ModuleConfigs, type Modules, readModules } from "../parse/Modules.ts"
+import type { Exports, Import } from "../parse/Script.ts"
 import { parseFeatureSpec, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
@@ -115,12 +115,12 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   const annotations: Array<Annotation> = []
   const importsOf = new Map<string, ReadonlyArray<Import>>()
-  const typesOf = new Map<string, ReadonlySet<string>>()
+  const exportsOf = new Map<string, Exports>()
   for (const file of input.codeFiles) {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
     if (scan.imports.length > 0) importsOf.set(file.path, scan.imports)
-    if (scan.types.size > 0) typesOf.set(file.path, scan.types)
+    if (scan.exports !== undefined) exportsOf.set(file.path, scan.exports)
     for (const { hint, line, message } of scan.unreadable) {
       diagnostics.push(diagnostic("annotation-unreadable", { message, source: { file: file.path, line }, hint }))
     }
@@ -457,8 +457,8 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const modules = readModules(input.moduleConfigs ?? { root: input.root, files: [] }, new Set(input.codeFiles.map((file) => file.path)))
-  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, typesOf, modules, nodes, vocabulary, diagnostics)])
+  const modules = readModules(input.moduleConfigs ?? { root: input.root, files: [] }, input.codeFiles, exportsOf)
+  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, modules, nodes, vocabulary, diagnostics)])
 
   return {
     root: input.root,
@@ -486,7 +486,6 @@ export const buildProject = (input: ProjectInput): Project => {
 const importsBetweenElements = (
   annotations: ReadonlyArray<Annotation>,
   importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
-  typesOf: ReadonlyMap<string, ReadonlySet<string>>,
   modules: Modules,
   nodes: ReadonlyMap<string, GraphNode>,
   vocabulary: Vocabulary,
@@ -506,11 +505,11 @@ const importsBetweenElements = (
       const { line, names } = imported
       const { module, unresolved } = modules.resolve(file, imported)
       if (unresolved !== undefined) diagnostics.push(diagnostic("import-unresolved", { ...unresolved, source: { file, line } }))
-      const types = module === undefined ? undefined : typesOf.get(module)
-      if (names !== undefined && names.length > 0 && names.every((name) => types?.has(name))) continue
-      for (const used of module === undefined ? [] : elementsOf.get(module) ?? []) {
+      const used = module === undefined ? undefined : elementsOf.get(module)
+      if (used === undefined || (names !== undefined && !modules.loadsCode(module!, names))) continue
+      for (const to of used) {
         for (const element of elements) {
-          if (element !== used) edges.push({ from: element, rel: made.relations.imports, to: used, source: { file, line } })
+          if (element !== to) edges.push({ from: element, rel: made.relations.imports, to, source: { file, line } })
         }
       }
     }

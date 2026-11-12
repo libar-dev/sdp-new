@@ -9,7 +9,7 @@
 import { Option, Predicate, Schema } from "effect"
 import { isBuiltin } from "node:module"
 import { parse as parseYaml } from "yaml"
-import type { Import } from "./Script.ts"
+import { type Export, type Exports, type Import, parseScript } from "./Script.ts"
 
 /** A file as read, by its path from the workspace's root: `../` leads above it. */
 export interface File {
@@ -38,6 +38,8 @@ export interface Resolved {
 export interface Modules {
   /** What `imported`, written in the code file `file`, means. */
   readonly resolve: (file: string, imported: Import) => Resolved
+  /** Whether importing `names` from the code file `module` loads its code: whether one of them is more than a type. */
+  readonly loadsCode: (module: string, names: ReadonlyArray<string>) => boolean
 }
 
 const tsconfigFile = "tsconfig.json"
@@ -115,9 +117,10 @@ export const pathFrom = (root: string, ...parts: ReadonlyArray<string>): string 
  * tsconfig.json: a file that does not parse, or one it extends that is neither in the workspace nor
  * installed.
  */
-export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>): Modules => {
+export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, exported: ReadonlyMap<string, Exports>): Modules => {
   const at = pathsFrom(configs.root)
   const byPath = new Map(configs.files.map((file) => [file.path, file.content]))
+  const contents = new Map(code.map((file) => [file.path, file.content]))
   const packages = packagesOf(configs.files)
 
   const tsconfigs = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodeTsConfig))
@@ -130,7 +133,7 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
   /** The code file a path names, as TypeScript completes a name: the file, or else the directory's index. */
   const fileAt = (path: string, directory: boolean): string | undefined => {
     const indexes = addedExtensions.map((extension) => at.join(path, `index${extension}`))
-    if (directory) return indexes.find((candidate) => files.has(candidate))
+    if (directory) return indexes.find((candidate) => contents.has(candidate))
     const written = /\.[^./]*$/.exec(path)?.[0]
     const stem = path.slice(0, path.length - (written?.length ?? 0))
     const candidates = [
@@ -138,7 +141,7 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
       ...addedExtensions.map((extension) => `${path}${extension}`),
       ...indexes
     ]
-    return candidates.find((candidate) => files.has(candidate))
+    return candidates.find((candidate) => contents.has(candidate))
   }
 
   /** What a tsconfig.json, with what it extends, says of names; `configDir` is the directory of the one the code is read with. */
@@ -358,7 +361,37 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
     }
   }
 
-  return { resolve }
+  /** What a code file exports: as already read, or else as it parses. */
+  const exportsOf = cache((file: string): Exports | undefined => {
+    if (exported.has(file)) return exported.get(file)
+    const script = parseScript(file, contents.get(file) ?? "")
+    return script === undefined || script.error !== undefined ? undefined : script.exports()
+  })
+  /** Whether `module` exports `name` as a type alone, following what it passes on from other modules; undefined when it does not say. */
+  const typeOnly = (module: string, name: string, seen: Set<string>): boolean | undefined => {
+    const key = `${module}\u0000${name}`
+    const table = seen.has(key) ? undefined : exportsOf(module)
+    seen.add(key)
+    if (table === undefined) return undefined
+    /** What the module `from` names, as `module` imports it, exports `exported` as; undefined when it is no code file of the workspace or does not say. */
+    const through = (from: string, exported: string) => {
+      const target = resolve(module, { specifier: from, line: 0, kind: "static" }).module
+      return target === undefined ? undefined : typeOnly(target, exported, seen)
+    }
+    const found: Export | undefined = table.named.get(name)
+    if (found !== undefined) return "type" in found ? found.type : through(found.from, found.name) ?? false
+    if (name === "default") return undefined
+    for (const { from, type } of table.all) {
+      const answer = through(from, name)
+      if (answer !== undefined) return type || answer
+    }
+    return undefined
+  }
+
+  return {
+    resolve,
+    loadsCode: (module, names) => names.length === 0 || names.some((name) => typeOnly(module, name, new Set()) !== true)
+  }
 }
 
 /** What an import means, before what sdp could not read of the tsconfig.json is weighed. */

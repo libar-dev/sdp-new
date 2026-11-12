@@ -29,6 +29,15 @@ export interface Import {
   readonly kind: "static" | "dynamic" | "require"
 }
 
+/** How a module exports a name: declared by it, as a type alone or not, or passed on from a name of another module. */
+export type Export = { readonly type: boolean } | { readonly from: string; readonly name: string }
+
+/** What a module exports, by name, and the modules whose every name it exports (`export * from`), as types alone or not. */
+export interface Exports {
+  readonly named: ReadonlyMap<string, Export>
+  readonly all: ReadonlyArray<{ readonly from: string; readonly type: boolean }>
+}
+
 export type Node = { readonly type: string; readonly start: number; readonly end: number; readonly [key: string]: unknown }
 
 /** A TypeScript or JavaScript file as parsed. */
@@ -45,10 +54,11 @@ export interface Script {
    */
   readonly imports: () => ReadonlyArray<Import>
   /**
-   * The names the module exports as types alone — an interface, a type alias, a name exported with
-   * `type` — so that an import of them alone loads none of its code.
+   * What the module exports: which names are types alone — an interface, a type alias, a name
+   * exported with `type` — so that an import of them alone loads none of its code, and which it
+   * passes on from another module, whose own export says.
    */
-  readonly types: () => ReadonlySet<string>
+  readonly exports: () => Exports
 }
 
 const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
@@ -90,7 +100,7 @@ export const parseScript = (file: string, content: string): Script | undefined =
     error: error && { line: lineOf(error.labels[0]?.start ?? 0), message: error.message },
     lineOf,
     imports: () => valueImports(program, parsed.module.dynamicImports.length > 0 || content.includes("require"), lineOf),
-    types: () => typeExports(program)
+    exports: () => exportsOf(program)
   }
 }
 
@@ -180,32 +190,62 @@ const declaredNames = (declared: Node): ReadonlyArray<string> =>
     : isNode(declared.id) && declared.id.type === "Identifier" ? [nameOf(declared.id)] : []
 
 /**
- * The names a module exports as types alone. A name it also exports as a value, as a class that
- * merges with an interface, is a value; so is one re-exported from another module without `type`,
- * since only that module knows what it is.
+ * What a module exports. A name it also exports as a value, as a class that merges with an
+ * interface, is a value; one it passes on from another module — re-exported, or imported and then
+ * exported — is what that module exports it as.
  */
-const typeExports = (program: Script["program"]): ReadonlySet<string> => {
+const exportsOf = (program: Script["program"]): Exports => {
   // The module's own declarations by name: whether each is a type alone.
   const local = new Map<string, boolean>()
+  // What each name an import declares stands for.
+  const imported = new Map<string, Export>()
   for (const statement of program.body) {
+    if (statement.type === "ImportDeclaration") {
+      const from = literalName(statement.source as Node)
+      for (const specifier of statement.specifiers as ReadonlyArray<Node>) {
+        const name = specifier.type === "ImportDefaultSpecifier" ? "default" : nameOf((specifier.imported ?? specifier.local) as Node)
+        imported.set(
+          nameOf(specifier.local as Node),
+          statement.importKind === "type" || specifier.importKind === "type"
+            ? { type: true }
+            : from === undefined || specifier.type === "ImportNamespaceSpecifier" ? { type: false } : { from, name }
+        )
+      }
+      continue
+    }
     const declared = isNode(statement.declaration) ? statement.declaration : statement
     for (const name of declaredNames(declared)) local.set(name, isType(declared) && local.get(name) !== false)
   }
-  const types = new Set<string>()
-  const values = new Set<string>()
-  const exported = (name: string, type: boolean) => (type ? types : values).add(name)
+  const ownOrImported = (name: string): Export => imported.get(name) ?? { type: local.get(name) === true }
+  const named = new Map<string, Export>()
+  const all: Array<{ readonly from: string; readonly type: boolean }> = []
+  // A name exported both ways is a value.
+  const exported = (name: string, how: Export) => {
+    if (!named.has(name) || ("type" in how && !how.type)) named.set(name, how)
+  }
   for (const statement of program.body) {
     if (statement.type === "ExportDefaultDeclaration") {
       const declared = statement.declaration as Node
-      exported("default", isType(declared) || (declared.type === "Identifier" && local.get(nameOf(declared)) === true))
+      exported("default", isType(declared) ? { type: true } : declared.type === "Identifier" ? ownOrImported(nameOf(declared)) : { type: false })
     } else if (statement.type === "ExportNamedDeclaration" && isNode(statement.declaration)) {
-      for (const name of declaredNames(statement.declaration)) exported(name, isType(statement.declaration))
+      for (const name of declaredNames(statement.declaration)) exported(name, { type: isType(statement.declaration) })
     } else if (statement.type === "ExportNamedDeclaration") {
+      const from = isNode(statement.source) ? literalName(statement.source) : undefined
       for (const specifier of statement.specifiers as ReadonlyArray<Node>) {
-        const own = !isNode(statement.source) && local.get(nameOf(specifier.local as Node)) === true
-        exported(nameOf(specifier.exported as Node), statement.exportKind === "type" || specifier.exportKind === "type" || own)
+        const name = nameOf(specifier.local as Node)
+        exported(
+          nameOf(specifier.exported as Node),
+          statement.exportKind === "type" || specifier.exportKind === "type"
+            ? { type: true }
+            : !isNode(statement.source) ? ownOrImported(name) : from === undefined ? { type: false } : { from, name }
+        )
       }
+    } else if (statement.type === "ExportAllDeclaration") {
+      const from = literalName(statement.source as Node)
+      const type = statement.exportKind === "type"
+      if (isNode(statement.exported)) exported(nameOf(statement.exported), { type })
+      else if (from !== undefined) all.push({ from, type })
     }
   }
-  return new Set([...types].filter((name) => !values.has(name)))
+  return { named, all }
 }

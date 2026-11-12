@@ -162,11 +162,11 @@ Feature: See the architecture
   Rule: sdp derives which element imports which from the code
 
     An element imports another when a module anchored to it imports a function, a class or a
-    constant from a module anchored to the other; an import of types alone calls no code of it.
-    Derived, the dependencies cannot drift from the code, and none is written by hand (link-specs).
-    Only TypeScript and JavaScript are read for imports: code in any other language imports no
-    element, and neither does a name the code computes as it runs, for TypeScript resolves it to no
-    file.
+    constant from a module anchored to the other; an import of types alone calls no code of it,
+    whether that module declares the types or passes them on. Derived, the dependencies cannot
+    drift from the code, and none is written by hand (link-specs). Only TypeScript and JavaScript
+    are read for imports: code in any other language imports no element, and neither does a name
+    the code computes as it runs, for TypeScript resolves it to no file.
 
     Scenario Outline: The billing module imports from the mailer's module
       Given a file "src/billing.ts" containing:
@@ -197,6 +197,32 @@ Feature: See the architecture
         | import { Receipt, Mailer } from "./mailer.ts"   | ARCH-mailer |
         | const { Mailer } = require("./mailer.ts")       | ARCH-mailer |
         | const mailer = (name: string) => import(name)   | nothing     |
+
+    Scenario Outline: A type another module passes on is still a type: <passed on>
+      Given a file "src/barrel.ts" containing:
+        """
+        <barrel>
+
+        /** @sdp is ARCH-barrel */
+        export const version = 1
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { <name> } from "./barrel.ts"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => 0
+        """
+      When I query "#ARCH-billing -imports-> *"
+      Then the result is "<imports>"
+
+      Examples:
+        | passed on                           | barrel                                                    | name    | imports     |
+        | re-exported without type            | export { Receipt } from "./mailer.ts"                     | Receipt | nothing     |
+        | re-exported under another name      | export { Receipt as Sent } from "./mailer.ts"             | Sent    | nothing     |
+        | imported, then exported             | import { Receipt } from "./mailer.ts"\nexport { Receipt } | Receipt | nothing     |
+        | among all the names of its module   | export * from "./mailer.ts"                               | Receipt | nothing     |
+        | a class among all the names of its module | export * from "./mailer.ts"                         | Mailer  | ARCH-barrel |
 
   Rule: An import means the file TypeScript resolves its name to, by the tsconfig.json and package.json files of the code, installed or not
 

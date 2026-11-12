@@ -18,7 +18,7 @@
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
  */
-import { children, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"
+import { children, type Exports, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"
 
 export interface Annotation {
@@ -57,11 +57,11 @@ export interface CodeScan {
   readonly ignored: ReadonlyArray<Unread>
   /** The modules a TypeScript or JavaScript file that anchors a node loads code from. */
   readonly imports: ReadonlyArray<Import>
-  /** The names such a file exports as types alone, which an import loads no code by. */
-  readonly types: ReadonlySet<string>
+  /** What such a file exports, which says whether an import of some of its names loads its code. */
+  readonly exports?: Exports | undefined
 }
 
-const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], imports: [], types: new Set() }
+const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], imports: [] }
 
 /**
  * Every tag of one code file, and what could not be read. `anchor` is the relation that anchors a
@@ -74,7 +74,7 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
   const script = parseScript(file, content)
   if (script === undefined) {
     const { annotations, unreadable } = scanLines(file, content)
-    return { annotations, unreadable, ignored: ignoredLines(content), imports: [], types: new Set() }
+    return { annotations, unreadable, ignored: ignoredLines(content), imports: [] }
   }
   if (script.error) {
     // Unread tags would silently drop out of the graph: say so.
@@ -90,8 +90,8 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
   const { annotations, ignored, unreadable } = readTags(file, content, script)
   // Only a module anchored to a node depends on another through what it imports.
   const anchored = annotations.some((annotation) => annotation.rel === anchor)
-  const [imports, types] = anchored ? [script.imports(), script.types()] : [[], new Set<string>()]
-  return { annotations, unreadable: [...unreadable, ...retiredImports(script)], ignored, imports, types }
+  const [imports, exports] = anchored ? [script.imports(), script.exports()] : [[], undefined]
+  return { annotations, unreadable: [...unreadable, ...retiredImports(script)], ignored, imports, exports }
 }
 
 /** The module of `annotate()`, the form of annotation that tags replaced. */
