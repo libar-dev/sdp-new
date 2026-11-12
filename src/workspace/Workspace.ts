@@ -203,12 +203,18 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
 })
 
+/** Reading a workspace: what it can fail with, and the services it needs. */
+type Reading = ReturnType<typeof loadWorkspace>
+
 /**
  * Reads config, feature files, code, step definitions and stored results, and builds the project.
  *
  * @sdp is ARCH-workspace
  */
-export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
+export const loadProject = Effect.fn("loadProject")(function*(
+  root: string,
+  options: { readonly withResults?: boolean } = {}
+): Effect.fn.Return<Project, Effect.Error<Reading>, Effect.Services<Reading>> {
   return (yield* loadWorkspace(root, { results: options.withResults === false ? "none" : "all" })).project
 })
 

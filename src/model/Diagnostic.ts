@@ -32,6 +32,7 @@ export const rules = {
   "milestone-met": "warning",
   "annotation-ignored": "warning",
   "annotation-unreadable": "warning",
+  "return-type": "warning",
   "step-unreadable": "warning",
   "step-expression": "error"
 } as const satisfies Record<string, Severity>

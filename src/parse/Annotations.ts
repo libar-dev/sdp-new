@@ -17,6 +17,7 @@
  * @sdp is ARCH-code-annotations
  */
 import { type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
+import { shapes } from "./Shape.ts"
 
 export interface Annotation {
   readonly file: string
@@ -31,6 +32,12 @@ export interface Annotation {
   readonly symbolLine: number
   /** What the comment around the tag says of that code, without its tags. */
   readonly doc?: string | undefined
+  /** The shape of the declaration, as written (Shape.ts). */
+  readonly shape?: string | undefined
+  /** For a function, whether it states the type it returns. */
+  readonly returnType?: boolean | undefined
+  /** For a file, the shapes of what it exports. */
+  readonly exports?: ReadonlyArray<string> | undefined
 }
 
 /** Something written that sdp does not read, at its line, with why and what to do instead. */
@@ -84,12 +91,8 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
 /** A comment's line, after the comment's own `/`, `*` and `!`, that opens with the tag. */
 const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 
-/** What a tag annotates: a module-level declaration, or the file. */
-interface Target {
-  readonly symbol: string | undefined
-  readonly line: number
-  readonly doc: string | undefined
-}
+/** What a tag annotates: a module-level declaration, or the file, with what the comment and the code say of it. */
+type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "returnType" | "exports">
 
 /**
  * The tags of a parsed file. Comments on lines of their own with no blank line between them are one
@@ -111,6 +114,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     else groups.push([comment])
   }
   const firstCode = program.body[0]?.start ?? content.length
+  const shaped = shapes(content, script)
   for (const group of groups) {
     const tags = group.flatMap((comment) =>
       comment.value.split(/\r?\n/).flatMap((text, index) => {
@@ -124,10 +128,11 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     const next = program.body.find((statement) => statement.start >= end)
     const doc = description(group.map((comment) => comment.value))
     const declared = next && /^[ \t]*\r?\n?[ \t]*$/.test(content.slice(end, next.start)) ? declaredName(next) : undefined
+    const shape = declared === undefined ? undefined : shaped.of(next!)
     const target: Target | undefined = declared !== undefined
-      ? { symbol: declared, line: lineOf(next!.start), doc }
+      ? { symbol: declared, symbolLine: lineOf(next!.start), doc, shape: shape?.text, returnType: shape?.returnType }
       : end <= firstCode
-      ? { symbol: undefined, line: 1, doc }
+      ? { symbol: undefined, symbolLine: 1, doc, exports: nonEmpty(shaped.exports()) }
       : undefined
     for (const { line, rel, targets, attrs, trailing } of tags) {
       const written = `@sdp ${rel} ${targets.join(", ")}`
@@ -140,12 +145,14 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
           hint: "write it in the doc comment directly above a module-level declaration, or in the comment that opens the file"
         })
       } else {
-        annotations.push({ file, line, rel, targets, attrs, symbol: target.symbol, symbolLine: target.line, doc: target.doc })
+        annotations.push({ file, line, rel, targets, attrs, ...target })
       }
     }
   }
   return { annotations, ignored }
 }
+
+const nonEmpty = <A>(list: ReadonlyArray<A>): ReadonlyArray<A> | undefined => list.length > 0 ? list : undefined
 
 const trailingHint =
   "put it on a comment line of its own: in the doc comment of a declaration it annotates that declaration, in the comment that opens the file the file"

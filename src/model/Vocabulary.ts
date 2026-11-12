@@ -156,8 +156,8 @@ export const made = {
   scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */
   ruleAttributes: ["spec", "description", "tags", "scenarios", "verification", "stage", "toCome"],
-  /** What sdp records on a code node: where the annotated declaration is and what its own comment says of it. */
-  codeAttributes: ["file", "symbol", "doc"],
+  /** What sdp records on a code node: where the annotated declaration is, what its own comment says of it, and its shape or a file's exports. */
+  codeAttributes: ["file", "symbol", "doc", "shape", "exports"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
   resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
   /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */

@@ -325,7 +325,6 @@ Feature: Link code to specs
       When the workspace is checked
       Then sdp reports nothing
 
-  @maturity=ready
   Rule: Annotated code carries its shape: a declaration's signature, members or type, and a file's exports
 
     So the graph explains the code the architect annotated without the code being read. The shape
@@ -404,7 +403,6 @@ Feature: Link code to specs
         | id                  | doc                             | exports                                                       |
         | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents |
 
-  @maturity=ready
   Rule: sdp check asks an annotated function to state its return type
 
     Without it the shape says nothing of what the function gives back, and sdp infers no type.

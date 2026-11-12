@@ -85,12 +85,38 @@ export const implementable = (project: Project, ran: ReadonlySet<string>): Reado
   })
 }
 
+/** Counts of everything in the graph, each by the word it is counted under. */
+export interface StatusSummary {
+  readonly nodes: number
+  readonly edges: number
+  readonly specFiles: number
+  readonly kinds: Readonly<Record<string, number>>
+  readonly relations: Readonly<Record<string, number>>
+  /** Counted the way every report counts stages: each node that has one. Rules are counted apart. */
+  readonly stages: Readonly<Record<string, number>>
+  /** Rules by where they stand: what the examples of an implemented one verify, or that it has none, is still to come or is open. */
+  readonly rules: Readonly<Record<string, number>>
+  /** The examples of implemented work: one that failed is a regression. */
+  readonly scenarios: Readonly<Record<string, number>>
+  /** The examples of work still to come, apart: whatever they did is no regression. */
+  readonly toCome: Readonly<Record<string, number>>
+  /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
+  readonly gates: Readonly<Record<string, number>>
+  /** Milestones by whether they are recorded as met; the first open one is where the project is. */
+  readonly milestones: Readonly<Record<string, number>>
+  /** Stored results that no longer count, by what changed since they ran. */
+  readonly stale: Readonly<Record<string, number>>
+  /** Nodes of an architectural kind: the architecture. */
+  readonly architecture: number
+  readonly diagnostics: Readonly<Record<string, number>>
+}
+
 /**
  * One-screen summary of the delivery state: what `sdp status` and the MCP tool answer with.
  *
  * @sdp is ARCH-reports
  */
-export const statusSummary = (project: Project) => {
+export const statusSummary = (project: Project): StatusSummary => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const gates = new Set(project.specs.flatMap((spec) => spec.scenarios.filter((s) => isGate(s, spec, vocabulary)).map((s) => s.id)))
@@ -104,27 +130,17 @@ export const statusSummary = (project: Project) => {
     specFiles: project.specs.length,
     kinds: Object.fromEntries(graph.kinds()),
     relations: Object.fromEntries(graph.relations()),
-    /** Counted the way every report counts stages: each node that has one. Rules are counted apart. */
     stages: counted(
       graph.nodes().flatMap((n) => n.kind !== made.kinds.rule && Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []),
       stageLadder(vocabulary).flat()
     ),
-    /** Rules by where they stand: what the examples of an implemented one verify, or that it has none, is still to come or is open. */
     rules: counted(graph.ofKind([made.kinds.rule]).map(ruleState), ["passing", "failing", "partial", "undefined", "unrun", "no example", "still to come", "open"]),
-    /** The examples of implemented work: one that failed is a regression. */
     scenarios: counted(scenarios.filter((n) => !gates.has(n.id) && n.attrs.toCome !== true).map((n) => n.attrs.status), resultOrder),
-    /** The examples of work still to come, apart: whatever they did is no regression. */
     toCome: counted(scenarios.filter((n) => !gates.has(n.id) && n.attrs.toCome === true).map((n) => n.attrs.status), resultOrder),
-    /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
     gates: counted(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status), resultOrder),
-    /** Milestones by whether they are recorded as met; the first open one is where the project is. */
     milestones: counted(milestones.map((n) => metOn(vocabulary, n) === undefined ? "open" : "met"), ["met", "open"]),
-    /** Stored results that no longer count, by what changed since they ran. */
     stale: counted(scenarios.filter((n) => n.attrs.staleBecause !== undefined).map((n) => n.attrs.staleBecause)),
-    /** Nodes of an architectural kind: the architecture. */
     architecture: graph.nodes().filter((n) => hasKind(vocabulary, "architectural", n.kind)).length,
     diagnostics: counted(check(project).map((d) => d.severity), ["error", "warning", "info"])
   }
 }
-
-export type StatusSummary = ReturnType<typeof statusSummary>

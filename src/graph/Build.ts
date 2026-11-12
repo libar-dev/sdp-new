@@ -299,7 +299,7 @@ export const buildProject = (input: ProjectInput): Project => {
         id,
         kind: made.kinds.code,
         title: annotation.symbol ?? annotation.file,
-        attrs: compact({ file: annotation.file, symbol: annotation.symbol, doc: annotation.doc }),
+        attrs: compact({ file: annotation.file, symbol: annotation.symbol, doc: annotation.doc, shape: annotation.shape, exports: annotation.exports }),
         source: { file: annotation.file, line: annotation.symbolLine }
       })
     }

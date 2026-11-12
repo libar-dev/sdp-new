@@ -289,7 +289,7 @@ Feature: Configure a workspace
         | data.made.attributes           | stage, verification, scenarios, summary, file, openQuestions, toCome, rulesToCome                    |
         | data.made.scenarioAttributes   | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome |
         | data.made.ruleAttributes       | spec, description, tags, scenarios, verification, stage, toCome                                      |
-        | data.made.codeAttributes       | file, symbol, doc                                                                                    |
+        | data.made.codeAttributes       | file, symbol, doc, shape, exports                                                                    |
         | data.made.reservedRelations    | stage, verification, scenarios, summary, file, openQuestions, toCome, rulesToCome, maturity, status  |
       When I run "sdp vocabulary"
       Then the output line with "decision" contains "adr"

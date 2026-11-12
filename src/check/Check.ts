@@ -37,6 +37,7 @@ import {
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
+import { codeNodeId } from "../parse/Annotations.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { type OpenQuestion, type Spec, suiteId } from "../parse/Spec.ts"
 
@@ -431,6 +432,17 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: `plan each discipline with a link of its own: \`@${activityKey}.implementation:IT-beta @${activityKey}.test:IT-beta\``
       }))
     }
+  }
+
+  // A tagged function's shape says what it gives back only when the function states it: sdp infers no type.
+  const untyped = new Map(project.annotations.filter((annotation) => annotation.returnType === false).map((a) => [codeNodeId(a), a]))
+  for (const [id, { file, symbolLine }] of untyped) {
+    out.push(diagnostic("return-type", {
+      message: `${id} states no return type, so its shape does not say what it gives back`,
+      node: id,
+      source: { file, line: symbolLine },
+      hint: "write the type it returns after its parameters, `(…): T`: sdp reads the shape as written and infers no type"
+    }))
   }
 
   for (const spec of project.specs) {
