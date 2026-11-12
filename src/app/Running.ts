@@ -13,7 +13,7 @@
  * @sdp plays PAT-answer
  */
 import parseTagExpression from "@cucumber/tag-expressions"
-import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
+import { DateTime, Duration, Effect, FileSystem, Option, Path, Schema } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { type Livable, livable, regressions } from "../graph/Status.ts"
@@ -280,6 +280,8 @@ export interface RunInput {
   /** Also suggest one step definition module for the undefined steps. */
   readonly snippets?: boolean | undefined
   readonly concurrency?: number | undefined
+  /** How long a step may take: a number and a unit, `60 seconds` or `2 minutes`, or `Infinity`; 30 seconds when not given. */
+  readonly timeout?: string | undefined
   /** Called with each scenario's result as it is known, in order, and whether it is an example of work still to come. */
   readonly onScenario?: ((result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) | undefined
 }
@@ -313,6 +315,12 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     return yield* new Refused({ reason: `--concurrency ${concurrency}: the number of scenarios to run at once is 1 or more` })
   }
+  const timeout = input.timeout === undefined ? undefined : Option.getOrUndefined(Schema.decodeUnknownOption(Schema.DurationFromString)(input.timeout))
+  if (input.timeout !== undefined && (timeout === undefined || !Duration.isGreaterThan(timeout, Duration.zero))) {
+    return yield* new Refused({
+      reason: `--timeout ${input.timeout}: how long a step may take is more than nothing: a number and a unit, e.g. '60 seconds' or '2 minutes'`
+    })
+  }
   const config = yield* loadConfig(root)
   const steps = yield* loadSteps(root, config)
   const run = yield* runWorkspace(root, {
@@ -320,6 +328,7 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     loaded: steps,
     selection: { targets: input.targets, tags: input.tags },
     concurrency: input.concurrency,
+    timeout,
     onScenario: input.onScenario
   })
   const summary = summarize(run.scenarios.filter((result) => !run.toCome.has(result.id)))
@@ -362,6 +371,7 @@ export interface GateInput {
   readonly milestone: string
   /** When the gate passes, write `@met=<today>` on the milestone's tag line. */
   readonly record?: boolean | undefined
+  readonly timeout?: RunInput["timeout"]
   readonly onScenario?: RunInput["onScenario"]
 }
 
@@ -443,7 +453,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   }
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
-  const ran = yield* execute(root, { targets: [milestone], onScenario: input.onScenario }, "gates")
+  const ran = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
   const met = input.record && ran.data.passed ? yield* recordMet(root, milestone) : undefined
   const report: GateReport = { ...ran.data, milestone, met }
   const notes = input.record && !ran.data.passed ? [...ran.notes, `${milestone} is not recorded as met: its gate does not pass`] : ran.notes

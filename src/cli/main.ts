@@ -268,6 +268,11 @@ const fromHere = Effect.fnUntraced(function*(root: string, targets: ReadonlyArra
     }))
 })
 
+const timeout = Flag.String("timeout").pipe(
+  Flag.withDescription("How long a step may take before it fails: a number and a unit, e.g. '2 minutes' (default: 30 seconds)"),
+  Flag.optional
+)
+
 /** Prints a run: each scenario as its result is known, then the summary; a run that did not pass exits with 1. */
 const printRun = Effect.fnUntraced(function*<R extends Running.RunReport, E, S>(
   run: (onScenario: (result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) => Effect.Effect<Answer<R>, E, S>,
@@ -296,12 +301,13 @@ const runCommand = Command.make(
       ),
       Flag.withDefault(1)
     ),
+    timeout,
     verbose: Flag.Boolean("verbose").pipe(Flag.withDescription("Show passed steps too"), Flag.withDefault(false)),
     json
   },
-  Effect.fn(function*({ concurrency, json, snippets, tags, targets, verbose }) {
+  Effect.fn(function*({ concurrency, json, snippets, tags, targets, timeout, verbose }) {
     const root = yield* workspaceRoot
-    const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency }
+    const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency, timeout: Option.getOrUndefined(timeout) }
     yield* printRun((onScenario) => Running.run(root, { ...input, onScenario }), { json, verbose })
   })
 ).pipe(Command.withDescription("Execute scenarios and record results (.sdp/results.json)"))
@@ -314,11 +320,13 @@ const gateCommand = Command.make(
       Flag.withDescription("When the gate passes, write `@met=<today>` on the milestone's tag line: it is closed, and the next one is where the project is"),
       Flag.withDefault(false)
     ),
+    timeout,
     json
   },
-  Effect.fn(function*({ json, milestone, record }) {
+  Effect.fn(function*({ json, milestone, record, timeout }) {
     const root = yield* workspaceRoot
-    yield* printRun((onScenario) => Running.gate(root, { milestone, record, onScenario }), { json, verbose: false })
+    const input = { milestone, record, timeout: Option.getOrUndefined(timeout) }
+    yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
   })
 ).pipe(
   Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),

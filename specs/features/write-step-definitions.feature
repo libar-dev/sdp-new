@@ -155,7 +155,7 @@ Feature: Write step definitions
       When the workspace is run and interrupted while "an empty cart" runs
       Then the handler of "an empty cart" saw its signal abort
 
-  Rule: A step runs in sdp's own thread, and fails once it outlasts its timeout
+  Rule: A step runs in sdp's own thread, and fails once it outlasts its timeout, 30 seconds unless --timeout says otherwise
 
     Code that never yields cannot be stopped there: it fails once it returns.
 
@@ -169,6 +169,23 @@ Feature: Write step definitions
         | handler                          |
         | takes a second                   |
         | keeps the thread busy for 200 ms |
+
+    Scenario: --timeout says how long a step may take
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { setTimeout } from "node:timers/promises"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", ({ signal }) => setTimeout(1000, undefined, { signal }))
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item", () => {})
+        })
+        """
+      When I run "sdp run --timeout '50 millis'"
+      Then the exit code is 1
+      And the output line with "Given an empty cart" contains "✘"
+      And the output contains "step timed out"
 
   @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-fails-once-it-outlasts-its
   Rule: A step that overruns its timeout is stopped, whether or not it yields
