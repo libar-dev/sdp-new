@@ -158,7 +158,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("## Quality requirements in reach", "")
     for (const n of qualities) {
       out.push(`- ${describe(n)}`)
-      for (const measure of measures(project.specById.get(n.id))) out.push(`  measure: ${measure}`)
+      for (const measure of measures(project, n)) out.push(`  measure: ${measure}`)
     }
     out.push("")
   }
@@ -226,12 +226,18 @@ const specification = (spec: Spec): string => {
   return kept.map((line) => line.slice(indent).trimEnd()).join("\n").trim()
 }
 
-/** What a quality requirement measures: the outcome steps of each of its scenarios. */
-const measures = (spec: Spec | undefined): ReadonlyArray<string> =>
-  (spec?.scenarios ?? []).flatMap((scenario) => {
+/**
+ * What a quality requirement measures: the outcome steps of each of its scenarios. A rule's are
+ * its own examples in the spec it is a rule of, never its siblings'.
+ */
+const measures = (project: Project, node: GraphNode): ReadonlyArray<string> => {
+  const rule = node.kind === made.kinds.rule
+  const spec = project.specById.get(rule ? String(node.attrs.spec) : node.id)
+  return (spec?.scenarios ?? []).filter((scenario) => !rule || scenario.rule === node.id).flatMap((scenario) => {
     const outcomes = (scenario.pickles[0]?.steps ?? []).filter((step) => step.type === "Outcome").map((step) => step.text)
     return outcomes.length > 0 ? [outcomes.join("; ")] : []
   })
+}
 
 const describeStatus = (node: GraphNode) => {
   const maturity = attribute(node, "maturity")

@@ -193,9 +193,10 @@ Feature: Serve AI agents
     Scenario: An element by the code anchored to it, a quality requirement by its measure, a decision whole
       Given a file "specs/cart-latency.feature" containing:
         """
-        @id=cart-latency @kind=nfr @constrains:cart
+        @id=cart-latency @constrains:cart
         Feature: Cart latency
 
+          @type=quality
           Rule: The cart keeps up with load
 
             Scenario: Adding under load
@@ -210,7 +211,7 @@ Feature: Serve AI agents
         - ARCH-orders (element)
         Owns the order aggregate and its transaction boundary.
         """
-      And the output section "Quality requirements" contains "cart-latency — Cart latency"
+      And the output section "Quality requirements" contains "The cart keeps up with load (rule)"
       And the output section "Quality requirements" contains "measure: the cart shows it within 300 ms at p95; no item is lost"
       And the output section "Decisions" contains "Not a line per addition, although it is simpler"
       And the output section "Decisions" contains "a dispute nobody wins."
