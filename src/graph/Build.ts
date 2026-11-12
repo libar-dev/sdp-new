@@ -3,7 +3,7 @@
  * truth; the graph is a derived, disposable index that can be rebuilt at any
  * time (and exported for grep/jq). Building is pure: no IO happens here.
  * Besides what authors link, it derives which element imports which from the
- * code anchored to them.
+ * code anchored to them, and links each element to the patterns its code links to.
  */
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
@@ -457,7 +457,12 @@ export const buildProject = (input: ProjectInput): Project => {
   }
 
   const resolve = moduleResolver(input.moduleConfigs ?? [], new Set(input.codeFiles.map((file) => file.path)), diagnostics)
-  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, typesOf, resolve, nodes, vocabulary)])
+  const elements = elementsOf(annotations, nodes, vocabulary)
+  const graph = new Graph(nodes.values(), [
+    ...present,
+    ...importsBetweenElements(elements, importsOf, typesOf, resolve),
+    ...patternsOfElements(elements, present, nodes, vocabulary)
+  ])
 
   return {
     root: input.root,
@@ -473,22 +478,14 @@ export const buildProject = (input: ProjectInput): Project => {
 }
 
 /**
- * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
- * constant from a module anchored to element B, at the line that names the module: the
- * dependencies between elements as the code has them. An import of types alone calls nothing —
- * written with `type`, or of names the module exports as types alone — and no element imports
- * itself. A name means the code file TypeScript resolves it to (`moduleResolver`), whether or not
- * that file anchors an element. A pattern imports nothing and nothing imports it: the code that
- * plays it is part of an element.
+ * The elements each code file is part of: those any anchor of the file names, its own or one of its
+ * declarations'. A pattern is no element: the code that plays it is part of one.
  */
-const importsBetweenElements = (
+const elementsOf = (
   annotations: ReadonlyArray<Annotation>,
-  importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
-  typesOf: ReadonlyMap<string, ReadonlySet<string>>,
-  resolve: ModuleResolver,
   nodes: ReadonlyMap<string, GraphNode>,
   vocabulary: Vocabulary
-): ReadonlyArray<GraphEdge> => {
+): ReadonlyMap<string, ReadonlySet<string>> => {
   const elementsOf = new Map<string, Set<string>>()
   for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
     const elements = annotation.targets.filter((id) => {
@@ -497,6 +494,23 @@ const importsBetweenElements = (
     })
     if (elements.length > 0) elementsOf.set(annotation.file, new Set([...elementsOf.get(annotation.file) ?? [], ...elements]))
   }
+  return elementsOf
+}
+
+/**
+ * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
+ * constant from a module anchored to element B, at the line that names the module: the
+ * dependencies between elements as the code has them. An import of types alone calls nothing —
+ * written with `type`, or of names the module exports as types alone — and no element imports
+ * itself. A name means the code file TypeScript resolves it to (`moduleResolver`), whether or not
+ * that file anchors an element. A pattern imports nothing and nothing imports it.
+ */
+const importsBetweenElements = (
+  elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
+  importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
+  typesOf: ReadonlyMap<string, ReadonlySet<string>>,
+  resolve: ModuleResolver
+): ReadonlyArray<GraphEdge> => {
   const edges: Array<GraphEdge> = []
   for (const [file, elements] of elementsOf) {
     for (const { line, names, specifier } of importsOf.get(file) ?? []) {
@@ -512,6 +526,23 @@ const importsBetweenElements = (
   }
   return edges
 }
+
+/**
+ * `A -plays-> P` for each link from code to pattern P, by the relation the code wrote and at its tag,
+ * from each element A the code's file is part of: what code of an element applies, the element does.
+ */
+const patternsOfElements = (
+  elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
+  links: ReadonlyArray<GraphEdge>,
+  nodes: ReadonlyMap<string, GraphNode>,
+  vocabulary: Vocabulary
+): ReadonlyArray<GraphEdge> =>
+  links.flatMap((link) => {
+    const code = nodes.get(link.from)
+    const file = code?.kind === made.kinds.code ? code.attrs.file : undefined
+    if (!Predicate.isString(file) || link.rel === vocabulary.relations.anchor || !hasKind(vocabulary, "pattern", nodes.get(link.to)?.kind ?? "")) return []
+    return [...elementsOf.get(file) ?? []].map((element) => ({ from: element, rel: link.rel, to: link.to, source: link.source }))
+  })
 
 /**
  * The extensions TypeScript tries in its order, the TypeScript source before the JavaScript: added to
