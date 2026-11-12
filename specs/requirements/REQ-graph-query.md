@@ -46,13 +46,18 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
   A regex may contain brackets.
 - **Edges.** `-rel->` follows outgoing edges, `<-rel-` incoming ones, `-rel-` both. `*` or nothing
   matches any relation but a prose mention, which is not a link; name it to follow it
-  (`-mentions->`, or `-*|mentions->` for everything). `a|b` matches either. A trailing `+` follows the relation one or more hops without
-  revisiting nodes. An edge at the end of a query leads to any node.
+  (`-mentions->`, or `-*|mentions->` for everything). `a|b` matches either. A trailing `+` follows
+  the relation one or more hops: it reaches every node that a route of one or more matching edges
+  leads to — the node it starts from too, when a cycle leads back to it, so `#A -depends-on+-> #A`
+  asks whether `A` is on a cycle. An edge at the end of a query leads to any node.
 - **Filters.** `?edge node` keeps the current nodes that have such a neighbour, `!edge node` those
   that have none; neither moves.
-- **Results.** The result is the distinct end nodes; with `--paths`, every route that reached them,
-  each hop with its direction and a closure hop written `-rel+->`. Evaluation is bounded, and a
-  result cut short says so and names the limit, even when it is empty ([[ARCH-query-engine]]).
+- **Results.** The result is the distinct end nodes; with `--paths`, the routes that reached them.
+  A route is made of edges that exist, each drawn as it points — `A -r-> B` for an edge from `A`,
+  `A <-r- B` for one from `B` — so every line can be followed in the graph by hand. A plain step
+  adds one route per matching edge; a `+` step adds one route per node it reaches, a shortest one,
+  written hop by hop. Evaluation is bounded, and a result cut short says so and names the limit,
+  even when it is empty ([[ARCH-query-engine]]).
 - **Errors.** A malformed query is rejected with a reason before anything runs.
 
 ```sh
@@ -188,27 +193,64 @@ Scenario Outline: Edges follow relations in either direction
     | #MODEL -mentions-> *                                              | ARCH-ledger                           |
     | #MODEL -*\|mentions-> *                                           | ARCH-ledger                           |
     | #ARCH-ledger <-*- *                                               | ARCH-billing                          |
-    | #ARCH-orders -depends-on+-> *                                     | ARCH-billing, ARCH-ledger             |
-    | #ARCH-orders <-depends-on+- *                                     | ARCH-billing, ARCH-ledger             |
+    | #ARCH-orders -depends-on+-> *                                     | ARCH-billing, ARCH-ledger, ARCH-orders |
+    | #ARCH-orders <-depends-on+- *                                     | ARCH-billing, ARCH-ledger, ARCH-orders |
+    | #ARCH-orders -depends-on+-> #ARCH-orders                          | ARCH-orders                           |
+    | #REQ-checkout -realized-by+-> #REQ-checkout                       | nothing                               |
+    | element !-depends-on+-> #ARCH-orders                              | nothing                               |
     | #REQ-checkout -realized-by-> * -depends-on-> element              | ARCH-billing                          |
     | #REQ-checkout -realized-by->                                      | ARCH-orders                           |
     | element ?<-realized-by- requirement[maturity=ready]               | ARCH-orders                           |
     | element !<-realized-by- *                                         | ARCH-ledger                           |
     | requirement ?-realized-by-> element[public] -realized-by-> *      | ARCH-orders                           |
 
-Scenario: The result is the distinct end nodes; the paths keep every route
+Scenario: The result is the distinct end nodes; the paths are the routes that reached them
   When I query "requirement -realized-by-> element -depends-on+-> *"
   Then the result is "ARCH-billing, ARCH-ledger, ARCH-orders"
   And the paths are:
-    | REQ-checkout -realized-by-> ARCH-orders -depends-on+-> ARCH-billing |
-    | REQ-checkout -realized-by-> ARCH-orders -depends-on+-> ARCH-ledger  |
-    | REQ-refunds -realized-by-> ARCH-billing -depends-on+-> ARCH-ledger  |
-    | REQ-refunds -realized-by-> ARCH-billing -depends-on+-> ARCH-orders  |
+    | REQ-checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing                                                         |
+    | REQ-checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger                               |
+    | REQ-checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders     |
+    | REQ-refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger                                                          |
+    | REQ-refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders                                |
+    | REQ-refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders -depends-on-> ARCH-billing     |
 
-Scenario: A path records the direction of every hop
+Scenario: A path draws every edge as it points
   When I query "#ARCH-ledger <-depends-on- element <-realized-by- *"
   Then the paths are:
     | ARCH-ledger <-depends-on- ARCH-billing <-realized-by- REQ-refunds |
+
+Rule: A path is a route that exists
+
+  Background:
+    Given a file "routes.md" containing:
+      """
+      ---
+      id: ROUTES
+      kind: model
+      nodes:
+        - { id: A, kind: stop, links: { r: B } }
+        - { id: B, kind: stop, links: { r: A, s: C } }
+        - { id: C, kind: stop }
+      ---
+      # Routes
+      """
+
+  Scenario: Two edges between the same nodes are two routes, each in its direction
+    When I query "#A -r- #B"
+    Then the paths are:
+      | A -r-> B |
+      | A <-r- B |
+
+  Scenario: A closure over several relations names the relation of each hop
+    When I query "#A -r|s+-> #C"
+    Then the paths are:
+      | A -r-> B -s-> C |
+
+  Scenario: A closure reaches its start through a cycle, by a route that says how
+    When I query "#A -r+-> #A"
+    Then the paths are:
+      | A -r-> B -r-> A |
 
 Scenario Outline: Malformed queries are rejected with a reason
   When I query '<query>'

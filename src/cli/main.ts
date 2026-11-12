@@ -86,7 +86,7 @@ const graphCommand = Command.make(
     if (Option.isSome(select)) {
       const result = queryProject(project, select.value)
       if (Result.isFailure(result)) return yield* fail(result.failure.message)
-      graph = graph.subgraph(result.success.paths.flatMap((p) => [p.start, ...p.steps.map((s) => s.node)]))
+      graph = graph.subgraph(result.success.paths.flatMap((path) => path.nodes))
     }
     if (write) {
       const fs = yield* FileSystem.FileSystem
