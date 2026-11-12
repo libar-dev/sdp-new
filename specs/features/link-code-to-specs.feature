@@ -137,6 +137,7 @@ Feature: Link code to specs
         | case                         | code                                                                                                     | line | message                                                   | hint                                                         |
         | a list with a word that is no id | /** @sdp implements pay, pay? */\nexport const pay = (): number => 0                                   | 1    | "@sdp implements pay, pay?" names pay?, which is no id     | separated by commas                                          |
         | the retired annotate()       | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: ["pay", "refund"] }) | 4    | annotate() of sdp/annotations is retired, so what it says of pay is not read | in the doc comment of pay: @sdp implements pay, refund |
+        | the retired annotate(), of a namespace | import * as annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 4    | annotate() of sdp/annotations is retired, so what it says of pay is not read | in the doc comment of pay: @sdp implements pay |
 
     Scenario: A file that does not parse and does not annotate is none of sdp's business
       Given a file "src/pay.ts" containing:

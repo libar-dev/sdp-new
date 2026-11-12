@@ -95,19 +95,32 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
 const retiredModule = "sdp/annotations"
 
 /**
- * Each call of what a file imports from the retired module, `annotate(pay, { implements: "pay" })`:
- * nothing reads it any more, so it is reported with the tags that say the same. A function of the
- * file's own, or of another module, named `annotate` is ordinary code.
+ * Each call of what a file imports from the retired module, `annotate(pay, { implements: "pay" })`
+ * or `annotations.annotate(…)` of the module imported whole: nothing reads it any more, so it is
+ * reported with the tags that say the same. A function of the file's own, or of another module,
+ * named `annotate` is ordinary code.
  */
 const retiredCalls = (script: Script): ReadonlyArray<Unread> => {
-  const names = new Set(script.program.body.flatMap((statement) =>
+  const specifiers = script.program.body.flatMap((statement) =>
     statement.type === "ImportDeclaration" && (statement.source as Node).value === retiredModule
-      ? (statement.specifiers as ReadonlyArray<Node>).map((specifier) => (specifier.local as Node).name as string)
+      ? statement.specifiers as ReadonlyArray<Node>
       : []
-  ))
-  if (names.size === 0) return []
+  )
+  const local = (specifier: Node) => (specifier.local as Node).name as string
+  const functions = new Set(specifiers.filter((specifier) => specifier.type !== "ImportNamespaceSpecifier").map(local))
+  const modules = new Set(specifiers.filter((specifier) => specifier.type !== "ImportSpecifier").map(local))
+  if (specifiers.length === 0) return []
+  const retired = (callee: unknown): boolean => {
+    if (!isNode(callee)) return false
+    if (callee.type === "Identifier") return functions.has(callee.name as string)
+    if (callee.type !== "MemberExpression" || !isNode(callee.object) || callee.object.type !== "Identifier") return false
+    const holder = callee.object.name as string
+    const property = callee.property as Node
+    const member = callee.computed ? property.value : property.name
+    return modules.has(holder) && member === "annotate"
+  }
   const calls = (node: Node): ReadonlyArray<Node> => [
-    ...(node.type === "CallExpression" && isNode(node.callee) && node.callee.type === "Identifier" && names.has(node.callee.name as string) ? [node] : []),
+    ...(node.type === "CallExpression" && retired(node.callee) ? [node] : []),
     ...children(node).flatMap(calls)
   ]
   return calls(script.program).map((call) => {
