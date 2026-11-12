@@ -38,8 +38,13 @@ export interface LifecycleReport {
   readonly iterations: ReadonlyArray<GraphNode>
   /** The iteration whose start…end contains `today`, if any. */
   readonly current: GraphNode | undefined
-  /** The phase of the current iteration; milestones of later phases are not due yet. */
+  /**
+   * The phase of the latest iteration that has started by `today` (so a gap between iterations
+   * stays in the phase just worked on). Milestones of later phases are not due yet.
+   */
   readonly currentPhase: GraphNode | undefined
+  /** Whether the report was computed for a date; without one, every gate counts as due. */
+  readonly dated: boolean
 }
 
 const structural = new Set(["phase", "iteration", "milestone", "scenario", "missing", "code"])
@@ -96,11 +101,21 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   const unplanned = [...graph.nodes.values()].filter((n) =>
     Predicate.isString(n.attrs.maturity) && !planned.has(n.id) && !structural.has(n.kind)
   )
-  const current = today === undefined
-    ? undefined
-    : orderedIterations.find((it) => String(it.attrs.start ?? "￿") <= today && today <= String(it.attrs.end ?? ""))
-  const currentPhase = current && phaseReports.find((p) => p.iterations.some((i) => i.node.id === current.id))?.node
-  return { phases: phaseReports, unplanned, disciplines, iterations: orderedIterations, current, currentPhase }
+  const started = today === undefined
+    ? []
+    : orderedIterations.filter((it) => Predicate.isString(it.attrs.start) && it.attrs.start <= today)
+  const current = started.find((it) => today! <= String(it.attrs.end ?? ""))
+  const latest = current ?? started.at(-1)
+  const currentPhase = latest && phaseReports.find((p) => p.iterations.some((i) => i.node.id === latest.id))?.node
+  return {
+    phases: phaseReports,
+    unplanned,
+    disciplines,
+    iterations: orderedIterations,
+    current,
+    currentPhase,
+    dated: today !== undefined
+  }
 }
 
 const activity = (project: Project, discipline: string, kinds: ReadonlyArray<string>, items: ReadonlyArray<GraphNode>) => {
@@ -134,7 +149,8 @@ export const renderLifecycle = (report: LifecycleReport): string => {
     const its = phase.iterations.map((i) => i.node.id === report.current?.id ? `${i.node.id}*` : i.node.id).join(" ") || "—"
     const now = index === currentIndex ? "◀ now" : ""
     out.push(`  ${pad(phase.node.title, 14)} ${pad(its, 14)}${now}`)
-    const due = currentIndex < 0 || index <= currentIndex
+    // Undated reports treat every gate as due; before the plan starts, none is.
+    const due = !report.dated || index <= currentIndex
     for (const m of phase.milestones) {
       const v = String(m.attrs.verification ?? "none")
       const mark = !due ? "·" : v === "passing" ? "✔" : v === "failing" ? "✘" : "…"

@@ -83,4 +83,36 @@ Scenario: Candidates are suggestions, never decisions
   When I ask for architecture candidates
   Then the output contains "ARCH-mailer"
   And node "ARCH-mailer" has attribute significant = "undefined"
+
+Scenario: Being specified, mentioned or implemented does not make an element a candidate
+  Given a file "docs/ARCH-quiet.md" containing:
+    """
+    ---
+    id: ARCH-quiet
+    kind: element
+    ---
+    # Quiet
+
+    ```gherkin
+    Scenario: Does its job
+      Then it works
+    ```
+    """
+  And a file "specs/REQ-notes.md" containing:
+    """
+    ---
+    id: REQ-notes
+    maturity: idea
+    ---
+    # Notes
+
+    Mentions [[ARCH-quiet]] in passing.
+    """
+  And a file "src/quiet.ts" containing:
+    """
+    // @sdp is ARCH-quiet
+    export class Quiet {}
+    """
+  When I ask for architecture candidates
+  Then the output does not contain "ARCH-quiet"
 ~~~

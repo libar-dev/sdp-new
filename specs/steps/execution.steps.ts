@@ -1,26 +1,24 @@
 /**
  * Step definitions for executing scenarios: step definitions scripted by a
  * scenario (what they match, how they behave, which module and world they
- * belong to), runs in memory and through the command line, run results, and
+ * belong to), runs of scenarios and of whole workspaces in memory, run results, and
  * what agents get from them (MCP tools, context bundles, the rule catalogue).
  * Shares its world with every other module (world.ts).
  */
 import { Duration, Effect, Layer, Path } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { execFile } from "node:child_process"
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { dirname, join } from "node:path"
-import { fileURLToPath } from "node:url"
-import { isDeepStrictEqual, promisify } from "node:util"
+import { readdir, readFile } from "node:fs/promises"
+import { join } from "node:path"
+import { isDeepStrictEqual } from "node:util"
 import { registrations } from "../../src/mcp/Server.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
-import type { RunResults, StepResult } from "../../src/run/Results.ts"
+import type { StepResult } from "../../src/run/Results.ts"
 import { runScenarios } from "../../src/run/Runner.ts"
+import { runWorkspace } from "../../src/run/Session.ts"
 import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "../../src/run/Steps.ts"
 import { layerMemory, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { ids, newWorld, reload, setFile, type World } from "./world.ts"
+import { ids, newWorld, reload, type World } from "./world.ts"
 
 // --- scripted step definitions ---------------------------------------------
 
@@ -59,6 +57,7 @@ const behaviours: Record<string, Behaviour> = {
   "returns a failed Effect": (_, expression) => Effect.fail(failure(expression)),
   "returns a resolved Promise": () => Promise.resolve(),
   "returns a rejected Promise": (_, expression) => Promise.reject(failure(expression)),
+  "wraps a failing Promise in Effect.tryPromise": (_, expression) => Effect.tryPromise(() => Promise.reject(failure(expression))),
   "takes a second": () => Effect.sleep("1 second"),
   "records its arguments": ({ args, doc, table }, _, received) => void received.push({ args, doc, table }),
   "adds an item to its world": ({ world }) => {
@@ -70,12 +69,8 @@ behaviours.passes = behaviours["returns nothing"]!
 behaviours.fails = behaviours["throws an error"]!
 behaviours.pends = behaviours["returns pending()"]!
 
-/**
- * One step module per module name; modules naming the same world share one
- * world factory. Exported so a generated steps file can rebuild the same
- * modules when the command line runs a workspace.
- */
-export const scriptedSteps = (
+/** One step module per module name; modules naming the same world share one world factory. */
+const scriptedSteps = (
   definitions: ReadonlyArray<Scripted>,
   received: Array<Received> = []
 ): ReadonlyArray<StepModule<Record<string, number>>> => {
@@ -123,55 +118,15 @@ const runInMemory = (world: World, timeout?: Duration.Input) =>
     yield* reload(world)
   })
 
-// --- the command line, on a copy of the workspace ---------------------------
-
-const cli = fileURLToPath(new URL("../../src/cli/main.ts", import.meta.url))
-
-const generatedSteps = (definitions: ReadonlyArray<Scripted>) => {
-  const count = new Set(definitions.map((d) => d.module)).size
-  const names = Array.from({ length: count }, (_, i) => `steps${i}`)
-  return [
-    `import { scriptedSteps } from ${JSON.stringify(import.meta.url)}`,
-    `export const [${names.join(", ")}] = scriptedSteps(${JSON.stringify(definitions)})`,
-    ""
-  ].join("\n")
-}
-
-/**
- * Copies the workspace to a temporary directory, runs `sdp …` there (single
- * quotes group an argument), and reads back what it wrote to `.sdp/`.
- */
-const runCommandLine = (world: World, command: string) =>
-  Effect.tryPromise(async () => {
-    const [bin, ...argv] = [...command.matchAll(/'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2]!)
-    assert.equal(bin, "sdp", `only sdp commands can run on the workspace, got ${command}`)
-    const directory = await mkdtemp(join(tmpdir(), "sdp-workspace-"))
-    const write = async (file: string, content: string) => {
-      await mkdir(dirname(join(directory, file)), { recursive: true })
-      await writeFile(join(directory, file), content)
-    }
-    try {
-      for (const [file, content] of world.files) await write(file, content)
-      if (world.definitions.length > 0) await write("scripted.steps.ts", generatedSteps(scripted(world)))
-      const outcome = await promisify(execFile)(process.execPath, [cli, "-C", directory, ...argv], {
-        env: { ...process.env, NO_COLOR: "1" }
-      }).then(
-        ({ stdout }) => ({ stdout, code: 0 }),
-        (error: { stdout?: string; code?: unknown }) => ({ stdout: error.stdout ?? "", code: typeof error.code === "number" ? error.code : 1 })
-      )
-      world.output = outcome.stdout
-      world.exitCode = outcome.code
-      const written = await readdir(join(directory, ".sdp"), { recursive: true }).catch(() => [])
-      for (const file of written) {
-        const content = await readFile(join(directory, ".sdp", file), "utf8").catch(() => undefined)
-        if (content !== undefined) setFile(world, `.sdp/${file}`, content)
-      }
-      const results = world.files.get(".sdp/results.json")
-      world.run = results ? (JSON.parse(results) as RunResults) : undefined
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
+/** What `sdp run [targets]` does — selection, ordinary scenarios, then gates — on the in-memory workspace. */
+const runWorkspaceInMemory = (world: World, targets: ReadonlyArray<string> = []) =>
+  Effect.gen(function*() {
+    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world).received)]
+    const run = yield* runWorkspace(memoryRoot, { modules, selection: { targets } })
+    world.run = run.results
+    world.scratch.gateResults = run.gates
+    yield* reload(world)
+  }).pipe(Effect.provide(Layer.merge(layerMemory(world.files), Path.layer)))
 
 // --- results ----------------------------------------------------------------
 
@@ -208,13 +163,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the scenarios are run", ({ world }) => runInMemory(world))
 
+  When("the workspace is run", ({ world }) => runWorkspaceInMemory(world))
+
+  When("the workspace is run for {string}", ({ args: [targets], world }) => runWorkspaceInMemory(world, targets.split(/\s+/)))
+
   When("the scenarios are run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, Duration.millis(ms)))
 
-  When("{string} is executed in the workspace", ({ args: [command], world }) => runCommandLine(world, command))
-
-  Then("sdp exits with code {int}", ({ args: [code], world }) => {
-    assert.equal(world.exitCode, code, `exit code; output:\n${world.output}`)
-  })
 
   Then("scenario {string} has status {string}", ({ args: [id, status], world }) => {
     assert.ok(world.run, "run the scenarios first")

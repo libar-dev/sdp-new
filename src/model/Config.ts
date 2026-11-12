@@ -72,8 +72,9 @@ export const defaults: Config = {
     "business-modeling": ["capability", "goal", "actor", "business-process", "vision", "stakeholder"],
     "requirements": ["requirement", "nfr", "feature", "story", "use-case", "epic"],
     "analysis-design": ["decision", "element", "pattern"],
-    "implementation": ["code"],
-    "test": ["scenario"],
+    // Implementation and test activity come from evidence (stages, executed scenarios), not kinds.
+    "implementation": [],
+    "test": [],
     "deployment": ["release", "environment", "deployment"]
   }
 }

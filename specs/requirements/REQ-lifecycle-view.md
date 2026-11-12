@@ -27,9 +27,10 @@ work by stage, and how much work of each discipline every iteration carries.
 | Discipline (business modeling … deployment) | a set of node kinds (`lifecycle.disciplines`, see [[REQ-configuration]]) |
 
 **Where we are.** The iteration whose `start…end` contains today is the current one; it is marked
-`*` and its phase `◀ now`. A milestone gate of a later phase is shown as *not due* next to its
-status: a future milestone is expected to be unmet. When today falls in no iteration, every gate
-shows its status.
+`*`. The current phase, marked `◀ now`, is the phase of the latest iteration that has started, so a
+break between iterations stays in the phase just worked on. A milestone gate of a later phase is
+shown as *not due* next to its status: a future milestone is expected to be unmet. Before the first
+iteration starts, no gate is due.
 
 **Discipline activity** is computed from the plan, not drawn: the familiar RUP "hump" chart, one
 row per discipline, one column per iteration, shaded relative to the busiest iteration of that
@@ -113,6 +114,17 @@ Scenario: A gate falls due when its phase starts
   And the output line with "elaboration" contains "E2*"
   And the output line with "elaboration" contains "◀ now"
   And the output line with "◆ LCA" does not contain "not due"
+
+Scenario: A break between iterations stays in the phase just worked on
+  When the lifecycle is computed on "2026-01-31"
+  Then the current iteration is "none"
+  And the output line with "inception" contains "◀ now"
+  And the output line with "◆ LCA" contains "not due"
+
+Scenario: Before the plan starts no gate is due
+  When the lifecycle is computed on "2025-12-15"
+  Then the current iteration is "none"
+  And the output line with "◆ LCA" contains "not due"
 
 Scenario: Discipline activity is computed from planned work
   When the lifecycle is computed

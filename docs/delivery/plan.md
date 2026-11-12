@@ -9,9 +9,9 @@ nodes:
   - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
   - { id: construction, kind: phase, title: Construction, order: 3 }
   - { id: transition,   kind: phase, title: Transition,   order: 4 }
-  - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: inception, start: "2026-11-02", end: "2026-11-20" }
-  - { id: E1, kind: iteration, title: Spec format and graph, phase: elaboration,  start: "2026-11-23", end: "2026-12-04" }
-  - { id: E2, kind: iteration, title: Gates and curation,    phase: elaboration,  start: "2026-12-07", end: "2026-12-18" }
+  - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: inception, start: "2026-11-02", end: "2026-11-13" }
+  - { id: E1, kind: iteration, title: Spec format and graph, phase: elaboration,  start: "2026-11-16", end: "2026-11-27" }
+  - { id: E2, kind: iteration, title: Gates and curation,    phase: elaboration,  start: "2026-11-30", end: "2026-12-11" }
   - { id: C1, kind: iteration, title: Execution and query,   phase: construction, start: "2027-01-04", end: "2027-01-15" }
   - { id: C2, kind: iteration, title: Agent access,          phase: construction, start: "2027-01-18", end: "2027-01-29" }
   - { id: C3, kind: iteration, title: Lifecycle,             phase: construction, start: "2027-02-01", end: "2027-02-12" }

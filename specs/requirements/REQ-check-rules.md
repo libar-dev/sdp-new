@@ -89,8 +89,8 @@ Scenario Outline: Only errors fail the check
     ---
     # Example
     """
-  When "sdp check" is executed in the workspace
-  Then sdp exits with code <exit code>
+  When I run "sdp check"
+  Then the exit code is <exit code>
 
   Examples:
     | front matter                                   | exit code |

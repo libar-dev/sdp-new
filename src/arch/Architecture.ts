@@ -56,14 +56,17 @@ export const rankCandidates = (project: Project, limit = 10): ReadonlyArray<Cand
     const decisions = new Set<string>()
     const qualities = new Set<string>()
     const requirements = new Set<string>()
-    for (const { other } of graph.neighbours(node.id)) {
+    for (const { edge, other } of graph.neighbours(node.id)) {
       const o = graph.node(other)
-      if (!o) continue
+      if (!o || !isDesignLink(edge, o)) continue
       if (o.kind === "decision") decisions.add(o.id)
       else if (isDriver(project, o)) qualities.add(o.id)
       else if (Predicate.isString(o.attrs.maturity)) requirements.add(o.id)
     }
-    const fanIn = graph.in(node.id).length
+    const fanIn = graph.in(node.id).filter((edge) => {
+      const from = graph.node(edge.from)
+      return from !== undefined && isDesignLink(edge, from)
+    }).length
     const score = decisions.size * 3 + qualities.size * 3 + requirements.size * 2 + fanIn
     if (score === 0) continue
     const reasons = [
@@ -76,6 +79,14 @@ export const rankCandidates = (project: Project, limit = 10): ReadonlyArray<Cand
   }
   return candidates.sort((a, b) => b.score - a.score || a.node.id.localeCompare(b.node.id)).slice(0, limit)
 }
+
+/**
+ * Links that say something about the design. Scenarios verifying a spec, prose
+ * mentions and code anchors only show that something is specified, talked about
+ * or implemented — writing more of them must not make an element look central.
+ */
+const isDesignLink = (edge: GraphEdge, other: GraphNode) =>
+  edge.rel !== "verifies" && edge.rel !== "mentions" && other.kind !== "scenario" && other.kind !== "code"
 
 export interface ArchitectureView {
   readonly nodes: ReadonlyArray<GraphNode>

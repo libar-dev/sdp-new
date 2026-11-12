@@ -111,7 +111,9 @@ Background:
 ## Choosing the workspace
 
 Commands work on the current directory unless `-C` names another workspace root — the way an MCP
-client or a script points sdp at a repository.
+client or a script points sdp at a repository. A workspace sdp cannot read — an invalid
+`sdp.config.yaml`, a step definition module that does not load — is reported in one line naming the
+file, with exit code 1.
 
 ~~~gherkin
 Scenario: -C selects the workspace
@@ -125,6 +127,16 @@ Scenario: -C selects the workspace
   When I run "sdp -C elsewhere q requirement --ids"
   Then the output contains "REQ-export"
   And the output does not contain "REQ-search"
+
+Scenario: A broken configuration is reported in one line that names the file
+  Given a file "broken/sdp.config.yaml" containing:
+    """
+    specs: 42
+    """
+  When I run "sdp -C broken status"
+  Then the exit code is 1
+  And the output contains "sdp.config.yaml: invalid configuration"
+  And the output does not contain "    at "
 ~~~
 
 ## Authoring

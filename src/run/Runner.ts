@@ -174,6 +174,10 @@ const toEffect = (outcome: unknown): Effect.Effect<unknown, unknown> => {
 
 const describe = (error: unknown, cause: Cause.Cause<unknown>): string => {
   if (Predicate.isTagged(error, "TimeoutError")) return "step timed out"
+  // Effect.tryPromise/try wrap what was thrown; the wrapped error is what the author wrote.
+  if (Predicate.isTagged(error, "UnknownError") && Predicate.hasProperty(error, "cause") && error.cause !== undefined) {
+    return describe(error.cause, cause)
+  }
   if (error instanceof Error) return error.message
   if (Predicate.isString(error)) return error
   return Cause.pretty(cause)

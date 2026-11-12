@@ -51,8 +51,8 @@ kind.
 | business-modeling | capability, goal, actor, business-process, vision, stakeholder |
 | requirements | requirement, nfr, feature, story, use-case, epic |
 | analysis-design | decision, element, pattern |
-| implementation | code, plus planned specs in progress or verified |
-| test | scenario, plus executed scenarios of planned specs |
+| implementation | none by default; planned specs that are in progress or verified count |
+| test | none by default; executed scenarios of planned specs count |
 | deployment | release, environment, deployment |
 
 ## Scenarios

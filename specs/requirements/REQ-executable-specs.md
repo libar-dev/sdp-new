@@ -98,7 +98,7 @@ that no longer exist. The file is generated; never edit it by hand.
 (`kind: milestone`) and scenarios tagged `@gate` — against a graph rebuilt with the fresh results,
 so a gate can require what the run just verified. Gates assert against the graph with built-in
 steps ([[REQ-builtin-steps]]). An unmet gate is reported but does not fail `sdp run`, because a
-future milestone is expected to be unmet; `sdp gate <milestone>` evaluates one milestone and exits
+future milestone is expected to be unmet; `sdp gate <milestone>` ([[REQ-cli]]) evaluates one milestone and exits
 with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp run`.
 
 Specs whose `status` is `superseded`, `rejected` or `deprecated` keep their text but do not run: a
@@ -223,6 +223,18 @@ Scenario Outline: Handlers return nothing, a Promise or an Effect
     | returns a failed Effect     | failed  |
     | returns pending()           | pending |
     | throws pending()            | pending |
+
+Scenario Outline: A failing step reports the author's message
+  Given a step definition "an empty cart" that <handler>
+  When the scenarios are run
+  Then the step "an empty cart" reports 'deliberate failure in "an empty cart"'
+
+  Examples:
+    | handler                                     |
+    | throws an error                             |
+    | returns a rejected Promise                  |
+    | returns a failed Effect                     |
+    | wraps a failing Promise in Effect.tryPromise |
 
 Scenario Outline: Parameters are typed by the expression
   Given a file "specs/pricing.feature" containing:
@@ -354,7 +366,7 @@ Scenario Outline: Records that no longer apply do not run
       Then the query "release" returns at least 52 results
     ```
     """
-  When "sdp run" is executed in the workspace
+  When the workspace is run
   Then node "DEC-0001#releases-are-weekly" has attribute status = "<scenario>"
 
   Examples:
@@ -375,7 +387,7 @@ Scenario: A partial run keeps the results of everything else
       Scenario: Keep a lamp for later
         Then the query "#REQ-cart" returns 1 result
     """
-  When "sdp run" is executed in the workspace
+  When the workspace is run
   And a file "specs/wishlist.feature" containing:
     """
     @id:REQ-wishlist
@@ -383,7 +395,7 @@ Scenario: A partial run keeps the results of everything else
       Scenario: Remember a lamp
         Then the query "#REQ-cart" returns 1 result
     """
-  And "sdp run REQ-wishlist" is executed in the workspace
+  And the workspace is run for "REQ-wishlist"
   Then scenario "REQ-wishlist#remember-a-lamp" has status "passed"
   And scenario "REQ-cart#add-an-item" has status "passed"
   And scenario "REQ-wishlist#keep-a-lamp-for-later" has no result
@@ -413,17 +425,10 @@ Rule: Gates run last
     Given a step definition "an empty cart" that passes
     And a step definition "I add a lamp" that passes
     And a step definition "the cart holds {int} item(s)" that passes
-    When "sdp run" is executed in the workspace
+    When the workspace is run
     Then scenario "MS-beta#the-cart-works" has status "passed"
-    And sdp exits with code 0
 
-  Scenario Outline: An unmet gate is reported, and only sdp gate fails on it
-    When "<command>" is executed in the workspace
+  Scenario: An unmet gate is reported like any other scenario
+    When the workspace is run
     Then scenario "MS-beta#the-cart-works" has status "failed"
-    And sdp exits with code <exit code>
-
-    Examples:
-      | command          | exit code |
-      | sdp run          | 0         |
-      | sdp gate MS-beta | 1         |
 ~~~

@@ -2,7 +2,6 @@
  * `sdp` — the command line. Every read command prints greppable text by
  * default and JSON with `--json`, so people and agents use the same tool.
  */
-import parseTagExpression from "@cucumber/tag-expressions"
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
@@ -10,9 +9,7 @@ import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "eff
 import { Argument, Command, Flag } from "effect/cli"
 import { architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
-import { isActive, type Project } from "../graph/Build.ts"
-import type { Scenario } from "../parse/Gherkin.ts"
-import type { Spec } from "../parse/Spec.ts"
+import type { Project } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
 import { formatPath, projectOrderings, query } from "../graph/Query.ts"
@@ -21,8 +18,9 @@ import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { formatSource } from "../model/Graph.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import type { ScenarioResult } from "../run/Results.ts"
-import { mergeResults, runScenarios, summarize } from "../run/Runner.ts"
-import { loadProject, loadStepModules, writeResults } from "../workspace/Workspace.ts"
+import { summarize } from "../run/Runner.ts"
+import { runWorkspace } from "../run/Session.ts"
+import { loadConfig, loadProject, loadStepModules } from "../workspace/Workspace.ts"
 import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
 import { agentsTemplate, configTemplate, newSpec } from "./templates.ts"
 
@@ -190,8 +188,6 @@ const checkCommand = Command.make(
 
 // --- run / gate -------------------------------------------------------------
 
-const gateKinds = new Set(["milestone"])
-
 const executeRun = Effect.fn("executeRun")(function*(options: {
   readonly targets: ReadonlyArray<string>
   readonly tags: Option.Option<string>
@@ -201,31 +197,17 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   readonly enforceGates: boolean
 }) {
   const root = yield* workspaceRoot
-  let project = yield* loadProject(root)
-  const modules = [builtinSteps, ...(yield* loadStepModules(root, project.config))]
-  const tagExpression = Option.map(options.tags, parseTagExpression)
-  const wanted = (scenarioId: string, specId: string, file: string) =>
-    options.targets.length === 0 ||
-    options.targets.some((t) => t === specId || t === scenarioId || file === t || file.startsWith(t.endsWith("/") ? t : `${t}/`))
-  const select = (gates: boolean) => (scenario: Scenario, spec: Spec) =>
-    isActive(spec) &&
-    (gateKinds.has(spec.kind) || scenario.pickles.some((p) => p.tags.includes("@gate"))) === gates &&
-    wanted(scenario.id, spec.id, spec.file) &&
-    (Option.isNone(tagExpression) || scenario.pickles.some((p) => tagExpression.value.evaluate([...p.tags])))
+  const config = yield* loadConfig(root)
+  const modules = [builtinSteps, ...(yield* loadStepModules(root, config))]
   const print = (r: ScenarioResult) =>
     options.json ? Effect.void : Console.log(formatScenario(r, { snippets: options.snippets, verbose: options.verbose }))
+  const run = yield* runWorkspace(root, {
+    modules,
+    selection: { targets: options.targets, tags: Option.getOrUndefined(options.tags) },
+    onScenario: print
+  })
 
-  // Ordinary scenarios first; gates (milestones, @gate) then see the fresh results.
-  const first = yield* runScenarios({ project, modules, filter: select(false), onScenario: print })
-  let merged = mergeResults(project.results, first, project)
-  yield* writeResults(root, project.config, merged)
-  project = yield* loadProject(root)
-  const second = yield* runScenarios({ project, modules, filter: select(true), onScenario: print })
-  merged = mergeResults(merged, second, project)
-  yield* writeResults(root, project.config, merged)
-
-  const scenarios = Object.values(first.scenarios)
-  const gates = Object.values(second.scenarios)
+  const { gates, scenarios } = run
   const counts = summarize(scenarios)
   const gateCounts = summarize(gates)
   // A gate that is not met yet is information, not a broken build; `sdp gate <id>` enforces it.
@@ -453,6 +435,12 @@ sdp.pipe(
     mcpCommand
   ]),
   Command.run({ version: "0.1.0" }),
+  // Problems with the user's files are reported as one line naming the file, not as a stack trace.
+  Effect.catchTags({
+    ConfigError: (e) => fail(`${e.file}: invalid configuration: ${e.message.replace(/\s*\n\s*/g, " ")}`),
+    StepLoadError: (e) => fail(`${e.file}: could not load step definitions: ${e.message}`),
+    PlatformError: (e) => fail(e.message)
+  }),
   Effect.provide(NodeServices.layer),
   NodeRuntime.runMain
 )

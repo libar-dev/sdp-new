@@ -88,7 +88,7 @@ Scenario: A query selects the part of the graph to export
     ---
     # Beta
     """
-  When "sdp graph -f tsv -q 'requirement -realized-by-> element'" is executed in the workspace
+  When I run "sdp graph -f tsv -q 'requirement -realized-by-> element'"
   Then the output contains "edge\tREQ-a\trealized-by\tARCH-x"
   And the output does not contain "REQ-b"
 ~~~
