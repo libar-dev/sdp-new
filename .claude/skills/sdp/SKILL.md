@@ -45,14 +45,17 @@ Feature: Guest checkout
   neither is a Cucumber tag, and one whose key is not a word (`@1st=x`) is an error. Above
   `Feature:` they are about the spec, above `Rule:` about the rule, above `Scenario:` about the
   scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is
-  not written.
-  A key written twice is a list, `@owner.team=core` nests, and a value that reads back as a number
-  is one. Annotations are not tags: they are not inherited, not matched by `--tags` and not part
-  of a scenario's hash, so re-planning a spec leaves its results valid.
+  not written. A key written twice is a list, `@owner.team=core` nests, and a value that reads
+  back as a number is one. Annotations are not tags: they are not inherited, not matched by
+  `--tags` and not part of a scenario's hash, so re-planning a spec leaves the results of its
+  scenarios valid — except those of scenarios that read the graph, which any change to a spec
+  makes stale.
 - **The Feature is the node**: its name is the title, its first paragraph the intent.
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
-  scenario belongs to a rule. A rule without an example yet is a to-do that `ready` refuses.
+  scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
+  named by its path and run as it is. A rule without an example yet is a to-do that `ready`
+  refuses.
 - **An open question is a Rule or a Scenario tagged `@open`**, its name the question. Answering
   it means renaming it into the rule that was chosen and deleting the tag. What is undecided or
   waits on someone is written this way, on the spec it concerns, never kept in a chat or an
