@@ -5,6 +5,7 @@ title: Interactive queries on large graphs
 maturity: ready
 quality: performance
 iteration: I1
+activity: { implementation: I1, test: I1 }
 links:
   refines: CAP-agent-collaboration
 ---

@@ -4,6 +4,7 @@ kind: requirement
 title: Decision records for any decision
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [decisions]
 links:
   refines: CAP-curated-architecture

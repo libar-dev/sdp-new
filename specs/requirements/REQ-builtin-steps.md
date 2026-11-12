@@ -4,6 +4,7 @@ kind: requirement
 title: Built-in steps over the graph
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [execution, quality-gates]
 links:
   refines: CAP-living-specs

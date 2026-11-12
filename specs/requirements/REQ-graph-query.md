@@ -4,6 +4,7 @@ kind: requirement
 title: Path-pattern queries
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [graph, agents]
 links:
   refines: CAP-agent-collaboration

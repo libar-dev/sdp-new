@@ -10,7 +10,7 @@ nodes:
   - id: ARCH-checker
     kind: element
     title: Checker
-    links: { reads: ARCH-graph }
+    links: { reads: ARCH-graph, uses: ARCH-lifecycle }
   - id: ARCH-architecture-view
     kind: element
     title: Architecture view

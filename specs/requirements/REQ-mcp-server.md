@@ -4,6 +4,7 @@ kind: requirement
 title: Graph access over MCP
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [agents]
 links:
   refines: CAP-agent-collaboration

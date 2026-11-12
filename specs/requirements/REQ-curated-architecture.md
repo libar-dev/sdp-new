@@ -4,6 +4,7 @@ kind: requirement
 title: Curated architecture
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [architecture]
 links:
   refines: CAP-curated-architecture

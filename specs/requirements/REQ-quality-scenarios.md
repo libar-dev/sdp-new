@@ -4,6 +4,7 @@ kind: requirement
 title: Quality requirements as quality attribute scenarios
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [spec-format, architecture]
 links:
   refines: CAP-living-specs

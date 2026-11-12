@@ -4,6 +4,7 @@ kind: requirement
 title: A free-form system graph
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [graph]
 links:
   refines: CAP-living-specs

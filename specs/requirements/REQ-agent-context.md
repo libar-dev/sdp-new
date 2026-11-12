@@ -4,6 +4,7 @@ kind: requirement
 title: Context bundles for agents
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [agents]
 links:
   refines: CAP-agent-collaboration
