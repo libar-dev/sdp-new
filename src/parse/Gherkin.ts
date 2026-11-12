@@ -12,6 +12,7 @@ import { Result } from "effect"
 import { createHash } from "node:crypto"
 import type { RuleId } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
+import { isKey } from "../model/Vocabulary.ts"
 
 annotate(import.meta, { is: "ARCH-spec-parser" })
 
@@ -163,9 +164,6 @@ const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<
   }
 }
 
-/** `@key=value` or `@rel:ID`: a key is a letter, then letters, digits, `_` or `-`, in parts joined by single dots. */
-const annotationTag = /^@([A-Za-z][\w-]*(?:\.[\w-]+)*)([=:])(.*)$/
-
 /** Where a tag sits: what an annotation there is about, and which ones it may hold. */
 type Level = "Feature" | "Rule" | "Scenario" | "Examples"
 
@@ -189,17 +187,19 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
   const problem = (tag: Messages.Tag, message: string, hint: string, rule: GherkinProblem["rule"] = "annotation") =>
     problems.push({ rule, message: `${tag.name}: ${message}`, line: tag.location.line, hint })
   for (const tag of tags) {
-    const match = annotationTag.exec(tag.name)
-    if (!match) {
-      if (isAnnotation(tag.name)) {
-        problem(tag, "this key names nothing: a key is a letter, then letters, digits, _ or -, in parts joined by single dots", "write @key=value or @rel:ID; a tag without = and : is a Cucumber tag")
-      } else plain.push(tag.name)
+    const at = tag.name.search(/[=:]/)
+    if (at < 0) {
+      plain.push(tag.name)
       continue
     }
-    const key = match[1]!
-    const value = match[3]!
-    const separator = match[2]
+    const key = tag.name.slice(1, at)
+    const separator = tag.name[at]
+    const value = tag.name.slice(at + 1)
     const line = tag.location.line
+    if (!isKey(key)) {
+      problem(tag, "this key names nothing: a key is a letter, then letters, digits, _ or -, in parts joined by single dots", "write @key=value or @rel:ID; a tag without = and : is a Cucumber tag")
+      continue
+    }
     if (level === "Examples") {
       problem(tag, "an annotation on Examples is about no node", "put it on the Scenario or the Rule above; a plain tag such as @slow selects the table's rows")
     } else if (value === "") {

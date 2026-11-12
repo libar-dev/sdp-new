@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { defaultVocabulary, made, reservedRelations, type Vocabulary } from "./Vocabulary.ts"
+import { defaultVocabulary, isKey, isValueWord, made, reservedRelations, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
@@ -150,9 +150,9 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
 
 /**
  * What makes a vocabulary one sdp cannot work with, each problem at its path under `vocabulary`:
- * a word that says nothing, a role without a word, and roles that contradict each other — a word
- * sdp makes or reads itself given to an author's role, or one word for a relation sdp makes and
- * one authors write.
+ * a word that says nothing or that no tag can hold, a role without a word, and roles that
+ * contradict each other — a word sdp makes or reads itself given to an author's role, or one word
+ * for a relation sdp makes and one authors write.
  */
 const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIssue> => {
   const issues: Array<Schema.FilterIssue> = []
@@ -173,6 +173,29 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   ]
   for (const [path, words] of roles) if (words.length === 0) problem(path, "a role needs at least one word")
 
+  // A relation, an attribute or a discipline under `activity` is the key of a tag; a kind or a
+  // maturity is its value. An empty word is reported above.
+  const said = (words: string | ReadonlyArray<string>): ReadonlyArray<string> => [words].flat().filter((word) => word.trim() !== "")
+  const keys: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
+    ...Object.entries(v.relations).map(([role, words]) => [["relations", role], said(words)] as const),
+    ...Object.entries(v.attributes).map(([role, word]) => [["attributes", role], said(word)] as const),
+    [["disciplines"], [...v.disciplines.keys()].map((discipline) => `${v.attributes.activity}.${discipline}`)]
+  ]
+  for (const [path, words] of keys) {
+    for (const word of words.filter((candidate) => !isKey(candidate))) {
+      problem(path, `\`${word}\` cannot be the key of a tag: write a letter, then letters, digits, _ or -, in parts joined by single dots`)
+    }
+  }
+  const values: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
+    ...Object.entries(v.kinds).map(([role, words]) => [["kinds", role], said(words)] as const),
+    [["maturity"], said(v.maturity)]
+  ]
+  for (const [path, words] of values) {
+    for (const word of words.filter((candidate) => !isValueWord(candidate))) {
+      problem(path, `\`${word}\` cannot be the value of a tag: write it without a space, @, = or :`)
+    }
+  }
+
   const madeKinds: ReadonlyArray<string> = Object.values(made.kinds)
   for (const [role, words] of Object.entries({ ...kindRoles, anchored: [anchored] })) {
     for (const kind of words.filter((word) => madeKinds.includes(word))) {
@@ -188,6 +211,13 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   for (const [path, words] of named) {
     for (const word of words.filter((candidate) => reservedRelations.includes(candidate))) {
       problem(path, `${word} is an attribute sdp derives or checks itself, so it cannot be given another meaning`)
+    }
+  }
+
+  const madeRelations: ReadonlyArray<string> = Object.values(made.relations)
+  for (const [role, words] of Object.entries(v.relations)) {
+    for (const word of [words].flat().filter((candidate) => madeRelations.includes(candidate))) {
+      problem(["relations", role], `${word} is a relation sdp makes itself, so it cannot be given another meaning`)
     }
   }
 

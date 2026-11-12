@@ -110,6 +110,12 @@ export const defaultVocabulary: Vocabulary = {
   words: { kinds: [], relations: [], attributes: [] }
 }
 
+/** Whether a word can be the key of a tag, `@key=value` or `@rel:ID`: a letter, then letters, digits, `_` or `-`, in parts joined by single dots. */
+export const isKey = (word: string): boolean => /^[A-Za-z][\w-]*(?:\.[\w-]+)*$/.test(word)
+
+/** Whether a word can be the value of a tag, as a kind or a maturity is, and an inherited Cucumber tag: no space, `@`, `=` or `:`. */
+export const isValueWord = (word: string): boolean => /^[^\s@=:]+$/.test(word)
+
 /** Words sdp makes itself. They are not configurable, and authors cannot write them. */
 export const made = {
   kinds: {

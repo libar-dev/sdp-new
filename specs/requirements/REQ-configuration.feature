@@ -308,6 +308,9 @@ Feature: Workspace configuration
         | vocabulary: { attributes: { activity: stage } }  | stage is an attribute sdp derives or checks itself | at ["vocabulary"]["attributes"]["activity"] |
         | vocabulary: { relations: { anchor: iteration } } | iteration is also a relation of the plan           | at ["vocabulary"]["relations"]["anchor"]    |
         | vocabulary: { relations: { scenario: is } }      | is is also relations.anchor                        | at ["vocabulary"]["relations"]["scenario"]  |
+        | vocabulary: { relations: { scenario: rule-of } } | rule-of is a relation sdp makes itself             | at ["vocabulary"]["relations"]["scenario"]  |
+        | vocabulary: { relations: { plan: [in sprint] } } | `in sprint` cannot be the key of a tag             | at ["vocabulary"]["relations"]["plan"]      |
+        | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                 | at ["vocabulary"]["kinds"]["phase"]         |
         | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
         | ids: { story: REQ }                              | requirement and story share the prefix REQ         | at ["ids"]                                  |
 
