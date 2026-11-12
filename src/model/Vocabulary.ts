@@ -143,6 +143,10 @@ export const made = {
   attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", "tags", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
+  resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
+  /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
+  recordedAt: "lastRun",
   /** Where a node is in delivery, beyond its declared maturity (DEC-0005). */
   stages: { failing: "failing", inProgress: "in-progress", verified: "verified" },
   /** `declaredIn` of a node an anchor annotation declares. */

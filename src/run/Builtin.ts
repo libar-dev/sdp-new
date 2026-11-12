@@ -21,12 +21,12 @@ annotate(import.meta, { is: "ARCH-runner" })
 type Asserting = Pick<StepContext<unknown, ReadonlyArray<unknown>>, "project" | "scenario">
 
 /** Attributes a node has only through results; `status` is one on scenarios, while decisions and risks declare theirs. */
-const resultAttributes: ReadonlySet<string> = new Set(["stage", "verification", "staleBecause", "lastRun"])
+const resultAttributes: ReadonlySet<string> = new Set(made.resultAttributes)
 const isResult = (key: string, onScenario: boolean) => resultAttributes.has(key) || (key === "status" && onScenario)
 
 /** When a result was recorded is shown to no scenario, a gate included: what it found would change with every run. */
 const unseen = (attribute: string, key: string) => {
-  if (key !== "lastRun") return
+  if (key !== made.recordedAt) return
   throw new Error(`${attribute} is when a result was recorded, which no scenario sees: assert on status, which says whether the result counts`)
 }
 
