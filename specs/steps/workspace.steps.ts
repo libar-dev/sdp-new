@@ -5,7 +5,7 @@
  */
 import { Effect, FileSystem, Path, Result } from "effect"
 import { strict as assert } from "node:assert"
-import { cp, mkdir, symlink } from "node:fs/promises"
+import { cp, mkdir, stat, symlink } from "node:fs/promises"
 import { basename, join } from "node:path"
 import * as Api from "sdp"
 import * as EffectApi from "sdp/effect"
@@ -43,10 +43,12 @@ const counted = (record: Readonly<Record<string, number>>) =>
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("a file {string} containing:", ({ args: [path], doc, world }) => setFile(world, path, doc ?? ""))
 
+  // A directory of this repository is the workspace; a file of it is a file of the workspace at the same path.
   Given("the workspace is a copy of {string}", async ({ args: [source], world }) => {
     const directory = await directoryOf(world)
+    const from = join(repository, source)
     // Its step definitions import "sdp/steps" with nothing installed: sdp resolves that import itself.
-    await cp(join(repository, source), directory, {
+    await cp(from, (await stat(from)).isDirectory() ? directory : join(directory, source), {
       recursive: true,
       filter: (file) => ![".sdp", "node_modules"].includes(basename(file))
     })
