@@ -295,10 +295,11 @@ Feature: Check specs
       And the output contains "[example-dropped] cart#add-an-item, a live example at the base "
       And the output contains ", is gone, and nothing that replaces cart#a-cart-holds-what-was-added is live with a new live example  specs/cart.feature:8"
 
-  Rule: An example keeps its test under a new name, in a new place or with new steps, one for one
+  Rule: An example keeps its test under a new name, in a new place or with new steps, and another takes it over only by naming it
 
-    A test is what a reader would call the same example, each row of an outline on its own, and one
-    that is gone is not made up for by another that tests the same.
+    A test is what a reader would call the same example, each row of an outline on its own, so one
+    that is gone is not made up for by another that tests the same; one renamed with its steps edited,
+    or merged into another, is named where it went (write-a-spec).
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -411,6 +412,43 @@ Feature: Check specs
       And the files are committed on the branch "main"
       When I run "sdp check --json"
       Then the exit code is 0
+
+    Scenario Outline: Two live examples merged into one that names <named>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add a lamp
+              Then the cart holds a lamp
+
+            Scenario: Add a desk
+              Then the cart holds a desk
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            <tags>
+            Scenario: Add a lamp and a desk
+              Then the cart holds a lamp and a desk
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+        | data.node | <dropped>  |
+
+      Examples:
+        | named        | tags                                                | exit code | reported        | dropped         |
+        | both of them | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | 0         | nothing         | nothing         |
+        | one of them  | @replaces:cart#add-a-lamp                           | 1         | example-dropped | cart#add-a-desk |
 
   Rule: What replaces a live rule or feature takes over its examples only when it is live with a new live example of its own
 

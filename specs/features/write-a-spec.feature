@@ -303,6 +303,39 @@ Feature: Write a spec
         | a live feature | @replaces:cart   | nothing     |
         | itself         | @replaces:basket | replacement |
 
+  Rule: An example renamed with its steps edited, or merged into another, is named where it went in the change that does it
+
+    `@replaces:<feature>#<example>` on its Scenario, once for each example it takes over: by neither
+    its name nor its steps would sdp check know it for the one the base had. The link names what is
+    gone, so it lasts the change: merged, it names nothing, and check warns until it is deleted. An
+    example that is still here is its own test, and naming it is an error.
+
+    Scenario Outline: An example that names <case>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+            <tags>
+            Scenario: Add a lamp and a desk
+              Then the cart holds a lamp and a desk
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | case                   | tags                                                | reported    |
+        | two examples now gone  | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | nothing     |
+        | an example still here  | @replaces:cart#add-an-item                          | replacement |
+        | the rule it is under   | @replaces:cart#a-cart-holds-what-was-added          | replacement |
+
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag
 

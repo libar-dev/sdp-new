@@ -95,7 +95,7 @@ const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): 
 
 const replacementHint = (rel: string, from: Replacing) =>
   isExample(from)
-    ? `an example renamed with its steps edited names the example it was, @${rel}:<feature>#<example>, in the change that renames it`
+    ? `an example renamed with its steps edited, or merged into another, names each example it was, @${rel}:<feature>#<example>, in the change that does it`
     : `work still to come names the live rule or feature it replaces: @${rel}:<feature>#<rule>, or @${rel}:<feature> for all its rules`
 
 /** The relations whose targets must be nodes of the plan, with the kind roles one of which they must play. */
@@ -416,12 +416,12 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
 }
 
 /**
- * Each example of the base paired with one example of the workspace at most, and no example of
- * the workspace with two: the same example unchanged, then the same id, edited, then the example
- * whose Scenario names it as the one it was (`namedBy`, given the id of the Scenario that names it),
- * then the same steps under another name or in another place. Rows of one outline pair in their
- * order, a live row with a live one before any other. `named` holds the examples of the base paired
- * with one that names them.
+ * Each example of the base paired with one example of the workspace at most: the same example
+ * unchanged, then the same id, edited, then the example whose Scenario names it as one it was
+ * (`namedBy`, given the id of the Scenario that names it), then the same steps under another name or
+ * in another place. No example of the workspace pairs with two, but for one that names several, which
+ * takes over each. Rows of one outline pair in their order, a live row with a live one before any
+ * other. `named` holds the examples of the base paired with one that names them.
  */
 const pairExamples = (
   before: ReadonlyArray<Example>,
@@ -431,16 +431,24 @@ const pairExamples = (
   const free = new Set(now)
   const paired = new Map<Example, Example>()
   const named = new Set<Example>()
-  /** A base example's match: a free example of the workspace that `keys` gives the key `key` gives it. */
-  const index = (key: (example: Example) => string, keys: (example: Example) => ReadonlyArray<string> = (example) => [key(example)]) => {
+  /**
+   * A base example's match: an example of the workspace that `keys` gives the key `key` gives it, a
+   * free one first, and one already paired if `merging`.
+   */
+  const index = (
+    key: (example: Example) => string,
+    keys: (example: Example) => ReadonlyArray<string> = (example) => [key(example)],
+    merging = false
+  ) => {
     const by = new Map<string, Array<Example>>()
     for (const example of now) for (const named of keys(example)) by.set(named, [...by.get(named) ?? [], example])
     return (example: Example) => {
-      const candidates = (by.get(key(example)) ?? []).filter((candidate) => free.has(candidate))
-      return candidates.find((candidate) => candidate.live === example.live) ?? candidates[0]
+      const candidates = by.get(key(example)) ?? []
+      const choose = (among: ReadonlyArray<Example>) => among.find((candidate) => candidate.live === example.live) ?? among[0]
+      return choose(candidates.filter((candidate) => free.has(candidate))) ?? (merging ? choose(candidates) : undefined)
     }
   }
-  const byName = index((example) => example.scenario.id, (example) => namedBy(example.scenario.id))
+  const byName = index((example) => example.scenario.id, (example) => namedBy(example.scenario.id), true)
   const passes: ReadonlyArray<(example: Example) => Example | undefined> = [
     index((example) => `${example.scenario.id}\u0000${example.tests}`),
     index((example) => example.scenario.id),

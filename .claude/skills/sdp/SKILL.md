@@ -72,7 +72,8 @@ Feature: Guest checkout
   is live with a new live example of its own.
   Examples are compared one for one, each row of an outline on its own: a new name or place for one
   is no removal, one edited under its name is the same example, and one renamed with its steps
-  edited is the example its Scenario names with `@replaces:<feature>#<example>`.
+  edited, or merged into another, is named where it went, `@replaces:<feature>#<example>` on that
+  Scenario in that change.
 - **An open question is a Rule tagged `@open`**, its name the question. Answering it means
   renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
   has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
