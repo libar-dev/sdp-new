@@ -20,7 +20,9 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 2. for a spec below `ready`, why it is not ready: what the ready gate still misses
    ([[REQ-maturity-gates]]), or that the content already meets it;
 3. the spec text;
-4. its relationships, each with the other node's title, status and `file:line`;
+4. its relationships, each with the other node's title, status and `file:line`. A node declared
+   inside another spec — a glossary term, an iteration — has no text of its own to open, so its
+   text attributes come along: a term is listed with its `definition`;
 5. the status of each scenario; for each step that failed or is pending in the last run, its error
    and the `file:line` of its definition; and each step that no step definition — or more than one —
    matches, with a suggested definition. Steps are matched against the step definitions as read
@@ -124,6 +126,35 @@ Scenario: The architecture within two hops is included, reached through links
   And the output section "Architecture within" does not contain "ARCH-cache"
   And the output section "Architecture within" does not contain "PAT-memo"
   And the output section "Relationships" contains "-mentions-> ARCH-cache"
+
+Scenario: A glossary term among the relationships comes with its definition
+  Given a file "specs/REQ-checkout.md" containing:
+    """
+    ---
+    id: REQ-checkout
+    iteration: C1
+    ---
+    # Checkout
+    """
+  And a file "docs/GLOSSARY.md" containing:
+    """
+    ---
+    id: GLOSSARY
+    kind: glossary
+    nodes:
+      - id: TERM-cart
+        kind: term
+        title: Cart
+        definition: The items a shopper has chosen and not yet paid for.
+        links: { specified-by: REQ-checkout }
+      - { id: C1, kind: iteration, title: Checkout, start: "2026-11-16", end: "2026-11-27" }
+    ---
+    # Glossary
+    """
+  When I ask for the context of "REQ-checkout"
+  Then the output section "Relationships" contains "REQ-checkout <-specified-by- TERM-cart — Cart (term) docs/GLOSSARY.md:5"
+  And the line after the output line with "TERM-cart — Cart" contains "  definition: The items a shopper has chosen and not yet paid for."
+  And the line after the output line with "REQ-checkout -iteration-> C1" contains "  start: 2026-11-16"
 
 Scenario: Only decisions that still apply are included
   Given a file "specs/REQ-checkout.md" containing:

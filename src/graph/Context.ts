@@ -1,7 +1,7 @@
 /**
  * A context bundle: everything an agent (or a new team member) needs to work
  * on one node, as a single Markdown document — the spec itself, why it is not
- * ready yet, its relationships, scenario status with the step definitions still
+ * ready yet, its relationships (a term comes with its definition), scenario status with the step definitions still
  * to write, the architecture, quality requirements and decisions in reach,
  * and the code locations already linked to it. What is in reach is reached
  * through links: a prose mention is listed as a relationship but leads no
@@ -11,7 +11,7 @@ import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { gateReasons } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
-import { attribute, criteria, hasKind, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { attribute, criteria, hasKind, isDerived, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
 import { isActive } from "../run/Evidence.ts"
@@ -50,13 +50,20 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   const incoming = graph.in(id).filter((e) => e.rel !== vocabulary.relations.scenario)
   if (outgoing.length + incoming.length > 0) {
     out.push("## Relationships", "")
+    // A node that several links lead to says what it is once.
+    const said = new Set<string>()
+    const words = (other: GraphNode | undefined) => {
+      if (!other || said.has(other.id)) return []
+      said.add(other.id)
+      return ownWords(other)
+    }
     for (const e of outgoing) {
       const other = graph.node(e.to)
-      out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`)
+      out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`, ...words(other))
     }
     for (const e of incoming) {
       const other = graph.node(e.from)
-      out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`)
+      out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`, ...words(other))
     }
     out.push("")
   }
@@ -152,6 +159,17 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   return out.join("\n")
 }
 annotate(contextBundle, { is: "ARCH-reports" })
+
+/**
+ * What a node declared inside another spec says about itself. It has no text of its own to open, so
+ * its text attributes are all there is: a glossary term's `definition`, an iteration's dates.
+ */
+const ownWords = (node: GraphNode): ReadonlyArray<string> =>
+  attribute(node, "declaredIn") === undefined
+    ? []
+    : Object.entries(node.attrs)
+      .filter(([key, value]) => Predicate.isString(value) && !isDerived(node.kind, key))
+      .map(([key, value]) => `  ${key}: ${String(value)}`)
 
 /** Why a spec below `ready` is not ready: the ready gate's reasons, or that its content already meets it. */
 const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
