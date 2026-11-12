@@ -1,10 +1,12 @@
-@id=REQ-cart-totals @maturity=ready
+@id=cart-totals @maturity=ready
 @realized-by:ARCH-pricing
 Feature: Cart totals include VAT
 
   Shoppers see the gross total, including the VAT of the delivery country, before they pay.
 
-  @decided-by:DEC-integer-cents
+  Not shipping costs or discounts: the total is the goods and their VAT.
+
+  @decided-by:integer-cents
   Rule: The total adds the VAT of the delivery country, rounded once to whole cents
 
     Scenario Outline: Gross total by country
@@ -23,3 +25,14 @@ Feature: Cart totals include VAT
       Given a cart with 1 items at 100 cents
       When the delivery country is XX
       Then pricing fails with "no VAT rate for XX"
+
+  Rule: The total of a thousand-line cart takes under 2 ms
+
+    B2B customers order hundreds of lines, and the total is recalculated on every change: it must
+    feel instant.
+
+    @serial
+    Scenario: Large cart total
+      Given a cart with 1000 distinct lines
+      When the total is calculated 100 times
+      Then each calculation takes under 2 ms on average
