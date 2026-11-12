@@ -12,9 +12,10 @@ links:
 
 # Interactive queries on large graphs
 
-Agents issue many small queries while they work, and the graph is rebuilt from files on every
-command (see [[DEC-0003]]), so a query must stay interactive on graphs far larger than a typical
-repository's: tens of thousands of nodes.
+Agents issue many small queries while they work, and every command rebuilds the graph from the
+files (see [[DEC-0003]]). Both halves must stay interactive on workspaces far larger than a typical
+repository's: building the graph from thousands of specs, and querying graphs of tens of thousands
+of nodes.
 
 ## Scenarios
 
@@ -30,4 +31,10 @@ Scenario: Negative filter across the whole graph
   Given a generated graph of 20000 nodes and 60000 edges
   When the query "element[significant] !-*- decision" runs on it
   Then the median run completes within 250 ms
+
+@slow
+Scenario: Building the graph from 5,000 specs
+  Given a generated workspace of 5000 specs
+  When the graph is built from it
+  Then the median run completes within 1000 ms
 ~~~

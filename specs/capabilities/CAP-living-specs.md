@@ -8,4 +8,5 @@ iteration: I1
 # Living specifications
 
 Teams capture what a system should do — from a one-line idea to a fully designed, executable
-specification — in one format that stays true as the system changes, because it runs.
+specification — in one format that stays true as the system changes, because it runs. The plan
+and its milestones live in the same graph, so progress is read from evidence rather than reported.

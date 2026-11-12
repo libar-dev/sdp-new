@@ -24,16 +24,15 @@ depends on the system's drivers and risks; no count or ratio decides it.
 ## Options
 
 1. Infer significance from code metrics (fan-in, churn, size).
-2. Enforce a share of significant abstractions (a budget or a guideline).
+2. Enforce a share of significant abstractions, as a ratio the tool checks.
 3. Let architects mark significance explicitly; the tool records and shows it.
 
 ## Decision
 
 Option 3. Architects mark elements and patterns `significant: true` and say why in `rationale`.
-sdp never computes, limits or checks significance: no ratio, no budget, no diagnostics about it.
-It shows the curated set (`sdp arch`, context bundles, MCP) together with the patterns it applies
-and the decisions and quality requirements linked to it, and `sdp arch --candidates` may *suggest*
-elements worth a look.
+sdp never computes, limits or checks significance. It shows the curated set (`sdp arch`, context
+bundles, MCP) together with the patterns it applies and the decisions and quality requirements
+linked to it, and `sdp arch --candidates` may *suggest* elements worth a look.
 
 ## Consequences
 

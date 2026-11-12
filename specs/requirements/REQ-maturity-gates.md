@@ -13,18 +13,25 @@ links:
 
 # Honest maturity
 
-Authors declare how mature a spec is; the tool checks that the content supports the claim. The
-ladder is `idea → draft → specified → ready`. Whether a spec is implemented is not declared at all:
-it is derived from scenario results (see [[REQ-executable-specs]]).
+Authors declare how mature a spec is; `sdp check` verifies that the content supports the claim
+([[DEC-0005]]). Whether a spec is implemented is not declared at all: it is derived from scenario
+results ([[REQ-executable-specs]]).
 
 | Level | The content must have |
 | --- | --- |
 | idea | a title |
 | draft | a description of the problem or intent |
 | specified | at least one scenario that states an outcome (`Then`) |
-| ready | no open questions, every scenario has an outcome |
+| ready | no unresolved open questions; every scenario has steps and an outcome |
 
 Open questions are list items under an "Open questions" heading; `- [x]` marks one resolved.
+
+A spec claiming more than its content supports is an error (`maturity-gate`), with a hint naming
+the level it does reach. Content ahead of its label is not wrong, only worth knowing: when the
+content reaches `specified` or `ready` above the label, `sdp check` adds an informational
+`maturity-promotable`. Teams can rename or extend the ladder (`maturity` in [[REQ-configuration]]);
+levels of their own have no built-in gate but take part in ordering, so `maturity<ready` keeps
+working in queries.
 
 ## Scenarios
 
@@ -95,4 +102,21 @@ Scenario: Content ahead of its label can be promoted
   When the workspace is checked
   Then the check reports "maturity-promotable" for "REQ-csv"
   And the "maturity-promotable" diagnostic has severity "info"
+
+Scenario: Levels a team adds have no built-in gate
+  Given a file "sdp.config.yaml" containing:
+    """
+    maturity: [idea, draft, approved, specified, ready]
+    """
+  And a file "specs/REQ-csv.md" containing:
+    """
+    ---
+    id: REQ-csv
+    maturity: approved
+    ---
+    # Export to CSV
+    """
+  When the workspace is checked
+  Then the check does not report "maturity-gate"
+  And the check does not report "maturity-value"
 ~~~
