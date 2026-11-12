@@ -65,6 +65,9 @@ Feature: Start a spec
         next: a rule that rests on it is written on the spec it constrains, tagged `@decided-by:use-postgres`
         """
 
+  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+  Rule: A pattern is declared in its code like an element, so new writes no file for one, and the answer says how code plays it
+
   Rule: An element is declared where its code is, so new writes no file for one, and the answer says how its code declares it
 
     The code anchored to an element is the element, and that code's doc comment says what it is
