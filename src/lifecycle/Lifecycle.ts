@@ -24,7 +24,7 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type GraphEdge, type GraphNode, tally } from "../model/Graph.ts"
-import { activityRelation, attribute, dayOf, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
+import { activityRelation, attribute, dayOf, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
@@ -304,7 +304,7 @@ const gateMarks: Readonly<Record<string, string>> = { passed: "✔", failed: "�
  */
 export const renderLifecycle = (report: LifecycleReport): string => {
   const { current, milestones, next, today } = report
-  if (report.iterations.length === 0 && milestones.length === 0) return `${emptyPlanHint}\n`
+  if (report.iterations.length === 0 && milestones.length === 0) return `${emptyPlanHint(report.vocabulary)}\n`
   const out: Array<string> = []
   const label = (it: GraphNode) => it.id === current?.id ? `${it.id}*` : it.id
   const position = next === undefined
@@ -398,16 +398,10 @@ const stretches = (report: LifecycleReport) => {
   return runs
 }
 
-/** What `sdp lifecycle` says before there is a plan: how to write one. */
-export const emptyPlanHint = `No plan yet. A phase and an iteration are files of their own:
-\`sdp new phase "Elaboration"\`, then \`sdp new iteration "Architecture baseline" --id E1\`, which writes
-
-  @id=E1 @kind=iteration @start=2026-11-16 @end=2026-11-29
-  Feature: Architecture baseline
-
-with \`@phase:PH-elaboration\` to put it in its phase. Plan work on the work itself — \`@iteration:E1\`
-on a spec, and other disciplines' work with \`@activity.implementation:C1 @activity.test:T1\` — and end
-a stretch of the timeline with a milestone (\`sdp new milestone "Architecture baseline"\`,
-\`@closes:E1\`) whose scenarios are its gate.`
+/** What `sdp lifecycle` says before there is a plan: the commands that start one, in the workspace's words. */
+const emptyPlanHint = (vocabulary: Vocabulary) => {
+  const [phase, iteration, milestone] = [vocabulary.kinds.phase, vocabulary.kinds.iteration, vocabulary.kinds.milestone].map(wordFor)
+  return `No plan yet: \`sdp new ${phase} "Elaboration"\`, then \`sdp new ${iteration} "<title>"\` and \`sdp new ${milestone} "<title>"\`; each says what to write next.`
+}
 
 const pad = (s: string, n: number) => s.length >= n ? `${s} ` : s + " ".repeat(n - s.length)

@@ -659,7 +659,7 @@ Feature: Command line
       Then the output contains "created sdp.config.yaml"
       When I run "sdp -C fresh lifecycle"
       Then the output contains 'sdp new phase "Elaboration"'
-      And the output contains "@id=E1 @kind=iteration @start=2026-11-16 @end=2026-11-29"
+      And the output contains 'sdp new iteration "<title>"'
       When I run "sdp -C fresh new plan 'Delivery plan'"
       Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.feature"
       And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `@closes:PH-elaboration`'
@@ -675,6 +675,17 @@ Feature: Command line
       When I run "sdp -C fresh lifecycle"
       Then the output line with "MS-architecture-baseline" contains "Elaboration"
       And the output line with "MS-architecture-baseline" contains "E1"
+
+    Scenario: In the workspace's own words
+      Given a file "fresh/sdp.config.yaml" containing:
+        """
+        vocabulary:
+          kinds: { phase: [stage], iteration: [sprint] }
+          relations: { phase: [in-stage], plan: [in-sprint] }
+        """
+      When I run "sdp -C fresh lifecycle"
+      Then the output contains 'sdp new stage "Elaboration"'
+      And the output contains 'sdp new sprint "<title>"'
 
   Rule: check reports each diagnostic at the line to fix, down to the severity asked for, and fails only on an error
 
