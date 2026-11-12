@@ -51,7 +51,7 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
 | `annotation-unreadable` | warning | a typed annotation (`annotate(target, links)` from `sdp/annotations`) whose target is not a module-level declaration or `import.meta`, or whose ids or attributes are computed rather than literal — sdp reads annotations without running code; or a file that annotates but does not parse ([[ARCH-code-annotations]]) | write the target as a name declared at the top of the module and the ids as string literals |
 | `step-unreadable` | warning | a step file has no top-level `defineSteps(…)` call imported from `sdp/steps`, or registers a step whose expression is computed: sdp reads step definitions without running them, so context, snippets and `sdp steps` do not know that step ([[REQ-executable-specs]]) | write the expression as a string or RegExp literal |
-| `step-expression` | error | a step definition's Cucumber Expression is malformed, so it can match nothing and `sdp run` refuses to start | fix the expression |
+| `step-expression` | error | a step definition's Cucumber Expression is malformed, or its RegExp literal is no regular expression, so it can match nothing and `sdp run` refuses to start | fix the expression |
 | `types-stale` | warning | the id declarations at the `types` path no longer match the graph, so `annotate()` may accept removed ids or reject new ones ([[REQ-configuration]]) | run `sdp types` |
 | `template-placeholder` | warning | text an `sdp new` template asks the author to replace is still there — a prompt such as "We will …" or "What is still unknown?", or a scenario or step written as `<…>`; one diagnostic per spec, at the first | write your own text, or delete it |
 
@@ -225,6 +225,7 @@ Scenario Outline: A step definition sdp cannot read or match is reported
     | expression          | rule            | severity |
     | cart                | step-unreadable | warning  |
     | "a cart of {items}" | step-expression | error    |
+    | /a (cart of items/  | step-expression | error    |
 
 Scenario: Id declarations that no longer match the graph are reported
   Given a file "specs/REQ-a.md" containing:

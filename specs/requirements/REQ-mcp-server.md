@@ -54,8 +54,8 @@ trust yet executes nothing of it. Running scenarios is `sdp run`, on the command
 Mistakes come back as tool errors that an agent can read and act on, not as protocol failures: a
 malformed query returns the parser's message together with the query syntax, an unknown id says
 so and names the closest one, a depth out of range says what the range is. Arguments are checked
-against each tool's schema before it runs: a misspelt argument is rejected as invalid parameters,
-naming the argument, instead of being silently ignored. The server's instructions suggest where to
+against each tool's schema before it runs: a misspelt argument, or one of the wrong type, is
+rejected as invalid parameters, naming the argument, instead of being silently ignored. The server's instructions suggest where to
 start: `sdp_status`, then `sdp_query`, and `sdp_context` before working on a spec. They say how
 code links to the graph: typed `annotate` calls in TypeScript and JavaScript first, `@sdp`
 comments in other languages ([[ARCH-code-annotations]]).
@@ -201,7 +201,7 @@ Scenario Outline: A misspelt or out-of-range argument is rejected
     | tool        | arguments                               | problem                                  |
     | sdp_context | { "id": "REQ-a", "depht": 3 }           | ["depht"]                                |
     | sdp_context | { "id": "REQ-a", "depth": 9 }           | depth must be a whole number from 1 to 6 |
-    | sdp_context | { "id": "REQ-a", "depth": 1.5 }         | depth must be a whole number from 1 to 6 |
+    | sdp_context | { "id": "REQ-a", "depth": 1.5 }         | ["depth"]                                |
     | sdp_query   | { "expression": "requirement", "ids": true } | ["ids"]                             |
     | sdp_status  | { "verbose": true }                     | ["verbose"]                              |
 

@@ -72,7 +72,7 @@ const SdpContext = readOnly(Tool.make("sdp_context", {
     "Everything needed to work on one node, as Markdown: the spec text, why it is not ready yet, relationships, scenario status with the step definitions still to write (no run needed), architecture, quality requirements with their measures and decisions in reach, linked code.",
   parameters: Schema.Struct({
     id: Schema.String,
-    depth: Schema.optional(Schema.Number).annotate({ description: "Hops to search for architecture and decisions, 1 to 6 (default 2)" })
+    depth: Schema.optional(Schema.Int).annotate({ description: "Hops to search for architecture and decisions, 1 to 6 (default 2)" })
   }),
   ...text
 }))
