@@ -25,6 +25,23 @@ export const newId = (kind: string, title: string, config: Config, existing: Rea
 export const fileNameFor = (kind: string, id: string, title: string) =>
   /^\w+-\d+$/.test(id) && (kind === "decision" || kind === "risk") ? `${id}-${slugify(title)}.md` : `${id}.md`
 
+/** What `sdp new` writes: the new node's id, its file (relative to the workspace root) and content. */
+export const newSpec = (options: {
+  readonly kind: string
+  readonly title: string
+  readonly maturity: string
+  readonly today: string
+  readonly config: Config
+  readonly existing: ReadonlyArray<string>
+  readonly id?: string | undefined
+  readonly dir?: string | undefined
+}) => {
+  const { config, dir, existing, kind, title } = options
+  const id = options.id ?? newId(kind, title, config, existing)
+  const directory = (dir ?? directoryFor[kind] ?? `specs/${kind}`).replace(/\/+$/, "")
+  return { id, file: `${directory}/${fileNameFor(kind, id, title)}`, content: specTemplate({ ...options, id }) }
+}
+
 const levels = ["idea", "draft", "specified", "ready"]
 
 export const specTemplate = (options: {
@@ -76,8 +93,8 @@ What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be 
 id: ${id}
 kind: ${kind}
 title: ${title}
-significant: false
-# rationale: required when significant — which quality attributes, risks or costs of change make this significant?
+significant: false      # the architects' call
+# rationale: which quality attributes, risks or costs of change make this significant?
 links: {}
   # instance-of: PAT-...
   # depends-on: [ARCH-...]
@@ -122,7 +139,8 @@ links: {}
 ${level === 0 ? "One sentence capturing the idea." : quality ? "Which quality matters, for whom, and why." : "Who needs what, and why. Describe the problem before the solution."}
 `
   ]
-  if (level >= 1) sections.push(`## Open questions
+  // A ready spec has no open questions left, so its template has none.
+  if (level >= 1 && level < 3) sections.push(`## Open questions
 
 - [ ] What is still unknown?
 `)
@@ -166,19 +184,28 @@ architecture:
   drivers: [decision, nfr]      # shown next to significant elements in \`sdp arch\`
 `
 
-export const agentsTemplate = `## Working with specs (sdp)
+export const agentsTemplate = `---
+id: AGENTS-sdp
+kind: guide
+title: Working with specs (sdp)
+---
 
-Specs, decisions, architecture and the delivery plan are Markdown files with YAML
-front matter (\`id\`, \`kind\`, \`title\`, \`links\`). They form one graph.
+# Working with specs (sdp)
+
+Specs, decisions, architecture, the delivery plan and guides like this one are Markdown files with
+YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form one graph.
 
 - Find anything by id: \`grep -rn "REQ-guest-checkout" .\`
-- Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\`
-- Everything about one node: \`sdp context REQ-guest-checkout\`
+- Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\` (syntax: \`sdp q --help\`)
+- Everything about one node before you change it: \`sdp context REQ-guest-checkout\`
 - Curated architecture (only what architects marked significant): \`sdp arch\`
 - Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
 - Line-oriented dumps for grep/jq: \`sdp graph --write\` → .sdp/graph.jsonl, .sdp/graph.tsv
 
-Relations are free-form: name them for what they mean. Link code with
-\`@sdp implements REQ-…\` comments. Architectural significance (\`significant: true\`
-plus a \`rationale\`) is the architects' call: propose it, do not set it yourself.
+To change behaviour, change its spec first: the Gherkin scenarios are the acceptance tests.
+\`sdp run <id> --snippets\` prints step definition stubs for steps that are not automated yet.
+
+Relations are free-form: name them for what they mean. Link code with \`@sdp implements REQ-…\`
+comments. Architectural significance (\`significant: true\` plus a \`rationale\`) is the architects'
+call: propose it, do not set it yourself.
 `

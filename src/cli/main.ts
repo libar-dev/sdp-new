@@ -3,7 +3,9 @@
  * default and JSON with `--json`, so people and agents use the same tool.
  */
 import parseTagExpression from "@cucumber/tag-expressions"
-import { NodeRuntime, NodeServices } from "@effect/platform-node"
+// Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
 import { architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
@@ -22,8 +24,7 @@ import type { ScenarioResult } from "../run/Results.ts"
 import { mergeResults, runScenarios, summarize } from "../run/Runner.ts"
 import { loadProject, loadStepModules, writeResults } from "../workspace/Workspace.ts"
 import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
-import { agentsTemplate, configTemplate, directoryFor, fileNameFor, newId, specTemplate } from "./templates.ts"
-import { serveMcp } from "../mcp/Server.ts"
+import { agentsTemplate, configTemplate, newSpec } from "./templates.ts"
 
 // @sdp is ARCH-cli
 
@@ -119,7 +120,14 @@ const queryCommand = Command.make(
   })
 ).pipe(
   Command.withAlias("q"),
-  Command.withDescription("Query the graph with a path pattern"),
+  Command.withShortDescription("Query the graph with a path pattern"),
+  Command.withDescription(`Query the graph with a path pattern (SDPQ):
+
+  node (edge node)*
+  node  kind | kind|kind | * | #ID | #ID|ID, then [cond, ...]
+  cond  key | !key | key=a|b | key!=a | key~regex | key<v | key>=v  (maturity and stage compare in order)
+  edge  -rel-> | <-rel- | -rel-   rel: * | a|b, trailing + follows it transitively
+        prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves`),
   Command.withExamples([
     { command: "sdp q 'requirement[maturity<ready]'", description: "Requirements not ready yet" },
     { command: "sdp q 'element[significant] !-*- decision'", description: "Significant elements without a decision" },
@@ -178,7 +186,7 @@ const checkCommand = Command.make(
     const count = (s: string) => diagnostics.filter((d) => d.severity === s).length
     yield* Console.log(c.dim(`${count("error")} error(s), ${count("warning")} warning(s), ${count("info")} info`))
   })
-).pipe(Command.withDescription("Validate links, maturity gates, decisions and architectural significance"))
+).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity gates and decision records; exit 1 on errors"))
 
 // --- run / gate -------------------------------------------------------------
 
@@ -377,14 +385,23 @@ const newCommand = Command.make(
     const project = yield* loadProject(root, { withResults: false })
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const nodeId = Option.getOrElse(id, () => newId(kind, title, project.config, [...project.graph.nodes.keys()]))
-    if (project.graph.node(nodeId)) return yield* fail(`id ${nodeId} already exists at ${formatSource(project.graph.node(nodeId)!.source)}`)
-    const directory = Option.getOrElse(dir, () => directoryFor[kind] ?? `specs/${kind}`)
-    const file = path.join(directory, fileNameFor(kind, nodeId, title))
-    const today = DateTime.formatIsoDate(yield* DateTime.now)
-    yield* fs.makeDirectory(path.join(root, directory), { recursive: true })
-    yield* fs.writeFileString(path.join(root, file), specTemplate({ kind, id: nodeId, title, maturity, today }))
-    yield* Console.log(`${nodeId}\t${file}`)
+    const created = newSpec({
+      kind,
+      title,
+      maturity,
+      today: DateTime.formatIsoDate(yield* DateTime.now),
+      config: project.config,
+      existing: [...project.graph.nodes.keys()],
+      id: Option.getOrUndefined(id),
+      dir: Option.getOrUndefined(dir)
+    })
+    const existing = project.graph.node(created.id)
+    if (existing) return yield* fail(`id ${created.id} already exists at ${formatSource(existing.source)}`)
+    const target = path.join(root, created.file)
+    if (yield* fs.exists(target)) return yield* fail(`${created.file} already exists`)
+    yield* fs.makeDirectory(path.dirname(target), { recursive: true })
+    yield* fs.writeFileString(target, created.content)
+    yield* Console.log(`${created.id}\t${created.file}`)
   })
 ).pipe(Command.withDescription("Create a spec, decision, element, ... from a template"))
 
@@ -405,14 +422,16 @@ const initCommand = Command.make(
     yield* write("sdp.config.yaml", configTemplate)
     yield* write(".sdp/.gitignore", "# regenerate with `sdp graph --write`; commit results.json if you want verified status in git\ngraph.*\n")
     yield* write("AGENTS.sdp.md", agentsTemplate)
-    yield* Console.log(c.dim("next: sdp new requirement \"My first idea\"  ·  merge AGENTS.sdp.md into your AGENTS.md / CLAUDE.md"))
+    yield* Console.log(c.dim("next: sdp new requirement \"My first idea\"  ·  point your AGENTS.md or CLAUDE.md at AGENTS.sdp.md"))
   })
-).pipe(Command.withDescription("Create sdp.config.yaml and agent instructions in the workspace"))
+).pipe(Command.withDescription("Create sdp.config.yaml and an agent guide (AGENTS.sdp.md, itself a spec) in the workspace"))
 
 const mcpCommand = Command.make(
   "mcp",
   {},
   Effect.fn(function*() {
+    // Loaded on demand: only `sdp mcp` needs the MCP stack.
+    const { serveMcp } = yield* Effect.promise(() => import("../mcp/Server.ts"))
     yield* serveMcp(yield* workspaceRoot)
   })
 ).pipe(Command.withDescription("Serve the graph to AI agents over MCP (stdio)"))
