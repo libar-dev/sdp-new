@@ -10,9 +10,9 @@ Feature: Use the command line
   Not what each command answers: that belongs to the feature the command serves.
 
   Background:
-    Given a file "specs/REQ-search.feature" containing:
+    Given a file "specs/search.feature" containing:
       """
-      @id=REQ-search @maturity=specified @realized-by:ARCH-index
+      @id=search @maturity=specified @realized-by:ARCH-index
       Feature: Search the catalogue
 
         Shoppers find products by name.
@@ -34,10 +34,10 @@ Feature: Use the command line
       @id=MS-beta
       Feature: Beta
 
-        Rule: Every requirement is ready
+        Rule: Every feature is ready
 
           Scenario: None is below ready
-            Then the query "requirement[maturity<ready]" returns no results
+            Then the query "feature[maturity<ready]" returns no results
       """
 
   Rule: A command exits with 0 when it did what it was asked and with 1 when it did not
@@ -47,12 +47,12 @@ Feature: Use the command line
       Then the exit code is <exit code>
 
       Examples:
-        | command              | exit code |
-        | sdp q requirement    | 0         |
-        | sdp check            | 0         |
-        | sdp run              | 0         |
-        | sdp gate MS-beta     | 1         |
-        | sdp q 'requirement[' | 1         |
+        | command          | exit code |
+        | sdp q feature    | 0         |
+        | sdp check        | 0         |
+        | sdp run          | 0         |
+        | sdp gate MS-beta | 1         |
+        | sdp q 'feature[' | 1         |
 
   Rule: An answer that may miss something says why and exits with 2, while stdout keeps the answer alone
 
@@ -60,64 +60,64 @@ Feature: Use the command line
     something is absent.
 
     Scenario Outline: From a workspace with a file sdp cannot read
-      Given a file "specs/REQ-broken.feature" containing:
+      Given a file "specs/broken.feature" containing:
         """
-        @id=REQ-broken @owner=Two words
-        Feature: A requirement sdp cannot read
+        @id=broken @owner=Two words
+        Feature: A feature sdp cannot read
         """
       When I run "<command>"
       Then the exit code is 2
       And the output contains "incomplete: this answer may miss something"
-      And the output contains "specs/REQ-broken.feature:1 [gherkin-syntax]"
+      And the output contains "specs/broken.feature:1 [gherkin-syntax]"
 
       Examples:
-        | command                  |
-        | sdp q requirement        |
-        | sdp q requirement --ids  |
-        | sdp graph -q requirement |
-        | sdp show REQ-search      |
-        | sdp context REQ-search   |
-        | sdp status               |
-        | sdp arch --json          |
-        | sdp lifecycle            |
+        | command              |
+        | sdp q feature        |
+        | sdp q feature --ids  |
+        | sdp graph -q feature |
+        | sdp show search      |
+        | sdp context search   |
+        | sdp status           |
+        | sdp arch --json      |
+        | sdp lifecycle        |
 
     Scenario Outline: Each thing that could change the answer and was not read
       Given a file "<file>" containing:
         """
         <content>
         """
-      When I run "sdp q requirement --ids"
+      When I run "sdp q feature --ids"
       Then the exit code is 2
       And the output contains "note: not read: <file>:<line> [<rule>]"
-      And the output lines are "REQ-search"
+      And the output lines are "search"
 
       Examples:
-        | file               | line | rule                  | content                                                                                                                            |
-        | specs/copy.feature | 1    | duplicate-id          | @id=REQ-search\nFeature: Search again                                                                                              |
-        | src/search.ts      | 4    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nconst id = "REQ-search"\nannotate(search, { implements: id }) |
-        | specs/b.feature    | 1    | annotation            | @uses:REQ-search,ARCH-index\nFeature: B                                                                                            |
-        | specs/b.feature    | 1    | link-syntax           | @iteration=IT-beta\nFeature: B                                                                                                     |
+        | file               | line | rule                  | content                                                                                                                        |
+        | specs/twin.feature | 1    | duplicate-id          | @id=search\nFeature: Search again                                                                                              |
+        | src/search.ts      | 4    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nconst id = "search"\nannotate(search, { implements: id }) |
+        | specs/b.feature    | 1    | annotation            | @uses:search,ARCH-index\nFeature: B                                                                                            |
+        | specs/b.feature    | 1    | link-syntax           | @iteration=IT-beta\nFeature: B                                                                                                 |
 
   Rule: With --json, stdout is one envelope: whether the answer is complete, the notes, and the data
 
     Scenario: A complete answer has no notes, and one that may miss something says what was not read
-      When I run "sdp q requirement --json"
+      When I run "sdp q feature --json"
       Then the exit code is 0
       And the JSON output has:
-        | complete   | true       |
-        | notes      | nothing    |
-        | data.nodes | REQ-search |
-      Given a file "specs/REQ-broken.feature" containing:
+        | complete   | true    |
+        | notes      | nothing |
+        | data.nodes | search  |
+      Given a file "specs/broken.feature" containing:
         """
-        @id=REQ-broken @owner=Two words
-        Feature: A requirement sdp cannot read
+        @id=broken @owner=Two words
+        Feature: A feature sdp cannot read
         """
-      When I run "sdp q requirement --json"
+      When I run "sdp q feature --json"
       Then the exit code is 2
       And the JSON output has:
-        | complete   | false      |
-        | data.nodes | REQ-search |
-      And the output contains '"not read: specs/REQ-broken.feature:1 [gherkin-syntax]'
+        | complete   | false  |
+        | data.nodes | search |
+      And the output contains '"not read: specs/broken.feature:1 [gherkin-syntax]'
 
     Scenario: A gate that is not met is a complete answer
       When I run "sdp gate MS-beta --json"
@@ -131,13 +131,13 @@ Feature: Use the command line
     The way git finds its repository: a command run anywhere inside a workspace works on all of it.
 
     Scenario: Another directory, named with -C
-      Given a file "elsewhere/specs/REQ-export.feature" containing:
+      Given a file "elsewhere/specs/export.feature" containing:
         """
-        @id=REQ-export
+        @id=export
         Feature: Export
         """
-      When I run "sdp -C elsewhere q requirement --ids"
-      Then the output lines are "REQ-export"
+      When I run "sdp -C elsewhere q feature --ids"
+      Then the output lines are "export"
 
     Scenario: From a subdirectory
       Given a file "sdp.config.yaml" containing:
@@ -159,22 +159,22 @@ Feature: Use the command line
       And the file "<not written>" does not exist
 
       Examples:
-        | command                               | refusal                                                         | not written                          |
-        | -C nowhere status                     | no such directory                                               | .sdp/results.json                    |
-        | -C specs/REQ-search.feature status    | a workspace is a directory, and this is a file                  | .sdp/results.json                    |
-        | -C specs/REQ-search.feature init      | a workspace is a directory, and this is a file                  | sdp.config.yaml                      |
-        | run --concurrency 0                   | the number of scenarios to run at once is 1 or more             | .sdp/results.json                    |
-        | run --tags '(@fast'                   | invalid --tags                                                  | .sdp/results.json                    |
-        | run REQ-serach                        | nothing matches REQ-serach                                      | .sdp/results.json                    |
-        | gate REQ-search                       | REQ-search has no gate scenarios                                | .sdp/results.json                    |
-        | context REQ-search --depth 0          | depth must be a whole number from 1 to 6                        | .sdp/results.json                    |
-        | context REQ-search --depth 7          | depth must be a whole number from 1 to 6                        | .sdp/results.json                    |
-        | new requirement ''                    | a requirement needs a title                                     | specs/requirements/REQ-0001.feature  |
-        | new a/b Carts                         | is not a kind: a kind is one word                               | specs/a/b/AB-carts.feature           |
-        | new ../x Carts                        | is not a kind: a kind is one word                               | x/X-carts.feature                    |
-        | new requirement Carts --id a/b        | cannot name a file: write it without a slash                    | specs/requirements/a/b.feature       |
-        | new requirement Carts --dir ''        | --dir needs a directory                                         | REQ-carts.feature                    |
-        | new requirement Carts --maturity done | unknown maturity done: use one of idea, draft, specified, ready | specs/requirements/REQ-carts.feature |
+        | command                           | refusal                                                         | not written                         |
+        | -C nowhere status                 | no such directory                                               | .sdp/results.json                   |
+        | -C specs/search.feature status    | a workspace is a directory, and this is a file                  | .sdp/results.json                   |
+        | -C specs/search.feature init      | a workspace is a directory, and this is a file                  | sdp.config.yaml                     |
+        | run --concurrency 0               | the number of scenarios to run at once is 1 or more             | .sdp/results.json                   |
+        | run --tags '(@fast'               | invalid --tags                                                  | .sdp/results.json                   |
+        | run serach                        | nothing matches serach                                          | .sdp/results.json                   |
+        | gate search                       | search has no gate scenarios                                    | .sdp/results.json                   |
+        | context search --depth 0          | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
+        | context search --depth 7          | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
+        | new feature ''                    | a feature needs a title                                         | specs/incoming/feature-0001.feature |
+        | new a/b Carts                     | is not a kind: a kind is one word                               | specs/a/b/AB-carts.feature          |
+        | new ../x Carts                    | is not a kind: a kind is one word                               | x/X-carts.feature                   |
+        | new feature Carts --id a/b        | cannot name a file: write it without a slash                    | specs/incoming/a/b.feature          |
+        | new feature Carts --dir ''        | --dir needs a directory                                         | carts.feature                       |
+        | new feature Carts --maturity done | unknown maturity done: use one of idea, draft, specified, ready | specs/incoming/carts.feature        |
 
     Scenario: A configuration or a step module that cannot be loaded, without a stack trace
       Given a file "broken/sdp.config.yaml" containing:
@@ -199,9 +199,9 @@ Feature: Use the command line
     Gates are counted apart from the other scenarios: a gate may be unmet with nothing broken.
 
     Scenario: On one screen, and as data
-      Given a file "specs/REQ-cart.feature" containing:
+      Given a file "specs/cart.feature" containing:
         """
-        @id=REQ-cart
+        @id=cart
         Feature: Cart
 
           Rule: A cart holds each item once
@@ -219,7 +219,7 @@ Feature: Use the command line
       And the output contains "check         no diagnostics"
       When I run "sdp status --json"
       Then the JSON output has:
-        | data.kinds.requirement     | 2 |
+        | data.kinds.feature         | 2 |
         | data.relations.realized-by | 1 |
         | data.stages.specified      | 1 |
         | data.scenarios.unrun       | 2 |

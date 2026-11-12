@@ -108,20 +108,22 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
 /**
  * Each architectural node with what it is for and its links; drivers and anchored code appear as
  * the nodes it links to. What it is for is the first paragraph of its spec — or, for a node
- * declared without one, what the code anchored to it says of itself.
+ * declared without one, what the code anchored to it says of itself. A title that only repeats
+ * the id, as that of an element declared by its code, is left out.
  */
 export const architecture = ({ anchors, architecture, drivers, edges, kinds }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
-  const title = (id: string) => titles.get(id) ?? ""
+  const title = (id: string) => titles.get(id) === id ? "" : titles.get(id) ?? ""
   const docs = new Map(anchors.map((code) => [code.id, code.attrs.doc]))
   const lines = [`Architecture: ${architecture.length} node(s) of the kinds ${kinds.join(", ")}`]
   for (const node of architecture) {
     const incoming = edges.filter((e) => e.to === node.id)
     const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : incoming.map((e) => docs.get(e.from))
-    lines.push("", `${node.id} — ${node.title} (${node.kind})  ${where(node)}`.trimEnd())
+    const named = title(node.id) === "" ? node.id : `${node.id} — ${node.title}`
+    lines.push("", `${named} (${node.kind})  ${where(node)}`.trimEnd())
     for (const text of described) if (typeof text === "string") lines.push(`  ${text}`)
-    for (const edge of edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`)
-    for (const edge of incoming) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`)
+    for (const edge of edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`.trimEnd())
+    for (const edge of incoming) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`.trimEnd())
   }
   return lines.join("\n")
 }

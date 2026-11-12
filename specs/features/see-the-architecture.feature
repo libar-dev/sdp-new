@@ -12,19 +12,19 @@ Feature: See the architecture
 
   Background:
     Given these specs:
-      | tags                                                                                       | Feature                                 |
-      | @id=ARCH-orders @decided-by:DEC-outbox @instance-of:PAT-outbox @constrained-by:NFR-latency | Orders                                  |
-      | @id=PAT-outbox                                                                             | Transactional outbox                    |
-      | @id=DEC-outbox                                                                             | Orders publish events through an outbox |
-      | @id=DEC-json-logs                                                                          | Logs are JSON                           |
-      | @id=NFR-latency                                                                            | Order latency                           |
-      | @id=REQ-receipts @realized-by:ARCH-orders                                                  | Receipts                                |
+      | tags                                                                                                       | Feature                                 |
+      | @id=ARCH-orders @decided-by:publish-through-an-outbox @instance-of:PAT-outbox @constrained-by:order-latency | Orders                                  |
+      | @id=PAT-outbox                                                                                             | Transactional outbox                    |
+      | @id=publish-through-an-outbox @kind=decision                                                               | Orders publish events through an outbox |
+      | @id=json-logs @kind=decision                                                                               | Logs are JSON                           |
+      | @id=order-latency @kind=nfr                                                                                | Order latency                           |
+      | @id=receipts @realized-by:ARCH-orders                                                                      | Receipts                                |
     And a file "specs/ARCH-billing.feature" containing:
       """
       @id=ARCH-billing
       Feature: Billing
 
-        Owns invoices; tax rules are regulated and costly to change. It writes logs as DEC-json-logs says.
+        Owns invoices; tax rules are regulated and costly to change. It writes logs as json-logs says.
       """
     And a file "src/mailer.ts" containing:
       """
@@ -55,11 +55,13 @@ Feature: See the architecture
       Then the exit code is 0
       And the JSON output has:
         | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox      |
-        | data.drivers      | DEC-outbox, NFR-latency                                 |
+        | data.drivers      | publish-through-an-outbox, order-latency                |
         | data.anchors      | code:src/mailer.ts#Mailer, code:src/orders.ts#place     |
         | data.edges.rel    | constrained-by, decided-by, imports, instance-of, is, is |
 
   Rule: Each element is shown with what it is for, from its spec or else from the doc comment of its code, and with its links
+
+    An element declared by its code alone has no title of its own, so it is named by its id alone.
 
     Scenario: One element described by its spec, one by its code, one by its links alone
       When I run "sdp arch"
@@ -69,23 +71,25 @@ Feature: See the architecture
         Architecture: 4 node(s) of the kinds element, pattern
 
         ARCH-billing — Billing (element)
-        Owns invoices; tax rules are regulated and costly to change. It writes logs as DEC-json-logs says.
+        Owns invoices; tax rules are regulated and costly to change. It writes logs as json-logs says.
 
         ARCH-orders — Orders (element)
-        ARCH-orders -decided-by-> DEC-outbox  Orders publish events through an outbox
+        ARCH-orders -decided-by-> publish-through-an-outbox  Orders publish events through an outbox
         ARCH-orders -instance-of-> PAT-outbox  Transactional outbox
-        ARCH-orders -constrained-by-> NFR-latency  Order latency
-        ARCH-orders -imports-> ARCH-mailer  ARCH-mailer
+        ARCH-orders -constrained-by-> order-latency  Order latency
+        ARCH-orders -imports-> ARCH-mailer
         ARCH-orders <-is- code:src/orders.ts#place  place
 
         PAT-outbox — Transactional outbox (pattern)
         PAT-outbox <-instance-of- ARCH-orders  Orders
 
-        ARCH-mailer — ARCH-mailer (element)
+        ARCH-mailer (element)
         Sends receipts, and retries while the provider is down.
         ARCH-mailer <-imports- ARCH-orders  Orders
         ARCH-mailer <-is- code:src/mailer.ts#Mailer  Mailer
         """
+      And the output does not contain "ARCH-mailer — ARCH-mailer"
+      And the output does not contain "ARCH-mailer  ARCH-mailer"
 
     Scenario: An element anchored in two places is described by each, in the order of their files
       Given a file "src/outbox.ts" containing:
@@ -100,7 +104,7 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains:
         """
-        ARCH-mailer — ARCH-mailer (element)
+        ARCH-mailer (element)
         Sends receipts, and retries while the provider is down.
         Keeps each receipt until the provider has taken it.
         """
@@ -143,6 +147,7 @@ Feature: See the architecture
       And the output contains "flowchart LR"
       And the output contains "-->|decided-by|"
       And the output contains "-->|imports|"
+      And the output contains '["ARCH-mailer"]'
 
   Rule: A quality requirement, of kind nfr or of any kind whose type says so, is shown beside what it constrains
 
@@ -151,11 +156,11 @@ Feature: See the architecture
 
     Scenario Outline: Marked by its kind or by its type
       Given these specs:
-        | tags                                   | Feature               |
-        | @id=ARCH-search @constrained-by:Q-fast | Search                |
-        | @id=Q-fast <marker>                    | Results within 200 ms |
+        | tags                                           | Feature               |
+        | @id=ARCH-search @constrained-by:search-latency | Search                |
+        | @id=search-latency <marker>                    | Results within 200 ms |
       When I ask for the architecture view
-      Then the output contains "ARCH-search -constrained-by-> Q-fast"
+      Then the output contains "ARCH-search -constrained-by-> search-latency"
 
       Examples:
         | marker                          |
