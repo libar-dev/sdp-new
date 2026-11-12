@@ -11,18 +11,12 @@ links:
 
 # System graph
 
-Nodes (`id`, `kind`, `title`, attributes, source) and edges (`from`, `rel`, `to`, attributes, every
-declaration's source), with in/out adjacency indexes. It owns its data: what it is built from is
-copied and frozen, and every read is a method, so a step handler or a caller cannot change the graph
-another reader sees. Attributes are JSON data, under any key — `__proto__` is a key like `owner` —
-and a graph refuses to be built from anything else, which it could not copy. Knows nothing about
-requirements, decisions or architecture — the words sdp interprets are its vocabulary profile
-([[ARCH-vocabulary]]).
+Nodes and edges with in and out adjacency indexes, each with the `file:line` it came from. It knows
+nothing about requirements, decisions or architecture: what sdp reads into a word is the
+vocabulary profile's business ([[ARCH-vocabulary]]).
 
-Every command, check, gate and agent reads it; its free-form shape (DEC-0002) is the product's main
-modifiability bet, and changing it touches every feature.
-
-Code: `src/model/Graph.ts`.
+It is architecture because every command, check, gate and agent reads it. Its free-form shape is
+the product's main modifiability bet, and changing it touches every feature.
 
 ## Scenarios
 
@@ -33,7 +27,7 @@ Scenario: A built graph cannot be changed, through what it was built from or wha
   Then the graph still has "a" -uses-> "b" via "http"
   And nothing read from the graph can be changed
 
-Scenario Outline: A graph is built from JSON data only
+Scenario Outline: A graph is built from JSON data only, since it copies what it is given
   Then no graph can be built from a node whose attribute is <value>
 
   Examples:

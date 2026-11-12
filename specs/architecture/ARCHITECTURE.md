@@ -46,80 +46,27 @@ nodes:
 
 # Architecture overview
 
-A pipeline (see [[PAT-pipes-and-filters]]) from files to answers. Files are the only source of
-truth; the graph is rebuilt on every command ([[PAT-derived-index]]).
-
-```mermaid
-flowchart LR
-  files[(Markdown, .feature, code, step files)] --> ws[Workspace IO]
-  ws --> parser[Spec parser] & annotations[Code annotation scanner] --> builder[Graph builder] --> graph((System graph))
-  graph --> views[Query engine, checker, lifecycle view, architecture view, reports] --> app[Use cases] --> cli[CLI] & mcp[MCP server]
-  graph --> runner[Scenario runner] -- results.json --> ws
-```
-
-The picture is how data flows. Which element depends on which is not drawn: it is declared, as
-`uses` links, and checked.
-
-Every element and pattern declared here is the architecture, by the architects' act of declaring
-it ([[DEC-0008]]; `sdp arch` shows it). An element with its own file specifies its contract there,
-as scenarios.
-
-## What `uses` means
+The elements too small for a file of their own, and the rules that hold between all elements.
+`sdp arch` prints the architecture and `sdp arch --mermaid` draws it; how data flows through it is
+[[PAT-pipes-and-filters]].
 
 `A uses B` says one thing: a module anchored to `A` imports a value — a function, a class, a
-constant — from a module anchored to `B`. A module is anchored by its `is` annotation
-(`annotate(import.meta, { is: "ARCH-runner" })`, [[ARCH-code-annotations]]); an import of types
-alone is not a use, since it calls no code of the other element, and a module that no annotation
-anchors belongs to no element. It is the one relation declared between elements: where data
-flows is the picture above, what depends on what is these links.
+constant — from a module anchored to `B`. An import of types alone is no use: it calls no code of
+the other element.
 
-Because the meaning is mechanical, the links are checked: the `uses` links declared between
-elements are exactly the value imports between their modules, so the declared architecture cannot
-drift from the code, and no cycle between elements goes unrecorded — there is none.
+## Open questions
 
-```sh
-sdp graph --mermaid -q 'element -uses-> element'     # the dependency diagram
-sdp q 'element -uses+-> element' --paths             # what an element reaches
-```
-
-## Implementation
-
-TypeScript on Effect 4, run directly by Node.js 24 with no build step ([[DEC-0004]], [[DEC-0012]]), one module
-per element:
-
-| Module | Responsibility | Element |
-| --- | --- | --- |
-| `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, computes the fingerprints results are recorded against, imports step modules for `sdp run` with `import "sdp/steps"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
-| `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts`, `StepDefinitions.ts` | CommonMark and YAML parsing, Gherkin through the official parser with every line mapped back, spec assembly, step definitions read from step files without running them | ARCH-spec-parser |
-| `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in any language | ARCH-code-annotations |
-| `src/graph/Build.ts` | Pure graph construction, link keys, stage derivation from the results it is handed | ARCH-graph-builder |
-| `src/model/Graph.ts` | Immutable graph with adjacency indexes | ARCH-graph |
-| `src/model/Vocabulary.ts`, `Config.ts` | The vocabulary profile: the words sdp interprets, and the configuration that renames them | ARCH-vocabulary |
-| `src/model/Results.ts` | The results a run records, as data: statuses, evidence, the roll-up into verification | — |
-| `src/graph/Query.ts` | SDPQ parser and evaluator | ARCH-query-engine |
-| `src/steps.ts`, `src/run/` | Step API (`sdp/steps`), matching, runner (Effect, cooperative timeouts), evidence and its layers, the results store, built-in graph steps | ARCH-runner |
-| `src/check/` | Rules over the built project | ARCH-checker |
-| `src/arch/` | The architecture view | ARCH-architecture-view |
-| `src/lifecycle/` | Phases, iterations, gates and discipline activity | ARCH-lifecycle |
-| `src/graph/Context.ts`, `Export.ts`, `Status.ts` | Context bundles, the graph as records, status summary | ARCH-reports |
-| `src/app/` | The application layer: one use case per command — reading the graph, running scenarios, authoring — each returning an answer of plain records or a typed error; the envelope of an answer, how it reads as text, and the templates | ARCH-reports, until the architects give it an element of its own |
-| `src/cli/` | `effect/cli` commands: parse flags, call a use case, print the answer | ARCH-cli |
-| `src/mcp/` | `effect/ai` MCP server: check arguments, call the same use case, return the answer | ARCH-mcp |
-
-Effect is used where it pays: services (`FileSystem`, `Path`) at the edge, so the identical
-pipeline runs against memory in executable specs; `Schema` for the config file and stored results;
-`Effect.fn` workflows; step handlers as Effects with `Effect.timeout`; `effect/cli` and
-`McpServer`. The pure core — parsing, graph, query, checks — is plain functions over immutable data.
-
-Where the specifications of sdp itself live: [[VISION]], *Finding your way*.
+- [ ] Does `src/app/` — the use cases, the answer envelope, the templates — get an element of its
+  own? Until the architects say, its modules are anchored to ARCH-reports.
+- [ ] `src/model/Results.ts`, the results a run records as data, is anchored to no element.
 
 ## Scenarios
 
 ~~~gherkin
-Scenario: The uses links between elements are the imports between their modules
+Scenario: The uses links declared between elements are exactly the value imports between the modules anchored to them
   Then the "uses" links between elements are the value imports between the modules anchored to them
 
-Scenario: No element depends on itself through others
+Scenario: No element depends on itself through others, so no cycle between elements goes unrecorded
   Then no element reaches itself over "uses" links
 
 Scenario: Nothing depends on a transport, except the command line that starts the server

@@ -13,10 +13,9 @@ links:
 Links code into the graph. In TypeScript and JavaScript an annotation is code: a call to
 `annotate` from `sdp/annotations`, typed and checked by the compiler ([[DEC-0009]]). In every
 language it may also be a comment. Both are read statically — sdp never runs the code — and
-[[ARCH-graph-builder]] turns what they say into `code` nodes and edges. A TypeScript or JavaScript
-file is parsed once (oxc-parser), and both kinds of annotation are read from that parse.
+[[ARCH-graph-builder]] turns what they say into `code` nodes and edges.
 
-## Typed annotations (TypeScript, JavaScript)
+## Typed annotations
 
 ```ts
 import { annotate } from "sdp/annotations"
@@ -27,73 +26,6 @@ annotate(Graph, { is: "ARCH-graph", "instance-of": "PAT-derived-index" })
 
 annotate(import.meta, { is: "ARCH-query-engine" })   // the whole module
 ```
-
-- **The target is a module-level declaration** — a class, function or constant declared at the
-  top of the module, a property path on one such as `Graph.prototype`, or `import.meta` for the
-  module — so renaming it or finding its references includes the annotation, and its name is
-  unique in the file: the `code` node is `code:<file>#<name>`, at the declaration's line. A target
-  declared inside a function or block, or not declared in the module at all (an import, a global),
-  is `annotation-unreadable`. Targets are run-time values: an interface or type alias cannot be
-  passed, so for a type-only abstraction annotate the module that defines it or the value that
-  realizes it.
-- **Ids are typed.** `sdp types` writes the workspace's ids, mapped to their kinds, into a
-  declaration that fills `Ids` in `sdp/annotations` (path: the `types` setting,
-  [[REQ-configuration]]). Then an id that does not exist is a compile error, with "did you mean"
-  suggestions; `IdOf<"decision">` narrows to one kind. The check is only as good as the
-  declaration: the compiler must include it (the `tsconfig` `include`), and it must be current —
-  until `sdp types` has run any string is accepted, and `sdp check` reports `types-stale` when the
-  declaration no longer matches the graph.
-- **Links** map free-form relation names to one id or a list of ids. An optional third argument
-  declares the node an `is` link names when no spec does: its `kind` and `title`.
-- **Literals only.** Ids and attributes must be literals; a computed one is reported as
-  `annotation-unreadable` instead of guessed. Type-only wrappers do not count as computing:
-  `{ is: "ARCH-x" } as const` and `satisfies Declaration` read as the object inside.
-- **Bound to the import.** A call counts when its name refers to `annotate` imported from
-  `sdp/annotations` (or `sdp`, which exports it too): aliased (`import { annotate as a }`) and
-  namespace (`import * as sdp`) imports are recognised, ES module imports only. Any other module,
-  even one whose path ends in `annotations`, is a different function. Inside a scope that declares
-  the name again — a parameter, a `let`, `const`, `class` or function declaration in a block, a
-  `var` in a function, a loop variable, a catch parameter — the name means that declaration and its
-  calls are not annotations.
-- **Unparsable files are reported.** A file that names `sdp/annotations` or `@sdp` but does not
-  parse loses none of its annotations silently: `annotation-unreadable` points at the syntax error.
-- **Descriptions come from the code.** The annotated declaration's JSDoc — the module's leading
-  JSDoc for `import.meta` — becomes the `code` node's `doc`, so context bundles quote the code's own
-  description of itself.
-- **No run-time cost.** `annotate` returns its target; `sdp/annotations` has no imports.
-
-## Comment annotations (any language)
-
-```text
-@sdp <relation> <ID>[, <ID>...] [key=value ...]
-```
-
-`grep -rn "@sdp" .` lists every one.
-
-- **In TypeScript and JavaScript, comments are the parser's.** An annotation is a line of a real
-  comment whose text, after the comment's own `/` `*` `!` and spaces, starts with `@sdp`. Text in a
-  string or a template literal is never one, whatever it looks like.
-- **In other languages, best effort by line.** sdp has no parser for them, so an annotation is any
-  line whose first text is a comment marker — `//`, `///`, `/*`, `*`, `#`, `--`, `<!--`, `;`, `%`
-  or a docstring quote — followed by `@sdp`, or a bare `@sdp` line. Such a line inside a multi-line
-  string counts too.
-- **Comment lines only.** Prose that mentions the marker is not an annotation; one that follows code
-  on the same line is not read, and is reported as `annotation-ignored`.
-- **Binding.** An annotation binds to the declaration directly below it, skipping further comment
-  lines. Declarations are recognised by keyword (`class`, `interface`, `type`, `function`, `const`,
-  `def`, `func`, `fn`, `struct`, `trait`, …). A blank line, or a line that declares nothing, binds
-  it to the whole file instead.
-- **Targets and attributes.** Targets are ids, separated by commas; an annotation with a target
-  that is not an id is ignored. `key=value` pairs are attributes: `true`, `false` and numbers are
-  typed, quotes allow spaces.
-- **Relations** are free text. `is` anchors a node in code — and declares it when no spec does.
-
-Code: `src/annotations.ts` (the typed API), `src/parse/Annotations.ts` (one scan per file),
-`src/parse/TypedAnnotations.ts`, `src/graph/Types.ts` (the id declarations).
-
-## Scenarios
-
-### Typed annotations
 
 ~~~gherkin
 Scenario: A typed annotation links a symbol, and brings its declaration's line and description
@@ -121,7 +53,7 @@ Scenario: A typed annotation links a symbol, and brings its declaration's line a
   And the annotated "Graph" is declared at line 10 and described as "The system graph. More detail follows."
   And the annotated "the module" is declared at line 1 and described as "Graph module."
 
-Scenario: A namespace import works, and a declaration comes along with an is link
+Scenario: A namespace import is read too, and a third argument declares the node an is link names
   Given a file "src/cache.ts" containing:
     """
     import * as sdp from "sdp/annotations"
@@ -133,6 +65,25 @@ Scenario: A namespace import works, and a declaration comes along with an is lin
   Then the annotations are:
     | line | relation | targets    | binds to | attributes                        |
     | 4    | is       | ARCH-cache | cache    | kind="element" title="Page cache" |
+
+Scenario: The target is a declaration at the top of the module, a property of one, or import.meta
+  Given a file "src/graph.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+
+    export class Graph {}
+    export const build = () => new Graph()
+    annotate(Graph.prototype, { is: "ARCH-graph" })
+    annotate(build, { is: "ARCH-builder" })
+    annotate(import.meta, { implements: "REQ-graph" })
+    """
+  When "src/graph.ts" is scanned for annotations
+  Then the annotations are:
+    | line | relation   | targets      | binds to        |
+    | 5    | is         | ARCH-graph   | Graph.prototype |
+    | 6    | is         | ARCH-builder | build           |
+    | 7    | implements | REQ-graph    | the file        |
+  And the scan reports nothing
 
 Scenario Outline: What cannot be read without running the code is reported, not guessed
   Given a file "src/pay.ts" containing:
@@ -153,7 +104,7 @@ Scenario Outline: What cannot be read without running the code is reported, not 
     | annotate(pay(), { implements: "REQ-pay" }) | the annotation target must be a name      |
     | annotate(pay, links)                       | the links must be an object literal       |
 
-Scenario Outline: The target is a declaration at the top of the module
+Scenario Outline: A target that is not declared at the top of the module is reported, and links nothing
   Given a file "src/items.ts" containing:
     """
     import { annotate } from "sdp/annotations"
@@ -251,7 +202,7 @@ Scenario: Outside the shadowing scope the import is read again
     | 5    | implements | REQ-pay   | pay      |
     | 6    | is         | ARCH-real | wrap     |
 
-Scenario Outline: A file that annotates but does not parse is reported
+Scenario Outline: A file that annotates but does not parse is reported, so none of its annotations is lost silently
   Given a file "src/pay.ts" containing:
     """
     <annotates>
@@ -316,12 +267,21 @@ Scenario: In the graph, typed annotations become code nodes at the declaration
   Then there is an edge "code:src/pay.ts#pay" -implements-> "REQ-pay"
   And node "code:src/pay.ts#pay" has attribute doc = "Charges the card on file."
   And node "code:src/pay.ts#pay" is at line 4
+
+Scenario: Annotating costs nothing at run time: the module that exports annotate imports nothing
+  When a fresh Node process imports "sdp/annotations"
+  Then the output contains "/src/annotations.ts"
+  And the output contains "/src/" 1 time
 ~~~
 
-### Comment annotations
+## Comment annotations
+
+```text
+@sdp <relation> <ID>[, <ID>...] [key=value ...]
+```
 
 ~~~gherkin
-Scenario Outline: Any comment syntax carries an annotation
+Scenario Outline: A comment line in any language carries an annotation, bound to the declaration below it if sdp knows its keyword
   Given a file "<file>" containing:
     """
     <comment>
@@ -342,8 +302,10 @@ Scenario Outline: Any comment syntax carries an annotation
     | src/pay.rs   | /// @sdp implements REQ-pay      | pub struct Payment {}            | Payment  |
     | db/pay.sql   | -- @sdp implements REQ-pay       | create table payments (id int);  | the file |
     | web/pay.html | <!-- @sdp implements REQ-pay --> | <form id="pay"></form>           | the file |
+    | src/pay.clj  | ; @sdp implements REQ-pay        | (defn pay [order])               | the file |
+    | src/pay.erl  | % @sdp implements REQ-pay        | pay(Order) -> ok.                | the file |
 
-Scenario: An annotation binds to the declaration below it, or to the file
+Scenario: An annotation binds to the declaration directly below it, or after a blank line to the file, and carries typed attributes
   Given a file "src/billing.ts" containing:
     """
     // @sdp is ARCH-billing kind=element title="Billing engine" tier=1
@@ -366,7 +328,7 @@ Scenario: An annotation binds to the declaration below it, or to the file
     | 9    | uses        | ARCH-ledger         | post     | via="events"                                 |
     | 10   | instance-of | PAT-outbox          | post     | role="publisher"                             |
 
-Scenario: Mentioning the marker is not an annotation
+Scenario: Mentioning the marker is not an annotation, and one that follows code on its line is reported as ignored
   Given a file "src/help.ts" containing:
     """
     // Write `@sdp <relation> <ID>` above a symbol to link it.
@@ -396,7 +358,7 @@ Scenario: In TypeScript and JavaScript a string is never an annotation
   When I query "element"
   Then the result is "ARCH-real"
 
-Scenario: In other languages an annotation is a comment line, even inside a multi-line string
+Scenario: Other languages are read by line, best effort: a comment line counts even inside a multi-line string
   Given a file "src/example.py" containing:
     """
     text = '''
