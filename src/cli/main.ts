@@ -6,7 +6,7 @@ import parseTagExpression from "@cucumber/tag-expressions"
 import { NodeRuntime, NodeServices } from "@effect/platform-node"
 import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
-import { architectureView, rankCandidates, significance } from "../arch/Significance.ts"
+import { architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { isActive, type Project } from "../graph/Build.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
@@ -268,24 +268,25 @@ const archCommand = Command.make(
   "arch",
   {
     format: Flag.Literals("format", ["text", "mermaid", "dot", "json"]).pipe(Flag.withDefault("text")),
-    candidates: Flag.Boolean("candidates").pipe(Flag.withDescription("Rank promotion candidates"), Flag.withDefault(false))
+    candidates: Flag.Boolean("candidates").pipe(
+      Flag.withDescription("Suggest elements an architect may want to look at (suggestions only)"),
+      Flag.withDefault(false)
+    )
   },
   Effect.fn(function*({ candidates, format }) {
     const project = yield* loadProject(yield* workspaceRoot)
-    const report = significance(project)
+    const summary = architectureSummary(project)
     const view = architectureView(project)
     if (candidates) {
       const ranked = rankCandidates(project)
       if (format === "json") return yield* printJson(ranked.map((r) => ({ ...nodeJson(r.node), score: r.score, reasons: r.reasons })))
-      yield* Console.log("Promotion candidates (suggestions; significance is a human decision):")
+      yield* Console.log("Candidates worth a look (suggestions; what is significant is the architect's call):")
       for (const r of ranked) yield* Console.log(`  ${String(r.score).padStart(3)}  ${r.node.id}  ${c.dim(r.reasons.join("; "))}`)
       return
     }
     if (format === "json") {
       return yield* printJson({
-        ratio: report.ratio,
-        guideline: report.guideline,
-        population: report.population,
+        significant: summary.significant.map((n) => n.id),
         nodes: view.nodes.map(nodeJson),
         edges: view.edges
       })
@@ -294,13 +295,8 @@ const archCommand = Command.make(
       process.stdout.write(exportGraph(project.graph.subgraph(view.nodes.map((n) => n.id)), format))
       return
     }
-    const pct = (r: number) => `${(r * 100).toFixed(1)}%`
-    yield* Console.log(
-      `${c.bold("Significant")}: ${report.significant.length} of ${report.population} abstractions (${pct(report.ratio)}; guideline ~${pct(report.guideline)})${
-        report.aboveGuideline ? c.yellow("  above guideline: worth a review, not a failure") : ""
-      }`
-    )
-    for (const n of report.significant) {
+    yield* Console.log(`${c.bold("Significant")} (marked by architects): ${summary.significant.length}`)
+    for (const n of summary.significant) {
       yield* Console.log(`\n  ${c.bold(n.id)}  ${n.title}  ${c.dim(formatSource(n.source))}`)
       if (n.attrs.rationale) yield* Console.log(`    why: ${String(n.attrs.rationale)}`)
       for (const e of view.edges.filter((e) => e.from === n.id)) {
@@ -310,11 +306,11 @@ const archCommand = Command.make(
         yield* Console.log(`    <-${e.rel}- ${e.from}  ${c.dim(project.graph.node(e.from)?.title ?? "")}`)
       }
     }
-    if (report.declared.length > 0) {
-      yield* Console.log(c.dim(`\n  ${report.declared.length} declared but not significant: ${report.declared.map((n) => n.id).join(", ")}`))
+    if (summary.declared.length > 0) {
+      yield* Console.log(c.dim(`\n  ${summary.declared.length} declared, not significant: ${summary.declared.map((n) => n.id).join(", ")}`))
     }
   })
-).pipe(Command.withDescription("The curated architecture: significant elements, patterns, and what justifies them"))
+).pipe(Command.withDescription("The curated architecture: significant elements, their patterns, decisions and quality requirements"))
 
 const lifecycleCommand = Command.make(
   "lifecycle",
@@ -358,11 +354,8 @@ const statusCommand = Command.make(
     yield* Console.log(line("spec stages", summary.stages, stageOrder))
     yield* Console.log(line("decisions", summary.decisions))
     yield* Console.log(line("scenarios", summary.scenarios, ["passed", "failed", "pending", "undefined", "unrun", "stale"]))
-    const sig = summary.significance
     yield* Console.log(
-      `${c.bold("architecture".padEnd(13))} ${sig.significant} significant of ${sig.population} abstractions (${
-        (sig.ratio * 100).toFixed(1)
-      }%, guideline ~${(sig.guideline * 100).toFixed(0)}%)`
+      `${c.bold("architecture".padEnd(13))} ${summary.architecture.significant} significant · ${summary.architecture.declared} declared, not significant`
     )
     yield* Console.log(line("check", summary.diagnostics, ["error", "warning", "info"]))
   })

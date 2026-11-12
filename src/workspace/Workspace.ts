@@ -9,7 +9,6 @@ import { pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
-import { countAbstractions } from "../parse/Inventory.ts"
 import { RunResults } from "../run/Results.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 
@@ -90,26 +89,16 @@ export const writeResults = Effect.fn("writeResults")(function*(root: string, co
 
 export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
   const config = yield* loadConfig(root)
-  const [specPaths, featurePaths, codePaths, inventoryPaths] = yield* Effect.all([
+  const [specPaths, featurePaths, codePaths] = yield* Effect.all([
     findFiles(root, config.specs, config.exclude),
     findFiles(root, config.features, config.exclude),
-    findFiles(root, config.code, config.exclude),
-    findFiles(root, config.architecture.inventory.include, [...config.exclude, ...config.architecture.inventory.exclude])
+    findFiles(root, config.code, config.exclude)
   ])
   const specFiles = yield* readAll(root, specPaths)
   const featureFiles = yield* readAll(root, featurePaths)
   const codeFiles = yield* readAll(root, codePaths)
-  const byPath = new Map(codeFiles.map((f) => [f.path, f]))
-  const inventoryFiles = [
-    ...codeFiles.filter((f) => inventoryPaths.includes(f.path)),
-    ...(yield* readAll(root, inventoryPaths.filter((p) => !byPath.has(p))))
-  ]
-  const inventory = inventoryFiles.reduce(
-    (sum, file) => sum + countAbstractions(file.path, file.content, config.architecture.inventory.pattern),
-    0
-  )
   const results = options.withResults === false ? undefined : yield* readResults(root, config)
-  return buildProject({ root, config, specFiles, featureFiles, codeFiles, inventory, results }) satisfies Project
+  return buildProject({ root, config, specFiles, featureFiles, codeFiles, results }) satisfies Project
 })
 
 /** Import every step definition module matched by `config.steps`. */

@@ -8,7 +8,7 @@ tags: [graph, agents]
 links:
   refines: CAP-agent-collaboration
   realized-by: ARCH-query-engine
-  decided-by: DEC-0007
+  decided-by: DEC-0006
   constrained-by: NFR-query-performance
 ---
 

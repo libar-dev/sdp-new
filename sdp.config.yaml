@@ -1,11 +1,8 @@
-# sdp specifies itself. See docs/DESIGN.md for what each key means.
+# sdp specifies itself; every key is described in specs/requirements/REQ-configuration.md.
 specs: ["specs/**/*.md", "docs/**/*.md"]
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
 architecture:
   kinds: [element, pattern]
-  significanceGuideline: 0.10   # a heuristic, not a limit (reported as info)
-  justifiedBy: [decision, nfr]
-  inventory:
-    include: ["src/**/*.ts"]
+  drivers: [decision, nfr]

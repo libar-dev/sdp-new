@@ -11,8 +11,9 @@ agents as much as for people.
   verifies the claim; *implemented* is never declared — it is derived from scenario results.
 - **Decisions of every kind** (architecture, product, process, …) as records in the same graph,
   optionally guarding themselves with a scenario.
-- **Curated architecture.** Only explicitly significant elements and patterns — with a rationale,
-  a justifying decision or quality requirement, and within a 10% budget of all abstractions.
+- **Curated architecture.** Architects mark the few significant elements and patterns (with a
+  rationale); sdp shows exactly those with their decisions and quality requirements, and never
+  decides significance for them.
 - **Free-form graph.** Kinds and relation names are your words. Query with one-line path patterns,
   export as JSONL/TSV for grep and jq, or serve over MCP.
 - **Lifecycle.** Phases, iterations and milestones are graph nodes; milestone gates are scenarios;

@@ -1,7 +1,8 @@
 /**
  * Rule checks over a built project. Every diagnostic carries a rule id, a
  * `file:line`, and a hint phrased as an instruction, so humans and agents can
- * fix issues without reading this file.
+ * fix issues without reading this file. Architectural significance is never
+ * checked: it is the architect's call.
  *
  * Maturity gates make declared maturity honest: a spec may claim a level only
  * when its content supports it.
@@ -13,10 +14,8 @@
  */
 import { Predicate } from "effect"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
-import type { GraphNode } from "../model/Graph.ts"
 import type { Project } from "../graph/Build.ts"
 import type { Spec } from "../parse/Spec.ts"
-import { isJustifier, significance } from "../arch/Significance.ts"
 
 // @sdp is ARCH-checker
 
@@ -159,53 +158,6 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  const report = significance(project)
-  for (const node of report.withoutRationale) {
-    out.push({
-      rule: "significance-rationale",
-      severity: "error",
-      message: `${node.id} is marked significant without a rationale`,
-      node: node.id,
-      source: node.source,
-      hint: "add `rationale:` saying which qualities, risks or costs of change make it significant, or remove `significant`"
-    })
-  }
-  for (const node of report.unjustified) {
-    out.push({
-      rule: "significance-justification",
-      severity: "warning",
-      message: `${node.id} is significant but not linked to any ${project.config.architecture.justifiedBy.join("/")} or quality requirement`,
-      node: node.id,
-      source: node.source,
-      hint: "link the decision or quality attribute that makes it significant, or demote it"
-    })
-  }
-  if (report.aboveGuideline) {
-    out.push({
-      rule: "significance-guideline",
-      severity: config.architecture.guidelineSeverity,
-      message: `${report.significant.length} of ${report.population} abstractions (${pct(report.ratio)}) are marked significant, above the ~${
-        pct(report.guideline)
-      } guideline`,
-      hint: "a heuristic, not a limit: review whether each significant element still carries a quality, risk or high cost of change (sdp arch)"
-    })
-  }
-  const significantIds = new Set(report.significant.map((n) => n.id))
-  for (const node of graph.nodes.values()) {
-    if (node.kind !== "pattern" || significantIds.has(node.id)) continue
-    const users = graph.neighbours(node.id).filter(({ other }) => significantIds.has(other))
-    if (users.length === 0 && !graph.neighbours(node.id).some(({ other }) => isJustifierNode(project, graph.node(other)))) {
-      out.push({
-        rule: "pattern-unused",
-        severity: "info",
-        message: `pattern ${node.id} is not applied by any significant element`,
-        node: node.id,
-        source: node.source,
-        hint: "link the elements that apply it (`instance-of`), or drop it from the curated architecture"
-      })
-    }
-  }
-
   for (const spec of project.specs) {
     for (const scenario of spec.scenarios) {
       if (scenario.steps.length === 0) {
@@ -221,7 +173,3 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   }
   return sortDiagnostics(out)
 }
-
-const isJustifierNode = (project: Project, node: GraphNode | undefined) => node !== undefined && isJustifier(project, node)
-
-const pct = (ratio: number) => `${(ratio * 100).toFixed(1)}%`

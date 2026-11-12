@@ -28,8 +28,9 @@ decisions behind it are recorded in the same format they describe: see `docs/dec
    "done" — scenario results decide ([DEC-0005](decisions/DEC-0005-derived-delivery-stage.md)).
 4. **Free-form graph.** Kinds and relations are the authors' words, not a metamodel
    ([DEC-0002](decisions/DEC-0002-free-form-relations.md)).
-5. **Significance is curated.** Few abstractions are architecture; they are chosen, justified and
-   budgeted ([DEC-0009](decisions/DEC-0009-significance-budget.md)).
+5. **Significance is the architect's call.** Few abstractions are architecture; architects mark them,
+   the tool shows them and never computes or checks significance
+   ([DEC-0008](decisions/DEC-0008-significance-is-the-architects-call.md)).
 6. **Agent-native.** Everything is reachable with grep/jq, a `--json` CLI, and MCP; every fact
    carries `file:line`.
 
@@ -113,8 +114,8 @@ Scenario: Checkout under peak load
   Then the confirmation is shown within 300 ms at p95
 ```
 
-Mark them `kind: nfr` (or `type: quality`); significance justification and gates treat them as
-quality drivers. When automated, their step definitions are fitness functions — see
+Mark them `kind: nfr` (or `type: quality`); the architecture view shows them as drivers next to the
+significant elements they constrain. When automated, their step definitions are fitness functions — see
 `specs/quality/NFR-query-performance.md`, which runs in every `sdp run`.
 
 ## 3. Executable specifications
@@ -167,7 +168,6 @@ Then the query "requirement[maturity=ready]" returns at least 5 results
 Then the query "requirement|nfr" returns:
   | REQ-a |
 Then every node matching "requirement[maturity=ready]" also matches "*[stage=verified]"
-Then the significance ratio is at most 10%
 Then there are no error diagnostics
 Then there are no diagnostics for rule "dangling-link"
 Then the node "REQ-a" has stage "verified"
@@ -186,27 +186,29 @@ Consequences), a `status` (`proposed | accepted | rejected | deprecated | supers
 `organization`, … They link to what they `affect`, and `supersedes` older decisions.
 
 `sdp check` keeps them consistent (`decision-status`, `decision-supersede`, `decision-content`).
-A decision that can be verified carries a guard scenario — e.g. DEC-0009 asserts the significance
-budget, DEC-0002 asserts that every reference resolves.
+A decision that can be verified carries a guard scenario — e.g. DEC-0001 asserts that all Gherkin
+parses, DEC-0002 that every reference resolves. While the project is young, a decision that changes
+is rewritten or deleted rather than superseded; git keeps the history.
 
 ## 5. Curated architecture
 
-Most abstractions in a codebase — classes, modules, functions — are design detail. Typically 10% or
-fewer carry quality attributes, are expensive to change, or constrain many other parts. Those are
-the architecture, and listing everything else next to them hides them. So:
+Most abstractions in a codebase — classes, modules, functions — are design detail. A small share
+(one in ten is a fair illustration, not a measure) carry quality attributes, are expensive to
+change, or constrain many other parts. Those are the architecture, and listing everything else next
+to them hides them. Which ones they are is the architect's call
+([DEC-0008](decisions/DEC-0008-significance-is-the-architects-call.md)):
 
 - **Declaring** an element or pattern is cheap: a Markdown file (`kind: element`/`pattern`), an
-  inline node, or a code comment `@sdp is ARCH-x kind=element`. Declared elements are candidates.
-- **Significance is explicit**: `significant: true` plus a `rationale` (rule
-  `significance-rationale`), and a link to a decision or quality requirement that justifies it
-  (rule `significance-justification`).
-- **Significance is budgeted**: the share of significant abstractions is measured against an
-  inventory of abstractions in code (exported types/classes/functions per language, configurable)
-  and must stay within `significanceBudget` (default 10%, rule `significance-budget`).
-- **The tool suggests, people decide**: `sdp arch --candidates` ranks non-significant nodes by
-  links from decisions and quality requirements, requirement dependencies and fan-in.
-- **The curated view** (`sdp arch`, MCP `sdp_architecture`, context bundles) contains only
-  significant nodes, the patterns they apply and their justifications.
+  inline node, or a code comment `@sdp is ARCH-x kind=element`.
+- **Marking significance** is an explicit act by an architect: `significant: true`, with a
+  `rationale` saying why. sdp never computes, limits or checks it — no ratio, no budget, no rule.
+- **The tool helps, people decide**: `sdp arch --candidates` suggests non-significant nodes worth a
+  look, ranked by links from decisions and quality requirements, requirement dependencies and fan-in.
+- **The curated view** (`sdp arch`, MCP `sdp_architecture`, context bundles) contains only the
+  significant nodes, the patterns they apply, and the decisions and quality requirements linked to
+  them (`architecture.drivers`).
+- Teams that want their own rule write it as a scenario, e.g. in a milestone gate:
+  `Then the query "*[significant, !rationale]" returns no results`.
 
 Patterns are nodes (`kind: pattern`); elements link to them with any relation (conventionally
 `instance-of`, with an optional `role`). Relationships among elements are free-form (`feeds`,
@@ -231,7 +233,7 @@ Every node and edge records the `file:line` it came from.
 
 ### Querying: SDPQ
 
-One-line path patterns borrowing Cypher's ASCII-art edges ([DEC-0007](decisions/DEC-0007-path-pattern-queries.md)):
+One-line path patterns borrowing Cypher's ASCII-art edges ([DEC-0006](decisions/DEC-0006-path-pattern-queries.md)):
 
 ```text
 query     := node (edge node)*
@@ -268,7 +270,7 @@ jq -c 'select(.type=="node" and .attrs.stage=="in-progress")' .sdp/graph.jsonl
 ## 7. Lifecycle
 
 The RUP structure — phases, iterations, milestones, disciplines — is graph data, not tool
-configuration ([DEC-0008](decisions/DEC-0008-lightweight-rup.md)):
+configuration ([DEC-0007](decisions/DEC-0006-lightweight-rup.md)):
 
 | RUP concept | In sdp |
 | --- | --- |
@@ -318,12 +320,12 @@ Pipes and filters: IO → parse → build → analyse.
 | Module | Responsibility | Significant |
 | --- | --- | --- |
 | `src/workspace/` | Config, globbing, reading through Effect `FileSystem`; in-memory FS for specs/tests | |
-| `src/parse/` | Markdown scanner, Gherkin (official parser, line-mapped), annotations, inventory | ✔ ARCH-spec-parser |
+| `src/parse/` | Markdown scanner, Gherkin (official parser, line-mapped), code annotations | ✔ ARCH-spec-parser |
 | `src/graph/Build.ts` | Pure graph construction, implicit links, results merge, stage derivation | |
 | `src/model/Graph.ts` | Immutable graph with adjacency indexes | ✔ ARCH-graph |
 | `src/graph/Query.ts` | SDPQ parser and evaluator | ✔ ARCH-query-engine |
 | `src/run/` | Step API, runner (Effect, timeouts), built-in graph steps, results schema | ✔ ARCH-runner |
-| `src/check/`, `src/arch/`, `src/lifecycle/` | Rules, significance, lifecycle | |
+| `src/check/`, `src/arch/`, `src/lifecycle/` | Rules, architecture view and candidates, lifecycle | |
 | `src/cli/`, `src/mcp/` | `effect/cli` commands; `effect/ai` MCP server | |
 
 Effect is used where it pays: services (`FileSystem`, `Path`) at the edge so the identical
@@ -347,17 +349,14 @@ on scenarios `status`, `lastRun`, `hash`, `steps`, `examples`.
 
 **Check rules:** `front-matter`, `missing-id`, `duplicate-id`, `dangling-link`, `link-syntax`,
 `inline-node`, `gherkin-syntax`, `scenario-empty`, `maturity-value`, `maturity-gate`,
-`maturity-promotable`, `decision-status`, `decision-supersede`, `decision-content`,
-`significance-rationale`, `significance-justification`, `significance-budget`, `pattern-unused`.
+`maturity-promotable`, `decision-status`, `decision-supersede`, `decision-content`.
 
 **Config (`sdp.config.yaml`)**: `specs`, `features`, `code`, `steps`, `exclude`, `results`,
-`maturity`, `ids`, `architecture.{kinds, significanceBudget, enforceBudget, justifiedBy,
-inventory.{include, exclude, pattern}}`, `lifecycle.disciplines`. See `src/model/Config.ts`.
+`maturity`, `ids`, `architecture.{kinds, drivers}`, `lifecycle.disciplines`. See
+`src/model/Config.ts`.
 
 ## 11. Limits and next steps
 
-- The abstraction inventory is regex-based per language: a cheap, honest-enough denominator, not a
-  parser. Override `architecture.inventory.pattern` when it miscounts.
 - Discipline activity is computed from the plan; deriving it from git history is captured as
   [REQ-history-lifecycle](../specs/ideas/REQ-history-lifecycle.md).
 - No custom Cucumber parameter types, hooks (Before/After) or parallel scenario execution in the

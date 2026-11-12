@@ -8,7 +8,7 @@ tags: [lifecycle]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-lifecycle
-  decided-by: DEC-0008
+  decided-by: DEC-0007
 ---
 
 # Lifecycle view

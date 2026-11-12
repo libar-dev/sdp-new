@@ -4,7 +4,6 @@
  * ordinary scenarios — the same format as every other specification.
  *
  *   Then the query "element[significant] !-*- decision" returns no results
- *   Then the significance ratio is at most 10%
  *   Then there are no error diagnostics
  */
 import { Result } from "effect"
@@ -12,7 +11,6 @@ import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { projectOrderings, query } from "../graph/Query.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
-import { significance } from "../arch/Significance.ts"
 import { defineSteps } from "./Steps.ts"
 
 const run = (project: Project, source: string): ReadonlyArray<GraphNode> => {
@@ -60,15 +58,6 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
     const allowed = new Set(run(project, b).map((n) => n.id))
     const offenders = run(project, a).filter((n) => !allowed.has(n.id))
     if (offenders.length > 0) throw new Error(`${offenders.length} node(s) match "${a}" but not "${b}":\n${list(offenders)}`)
-  })
-
-  Then("the significance ratio is at most {int}%", ({ args: [max], project }) => {
-    const report = significance(project)
-    if (report.ratio * 100 > max) {
-      throw new Error(
-        `${report.significant.length} of ${report.population} abstractions are significant (${(report.ratio * 100).toFixed(1)}%), above ${max}%`
-      )
-    }
   })
 
   Then("there are no {word} diagnostics", ({ args: [severity], project }) => {

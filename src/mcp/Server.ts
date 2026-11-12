@@ -6,7 +6,7 @@
 import { NodeStdio } from "@effect/platform-node"
 import { Effect, FileSystem, Layer, Path, Result, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
-import { architectureView, significance } from "../arch/Significance.ts"
+import { architectureSummary, architectureView } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
@@ -58,7 +58,7 @@ const SdpContext = Tool.make("sdp_context", {
 })
 
 const SdpCheck = Tool.make("sdp_check", {
-  description: "Validate the workspace: dangling links, maturity gates, decision hygiene, significance curation. Each item has a hint.",
+  description: "Validate the workspace: dangling links, maturity gates, decision hygiene. Each item has a hint.",
   parameters: Schema.Struct({
     severity: Schema.optional(Schema.Literals(["error", "warning", "info"])).annotate({ description: "Minimum severity (default warning)" })
   }),
@@ -67,12 +67,12 @@ const SdpCheck = Tool.make("sdp_check", {
 
 const SdpArchitecture = Tool.make("sdp_architecture", {
   description:
-    "The curated architecture only: significant elements (with rationale), the patterns they apply, and the decisions/quality requirements that justify them. Use before designing a change.",
+    "The curated architecture only: the elements and patterns architects marked significant (with their rationale), the patterns they apply, and the decisions and quality requirements linked to them. Use before designing a change.",
   ...text
 })
 
 const SdpStatus = Tool.make("sdp_status", {
-  description: "Summary counts: node kinds, relations in use, spec stages, decision statuses, scenario results, significance ratio, diagnostics.",
+  description: "Summary counts: node kinds, relations in use, spec stages, decision statuses, scenario results, significant elements, diagnostics.",
   ...text
 })
 
@@ -122,13 +122,12 @@ const handlers = (root: string) =>
         }),
       sdp_architecture: () =>
         Effect.map(load, (project) => {
-          const report = significance(project)
+          const summary = architectureSummary(project)
           const view = architectureView(project)
           return JSON.stringify(
             {
-              significant: `${report.significant.length} of ${report.population} abstractions (${(report.ratio * 100).toFixed(1)}%; guideline ~${
-                (report.guideline * 100).toFixed(0)
-              }%)`,
+              significant: summary.significant.map((n) => n.id),
+              declaredNotSignificant: summary.declared.map((n) => n.id),
               nodes: view.nodes.map(nodeJson),
               edges: view.edges.map((e) => `${e.from} -${e.rel}-> ${e.to}`)
             },

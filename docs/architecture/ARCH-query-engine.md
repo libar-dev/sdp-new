@@ -8,7 +8,7 @@ rationale: >-
   specs across workspaces, and it carries the interactive-latency requirement.
 iteration: C1
 links:
-  decided-by: DEC-0007
+  decided-by: DEC-0006
   constrained-by: NFR-query-performance
   reads: ARCH-graph
 ---

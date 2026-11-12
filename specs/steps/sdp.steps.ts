@@ -8,6 +8,7 @@ import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
+import { architectureView, rankCandidates } from "../../src/arch/Architecture.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
 import type { Project } from "../../src/graph/Build.ts"
 import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
@@ -166,6 +167,27 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(step, `no step "${text}"`)
     assert.ok(step.snippet?.includes(suggestion), `snippet was ${step.snippet}`)
   })
+
+  Then("the check reports nothing", ({ world }) => {
+    const found = world.diagnostics ?? []
+    assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
+  })
+
+  // --- architecture ---------------------------------------------------------
+
+  When("I ask for the architecture view", ({ world }) =>
+    Effect.map(load(world), (project) => {
+      const view = architectureView(project)
+      world.output = [
+        ...view.nodes.map((n) => `${n.id} — ${n.title} (${n.kind})${n.attrs.rationale ? `\n  rationale: ${String(n.attrs.rationale)}` : ""}`),
+        ...view.edges.map((e) => `${e.from} -${e.rel}-> ${e.to}`)
+      ].join("\n")
+    }))
+
+  When("I ask for architecture candidates", ({ world }) =>
+    Effect.map(load(world), (project) => {
+      world.output = rankCandidates(project).map((c) => `${c.node.id} ${c.score} ${c.reasons.join("; ")}`).join("\n")
+    }))
 
   // --- context, exports, lifecycle, MCP ------------------------------------
 

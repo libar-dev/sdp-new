@@ -24,8 +24,6 @@ export interface ProjectInput {
   readonly specFiles: ReadonlyArray<SourceFile>
   readonly featureFiles: ReadonlyArray<SourceFile>
   readonly codeFiles: ReadonlyArray<SourceFile>
-  /** Number of abstractions counted in code (see Inventory). */
-  readonly inventory: number
   readonly results?: RunResults | undefined
 }
 
@@ -38,7 +36,6 @@ export interface Project {
   readonly graph: Graph
   /** Problems found while reading sources and linking the graph (`sdp check` adds rule checks). */
   readonly diagnostics: ReadonlyArray<Diagnostic>
-  readonly inventory: number
   readonly results: RunResults | undefined
 }
 
@@ -230,7 +227,6 @@ export const buildProject = (input: ProjectInput): Project => {
     annotations,
     graph: new Graph(nodes.values(), edges),
     diagnostics: sortDiagnostics(diagnostics),
-    inventory: input.inventory,
     results: input.results
   }
 }

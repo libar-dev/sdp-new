@@ -3,7 +3,7 @@ id: PLAN
 kind: plan
 title: Delivery plan for sdp 1.0
 links:
-  decided-by: DEC-0008
+  decided-by: DEC-0007
 nodes:
   - { id: inception,    kind: phase, title: Inception,    order: 1 }
   - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
@@ -24,7 +24,7 @@ nodes:
 
 # Delivery plan for sdp 1.0
 
-Risk-driven phases with two-week iterations ([[DEC-0008]]). Work is planned by setting
+Risk-driven phases with two-week iterations ([[DEC-0007]]). Work is planned by setting
 `iteration:` on a spec, decision or element; `sdp lifecycle` shows the result.
 
 **We are in Inception (I1).** I1 produced an executable prototype that already verifies several

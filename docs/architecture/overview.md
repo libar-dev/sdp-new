@@ -15,9 +15,9 @@ nodes:
     kind: element
     title: Checker
     links: { reads: ARCH-graph }
-  - id: ARCH-significance
+  - id: ARCH-architecture-view
     kind: element
-    title: Significance curation
+    title: Architecture view
     links: { reads: ARCH-graph }
   - id: ARCH-lifecycle
     kind: element

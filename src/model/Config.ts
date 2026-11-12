@@ -14,14 +14,7 @@ export const ConfigFile = Schema.Struct({
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   architecture: Schema.optional(Schema.Struct({
     kinds: Schema.optional(Schema.Array(Schema.String)),
-    significanceGuideline: Schema.optional(Schema.Number),
-    guidelineSeverity: Schema.optional(Schema.Literals(["info", "warning", "error"])),
-    justifiedBy: Schema.optional(Schema.Array(Schema.String)),
-    inventory: Schema.optional(Schema.Struct({
-      include: Schema.optional(Globs),
-      exclude: Schema.optional(Globs),
-      pattern: Schema.optional(Schema.String)
-    }))
+    drivers: Schema.optional(Schema.Array(Schema.String))
   })),
   lifecycle: Schema.optional(Schema.Struct({
     disciplines: Schema.optional(Schema.Record(Schema.String, Schema.Array(Schema.String)))
@@ -42,23 +35,10 @@ export interface Config {
   /** Id prefixes used by `sdp new`, keyed by kind. */
   readonly ids: Readonly<Record<string, string>>
   readonly architecture: {
-    /** Kinds that count as architectural abstractions (candidates for significance). */
+    /** Kinds that are architectural abstractions an architect may mark significant. */
     readonly kinds: ReadonlyArray<string>
-    /**
-     * Rough share of abstractions expected to be significant (a heuristic, not a limit).
-     * Going above it only prompts a review of the curated set.
-     */
-    readonly significanceGuideline: number
-    /** Severity of the hint when the guideline is exceeded; `info` unless a team wants it stricter. */
-    readonly guidelineSeverity: "info" | "warning" | "error"
-    /** Kinds whose links justify significance (decisions, quality requirements, ...). */
-    readonly justifiedBy: ReadonlyArray<string>
-    readonly inventory: {
-      readonly include: ReadonlyArray<string>
-      readonly exclude: ReadonlyArray<string>
-      /** Regex (multiline) counting abstractions per file; defaults are per language. */
-      readonly pattern: string | undefined
-    }
+    /** Kinds of architectural drivers (decisions, quality requirements) shown with significant nodes. */
+    readonly drivers: ReadonlyArray<string>
   }
   /** RUP-style disciplines and the node kinds that represent work in each. */
   readonly disciplines: Readonly<Record<string, ReadonlyArray<string>>>
@@ -86,14 +66,7 @@ export const defaults: Config = {
   },
   architecture: {
     kinds: ["element", "pattern"],
-    significanceGuideline: 0.1,
-    guidelineSeverity: "info",
-    justifiedBy: ["decision", "nfr"],
-    inventory: {
-      include: [`src/${sourceGlob}`, `lib/${sourceGlob}`, `app/${sourceGlob}`, `packages/${sourceGlob}`],
-      exclude: ["**/*.test.*", "**/*.spec.*", "**/*.steps.*", "**/__tests__/**"],
-      pattern: undefined
-    }
+    drivers: ["decision", "nfr"]
   },
   disciplines: {
     "business-modeling": ["capability", "goal", "actor", "business-process", "vision", "stakeholder"],
@@ -119,14 +92,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     ids: { ...defaults.ids, ...file.ids },
     architecture: {
       kinds: arch?.kinds ?? defaults.architecture.kinds,
-      significanceGuideline: arch?.significanceGuideline ?? defaults.architecture.significanceGuideline,
-      guidelineSeverity: arch?.guidelineSeverity ?? defaults.architecture.guidelineSeverity,
-      justifiedBy: arch?.justifiedBy ?? defaults.architecture.justifiedBy,
-      inventory: {
-        include: arch?.inventory?.include ?? file.code ?? defaults.architecture.inventory.include,
-        exclude: arch?.inventory?.exclude ?? defaults.architecture.inventory.exclude,
-        pattern: arch?.inventory?.pattern
-      }
+      drivers: arch?.drivers ?? defaults.architecture.drivers
     },
     disciplines: { ...defaults.disciplines, ...file.lifecycle?.disciplines }
   }

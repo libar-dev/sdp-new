@@ -162,11 +162,8 @@ steps: ["**/*.steps.ts"]        # step definition modules (export default define
 results: .sdp/results.json
 maturity: [idea, draft, specified, ready]
 architecture:
-  kinds: [element, pattern]     # kinds that are architectural abstractions
-  significanceGuideline: 0.10   # ~10% of abstractions tend to be significant: a heuristic, reported as info
-  justifiedBy: [decision, nfr]  # significance must be justified by links to these
-  inventory:
-    include: ["src/**/*"]       # counted to compute the significance ratio
+  kinds: [element, pattern]     # architectural abstractions; architects mark the significant ones
+  drivers: [decision, nfr]      # shown next to significant elements in \`sdp arch\`
 `
 
 export const agentsTemplate = `## Working with specs (sdp)
@@ -177,11 +174,11 @@ front matter (\`id\`, \`kind\`, \`title\`, \`links\`). They form one graph.
 - Find anything by id: \`grep -rn "REQ-guest-checkout" .\`
 - Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\`
 - Everything about one node: \`sdp context REQ-guest-checkout\`
-- Curated architecture (the ~10% that matters): \`sdp arch\`
+- Curated architecture (only what architects marked significant): \`sdp arch\`
 - Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
 - Line-oriented dumps for grep/jq: \`sdp graph --write\` → .sdp/graph.jsonl, .sdp/graph.tsv
 
 Relations are free-form: name them for what they mean. Link code with
-\`@sdp implements REQ-…\` comments. Only mark an element \`significant: true\`
-with a \`rationale\` and a link to the decision or quality requirement that makes it so.
+\`@sdp implements REQ-…\` comments. Architectural significance (\`significant: true\`
+plus a \`rationale\`) is the architects' call: propose it, do not set it yourself.
 `

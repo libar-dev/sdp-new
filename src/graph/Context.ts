@@ -5,7 +5,7 @@
  * in reach, and the code locations already linked to it.
  */
 import { Predicate } from "effect"
-import { isSignificant } from "../arch/Significance.ts"
+import { isSignificant } from "../arch/Architecture.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import type { Project } from "./Build.ts"
 

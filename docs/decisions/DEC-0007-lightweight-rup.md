@@ -1,5 +1,5 @@
 ---
-id: DEC-0008
+id: DEC-0007
 kind: decision
 title: Lightweight RUP lifecycle with executable milestone gates
 status: accepted
