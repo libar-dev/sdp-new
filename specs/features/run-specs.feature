@@ -4,6 +4,8 @@ Feature: Run specs as tests
 
   Developers, CI jobs and agents run the scenarios of the specs they are working on, or all of them,
   and want every outcome, and where to look when one fails, in one report read from the top.
+  Analysts and agents write a rule's examples before its code and land them on the main line, while
+  the team wants a failing example of what is built to stop the build.
 
   Not a gate: a run reports a milestone's gate and does not fail on it. What a run's results mean
   for a spec, and how long they count, is not decided here.

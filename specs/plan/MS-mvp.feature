@@ -4,26 +4,25 @@ Feature: Minimum viable product
 
   What sdp must be before anyone outside this repository is asked to use it: what is built so far,
   decided and verified, with questions interactive on large repositories, and the package
-  installable. Its obligations are named here, by the ids they keep once built, so that no plan
-  tag decides what MVP is.
+  installable. Its obligations are named here by their ids, so that no plan tag decides what MVP
+  is.
 
   Rule: The features it needs are built
 
     Scenario: Installing from npm
-      Then the query "#install-from-npm[file~^specs/features/][stage=verified]" returns 1 result
+      Then the query "#install-from-npm[stage=verified]" returns 1 result
 
-  Rule: The changes it needs have joined the features they change
-
-    A change is deleted once its rules are in its feature, so it is gone when it is built.
+  Rule: The rules it needs are built
 
     Scenario: Questions stay interactive on large repositories on disk
-      Then the query "rule[spec=ask-the-graph][title~on disk][verification=passing]" returns 1 result
-      And the query "change[id=questions-stay-interactive-on-disk]" returns no results
+      Then the query "rule[spec=ask-the-graph][title~on disk][stage=verified]" returns 1 result
 
   Rule: Nothing built is still undecided
 
-    Scenario: Open questions outside what is still to come
-      Then the query "*[openQuestions>0][file!~^specs/incoming/]" returns no results
+    A question about what is built has its feature's maturity; one about work to come declares its own.
+
+    Scenario: Open questions about what is built
+      Then the query "rule[tags~@open][!maturity] -rule-of-> *[!toCome]" returns no results
 
   Rule: Every element says what it is for
 
@@ -35,6 +34,6 @@ Feature: Minimum viable product
 
   Rule: The specification graph is consistent
 
-    Scenario: No error and no failed scenario
+    Scenario: No error, and no example of built work that does not pass
       Then there are no error diagnostics
-      And the query "scenario[status=failed]" returns no results
+      And the query "scenario[!toCome][status=failed|ambiguous|pending|undefined]" returns no results

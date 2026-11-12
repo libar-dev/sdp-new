@@ -741,3 +741,18 @@ Feature: Plan delivery
         | @id=beta @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline | Beta    |
       When the workspace is checked
       Then sdp reports nothing
+
+  @maturity=draft
+  Rule: Each iteration shows what git saw change in its dates beside what was planned
+
+    Once people stop moving work between iterations, the chart of the plan is a drawing; git knows
+    which specs, decisions and code changed when.
+
+  @maturity=draft
+  Rule: An iteration whose planned work saw no change stands out
+
+  @open @maturity=draft
+  Rule: Are phases and disciplines optional, with a plain sequence of iterations by default?
+
+    The shape of the Rational Unified Process came from an example, not a need, and this repository
+    uses neither. The case for phases: a backlog says nothing of the architecture being proven first.

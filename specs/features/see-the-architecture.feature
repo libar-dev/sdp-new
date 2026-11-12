@@ -231,3 +231,9 @@ Feature: See the architecture
     Scenario: An element without links or code, and a decision nothing links to
       When the workspace is checked
       Then sdp reports nothing
+
+  @open @maturity=idea
+  Rule: When an element is anchored in several places, which anchor declares it?
+
+    Today the anchor in the first file by path does, and what the others declare is dropped without
+    a word, so renaming a file can change an element's title, kind or line.

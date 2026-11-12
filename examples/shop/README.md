@@ -6,9 +6,9 @@ step definitions that drive the domain code.
 
 | File | Shows |
 | --- | --- |
-| [specs/features/cart-totals.feature](specs/features/cart-totals.feature) | a built feature whose scenarios pass: *verified*. Its quality rule's step definitions are a fitness function |
-| [specs/incoming/guest-checkout.feature](specs/incoming/guest-checkout.feature) | a feature specified, not built: its steps are *undefined*, not failing, and what is still undecided is an open question |
-| [specs/incoming/wishlist.feature](specs/incoming/wishlist.feature) | an idea — a title and a sentence are a valid spec |
+| [specs/features/cart-totals.feature](specs/features/cart-totals.feature) | a feature declared *implemented* whose scenarios pass: *verified*. Its quality rule's step definitions are a fitness function |
+| [specs/features/guest-checkout.feature](specs/features/guest-checkout.feature) | a feature specified and still to come: its steps are *undefined*, which fails no run, and what is still undecided is an open question |
+| [specs/features/wishlist.feature](specs/features/wishlist.feature) | an idea — a title and a sentence are a valid spec |
 | [specs/decisions/integer-cents.feature](specs/decisions/integer-cents.feature) | a decision: what was chosen over what, why, and at what price; the rule it imposes is a rule of cart totals |
 | [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp/steps` |
 | [src/pricing.ts](src/pricing.ts) | the element `ARCH-pricing`, declared where its code is with a typed `annotate()` call from `sdp/annotations`; its doc comment says what it is for |

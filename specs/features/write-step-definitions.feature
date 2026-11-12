@@ -168,6 +168,15 @@ Feature: Write step definitions
       When the workspace is run and interrupted while "an empty cart" runs
       Then the handler of "an empty cart" saw its signal abort
 
+  @maturity=idea @replaces:write-step-definitions#a-handler-gets-typed-arguments-a-fresh-world-and-a-deadline-it
+  Rule: A step that overruns its timeout is stopped, whether or not it yields
+
+    Today a timeout is cooperative: an endless loop or a blocking call fails once it returns, and
+    never if it does not.
+
+  @maturity=idea @replaces:write-step-definitions#a-handler-gets-typed-arguments-a-fresh-world-and-a-deadline-it
+  Rule: No scenario sees the global state another scenario left
+
   Rule: Every step is matched against every definition
 
     So one run reports everything that is missing or ambiguous, not only the first step that is.

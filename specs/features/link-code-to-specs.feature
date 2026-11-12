@@ -473,3 +473,15 @@ Feature: Link code to specs
       When a fresh Node process imports "sdp/annotations"
       Then the output contains "/src/annotations.ts"
       And the output contains "/src/" 1 time
+
+  @maturity=draft
+  Rule: sdp types and sdp check say when tsconfig leaves out the declarations
+
+    A compile without `.sdp/ids.d.ts` accepts every id without a word from sdp: a tsconfig that
+    names no `include` leaves it out, and so does one that includes the folder `.sdp`.
+
+  @open @maturity=draft
+  Rule: Are link attributes on code annotations worth link-conflict and merged declarations?
+
+    Only a comment annotation gives a link attributes (`@sdp uses ARCH-ledger via=events`). Proposed:
+    remove them; nothing in this repository uses them.

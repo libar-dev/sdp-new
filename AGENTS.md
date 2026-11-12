@@ -27,13 +27,12 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
 - A spec says what is still to be built, or, once built, is its test. What does neither — a status,
   a plan of work that is done, a note nobody acts on — is not written, and is deleted where found.
 - `specs/` is organised by what a spec is for:
-  - `features/` — what sdp does, one file per feature, named for what its users do
-    (`ask-the-graph`: an id with no prefix is a feature's). The file is the feature's requirements
-    document and its test suite at once: every rule has an example, and every example passes.
-  - `incoming/` — what is still to come: a new feature, or a change to a built one
-    (`@kind=change @changes:<feature>`), which `sdp new feature` and `sdp new change --changes`
-    write here. A new feature moves to `features/` when its scenarios pass; a change's rules move
-    into the feature it changes, and the change is deleted.
+  - `features/` — what sdp does and is still to do, one file per feature, named for what its users
+    do (`ask-the-graph`: an id with no prefix is a feature's). The file is the feature's
+    requirements document and its test suite at once. What is built is `@maturity=implemented`:
+    every rule has an example, and every example passes. What is still to come declares a rung
+    below, the feature or each of its rules: a change to a built feature is rules of it, and
+    nothing moves when it is built.
   - `decisions/` — few. Only a choice that is hard to reverse, surprising without context and a
     real trade-off, and that spans features: a title and one to three sentences on what was chosen
     over what, why, and the cost accepted with it. A reason that concerns one feature is written
@@ -42,7 +41,7 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
     `ARCHITECTURE` holds the rules this repository's code keeps — or a view sdp generates from the
     code's annotations (`sdp arch`): an element is the code anchored to it, that code's doc comment
     says what it is for, and sdp derives which element imports which. No architecture is prose.
-  - `plan/` — the order of incoming work: iterations and the milestone they lead to, MVP first.
+  - `plan/` — the order of work still to come: iterations and the milestone they lead to, MVP first.
   - `VISION`, `GUIDE` and `ARCHITECTURE` are about the whole; `ask-the-graph` is the example to follow.
 - A feature is written as a requirements document would be: under its name, who needs what and
   why, then what it is not; a `Rule:` per requirement, quality ones included, stated as what a user
@@ -50,9 +49,9 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   one's example is measured. It names a technology only where users see one: a command, an output,
   a bound an answer reports.
 - An id names what it is, so that a reader of a message that cites it needs no lookup:
-  `files-are-the-source-of-truth`, not `ADR-0003`; `IT-packaging`, not `E2`. A feature, a change
-  and a decision have no prefix: a feature is what an id without one names, and a change and a
-  decision say their kind with `@kind=`. Elements, patterns, milestones, phases and iterations
+  `files-are-the-source-of-truth`, not `ADR-0003`; `IT-packaging`, not `E2`. A feature and a
+  decision have no prefix: a feature is what an id without one names, and a decision says its kind
+  with `@kind=`. Elements, patterns, milestones, phases and iterations
   keep a prefix (`ARCH-`, `PAT-`, `MS-`, `PH-`, `IT-`), and no other kind has one.
 - A decision that changes is rewritten or deleted: its history is git's.
 - One word for one thing: a word this repository replaced does not come back.

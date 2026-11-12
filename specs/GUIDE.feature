@@ -164,7 +164,7 @@ Feature: sdp, shown by running it
     So grep finds a thing under one name, and an id says what kind of thing it is.
 
     Scenario: A word this repository replaced does not come back
-      When I run "grep -rnE '[Mm]aturity gates?|NFR[s]|(draft|specified|ready).? gate' README.md AGENTS.md .claude specs src examples" in the repository
+      When I run "grep -rnE '[Mm]aturity gates?|NFR[s]|(draft|specified|ready).? gate|@kind=chang[e]|incomin[g]/' README.md AGENTS.md .claude specs src examples" in the repository
       Then the exit code is 1
 
     Scenario Outline: An id with a prefix is of that prefix's kind, and the other way round
@@ -185,28 +185,25 @@ Feature: sdp, shown by running it
       When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
       Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"
 
-  Rule: What is built is in specs/features, and what is still to come is in specs/incoming
+  Rule: A feature is in specs/features, and its maturity says whether it is built
 
-    So the folder alone tells what sdp does from what it might do. A feature in specs/features is
-    its own test: every rule has an example and none is open. A change names the feature it changes,
-    and is deleted once its rules have joined that feature.
+    Rule by rule: a change to a feature is rules of it at the maturity they have reached, so nothing
+    moves when it is built.
 
     Scenario: Where each spec of this repository is
-      Then the query "feature[file~^specs/features/][maturity!=implemented]" returns no results
-      And the query "feature|change[file!~^specs/(features|incoming)/]" returns no results
-      And the query "change[file!~^specs/incoming/]" returns no results
-      And the query "change !-changes-> *[file~^specs/features/]" returns no results
+      When I run "ls specs" in the repository
+      Then the output lines are "ARCHITECTURE.feature, GUIDE.feature, VISION.feature, decisions, features, plan, steps"
+      And the query "feature[file!~^specs/features/]" returns no results
 
   Rule: Every feature that is built is verified, and npm run verify fails when one is not
 
-    Undefined is not failed for work still to come, but a built feature whose step definition was
-    renamed or deleted would otherwise stop being tested without a word. So this gate runs with
-    every verification, not only at a milestone.
+    A run fails on an example of built work that does not pass; this gate also catches one that did
+    not run, so it runs with every verification, not only at a milestone.
 
     @gate
-    Scenario: The features in specs/features
-      Then the query "feature[file~^specs/features/]" returns at least 1 result
-      And the query "feature[file~^specs/features/][stage!=verified]" returns no results
+    Scenario: The features that are built
+      Then the query "feature[!toCome]" returns at least 1 result
+      And the query "feature[!toCome][stage!=verified]" returns no results
 
     Scenario: The build asks for this gate, and for no milestone's
       When I run "grep verify package.json" in the repository

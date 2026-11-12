@@ -1,4 +1,4 @@
-@id=every-answer-is-a-projection-of-the-graph @kind=change @maturity=draft
+@id=every-answer-is-a-projection-of-the-graph @maturity=draft
 @changes:ask-the-graph @changes:check-specs
 Feature: Every answer is a projection of the graph
 

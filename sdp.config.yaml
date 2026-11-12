@@ -2,5 +2,3 @@
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
-# A change to a feature is requirements work, like the feature.
-vocabulary: { disciplines: { requirements: [requirement, nfr, feature, change] } }

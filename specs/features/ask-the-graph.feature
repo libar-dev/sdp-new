@@ -488,3 +488,14 @@ Feature: Ask the graph
       Given a generated workspace of 5000 specs
       When the graph is built from it
       Then the median run completes within 1000 ms
+
+  @maturity=draft @iteration:IT-scale @replaces:ask-the-graph#questions-stay-interactive-on-workspaces-far-larger-than-a
+  Rule: A question on 5,000 specs and 20,000 source files on disk answers within budget
+
+    The rule it replaces measures the graph in memory, but every question also reads the workspace
+    from disk: in a monorepo the reading alone could make agents stop asking and start guessing.
+
+  @open @maturity=draft @iteration:IT-scale
+  Rule: Which budget, and measured with a cold or a warm file system cache?
+
+    Proposed: one second, warm; a cold cache measures the disk more than sdp.

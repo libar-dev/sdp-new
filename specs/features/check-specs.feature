@@ -413,3 +413,9 @@ Feature: Check specs
         | file        | rule               | text                                                             |
         | src/cart.ts | annotation-ignored | // after code, as in total() // @sdp implements cart is not read |
         | src/cart.ts | annotation-ignored | // @sdp implements cart\nexport const total = 0                  |
+
+  @open @maturity=draft
+  Rule: Does Markdown where specs live make every answer incomplete, or is check's warning enough?
+
+    Only `sdp check` says so today: a query of the same workspace is complete and carries no note,
+    so an agent that never runs check never hears of the file.

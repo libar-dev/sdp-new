@@ -944,3 +944,8 @@ Feature: Know what is verified
       Then the exit code is 1
       And the output contains "another sdp run is recording results (.sdp/results.json.lock exists)"
       And the file ".sdp/results.json" does not exist
+
+  @maturity=idea
+  Rule: A result CI recorded counts in every checkout that matches what it ran against
+
+    A colleague or a reviewer then knows what CI verified without running everything again.

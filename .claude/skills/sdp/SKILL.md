@@ -57,16 +57,23 @@ Feature: Guest checkout
   scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
   named by its path and run as it is. A rule without an example yet is a to-do that `ready`
   refuses.
+- **How far a Feature or a Rule has come is its `@maturity=`**: idea, draft, specified, ready, then
+  `implemented`, which promises that its examples pass. Below it, work is still to come: its
+  examples run and fail no run, so they are written before the code. A Rule without a maturity of
+  its own has its Feature's, so a change to a built feature is rules of it, each at the maturity it
+  has reached, with `@replaces:<feature>#<rule>` on one that replaces a built rule; nothing moves
+  when it is built. A spec that declares no maturity is implemented.
 - **An open question is a Rule or a Scenario tagged `@open`**, its name the question. Answering
-  it means renaming it into the rule that was chosen and deleting the tag. What is undecided or
+  it means renaming it into the rule that was chosen and deleting the tag. A question is still to
+  come, and has no examples. What is undecided or
   waits on someone is written this way, on the spec it concerns, never kept in a chat or an
   agent's memory: `sdp q 'rule[tags~open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
   what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
   whoever reads a message citing it needs no lookup. Elements, patterns, milestones, phases and
   iterations keep a prefix (`ARCH-`, `PAT-`, `MS-`, `PH-`, `IT-`); no other kind has one unless
-  the workspace gives it one with `ids:`, so a change, a decision or a kind of the team's own says
-  what it is with `@kind=`.
+  the workspace gives it one with `ids:`, so a decision or a kind of the team's own says what it is
+  with `@kind=`.
 
 The sharp edges of the format, each what the official parser does:
 
@@ -90,8 +97,8 @@ The sharp edges of the format, each what the official parser does:
 
 ## What holds everywhere
 
-- **A spec has a purpose.** It says what is still to be built — a feature or a change — or, once
-  that is built, it is its test. What does neither — a status, the plan of work that is done, a
+- **A spec has a purpose.** It says what is still to be built — a feature, or rules of one — or,
+  once that is built, it is its test. What does neither — a status, the plan of work that is done, a
   note nobody acts on — is not written, and is deleted where it is found.
 - **Files are the source of truth.** The graph is rebuilt from them on every command. Edit the
   files; never a derived artefact (`.sdp/results.json` is written by `sdp run`).
@@ -172,16 +179,17 @@ typed does not exist and which one is closest.
 ## Changing behaviour
 
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"`
-   for what is still to build, `sdp new change "…" --changes <feature>` for a change to a built
-   one, each written to `specs/incoming` with what to write in it next. What a user sees belongs
-   to a feature; a rule only the code observes, to the rules of the architecture.
+   writes it where it stays, with what to write in it next. A change to a built feature is rules
+   of it, each with a maturity of its own until it is built. What a user sees belongs to a
+   feature; a rule only the code observes, to the rules of the architecture.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for
    steps that have none.
 4. Implement.
-5. Verify: `sdp check` (no errors) and `sdp run` (no failing scenario). Gates never fail
-   `sdp run`; `sdp gate <milestone>` is what enforces one.
+5. Verify: `sdp check` (no errors) and `sdp run`, which fails on an example of implemented work
+   that does not pass. Once every example of work still to come passes, the run says so: declare
+   it `@maturity=implemented`. Gates never fail `sdp run`; `sdp gate <milestone>` enforces one.
 
 A scenario that asserts on delivery state (`stage`, `verification`, a scenario's `status`) must be
 a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
@@ -190,8 +198,8 @@ a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without 
 
 - Work is planned on the work itself: `@iteration:IT-payments` says when a spec is written; where
   a team plans disciplines apart, `@activity.implementation:IT-payments @activity.test:IT-beta`
-  says when it is built and tested. Only work still to do is planned: once it is built, its
-  scenarios are the record, and the plan tags can go.
+  says when it is built and tested. A rule still to come is planned the same way. Only work still
+  to come is planned: once it is built, its scenarios are the record, and the plan tags can go.
 - A phase and an iteration are files of their own (`sdp new phase`, `sdp new iteration`), and
   `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
   iteration in which it will be done, never into one that is over.
