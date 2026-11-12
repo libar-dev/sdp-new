@@ -235,6 +235,10 @@ Feature: Link code to specs
         | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
         | a comment of its own above it      | // Copyright 2026 Acme Corp.\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */ | 7    |
         | a doc comment of its own above it  | /** @license MIT */\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */      | 7    |
+        | a line comment above a tag alone   | // Charges the card on file.\n/** @sdp implements pay */                      | 3    |
+        | a doc comment above a tag alone    | /** Charges the card on file. */\n/** @sdp implements pay */                  | 3    |
+        | a linter's directive after the tag | /** Charges the card on file. */\n// @sdp implements pay\n// eslint-disable-next-line @typescript-eslint/no-explicit-any | 4    |
+        | a linter's directive above the tag | /**\n * Charges the card on file.\n */\n// eslint-disable-next-line no-console\n// @sdp implements pay | 6    |
 
     Scenario Outline: In <language>, the comment lines around the tag describe the code
       Given a file "<file>" containing:
@@ -251,6 +255,7 @@ Feature: Link code to specs
         | Python   | src/pay.py | # Charges the card on file.\n# @sdp implements pay\ndef pay(): pass          | code:src/pay.py#pay |
         | Go       | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error { | code:src/pay.go#Pay |
         | Ruby     | src/pay.rb | # @sdp implements pay\n# Charges the card on file.\ndef pay                   | code:src/pay.rb#pay |
+        | Python, with a linter's directive | src/pay.py | # Charges the card on file.\n# @sdp implements pay\n# pylint: disable=invalid-name\ndef pay(): pass | code:src/pay.py#pay |
 
     Scenario Outline: A decorated declaration, <placed>
       Given a file "src/pay.ts" containing:

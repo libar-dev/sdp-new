@@ -278,19 +278,21 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
 
 /**
  * What the comment that carries a tag says: its block, or the run of line comments that holds it —
- * or, when that says nothing but tags, the doc comment directly above it. Another comment above, a
- * licence or a copyright, describes no code.
+ * or, when that says nothing but tags, the comment directly above it, a block or a run of line
+ * comments. A comment further up, a licence or a copyright, describes no code.
  */
 const carrying = (group: ReadonlyArray<Script["comments"][number]>, at: number): string | undefined => {
-  let first = at
-  let last = at
-  if (group[at]!.type === "Line") {
-    while (group[first - 1]?.type === "Line") first--
-    while (group[last + 1]?.type === "Line") last++
+  const run = (index: number) => {
+    let first = index
+    let last = index
+    if (group[index]!.type === "Line") {
+      while (group[first - 1]?.type === "Line") first--
+      while (group[last + 1]?.type === "Line") last++
+    }
+    return { first, said: description(group.slice(first, last + 1).map((comment) => comment.value)) }
   }
-  const above = group[first - 1]
-  return description(group.slice(first, last + 1).map((comment) => comment.value)) ??
-    (above?.type === "Block" && above.value.startsWith("*") ? description([above.value]) : undefined)
+  const { first, said } = run(at)
+  return said ?? (first > 0 ? run(first - 1).said : undefined)
 }
 
 /** A tag that a comment's line has after words, which is not read: well formed, it was meant as one. */
@@ -346,18 +348,25 @@ const declaredName = (statement: Node): string | undefined => {
 }
 
 /**
- * What a comment says of the code it documents: its first paragraph without its tags, before any
- * other tag of the comment's own (`@internal`, `@param`).
+ * What a comment says of the code it documents: its first paragraph without its tags or a tool's
+ * directives, before any other tag of the comment's own (`@internal`, `@param`).
  */
 const description = (comments: ReadonlyArray<string>): string | undefined => {
   const lines = comments
     .flatMap((comment) => comment.split(/\r?\n/))
     .map((line) => line.replace(/^\s*\*+ ?/, "").replace(/^[/!]+ ?/, "").trimEnd())
-    .filter((line) => !commentMarker.test(line))
+    .filter((line) => !commentMarker.test(line) && !directive.test(line))
   const tagged = lines.findIndex((line) => /^\s*@\w/.test(line))
   const words = tagged < 0 ? lines : lines.slice(0, tagged)
   return words.join("\n").split(/\n\s*\n/).map((text) => text.replace(/\s+/g, " ").trim()).find((text) => text !== "")
 }
+
+/**
+ * A comment's line that directs a tool, not the reader: a linter, a type checker, a formatter or a
+ * coverage tool, in any language.
+ */
+const directive =
+  /^\s*(?:eslint-(?:disable|enable|env)\b|eslint [\w@/-]+:|@ts-[a-z-]+|prettier-ignore|biome-ignore|oxlint-[a-z-]+|deno-(?:lint|fmt)-ignore|tslint:|jshint\b|istanbul ignore|[cv]8 ignore|<reference\b|noqa\b|type: ?ignore|pylint: ?[a-z-]+|pyright: ?\w+|mypy: ?\w+|fmt: ?(?:off|on|skip)|isort: ?\w+|pragma: ?no cover|nolint\b|NOLINT|go:[a-z]+|\+build\b|clang-format (?:off|on)|#(?:end)?region\b)/
 
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /**
