@@ -238,7 +238,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
     ? gates.length === 0 || gateCounts.passed < gates.length
     : counts.failed + counts.ambiguous > 0
   if (failed) process.exitCode = 1
-  const snippets = [...scenarios, ...gates].flatMap((r) => r.pickles.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
+  const snippets = [...scenarios, ...gates].flatMap((r) => r.examples.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
   const module = options.snippets && snippets.length > 0 ? snippetModule(snippets, steps.files) : undefined
   if (options.json) {
     return yield* printJson({
@@ -253,7 +253,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
     Object.entries(c).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s}`).join(", ") || "none"
   if (scenarios.length > 0 || gates.length === 0) yield* Console.log(`\n${scenarios.length} scenario(s): ${describe(counts)}`)
   if (gates.length > 0) yield* Console.log(`${gates.length} gate scenario(s): ${describe(gateCounts)}`)
-  const unselected = [...scenarios, ...gates].flatMap((r) => r.pickles.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
+  const unselected = [...scenarios, ...gates].flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
   if (unselected > 0) {
     yield* Console.log(c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`))
   }

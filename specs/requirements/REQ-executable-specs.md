@@ -48,7 +48,8 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
   context's `signal`, an `AbortSignal`, aborts — as it does when the run is interrupted. An Effect
   is interrupted either way; a Promise keeps running unless its handler passes the signal on — to
   `fetch`, a child process, a timer. Code that never yields cannot be stopped at all: such a step
-  fails as timed out once it returns. Killing a step that hangs is not built.
+  fails as timed out once it returns. Killing a step that hangs is an idea
+  ([[REQ-step-isolation]]).
 - **Worlds.** The first argument of `defineSteps` is a world factory. Every scenario gets a fresh
   world per factory; modules passing the same factory share that world, so a step library can be
   split across files (sdp's own steps share `specs/steps/world.ts`). A world is made as part of the
@@ -183,6 +184,19 @@ drops those of scenarios that no longer exist, and puts the new file in place in
 partial run (`sdp run <ids or paths>`, `--tags`) keeps everything else, and two runs at once never
 restore what the other replaced. A run that cannot get the lock within two seconds fails, naming
 the lock file. The file is generated; never edit it by hand.
+
+It is plain JSON, one flat record per scenario, made to be taken apart with `jq`:
+
+| Where | Fields |
+| --- | --- |
+| top level | `version`; `runAt`; `imports`, the workspace files step definitions imported in any run; `scenarios`, keyed by scenario id |
+| `scenarios.<id>` | `id`, `spec`, `name`, `file`, `line`, `status`, `runAt`, `durationMs`, `hash`, `evidence` (the fingerprints above), `examples` |
+| `examples[]` | `name`, `status`, `exampleLine` for a row of an outline, `steps` |
+| `steps[]` | `keyword`, `text`, `line`, `status`, `durationMs`, and where they apply `error`, `definition` (`file:line`), `snippet` |
+
+```sh
+jq -r '.scenarios[] | select(.status != "passed") | [.file, .line, .status, .id] | @tsv' .sdp/results.json
+```
 
 ## Runs need readable specs
 
@@ -920,6 +934,27 @@ Scenario: Two runs at once each record what they executed, and neither restores 
   And the workspace is run for "REQ-cart" and for "REQ-wishlist" at the same time
   Then scenario "REQ-wishlist#keep-a-lamp-for-later" has status "failed"
   And scenario "REQ-cart#add-an-item" has status "passed"
+
+Scenario: The results file holds one plain record per scenario, with what it ran against
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), ({ Step }) => {
+      Step("an empty cart", () => {})
+      Step("I add a lamp", () => {})
+    })
+    """
+  When I run "sdp run"
+  Then the file ".sdp/results.json" contains '"REQ-cart#add-an-item": {'
+  And the file ".sdp/results.json" contains '"status": "undefined"'
+  And the file ".sdp/results.json" contains '"hash": "'
+  And the file ".sdp/results.json" contains '"sources": "'
+  And the file ".sdp/results.json" contains '"toolchain": "'
+  And the file ".sdp/results.json" contains '"inputs": "'
+  And the file ".sdp/results.json" contains '"examples": ['
+  And the file ".sdp/results.json" contains '"definition": "specs/steps/cart.steps.ts:4"'
+  And the file ".sdp/results.json" contains '"snippet": "Then('
 
 Scenario: A run that cannot get the lock on the results says which file is in its way
   Given a file ".sdp/results.json.lock" containing:

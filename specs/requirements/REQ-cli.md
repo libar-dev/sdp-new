@@ -30,9 +30,9 @@ example, verified by scenarios that run the real CLI as a process in a temporary
 | `run` | an ordinary scenario failed or is ambiguous; an unmet milestone gate does **not** count |
 | `gate` | the milestone's gate scenarios are not all met |
 | `run`, `gate` | a spec cannot be read — Gherkin or front matter that does not parse, a spec without an id, an id declared twice; nothing runs then |
-| `run`, `gate` | a step definition's expression is malformed, `--tags` is not a tag expression, or another run holds the lock on the results for more than two seconds |
+| `run`, `gate` | a step definition module does not load or has a malformed expression, `--tags` is not a tag expression, or another run holds the lock on the results for more than two seconds |
 | `q`, `show`, `context`, `new` | the query is invalid, the id is unknown, the id already exists, or `--maturity` is not on the ladder |
-| every command | the workspace cannot be read: no such directory, an invalid configuration, a step definition module that does not load |
+| every command | the workspace cannot be read: no such directory, an invalid configuration |
 
 ## The example workspace
 

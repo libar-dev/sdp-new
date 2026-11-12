@@ -47,10 +47,10 @@ export const formatDiagnostic = (d: Diagnostic) => {
 export const formatScenario = (r: ScenarioResult, options: { readonly verbose: boolean }) => {
   const lines = [`${statusIcon[r.status]} ${pad(r.status, 9)} ${r.id} ${c.dim(`${r.file}:${r.line}`)}`]
   if (r.status === "passed" && !options.verbose) return lines.join("\n")
-  for (const pickle of r.pickles) {
+  for (const pickle of r.examples) {
     // An example without step results is one the run did not select.
     const unselected = pickle.status === "skipped" && pickle.steps.length === 0 ? c.dim("  not selected") : ""
-    if (r.pickles.length > 1 && pickle.status !== "passed") {
+    if (r.examples.length > 1 && pickle.status !== "passed") {
       lines.push(`    ${c.dim("example")} ${pickle.name}${pickle.exampleLine ? c.dim(` :${pickle.exampleLine}`) : ""}${unselected}`)
     }
     for (const step of pickle.steps) {

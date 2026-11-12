@@ -183,7 +183,7 @@ const interval = (world: World, scenario: string) => {
 
 const stepsWithText = (world: World, text: string): ReadonlyArray<StepResult> => {
   assert.ok(world.run, "run the scenarios first")
-  const found = Object.values(world.run.scenarios).flatMap((s) => s.pickles.flatMap((p) => p.steps)).filter((s) => s.text === text)
+  const found = Object.values(world.run.scenarios).flatMap((s) => s.examples.flatMap((p) => p.steps)).filter((s) => s.text === text)
   assert.ok(found.length > 0, `no step "${text}" in the results`)
   return found
 }
@@ -309,7 +309,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the step {string} did not run", ({ args: [text], world }) => {
     assert.ok(world.run, "run the scenarios first")
-    const ran = Object.values(world.run.scenarios).flatMap((s) => s.pickles.flatMap((p) => p.steps)).filter((s) => s.text === text)
+    const ran = Object.values(world.run.scenarios).flatMap((s) => s.examples.flatMap((p) => p.steps)).filter((s) => s.text === text)
     assert.equal(ran.length, 0, `"${text}" ran: ${ran.map((s) => s.status).join(", ")}`)
   })
 

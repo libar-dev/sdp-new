@@ -7,7 +7,7 @@ import { annotate } from "sdp/annotations"
 import { Cause, DateTime, Duration, Effect, Exit, Fiber, Predicate, Queue, Schema } from "effect"
 import { isAbsolute, relative } from "node:path"
 import type { Project } from "../graph/Build.ts"
-import { type PickleResult, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "../model/Results.ts"
+import { type ExampleResult, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "../model/Results.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { Snapshot } from "./Evidence.ts"
@@ -161,7 +161,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
       status: steps.length === 0 ? "undefined" : worstStatus(steps.map((s) => s.status)),
       ...(pickle.exampleLine ? { exampleLine: pickle.exampleLine } : {}),
       steps
-    } satisfies PickleResult
+    } satisfies ExampleResult
   })
 
   const select = options.select ?? ((scenario: Scenario) => scenario.pickles)
@@ -175,10 +175,10 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
   const runOne = Effect.fnUntraced(function*({ pickles: chosen, scenario, spec }: Selected) {
     const started = performance.now()
     const reads = { graph: false }
-    const pickles: Array<PickleResult> = []
+    const examples: Array<ExampleResult> = []
     for (const pickle of scenario.pickles) {
       // An example the run did not select is recorded, but as not run: the scenario cannot pass without it.
-      pickles.push(
+      examples.push(
         chosen.includes(pickle)
           ? yield* runPickle(spec, scenario, pickle, reads)
           : { name: pickle.name, status: "skipped", ...(pickle.exampleLine ? { exampleLine: pickle.exampleLine } : {}), steps: [] }
@@ -190,7 +190,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
       name: scenario.name,
       file: spec.file,
       line: scenario.line,
-      status: pickles.length === 0 ? "undefined" : worstStatus(pickles.map((p) => p.status)),
+      status: examples.length === 0 ? "undefined" : worstStatus(examples.map((example) => example.status)),
       hash: scenario.hash,
       // What this result is evidence about: it stops counting as soon as any of it changes.
       evidence: {
@@ -202,7 +202,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
       },
       runAt,
       durationMs: Math.round(performance.now() - started),
-      pickles
+      examples
     } satisfies ScenarioResult
   })
 

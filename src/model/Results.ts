@@ -24,13 +24,13 @@ export const StepResult = Schema.Struct({
 export type StepResult = typeof StepResult.Type
 
 /** One example of a scenario; an example the run did not select is `skipped`, with no steps. */
-export const PickleResult = Schema.Struct({
+export const ExampleResult = Schema.Struct({
   name: Schema.String,
   status: StepStatus,
   exampleLine: Schema.optional(Schema.Number),
   steps: Schema.Array(StepResult)
 })
-export type PickleResult = typeof PickleResult.Type
+export type ExampleResult = typeof ExampleResult.Type
 
 /**
  * Fingerprints of what a scenario ran against. A result is evidence only while
@@ -62,7 +62,8 @@ export const ScenarioResult = Schema.Struct({
   evidence: Evidence,
   runAt: Schema.String,
   durationMs: Schema.Number,
-  pickles: Schema.Array(PickleResult)
+  /** One per example: a plain scenario has one, an outline one per row of its Examples tables. */
+  examples: Schema.Array(ExampleResult)
 })
 export type ScenarioResult = typeof ScenarioResult.Type
 

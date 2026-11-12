@@ -84,6 +84,7 @@ declare module "sdp/annotations" {
     "REQ-quality-scenarios": "requirement"
     "REQ-review-bot": "requirement"
     "REQ-shared-evidence": "requirement"
+    "REQ-step-isolation": "requirement"
     "REQ-web-explorer": "requirement"
     "RISK-0001": "risk"
     "RISK-0002": "risk"
