@@ -360,8 +360,13 @@ const description = (comments: ReadonlyArray<string>): string | undefined => {
 }
 
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
-/** An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any script. */
-const idToken = /^[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*$/u
+/**
+ * An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any
+ * script — but for a full stop at its end, which ends a sentence.
+ */
+const idToken = /^[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}_.:#/-]*[\p{L}\p{M}\p{N}_:#/-])?$/u
+/** A placeholder for an id, as a guide writes the form of a tag: `<ID>`. */
+const placeholder = /^<[^<>\s]+>$/
 /**
  * A line of code that only decorates the declaration below it, with one decorator or attribute or
  * more: `@Service`, `@app.route("/pay")`, `@RequestMapping("/pay") @ResponseBody`, `[ApiController]`,
@@ -424,8 +429,8 @@ const ignoredLines = (content: string): ReadonlyArray<Unread> =>
 /**
  * The relation, ids and attributes `@sdp <rel> <ids> [key=value ...]` says, its ids separated by
  * commas. A tag that names something that is no id, or goes on after its ids with other words, was
- * meant as a tag and cannot be read; one whose ids are placeholders, `@sdp implements <ID>`, only
- * mentions the form, and is undefined.
+ * meant as a tag and cannot be read; one whose ids are whole placeholders, `@sdp implements <ID>`,
+ * only mentions the form, and is undefined.
  */
 const readTag = (
   rel: string,
@@ -447,9 +452,10 @@ const readTag = (
       listing = token.endsWith(",")
     } else after.push(token)
   }
-  if (targets.length > 0 && targets.every((t) => t.startsWith("<"))) return undefined
+  if (targets.length > 0 && targets.every((t) => placeholder.test(t))) return undefined
   const wrong = targets.filter((t) => !idToken.test(t))
-  const hint = "write the ids it links to, separated by commas, then any key=value: an id is a letter or a digit, then letters, digits and - _ . : # /"
+  const hint =
+    "write the ids it links to, separated by commas, then any key=value: an id is a letter or a digit, then letters, digits and - _ . : # /, with no full stop at its end"
   const unread = (says: string) => ({ unread: { message: `"@sdp ${rel} ${text}" ${says}, so the tag is not read`, hint } })
   if (wrong.length > 0) return unread(`names ${wrong.join(", ")}, which ${wrong.length === 1 ? "is" : "are"} no id`)
   if (after.length > 0) return unread(`goes on after its ids with "${after.join(" ")}"`)
