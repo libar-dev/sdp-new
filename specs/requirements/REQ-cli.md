@@ -370,7 +370,7 @@ Scenario: An id that only a dangling link names is free
     # Filters
     """
   When I run "sdp new element Facets"
-  Then the output contains "ARCH-facets\tdocs/architecture/ARCH-facets.md"
+  Then the output contains "ARCH-facets\tspecs/architecture/ARCH-facets.md"
   When I run "sdp check"
   Then the exit code is 0
 
@@ -403,8 +403,8 @@ Scenario Outline: Ids are readable ASCII, whatever the title's language
     | kind        | title           | id                  | file                                    |
     | requirement | Kasse für Gäste | REQ-kasse-fur-gaste | specs/requirements/REQ-kasse-fur-gaste.md |
     | requirement | Корзина         | REQ-0001            | specs/requirements/REQ-0001.md          |
-    | decision    | Ödeme yöntemi   | DEC-0002            | docs/decisions/DEC-0002-odeme-yontemi.md |
-    | decision    | Оплата          | DEC-0002            | docs/decisions/DEC-0002.md              |
+    | decision    | Ödeme yöntemi   | DEC-0002            | specs/decisions/DEC-0002-odeme-yontemi.md |
+    | decision    | Оплата          | DEC-0002            | specs/decisions/DEC-0002.md             |
 
 Scenario: Everything the templates produce passes the check, flagged until its text is replaced
   Given specs created from the sdp new templates:
@@ -778,9 +778,9 @@ Scenario: A plan from the template puts a milestone from the template under its 
   Then the output contains "sdp new plan"
   And the output contains "- { id: PH-elaboration, kind: phase"
   When I run "sdp -C fresh new plan 'Delivery plan'"
-  Then the output contains "PLAN-delivery-plan\tdocs/delivery/PLAN-delivery-plan.md"
+  Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.md"
   When I run "sdp -C fresh new milestone 'Architecture baseline'"
-  Then the output contains "MS-architecture-baseline\tdocs/delivery/milestones/MS-architecture-baseline.md"
+  Then the output contains "MS-architecture-baseline\tspecs/delivery/MS-architecture-baseline.md"
   When I run "sdp -C fresh lifecycle"
   Then the line after the output line with "Elaboration" contains "◆ MS-architecture-baseline"
   And the output line with "Inception" contains "I1*"

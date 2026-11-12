@@ -19,12 +19,12 @@ const directoryFor: Record<string, string> = {
   idea: "specs/requirements",
   nfr: "specs/quality",
   capability: "specs/capabilities",
-  decision: "docs/decisions",
-  element: "docs/architecture",
-  pattern: "docs/architecture/patterns",
-  milestone: "docs/delivery/milestones",
-  plan: "docs/delivery",
-  risk: "docs/risks"
+  decision: "specs/decisions",
+  element: "specs/architecture",
+  pattern: "specs/architecture",
+  milestone: "specs/delivery",
+  plan: "specs/delivery",
+  risk: "specs/risks"
 }
 
 /** What `sdp new` has a template for; any other kind gets the generic one. `idea` is a requirement at maturity idea. */
