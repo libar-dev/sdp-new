@@ -37,8 +37,10 @@ naming a kind or relation that nothing in the project uses fails the step — ki
 and kinds named in the configuration count as known — and so do an unknown severity or rule. For the
 same reason a query whose evaluation was cut short by a limit ([[ARCH-query-engine]]) fails the
 step whatever it asserts, naming the limit: what lies beyond it could prove the assertion wrong.
-The steps assert against the graph as it was when the run started, so ordinary scenarios see the
-results of earlier runs and gate scenarios those of the current one ([[REQ-executable-specs]]).
+The steps assert against the graph their scenario sees ([[REQ-executable-specs]], *Layers*): an
+ordinary scenario sees no results, a gate the results of the ordinary scenarios. A step that reads
+a result-derived attribute — `stage`, `verification`, `staleBecause`, `lastRun`, or a scenario's
+`status` — in an ordinary scenario therefore fails, saying that the scenario is a gate.
 Like any step, they match by text, whatever the keyword.
 
 This repository uses them for its decision guards ([[DEC-0001]], [[DEC-0002]], [[DEC-0007]]) and its
@@ -125,7 +127,9 @@ Scenario Outline: A built-in step that fails says why
     | there are no warning diagnostics                            | [decision-status] DEC-0001                       |
     | there are no diagnostics for rule "decision-status"         | DEC-0001: decision status should be one of       |
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |
-    | the node "REQ-lost" has stage "verified"                    | no node REQ-lost                                 |
+    | the node "REQ-lost" has maturity "ready"                    | no node REQ-lost                                 |
+    | the node "REQ-search" has stage "verified"                  | a scenario that asserts on delivery state is a gate |
+    | the query "requirement[verification=passing]" returns 1 result | a scenario that asserts on delivery state is a gate |
     | the query "requirement[" returns no results                 | invalid query                                    |
     | the query "requirment" returns no results                   | names kind requirment, which no node has         |
     | the query "* -realised-by-> *" returns no results           | names relation realised-by, which no edge has    |

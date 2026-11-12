@@ -76,15 +76,20 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     return { spec: undefined, diagnostics }
   }
   const fm = md.frontMatter
-  if (!fm) return { spec: undefined, diagnostics }
-  if (!Predicate.isString(fm.id) || fm.id.trim() === "") {
-    if (fm.kind !== undefined) {
+  if (!fm || !Predicate.isString(fm.id) || fm.id.trim() === "") {
+    // Plainly meant as a spec: without an id its scenarios would be dropped silently.
+    const meant = fm?.kind !== undefined
+      ? `front matter declares kind "${String(fm.kind)}"`
+      : md.fences.some((fence) => gherkinLangs.has(fence.lang))
+      ? "the file has a Gherkin block"
+      : undefined
+    if (meant) {
       diagnostics.push({
         rule: "missing-id",
-        severity: "warning",
-        message: `front matter declares kind "${String(fm.kind)}" but no id, so the file is not part of the graph`,
+        severity: "error",
+        message: `${meant} but no id, so the file is not part of the graph`,
         source: { file, line: 1 },
-        hint: "add `id: <PREFIX>-<slug>` to the front matter"
+        hint: "add `id: <PREFIX>-<slug>` to the front matter; a document that only shows Gherkin as an example belongs under `exclude`"
       })
     }
     return { spec: undefined, diagnostics }

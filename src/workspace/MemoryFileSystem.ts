@@ -21,7 +21,17 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
       const content = files.get(rel(path))
       return content === undefined ? Effect.fail(notFound("readFileString", path)) : Effect.succeed(content)
     },
-    writeFileString: (path, data) => Effect.sync(() => void files.set(rel(path), data)),
+    // The results store needs these three: create-if-absent (its lock), rename and remove.
+    writeFileString: (path, data, options) =>
+      options?.flag === "wx" && files.has(rel(path))
+        ? Effect.fail(systemError({ _tag: "AlreadyExists", module: "FileSystem", method: "writeFileString", pathOrDescriptor: path }))
+        : Effect.sync(() => void files.set(rel(path), data)),
+    rename: (from, to) =>
+      Effect.sync(() => {
+        files.set(rel(to), files.get(rel(from)) ?? "")
+        files.delete(rel(from))
+      }),
+    remove: (path) => Effect.sync(() => void files.delete(rel(path))),
     makeDirectory: () => Effect.void,
     glob: (pattern, options) =>
       Effect.sync(() => {

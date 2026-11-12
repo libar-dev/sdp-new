@@ -1,7 +1,8 @@
 import { annotate } from "sdp/annotations"
 import { architectureSummary } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
-import { isGate, type Project } from "./Build.ts"
+import { isGate } from "../run/Evidence.ts"
+import type { Project } from "./Build.ts"
 
 const tally = (values: ReadonlyArray<unknown>) => {
   const counts: Record<string, number> = {}

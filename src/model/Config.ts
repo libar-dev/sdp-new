@@ -9,6 +9,10 @@ export const ConfigFile = Schema.Struct({
   code: Schema.optional(Globs),
   steps: Schema.optional(Globs),
   exclude: Schema.optional(Globs),
+  evidence: Schema.optional(Schema.Struct({
+    inputs: Schema.optional(Globs),
+    env: Schema.optional(Schema.Array(Schema.String))
+  })),
   results: Schema.optional(Schema.String),
   types: Schema.optional(Schema.String),
   maturity: Schema.optional(Schema.Array(Schema.String)),
@@ -31,6 +35,13 @@ export interface Config {
   readonly code: ReadonlyArray<string>
   readonly steps: ReadonlyArray<string>
   readonly exclude: ReadonlyArray<string>
+  /** What scenarios run against besides the code: a result goes stale when any of it changes. */
+  readonly evidence: {
+    /** Files the steps read while running — fixtures, data — as globs. */
+    readonly inputs: ReadonlyArray<string>
+    /** Environment variables the steps read; only a digest of their values is stored. */
+    readonly env: ReadonlyArray<string>
+  }
   /** Where `sdp run` stores scenario results, relative to the workspace root. */
   readonly results: string
   /** Where `sdp types` writes the id declarations that type `annotate`, relative to the workspace root. */
@@ -61,6 +72,7 @@ export const defaults: Config = {
   code: [`src/${sourceGlob}`, `lib/${sourceGlob}`, `app/${sourceGlob}`, `packages/${sourceGlob}`],
   steps: ["**/*.steps.{ts,mts,js,mjs}"],
   exclude: ["**/node_modules/**", ".sdp/**", "**/dist/**", "**/build/**", ".git/**"],
+  evidence: { inputs: [], env: [] },
   results: ".sdp/results.json",
   types: ".sdp/ids.d.ts",
   maturity: ["idea", "draft", "specified", "ready"],
@@ -100,6 +112,10 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     code: file.code ?? defaults.code,
     steps: file.steps ?? defaults.steps,
     exclude: [...defaults.exclude, ...(file.exclude ?? [])],
+    evidence: {
+      inputs: file.evidence?.inputs ?? defaults.evidence.inputs,
+      env: file.evidence?.env ?? defaults.evidence.env
+    },
     results: file.results ?? defaults.results,
     types: file.types ?? defaults.types,
     maturity: file.maturity ?? defaults.maturity,

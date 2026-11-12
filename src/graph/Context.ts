@@ -12,12 +12,14 @@ import { architectureView, isDriver, isSignificant } from "../arch/Architecture.
 import { gateReasons } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import type { Spec } from "../parse/Spec.ts"
+import type { StepSignature } from "../parse/StepDefinitions.ts"
+import { isActive } from "../run/Evidence.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
-import { isActive, type Project } from "./Build.ts"
+import type { Project } from "./Build.ts"
 
 /** The step definitions of the workspace, so the bundle can show what is not automated yet before any run. */
 export interface ContextSteps {
-  readonly matcher: Matcher
+  readonly matcher: Matcher<StepSignature>
   /** Step definition files, relative to the workspace root. */
   readonly files: ReadonlyArray<string>
 }

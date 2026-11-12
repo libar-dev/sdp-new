@@ -5,18 +5,18 @@
  * what agents get from them (MCP tools, context bundles, the rule catalogue).
  * Shares its world with every other module (world.ts).
  */
+import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "sdp/steps"
 import { Duration, Effect } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { isDeepStrictEqual } from "node:util"
+import { execFile } from "node:child_process"
+import { isDeepStrictEqual, promisify } from "node:util"
 import { registrations } from "../../src/mcp/Server.ts"
 import { rules } from "../../src/model/Diagnostic.ts"
+import type { ScenarioResult, StepResult } from "../../src/model/Results.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
-import type { StepResult } from "../../src/run/Results.ts"
-import { runScenarios } from "../../src/run/Runner.ts"
 import { runWorkspace } from "../../src/run/Session.ts"
-import { writeResults } from "../../src/workspace/Workspace.ts"
-import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "../../src/run/Steps.ts"
+import { readResults } from "../../src/run/Store.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, newWorld, reload, type World } from "./world.ts"
 
@@ -68,6 +68,11 @@ const behaviours: Record<string, Behaviour> = {
   "returns a rejected Promise": (_, expression) => Promise.reject(failure(expression)),
   "wraps a failing Promise in Effect.tryPromise": (_, expression) => Effect.tryPromise(() => Promise.reject(failure(expression))),
   "takes a second": () => Effect.sleep("1 second"),
+  // Never yields, so nothing can interrupt it: the timeout can only be noticed afterwards.
+  "keeps the thread busy for 200 ms": () => {
+    const until = performance.now() + 200
+    while (performance.now() < until) { /* busy */ }
+  },
   // Never settles on its own: only an aborted signal ends it.
   "waits for its signal": ({ signal }, expression, log) =>
     new Promise<void>((resolve) => {
@@ -84,6 +89,11 @@ const behaviours: Record<string, Behaviour> = {
       yield* Effect.sleep("50 millis")
       log.timeline.push({ scenario: scenario.name, start, end: performance.now() })
     }),
+  "finds every scenario unrun": ({ project }) => {
+    const statuses = project.graph.ofKind("scenario").map((node) => node.attrs.status)
+    assert.deepEqual([...new Set(statuses)], ["unrun"], "scenario statuses in the graph")
+    assert.equal(project.results, undefined, "stored results")
+  },
   "adds an item to its world": ({ world }) => {
     world.items = (world.items ?? 0) + 1
   },
@@ -111,7 +121,13 @@ const scriptedSteps = (
   const byModule = Map.groupBy(definitions, (d) => d.module)
   return [...byModule].map(([name, list]) =>
     defineSteps(factory(list[0]!.world), ({ Step }) => {
-      for (const { behaviour, expression } of list) Step(expression, (context) => behaviours[behaviour]!(context, expression, log))
+      for (const { behaviour, expression } of list) {
+        const handler = (context: StepContext<Record<string, number>, ReadonlyArray<unknown>>) => behaviours[behaviour]!(context, expression, log)
+        // A scenario writes a regular expression the way code does: between slashes.
+        const regexp = /^\/(.*)\/$/.exec(expression)
+        if (regexp) Step(new RegExp(regexp[1]!), handler)
+        else Step(expression, handler)
+      }
     }, { name })
   )
 }
@@ -119,11 +135,13 @@ const scriptedSteps = (
 interface Execution extends Log {
   /** Module and world of `world.definitions[i]`, when a scenario names them. */
   readonly placements: Array<{ readonly module: string; readonly world: string } | undefined>
+  /** The scenarios a run reported while it ran, in the order it reported them. */
+  readonly progress: Array<string>
   tools: ReadonlyArray<{ readonly name: string; readonly annotations?: Readonly<Record<string, unknown>> | undefined }>
 }
 
 const execution = (world: World): Execution =>
-  (world.scratch.execution ??= { placements: [], received: [], timeline: [], waiting: [], aborted: [], tools: [] }) as Execution
+  (world.scratch.execution ??= { placements: [], progress: [], received: [], timeline: [], waiting: [], aborted: [], tools: [] }) as Execution
 
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))
@@ -137,26 +155,21 @@ const define = (world: World, definition: Scripted) => {
   execution(world).placements[world.definitions.length - 1] = { module: definition.module, world: definition.world }
 }
 
-const runInMemory = (world: World, timeout?: Duration.Input) =>
-  Effect.gen(function*() {
-    const project = yield* reload(world)
-    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world))]
-    world.run = yield* runScenarios({ project, modules, timeout })
-    yield* writeResults(memoryRoot, project.config, world.run).pipe(Effect.provide(layerMemoryWorkspace(world.files)))
-    yield* reload(world)
-  })
+interface RunInMemory {
+  readonly targets?: ReadonlyArray<string>
+  readonly tags?: string
+  readonly concurrency?: number
+  readonly timeout?: Duration.Input
+  readonly onScenario?: (result: ScenarioResult) => Effect.Effect<void>
+}
 
 /** What `sdp run [targets] [--tags]` does — selection, ordinary scenarios, then gates — on the in-memory workspace. */
-const runWorkspaceInMemory = (
-  world: World,
-  options: { readonly targets?: ReadonlyArray<string>; readonly tags?: string; readonly concurrency?: number } = {}
-) =>
+const runInMemory = (world: World, options: RunInMemory = {}) =>
   Effect.gen(function*() {
     const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world))]
-    const { concurrency, ...selection } = options
-    const run = yield* runWorkspace(memoryRoot, { modules, selection, concurrency })
+    const { concurrency, onScenario, timeout, ...selection } = options
+    const run = yield* runWorkspace(memoryRoot, { modules, selection, concurrency, timeout, onScenario })
     world.run = run.results
-    world.scratch.gateResults = run.gates
     yield* reload(world)
   }).pipe(Effect.provide(layerMemoryWorkspace(world.files)))
 
@@ -211,18 +224,44 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the scenarios are run", ({ world }) => runInMemory(world))
 
-  When("the workspace is run", ({ world }) => runWorkspaceInMemory(world))
+  When("the workspace is run", ({ world }) => runInMemory(world))
 
-  When("the workspace is run for {string}", ({ args: [targets], world }) => runWorkspaceInMemory(world, { targets: targets.split(/\s+/) }))
+  When("the workspace is run for {string}", ({ args: [targets], world }) => runInMemory(world, { targets: targets.split(/\s+/) }))
 
-  When("the workspace is run with concurrency {int}", ({ args: [concurrency], world }) => runWorkspaceInMemory(world, { concurrency }))
+  When("the workspace is run with concurrency {int}", ({ args: [concurrency], world }) => runInMemory(world, { concurrency }))
 
-  When("the workspace is run with tags {string}", ({ args: [tags], world }) => runWorkspaceInMemory(world, { tags }))
+  When("the workspace is run with tags {string}", ({ args: [tags], world }) => runInMemory(world, { tags }))
 
   When(
     "the workspace is run with concurrency {int} and tags {string}",
-    ({ args: [concurrency, tags], world }) => runWorkspaceInMemory(world, { concurrency, tags })
+    ({ args: [concurrency, tags], world }) => runInMemory(world, { concurrency, tags })
   )
+
+  // Two runs over the same workspace in one process, as two agents or shells would start them.
+  When("the workspace is run for {string} and for {string} at the same time", ({ args: [first, second], world }) =>
+    Effect.gen(function*() {
+      yield* Effect.all([runInMemory(world, { targets: [first] }), runInMemory(world, { targets: [second] })], { concurrency: 2 })
+      const project = yield* reload(world)
+      world.run = yield* readResults(memoryRoot, project.config)
+    }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
+
+  When(
+    "the workspace is run for {string} with concurrency {int} and a reporter that takes a moment",
+    ({ args: [target, concurrency], world }) =>
+    runInMemory(world, {
+      targets: [target],
+      concurrency,
+      onScenario: (result) =>
+        Effect.gen(function*() {
+          execution(world).progress.push(`start ${result.name}`)
+          yield* Effect.sleep("10 millis")
+          execution(world).progress.push(`end ${result.name}`)
+        })
+    }))
+
+  Then("the reporter saw {string}", ({ args: [events], world }) => {
+    assert.deepEqual(execution(world).progress, events.split(/,\s*/))
+  })
 
   Then("the scenarios {string} and {string} overlapped", ({ args: [a, b], world }) => {
     const [first, second] = [interval(world, a), interval(world, b)]
@@ -235,7 +274,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(overlapping.length, 0, `"${name}" overlapped ${overlapping.map((t) => `"${t.scenario}"`).join(", ")}`)
   })
 
-  When("the scenarios are run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, Duration.millis(ms)))
+  When("the scenarios are run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, { timeout: Duration.millis(ms) }))
 
   // The run is interrupted once the handler is waiting, however long it took to get there.
   When("the scenarios are run and interrupted while {string} runs", ({ args: [expression], world }) =>
@@ -292,6 +331,19 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the handler received the table:", ({ table, world }) => {
     const received = execution(world).received.map((r) => r.table)
     assert.ok(received.some((t) => isDeepStrictEqual(t, table)), `received ${JSON.stringify(received)}`)
+  })
+
+  // --- the step API ---------------------------------------------------------
+
+  // Every module the import loads, one URL per line, as a load hook sees them.
+  When("a fresh Node process imports {string}", async ({ args: [specifier], project, world }) => {
+    const script = [
+      `import { registerHooks } from "node:module"`,
+      `registerHooks({ load: (url, context, nextLoad) => (console.log(url), nextLoad(url, context)) })`,
+      `await import(${JSON.stringify(specifier)})`
+    ].join("\n")
+    const { stdout } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script], { cwd: project.root })
+    world.output = stdout
   })
 
   // --- MCP and context ------------------------------------------------------

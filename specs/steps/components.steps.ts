@@ -16,7 +16,7 @@ import { type Annotation, scanAnnotations } from "../../src/parse/Annotations.ts
 import { scanTypedAnnotations } from "../../src/parse/TypedAnnotations.ts"
 import type { Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
-import { defineSteps } from "../../src/run/Steps.ts"
+import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { loadConfig } from "../../src/workspace/Workspace.ts"
 import { ids, load, newWorld, setFile, type World } from "./world.ts"

@@ -2,8 +2,9 @@
  * Steps that run the real `sdp` command line as a process, the way people and
  * agents use it. Files given with `a file … containing:` are written to a fresh
  * temporary directory before the first command; commands run in it, with `sdp`
- * standing for `node <this repository>/src/cli/main.ts` and `$PWD` for that
- * directory, as in a shell. Shares its world with every other module (world.ts).
+ * standing for `node <this repository>/src/cli/main.ts`, `$PWD` for that
+ * directory and leading `NAME=value` words setting environment variables, as
+ * in a shell. Shares its world with every other module (world.ts).
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Effect } from "effect"
@@ -17,7 +18,7 @@ import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { newSpec } from "../../src/cli/templates.ts"
 import { registrations } from "../../src/mcp/Server.ts"
-import { defineSteps } from "../../src/run/Steps.ts"
+import { defineSteps } from "sdp/steps"
 import { load, newWorld, setFile, type World } from "./world.ts"
 
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)))
@@ -57,9 +58,13 @@ const words = (command: string) => [...command.matchAll(/'([^']*)'|"([^"]*)"|(\S
 
 const exec = (command: string, cwd: string, input = "") =>
   new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-    const [bin, ...args] = words(command).map((word) => word.replaceAll("$PWD", cwd))
+    const all = words(command).map((word) => word.replaceAll("$PWD", cwd))
+    const assignments = all.findIndex((word) => !/^[A-Z_][A-Z0-9_]*=/.test(word))
+    const variables = Object.fromEntries(all.slice(0, assignments).map((word) => word.split(/=(.*)/s).slice(0, 2)))
+    const [bin, ...args] = all.slice(assignments)
     const sdp = bin === "sdp"
-    const child = execFile(sdp ? process.execPath : bin!, sdp ? [cli, ...args] : args, { cwd, env }, (error, stdout, stderr) => {
+    const options = { cwd, env: { ...env, ...variables } }
+    const child = execFile(sdp ? process.execPath : bin!, sdp ? [cli, ...args] : args, options, (error, stdout, stderr) => {
       if (error && typeof error.code !== "number") reject(error)
       else done({ code: error ? Number(error.code) : 0, stdout, stderr })
     })
@@ -75,7 +80,7 @@ const record = (world: World, result: { code: number; stdout: string; stderr: st
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("the workspace is a copy of {string}", async ({ args: [source], world }) => {
     const directory = await directoryOf(world)
-    // Its step definitions import "sdp" with nothing installed: sdp resolves that import itself.
+    // Its step definitions import "sdp/steps" with nothing installed: sdp resolves that import itself.
     await cp(join(repository, source), directory, {
       recursive: true,
       filter: (file) => ![".sdp", "node_modules"].includes(basename(file))

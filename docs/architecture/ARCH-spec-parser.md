@@ -41,14 +41,16 @@ a `Feature:` line anywhere else is content.
 - A scenario's id is `<spec id>#<slug of its name>`, made unique within the file with `-2`, `-3`, …;
   an unnamed scenario is `#scenario-<position>`.
 - Outlines compile to one executable example per row, Background steps included.
-- Each scenario carries a hash of its executable content — its name, step text, doc strings and
-  tables. Editing them makes earlier results stale; editing prose around them does not.
+- Each scenario carries a hash of what a step handler can observe of it — its examples' names,
+  their tags (inherited ones too), step text, doc strings and tables. Editing any of them makes
+  earlier results stale; editing prose around them does not.
 
 ## Diagnostics
 
 The parser never throws on content. Front matter it cannot read (`front-matter`, at the offending
-line) leaves the file out of the graph; front matter with a `kind` but no `id` is flagged
-(`missing-id`) because it looks like a spec that was meant to count. Links without a target
+line) leaves the file out of the graph; a file with a `kind` in its front matter or with a Gherkin
+block, but no `id`, is an error (`missing-id`): it is plainly meant as a spec, and its scenarios
+would otherwise be dropped silently. Links without a target
 (`link-syntax`, at the `links:` key), entries under `nodes:` without an id (`inline-node`) and a
 Gherkin syntax error (`gherkin-syntax`, reported once, at the line where parsing stopped) drop only
 what could not be read.
@@ -140,7 +142,7 @@ Scenario: Front matter with a kind but no id is flagged
   Then the file is not a spec
   And parsing reports:
     | rule       | severity | line | message                            |
-    | missing-id | warning  | 1    | declares kind "decision" but no id |
+    | missing-id | error    | 1    | declares kind "decision" but no id |
 
 Scenario Outline: Broken front matter is reported at its line
   Given a file "specs/REQ-basket.md" containing:

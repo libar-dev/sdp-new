@@ -15,7 +15,7 @@ import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
-import { defineSteps } from "../../src/run/Steps.ts"
+import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
 

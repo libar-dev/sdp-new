@@ -1,3 +1,9 @@
+/**
+ * What `sdp run` records: the result of each scenario and the evidence it rests
+ * on, as stored in the results file, and how scenario statuses roll up into a
+ * spec's verification. Plain data: the runner writes it, the graph builder
+ * reads it.
+ */
 import { Schema } from "effect"
 
 export const StepStatus = Schema.Literals(["passed", "failed", "pending", "undefined", "ambiguous", "skipped"])
@@ -28,14 +34,19 @@ export type PickleResult = typeof PickleResult.Type
 
 /**
  * Fingerprints of what a scenario ran against. A result is evidence only while
- * each fingerprint it recorded still matches the workspace.
+ * each fingerprint it recorded still matches the workspace: `verified` promises
+ * that every scenario passed against exactly these inputs, nothing wider.
  */
 export const Evidence = Schema.Struct({
-  /** The configuration file, the code, and the step definitions with the workspace files they import. */
+  /** The configuration file, the code, the step definitions and every workspace file they imported up to the end of the run. */
   sources: Schema.String,
+  /** The sdp version, the Node major version and the lockfile. */
+  toolchain: Schema.String,
+  /** The declared inputs: the files of `evidence.inputs` and the variables of `evidence.env`. */
+  inputs: Schema.String,
   /** The spec and feature files, recorded when a step read the graph (`project`). */
   specs: Schema.optional(Schema.String),
-  /** The results of the ordinary scenarios, recorded when a gate read the graph after they ran. */
+  /** The statuses of the ordinary scenarios, recorded when a gate read the graph. */
   results: Schema.optional(Schema.String)
 })
 export type Evidence = typeof Evidence.Type
@@ -56,9 +67,9 @@ export const ScenarioResult = Schema.Struct({
 export type ScenarioResult = typeof ScenarioResult.Type
 
 export const RunResults = Schema.Struct({
-  version: Schema.Literal(2),
+  version: Schema.Literal(3),
   runAt: Schema.String,
-  /** Workspace files the step definitions import besides the step files, part of `evidence.sources`. */
+  /** Workspace files the step definitions imported in any run, besides the step files: part of `evidence.sources`. */
   imports: Schema.Array(Schema.String),
   scenarios: Schema.Record(Schema.String, ScenarioResult)
 })

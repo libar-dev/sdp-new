@@ -23,8 +23,9 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 4. its relationships, each with the other node's title, status and `file:line`;
 5. the status of each scenario; for each step that failed or is pending in the last run, its error
    and the `file:line` of its definition; and each step that no step definition — or more than one —
-   matches, with a suggested definition. Steps are matched against the step definitions as they are
-   now, so this needs no run; the step files are named, to add the definitions to;
+   matches, with a suggested definition. Steps are matched against the step definitions as read
+   from the step files — nothing of the workspace runs — so this needs no run; the step files are
+   named, to add the definitions to;
 6. the significant architecture within two hops (`--depth`), with the rationale for each element,
    and the patterns it applies;
 7. the quality requirements within reach, each with its measure: the outcome (`Then`) steps of its
@@ -289,7 +290,7 @@ Scenario: Steps without a definition are listed before any run, with the step fi
     """
   And a file "specs/steps/cart.steps.ts" containing:
     """
-    import { defineSteps } from "sdp"
+    import { defineSteps } from "sdp/steps"
 
     export default defineSteps(() => ({}), ({ Given }) => {
       Given("an empty cart", () => {})

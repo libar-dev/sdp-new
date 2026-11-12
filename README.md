@@ -108,6 +108,7 @@ Scenario: Specify behaviour before it is automated
 | `sdp show <id>` | A node with attributes and edges |
 | `sdp context <id>` | Everything needed to work on a node, as Markdown (for agents and humans) |
 | `sdp check` | Diagnostics with rule ids, `file:line` and a hint; exit 1 on errors |
+| `sdp steps [text]` | Step definitions, built-in ones included, one per line with `file:line`; read from the step files, never run |
 | `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last and never fail the run |
 | `sdp gate <milestone>` | Evaluate one milestone's gate (or a spec's `@gate` scenarios); exit 1 if unmet |
 | `sdp arch [--candidates] [-f mermaid\|dot\|json]` | The curated architecture, or suggestions for architects to look at |

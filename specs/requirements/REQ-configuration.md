@@ -24,8 +24,10 @@ the offending key.
 | `specs` | `**/*.md` | Markdown files read as specs (those whose front matter has an `id`) |
 | `features` | `**/*.feature` | Gherkin feature files that join the graph |
 | `code` | sources under `src/`, `lib/`, `app/` and `packages/` | files scanned for `@sdp` annotations |
-| `steps` | `**/*.steps.{ts,mts,js,mjs}` | step definition modules `sdp run` imports |
+| `steps` | `**/*.steps.{ts,mts,js,mjs}` | step definition modules: `sdp run` imports them, every other command only reads them |
 | `exclude` | `**/node_modules/**`, `.sdp/**`, `**/dist/**`, `**/build/**`, `.git/**` | paths never read; the configured list adds to these |
+| `evidence.inputs` | none | files the steps read while they run — fixtures, data — as globs: a result goes stale when one changes ([[REQ-executable-specs]]) |
+| `evidence.env` | none | names of environment variables the steps read: a result goes stale when one changes; only a digest of the values is stored |
 | `results` | `.sdp/results.json` | where `sdp run` records scenario results |
 | `types` | `.sdp/ids.d.ts` | where `sdp types` writes the id declarations that type `annotate` ([[ARCH-code-annotations]]) |
 | `maturity` | `[idea, draft, specified, ready]` | the maturity ladder, lowest first ([[REQ-maturity-gates]]) |

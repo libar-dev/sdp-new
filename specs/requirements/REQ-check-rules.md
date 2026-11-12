@@ -31,7 +31,7 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | Rule | Severity | Reported when | Fix |
 | --- | --- | --- | --- |
 | `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping or is not closed; the file stays out of the graph | fix the YAML |
-| `missing-id` | warning | front matter declares a `kind` but no `id`, so the file is not part of the graph | add `id: <PREFIX>-<slug>` |
+| `missing-id` | error | a file declares a `kind` in its front matter, or has a Gherkin block, but no `id`: it is plainly meant as a spec, yet it is not part of the graph and its scenarios would not run | add `id: <PREFIX>-<slug>`, or `exclude` a document that only shows Gherkin |
 | `duplicate-id` | error | a spec or inline node reuses an id declared elsewhere; the later one is left out | rename one of them |
 | `dangling-link` | error | a link, a `[[ID]]` mention or an `@sdp` code annotation names an id no node has; the target stays queryable as a `missing` node | create the node (`sdp new`) or fix the reference |
 | `link-syntax` | warning | an entry under `links:` has a shape sdp does not understand and is ignored | write `links: { <rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes } }` |
@@ -47,6 +47,8 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `plan-reference` | warning | an `iteration:` or `phase:` value (or one of another configured plan or phase relation) names no iteration or phase, so the work or milestone is planned nowhere; or `activity:` is not a mapping, names a discipline that is not configured, or an iteration that is not declared ([[REQ-lifecycle-view]]) | use the id of a declared iteration, phase or discipline, or declare it |
 | `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
 | `annotation-unreadable` | warning | a typed annotation (`annotate(target, links)` from `sdp/annotations`) whose target is not a name or `import.meta`, or whose ids or attributes are computed rather than literal — sdp reads annotations without running code ([[ARCH-code-annotations]]) | write the target as a name and the ids as string literals |
+| `step-unreadable` | warning | a step file has no top-level `defineSteps(…)` call imported from `sdp/steps`, or registers a step whose expression is computed: sdp reads step definitions without running them, so context, snippets and `sdp steps` do not know that step ([[REQ-executable-specs]]) | write the expression as a string or RegExp literal |
+| `step-expression` | error | a step definition's Cucumber Expression is malformed, so it can match nothing and `sdp run` refuses to start | fix the expression |
 | `types-stale` | warning | the id declarations at the `types` path no longer match the graph, so `annotate()` may accept removed ids or reject new ones ([[REQ-configuration]]) | run `sdp types` |
 | `template-placeholder` | warning | text an `sdp new` template asks the author to replace is still there — a prompt such as "We will …" or "What is still unknown?", or a scenario or step written as `<…>`; one diagnostic per spec, at the first | write your own text, or delete it |
 
@@ -74,7 +76,7 @@ Scenario Outline: Each rule reports its problem where it is
   Examples:
     | rule                | severity | file             | line | front matter                                         | body                                                                                  |
     | front-matter        | error    | specs/REQ-a.md   | 2    | { id: REQ-a                                          |                                                                                       |
-    | missing-id          | warning  | specs/REQ-a.md   | 1    | { kind: requirement }                                |                                                                                       |
+    | missing-id          | error    | specs/REQ-a.md   | 1    | { kind: requirement }                                |                                                                                       |
     | duplicate-id        | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [{ id: I1 }, { id: I1 }] }        |                                                                                       |
     | dangling-link       | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: { depends-on: REQ-gone } }       |                                                                                       |
     | link-syntax         | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, links: [REQ-b] }                        |                                                                                       |
@@ -196,6 +198,26 @@ Scenario: A typed annotation sdp cannot read statically is reported
   Then the check reports "annotation-unreadable"
   And the "annotation-unreadable" diagnostic has severity "warning"
   And the "annotation-unreadable" diagnostic points at "src/cart.ts:5"
+
+Scenario Outline: A step definition sdp cannot read or match is reported
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    const cart = "an empty cart"
+    export default defineSteps(() => ({}), ({ Given }) => {
+      Given(<expression>, () => {})
+    })
+    """
+  When the workspace is checked
+  Then the check reports "<rule>"
+  And the "<rule>" diagnostic has severity "<severity>"
+  And the "<rule>" diagnostic points at "specs/steps/cart.steps.ts:5"
+
+  Examples:
+    | expression          | rule            | severity |
+    | cart                | step-unreadable | warning  |
+    | "a cart of {items}" | step-expression | error    |
 
 Scenario: Id declarations that no longer match the graph are reported
   Given a file "specs/REQ-a.md" containing:

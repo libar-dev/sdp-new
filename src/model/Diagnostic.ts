@@ -9,7 +9,7 @@ export type Severity = "error" | "warning" | "info"
  */
 export const rules = {
   "front-matter": "error",
-  "missing-id": "warning",
+  "missing-id": "error",
   "duplicate-id": "error",
   "dangling-link": "error",
   "link-syntax": "warning",
@@ -26,6 +26,8 @@ export const rules = {
   "plan-reference": "warning",
   "annotation-ignored": "warning",
   "annotation-unreadable": "warning",
+  "step-unreadable": "warning",
+  "step-expression": "error",
   "types-stale": "warning"
 } as const satisfies Record<string, Severity>
 

@@ -1,7 +1,7 @@
 import { statusCell } from "../graph/Export.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
-import type { ScenarioResult, StepStatus } from "../run/Results.ts"
+import type { ScenarioResult, StepStatus } from "../model/Results.ts"
 
 const useColor = process.stdout.isTTY === true && !process.env.NO_COLOR
 const paint = (code: number) => (text: string) => useColor ? `\u001b[${code}m${text}\u001b[0m` : text
