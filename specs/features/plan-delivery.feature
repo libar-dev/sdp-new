@@ -541,6 +541,25 @@ Feature: Plan delivery
       And the output contains "✔ There is a plan"
       And the output contains "✘ Every feature is in an iteration"
 
+    Scenario: A scenario of another spec that links to the milestone is not of its gate
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay
+        Feature: Pay
+
+          Rule: A card is charged once
+
+            @verifies:MS-architecture
+            Scenario: Charged
+              Then the query "feature" returns no results
+        """
+      When the workspace is run
+      And the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id              | gate | next |
+        | MS-objectives   | 1/2  | yes  |
+        | MS-architecture | 1/1  |      |
+
   Rule: A gate passes only when every one of its scenarios passed, run against the current graph
 
     A criterion nobody has automated is not met, and a result from before the graph changed says

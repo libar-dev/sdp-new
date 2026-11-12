@@ -207,11 +207,16 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     }
   }
 
-  /** The scenario nodes of a node, in the order they are written. */
+  /**
+   * The scenarios of a spec or a rule, in the order they are written: its own, as `sdp gate` and
+   * stages read them. A link an author writes to it from another spec's scenario makes none of its.
+   */
   const examplesOf = (node: GraphNode) =>
     graph.in(node.id)
       .flatMap((edge) => edge.rel === vocabulary.relations.scenario ? [graph.node(edge.from)] : [])
-      .filter((scenario): scenario is GraphNode => scenario?.kind === made.kinds.scenario)
+      .filter((scenario): scenario is GraphNode =>
+        scenario?.kind === made.kinds.scenario && (scenario.attrs.spec === node.id || scenario.attrs.rule === node.id)
+      )
       .sort((a, b) => (a.source?.line ?? 0) - (b.source?.line ?? 0))
 
   /** The scenarios of a node, in the order they are written, with the status of their last run. */
