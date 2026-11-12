@@ -387,7 +387,7 @@ const readFeature = (
 
   // A rule is named by what it says, so two alike are one id twice: the graph reports it. A
   // scenario's name says its case, and a case named like another or like a rule is numbered.
-  const ruleIds = new Map(writtenRules.map((rule, index) => [rule, `${specId}#${nameSlug(rule.name) || `rule-${index + 1}`}`]))
+  const ruleIds = new Map(writtenRules.map((rule, index) => [rule, `${specId}#${slugify(rule.name) || `rule-${index + 1}`}`]))
   const usedIds = new Set<string>(ruleIds.values())
   const unique = (slug: string) => {
     let id = `${specId}#${slug}`
@@ -420,7 +420,7 @@ const readFeature = (
       })
     }))
     return {
-      id: unique(nameSlug(scenario.name) || `scenario-${index + 1}`),
+      id: unique(slugify(scenario.name) || `scenario-${index + 1}`),
       specId,
       name: scenario.name,
       keyword: scenario.keyword,
@@ -465,18 +465,11 @@ const parserErrors = (error: unknown): ReadonlyArray<GherkinError> => {
 const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : `@${tag.replace(/\s+/g, "-")}`
 
 /**
- * Lower-case ASCII words joined by `-`; accents are dropped first, so "für Gäste" → "fur-gaste". At
- * most 64 characters, cut after the last whole word that fits, so an id never ends in half a word.
+ * The slug of a title, or of a rule's or a scenario's name: its words in any script, lower-case and
+ * joined by `-`, a Latin letter without its accents, so "Die Größe zählt" → "die-große-zahlt" and
+ * "Корзина пуста" → "корзина-пуста". Only a text without a letter or a digit has none.
  */
 export const slugify = (text: string): string =>
-  shortened(text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""))
-
-/**
- * The slug of a rule's or a scenario's name: its words in any script, lower-case and joined by `-`,
- * a Latin letter without its accents, so "für Gäste" → "fur-gaste" and "Корзина пуста" →
- * "корзина-пуста". Only a name without a letter or a digit has none.
- */
-const nameSlug = (text: string): string =>
   shortened(
     text.normalize("NFKD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").normalize("NFC").toLowerCase()
       .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-").replace(/^-+|-+$/g, "")

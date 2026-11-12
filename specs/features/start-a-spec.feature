@@ -145,12 +145,12 @@ Feature: Start a spec
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
 
-  Rule: A new spec's id is an ASCII slug of its title, or a number, after its kind's prefix where it has one, and its file is named by it
+  Rule: A new spec's id is the slug of its title, as a rule's is of its name, or a number, after its kind's prefix where it has one, and its file is named by it
 
     An id says what it names, so whoever reads a message that cites it needs no lookup. What a spec
     says is name enough: only elements, patterns, milestones, phases and iterations have a prefix,
-    unless the workspace gives one to another kind. Only a title with no letters to slug gets a
-    number, after its kind where it has no prefix.
+    unless the workspace gives one to another kind. Only a title with no letter or digit to slug
+    gets a number, after its kind where it has no prefix.
 
     Scenario Outline: By kind and title, or as --id and --dir say, relative to the workspace root or absolute
       When I run "sdp new <arguments>"
@@ -158,24 +158,27 @@ Feature: Start a spec
       And the file "<file>" contains "@id=<id>"
 
       Examples:
-        | arguments                                               | id                 | file                                  |
-        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/plan/MS-kasse-fur-gaste.feature |
-        | milestone 'Корзина'                                     | MS-0001            | specs/plan/MS-0001.feature            |
-        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature  |
-        | feature 'Корзина'                                       | feature-0001       | specs/features/feature-0001.feature   |
-        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature |
-        | milestone 'Go-live'                                     | MS-go-live         | specs/plan/MS-go-live.feature         |
-        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature       |
-        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature     |
+        | arguments                                               | id                 | file                                    |
+        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/plan/MS-kasse-fur-gaste.feature   |
+        | milestone 'Корзина'                                     | MS-корзина         | specs/plan/MS-корзина.feature           |
+        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature    |
+        | feature 'Корзина'                                       | корзина            | specs/features/корзина.feature          |
+        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature   |
+        | decision 'Die Größe zählt'                              | die-große-zahlt    | specs/decisions/die-große-zahlt.feature |
+        | milestone 'Go-live'                                     | MS-go-live         | specs/plan/MS-go-live.feature           |
+        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature         |
+        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature       |
 
-    Scenario: A title that leaves no ASCII letter or digit to slug is numbered after the highest number its kind has
+    Scenario: A title that leaves no ASCII letter or digit to slug is numbered only if it has no letter or digit in any script, after the highest number its kind has
       Given these specs:
         | tags              | Feature  |
         | @id=ARCH-0007     | Корзина  |
         | @id=ARCH-checkout | Checkout |
       When I run "sdp new element 'Платёж'"
+      Then the output lines are "ARCH-платёж"
+      When I run "sdp new element '🛒'"
       Then the output lines are "ARCH-0008"
-      When I run "sdp new element 'Платёж 2'"
+      When I run "sdp new element '🛒 2'"
       Then the output lines are "ARCH-2"
 
     Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so

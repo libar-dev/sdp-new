@@ -497,10 +497,11 @@ Feature: Write a spec
         | rule                  | severity | at                  | message                                         |
         | scenario-outside-rule | error    | specs/pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
 
-  Rule: A rule or a scenario is identified by the slug of its name: a scenario named like another or like a rule is numbered, a rule alike is an error
+  Rule: A rule or a scenario is identified by the slug of its name, its letters and digits in any script: a scenario named like another or like a rule is numbered, a rule alike is an error
 
     Not a position, which every edit above it would change, nor a tag kept unique by hand. A rule's
-    name says what must hold, so two alike are one rule written twice.
+    name says what must hold, so two alike are one rule written twice. A slug is lower-case, its
+    words joined by `-`, and a Latin letter loses only its accents: `ł` and `ß` have none to lose.
 
     Scenario: An id is the slug of the name, numbered when the file has the name twice or a rule has it, and by position when there is no name
       Given a file "specs/pay.feature" containing:
@@ -526,6 +527,9 @@ Feature: Write a spec
 
             Scenario: Повтор
               Given a declined card
+
+            Scenario: Płatność, große Karte
+              Given a declined card
         """
       When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
@@ -539,6 +543,7 @@ Feature: Write a spec
         | pay#scenario-3                   | 12   |
         | pay#a-declined-card-is-retried-2 | 15   |
         | pay#повтор                       | 20   |
+        | pay#płatnosc-große-karte         | 23   |
       And sdp reports nothing
 
     Scenario: A long name is cut after the last whole word within 64 characters

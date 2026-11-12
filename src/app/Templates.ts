@@ -59,7 +59,7 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
 export const newId = (kind: string, title: string, config: Config, existing: ReadonlyArray<string>): string => {
   const prefix = config.ids[kind]
   const slug = slugify(title)
-  // Every id says what it names; only a title with no ASCII letters to slug is numbered, after its prefix or else its kind.
+  // Every id says what it names; only a title with no letter or digit to slug is numbered, after its prefix or else its kind.
   if (slug === "") {
     const base = prefix ?? kind
     const numbers = existing.map((id) => new RegExp(`^${base}-(\\d+)$`).exec(id)?.[1]).filter(Boolean).map(Number)
