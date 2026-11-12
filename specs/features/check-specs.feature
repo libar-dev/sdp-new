@@ -188,11 +188,15 @@ Feature: Check specs
 
     Built work cannot go back to work still to come, or a test is turned off in silence, so check
     compares the specs with a base revision. A maturity or `@open` on a Feature or a Rule whose
-    examples were live there is an error, and so is a live example of the base that is gone or still
-    to come, unless a rule that replaces its rule is live. An example is known by its steps, so a new
-    name for it or for its rule is no removal. The base is read with its own configuration, and the
-    specs of today with today's, so a live test that a configuration leaves out is dropped like any
-    other, and a file is read whatever its name.
+    examples were live there is an error, and so is a live example of the base that is gone, still
+    to come or a gate, unless what replaces its rule or its feature is live and has a live example of
+    its own: a gate enforces nothing, so it replaces no test. Examples are compared one for one, each
+    row of an outline on its own and a Background's steps with those of each example: by their id,
+    then by their steps, so a new name or a new place for one is no removal, and an example edited
+    under its name is the same example, while one that is gone is not made up for by another that
+    tests the same. The base is read with its own configuration, and the specs of today with today's,
+    so a live test that a configuration leaves out is dropped like any other, and a file is read
+    whatever its name.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -239,6 +243,72 @@ Feature: Check specs
         | The live example's steps edited                       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item                                                                          |
         | The rule still to come built                          | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp |
         | The rule still to come deleted with its example       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                    |
+
+    Scenario Outline: One example for one example: <change>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario Outline: Add items
+              Then the cart holds <count> items
+
+              Examples:
+                | count |
+                | 1     |
+                | 2     |
+
+            Scenario: Add a lamp
+              Then the cart holds a lamp
+
+            Scenario: Add a desk
+              Then the cart holds a desk
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        <cart>
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+        | data.node | <node>     |
+
+      Examples:
+        | change                                     | exit code | reported        | node            | cart                                                                                                                                                                                                                                                                                                                                     |
+        | an outline's row deleted                   | 1         | example-dropped | cart#add-items  | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario Outline: Add items\n      Then the cart holds <count> items\n      Examples:\n        \| count \|\n        \| 1 \|\n    Scenario: Add a lamp\n      Then the cart holds a lamp\n    Scenario: Add a desk\n      Then the cart holds a desk\n                  |
+        | an outline's row edited                    | 0         | nothing         | nothing         | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario Outline: Add items\n      Then the cart holds <count> items\n      Examples:\n        \| count \|\n        \| 1 \|\n        \| 3 \|\n    Scenario: Add a lamp\n      Then the cart holds a lamp\n    Scenario: Add a desk\n      Then the cart holds a desk\n |
+        | an outline's rows in another order         | 0         | nothing         | nothing         | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario Outline: Add items\n      Then the cart holds <count> items\n      Examples:\n        \| count \|\n        \| 2 \|\n        \| 1 \|\n    Scenario: Add a lamp\n      Then the cart holds a lamp\n    Scenario: Add a desk\n      Then the cart holds a desk\n |
+        | an example edited into one that is deleted | 1         | example-dropped | cart#add-a-desk | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario Outline: Add items\n      Then the cart holds <count> items\n      Examples:\n        \| count \|\n        \| 1 \|\n        \| 2 \|\n    Scenario: Add a lamp\n      Then the cart holds a desk\n                                                             |
+
+    Scenario Outline: A live rule replaced in the change that deletes it, by <replacement>
+      Given a file "specs/cart.feature" containing:
+        """
+        <cart>
+        """
+      And a file "specs/basket.feature" containing:
+        """
+        <basket>
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+
+      Examples:
+        | replacement                                   | exit code | reported        | cart                                                                                                                                                                                                                                                                                                                                     | basket                                                                                                                                                               |
+        | a live rule                                   | 0         | nothing         | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-what-was-added\n  Rule: A cart holds what was added, once\n    Scenario: Add an item once\n      Then the cart holds 1 item once\n                                                                                                                                                | @id=basket @maturity=idea\nFeature: Basket                                                                                                                           |
+        | a rule whose example is a gate                | 1         | example-dropped | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-what-was-added\n  Rule: A cart holds what was added, once\n    @gate\n    Scenario: Add an item once\n      Then the cart holds 1 item once\n                                                                                                                                     | @id=basket @maturity=idea\nFeature: Basket                                                                                                                           |
+        | a rule whose examples are gated rows          | 1         | example-dropped | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-what-was-added\n  Rule: A cart holds what was added, once\n    Scenario Outline: Add <count> once\n      Then the cart holds <count> once\n      @gate\n      Examples:\n        \| count \|\n        \| 1 item \|\n                                                              | @id=basket @maturity=idea\nFeature: Basket                                                                                                                           |
+        | a rule with an ordinary row and a gated one   | 0         | nothing         | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-what-was-added\n  Rule: A cart holds what was added, once\n    Scenario Outline: Add <count> once\n      Then the cart holds <count> once\n      Examples:\n        \| count \|\n        \| 2 items \|\n      @gate\n      Examples:\n        \| count \|\n        \| 1 item \|\n | @id=basket @maturity=idea\nFeature: Basket                                                                                                                           |
+        | a rule that names another                     | 1         | example-dropped | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-all\n  Rule: A cart holds what was added, once\n    Scenario: Add an item once\n      Then the cart holds 1 item once\n                                                                                                                                                           | @id=basket @maturity=idea\nFeature: Basket                                                                                                                           |
+        | a feature, the cart gone                      | 0         | nothing         | # Cart is now the basket.                                                                                                                                                                                                                                                                                                                | @id=basket @replaces:cart\nFeature: Basket\n  \n  Rule: A basket holds what was added\n    Scenario: Add an item to the basket\n      Then the basket holds 1 item\n |
+        | a rule of another feature that names the cart | 0         | nothing         | # Cart is now the basket.                                                                                                                                                                                                                                                                                                                | @id=basket\nFeature: Basket\n  @replaces:cart\n  Rule: A basket holds what was added\n    Scenario: Add an item to the basket\n      Then the basket holds 1 item\n  |
 
     Scenario Outline: The configuration changed: <change>
       Given a file "sdp.config.yaml" containing:
@@ -303,7 +373,7 @@ Feature: Check specs
       When I run "sdp check"
       Then the exit code is 1
       And the output contains "[example-dropped] cart#add-an-item, a live example at the base "
-      And the output contains ", is gone, and no rule that replaces cart#a-cart-holds-what-was-added is live  specs/cart.feature:8"
+      And the output contains ", is gone, and nothing that replaces cart#a-cart-holds-what-was-added is live with a live example  specs/cart.feature:8"
 
     Scenario Outline: A live rule replaced by a rule still to come, which <replacement>
       Given a file "specs/cart.feature" containing:

@@ -428,8 +428,15 @@ export const buildProject = (input: ProjectInput): Project => {
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
       : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
   }
+  // Live work replaces what was live at the base, and may name it in the change that deletes it:
+  // the comparison with the base reads that link, and no dangling link is reported for it.
+  const replacedBefore = (edge: GraphEdge) => hasRelation(vocabulary, "replaces", edge.rel) && nodes.get(edge.from)?.attrs.toCome !== true
   for (const edge of links) {
     if (declaredIds.has(edge.to)) continue
+    if (replacedBefore(edge)) {
+      if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
+      continue
+    }
     if (planning(edge)) {
       const planned = nodes.get(edge.to)
       if (planned === undefined || planned.kind === made.kinds.missing) {

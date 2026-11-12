@@ -244,11 +244,12 @@ Feature: Write a spec
         | annotation | error    | 10   | @maturity=idea: only a Feature or a Rule declares a maturity  |
       And node "pay#card" has attribute toCome = "undefined"
 
-  Rule: A rule still to come names the live rule it replaces
+  Rule: Work still to come names the live rule or feature it replaces
 
-    The replaced rule stays live until the change that builds its replacement deletes it with the
-    link, so no two rules replace each other, and sdp check holds that change to its base. Removing
-    behaviour is written as what happens instead.
+    What it replaces stays live until the change that builds the replacement deletes it, so no two
+    replace each other; a link to a feature, or from one, stands for all of its rules. Built, the
+    replacement may keep the link in that change, where it names what the base had: sdp check holds
+    the change to its base. Removing behaviour is written as what happens instead.
 
     Scenario Outline: A rule that replaces <case>
       Given a file "specs/cart.feature" containing:
@@ -283,9 +284,22 @@ Feature: Write a spec
         | a live rule               |                                            | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | nothing                    |
         | a rule still to come      |                                            | @maturity=draft @replaces:cart#a-cart-is-kept-for-a-week   | replacement                |
         | itself                    |                                            | @maturity=draft @replaces:cart#a-cart-holds-each-item-once | replacement                |
-        | a feature                 |                                            | @maturity=draft @replaces:cart                             | replacement                |
+        | its own feature           |                                            | @maturity=draft @replaces:cart                             | replacement                |
         | a rule, once it is built  |                                            | @replaces:cart#a-cart-holds-what-was-added                 | replacement, untested-rule |
         | the rule that replaces it | @replaces:cart#a-cart-holds-each-item-once | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | replacement                |
+
+    Scenario Outline: A feature still to come that replaces <case>
+      Given these specs:
+        | tags                              | Feature |
+        | @id=cart                          | Cart    |
+        | @id=basket @maturity=draft <link> | Basket  |
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | case           | link             | reported    |
+        | a live feature | @replaces:cart   | nothing     |
+        | itself         | @replaces:basket | replacement |
 
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag

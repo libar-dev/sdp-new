@@ -66,9 +66,11 @@ Feature: Guest checkout
   it, each with a maturity of its own, with
   `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
   Nothing live goes back: `sdp check` compares the specs with the git base (where HEAD meets the
-  default branch, or `--base`), and a maturity on what was live there, or a live example that is
-  gone or still to come with no live rule that replaces its rule, is an error. Renaming an example
-  or its rule is no removal: an example is known by its steps.
+  default branch, or `--base`; without one its answer is incomplete, and `--base none` waives it),
+  and a maturity on what was live there, or a live example that is gone, a gate or still to come, is
+  an error — unless what replaces its rule or its feature is live with a live example of its own.
+  Examples are compared one for one, each row of an outline on its own: a new name or place for one
+  is no removal, and one edited under its name is the same example.
 - **An open question is a Rule tagged `@open`**, its name the question. Answering it means
   renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
   has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
