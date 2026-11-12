@@ -189,57 +189,6 @@ Feature: Graph builder
         | src/a.py            | # @sdp status verified\ndef a(): pass                                      | src/a.py:1            | status   | no link can be named status            | written with =                     |
         | specs/REQ-a.feature | @id=REQ-a @owner=payments @owner:verified\nFeature: A                      | specs/REQ-a.feature:1 | owner    | owner is already an attribute of REQ-a | give the relation another name     |
 
-  Rule: Annotated code is a code node linked to what it names, and an is link adds to its node only what no spec says
-
-    Scenario: An element a spec declares and one only code declares
-      Given these specs:
-        | tags                             | Feature |
-        | @id=REQ-pay                      | Pay     |
-        | @id=ARCH-billing @owner=payments | Billing |
-      And a file "src/billing.ts" containing:
-        """
-        // @sdp is ARCH-billing owner=platform tier=1
-
-        // @sdp implements REQ-pay
-        // @sdp uses ARCH-ledger via=events
-        export class Billing {}
-        """
-      And a file "src/ledger.ts" containing:
-        """
-        // @sdp is ARCH-ledger title="Ledger"
-        export class Ledger {}
-        """
-      When the workspace is loaded
-      Then the workspace graph has exactly these nodes:
-        | id                          | kind        | title          | source                       |
-        | REQ-pay                     | requirement | Pay            | specs/REQ-pay.feature:1      |
-        | ARCH-billing                | element     | Billing        | specs/ARCH-billing.feature:1 |
-        | code:src/billing.ts         | code        | src/billing.ts | src/billing.ts:1             |
-        | code:src/billing.ts#Billing | code        | Billing        | src/billing.ts:3             |
-        | code:src/ledger.ts#Ledger   | code        | Ledger         | src/ledger.ts:1              |
-        | ARCH-ledger                 | element     | Ledger         | src/ledger.ts:1              |
-      And the workspace graph has edges:
-        | from                        | rel        | to           | attributes   |
-        | code:src/billing.ts         | is         | ARCH-billing |              |
-        | code:src/billing.ts#Billing | implements | REQ-pay      |              |
-        | code:src/billing.ts#Billing | uses       | ARCH-ledger  | via="events" |
-        | code:src/ledger.ts#Ledger   | is         | ARCH-ledger  |              |
-      And node "ARCH-billing" has attribute owner = "payments"
-      And node "ARCH-billing" has attribute tier = "1"
-
-    Scenario: A maturity given in code decides the stage like one written in the spec
-      Given these specs:
-        | tags        | Feature |
-        | @id=REQ-pay | Pay     |
-      And a file "src/pay.py" containing:
-        """
-        # @sdp is REQ-pay maturity=idea
-        def pay(): pass
-        """
-      When the workspace is loaded
-      Then node "REQ-pay" has attribute maturity = "idea"
-      And node "REQ-pay" has attribute stage = "idea"
-
   Rule: An id is declared once: a second declaration is an error, and the first holds
 
     Scenario: Two files declare REQ-pay
@@ -286,9 +235,3 @@ Feature: Graph builder
         | ARCH-queue            | missing     |                            |
         | ARCH-worker           | missing     |                            |
         | REQ-sink              | missing     |                            |
-
-  @open
-  Rule: Only a code annotation can still give a link attributes (`@sdp uses X via=events`): are they worth the merging of declarations and link-conflict that exist for them?
-
-    No edge of this repository has attributes, and the final review recommends deleting them with
-    the conflict records, which were the one part of a graph its readers could change.

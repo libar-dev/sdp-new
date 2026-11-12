@@ -44,7 +44,7 @@ Feature: Architecture overview
 
     Scenario: No code outside the architecture, none linked to a requirement, no ready requirement or feature without an element
       Then the query "code !-is|instance-of-> element|pattern" returns no results
-      And the query "code ?-*-> requirement|nfr" returns no results
+      And the query "code ?-*-> requirement|nfr|feature|change" returns no results
       And the query "requirement|feature[maturity=ready] !-realized-by-> element" returns no results
 
   @open

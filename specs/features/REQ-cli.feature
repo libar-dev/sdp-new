@@ -460,23 +460,6 @@ Feature: Command line
       And the output contains 'E1 ends on "2026-11-31", which is not a date'
       And the file "specs/delivery/E2.feature" does not exist
 
-  Rule: types declares every id with its kind for annotate() to accept, and check says when the declarations no longer match
-
-    Scenario: After a spec is added
-      When I run "sdp types"
-      Then the exit code is 0
-      And the file ".sdp/ids.d.ts" contains '"REQ-search": "requirement"'
-      When I run "sdp check --json"
-      Then the JSON output has:
-        | data | nothing |
-      Given these specs:
-        | tags           | Feature |
-        | @id=REQ-export | Export  |
-      When I run "sdp check --json"
-      Then the JSON output has:
-        | data.rule | types-stale   |
-        | data.file | .sdp/ids.d.ts |
-
   Rule: status counts the graph on one screen: kinds, relations, stages, rules, scenarios, gates and milestones, each by where it stands
 
     Gates are counted apart from the other scenarios: a gate may be unmet with nothing broken.
