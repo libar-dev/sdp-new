@@ -125,7 +125,7 @@ export interface GherkinResult {
 export interface FeatureFile {
   /** Undefined when the file has no `Feature:`. */
   readonly feature: FeatureHead | undefined
-  /** The scenarios and rules, with ids under `specId`; every scenario inherits `tags` before the Feature's own. */
+  /** The scenarios and rules, with ids under `specId`; every scenario inherits `tags` after the Feature's own. */
   readonly read: (specId: string, tags: ReadonlyArray<string>) => GherkinResult
 }
 
@@ -176,7 +176,8 @@ export const parseGherkinFences = (options: {
     children.push(...feature.children)
   }
   if (errors.length > 0 || !first) return { ...empty, errors }
-  return readFeature(options.specId, { ...first, children }, options.tags, newId, [], [])
+  // The spec's tags and kind come first, as if written above the Feature.
+  return readFeature(options.specId, { ...first, tags: [...inherited(first, options.tags, newId), ...first.tags], children }, newId, [], [])
 }
 
 /** Parse a `.feature` file, or say where the parser stopped. */
@@ -192,11 +193,16 @@ export const parseFeatureFile = (content: string): Result.Result<FeatureFile, Re
       description: paragraphs(placeDescription(lines, feature).lines),
       ...readTags(feature.tags, "Feature")
     },
-    read: (specId, tags) => feature ? readFeature(specId, feature, tags, newId, lines, comments) : empty
+    read: (specId, tags) =>
+      feature ? readFeature(specId, { ...feature, tags: [...feature.tags, ...inherited(feature, tags, newId)] }, newId, lines, comments) : empty
   })
 }
 
 const empty: GherkinResult = { scenarios: [], rules: [], errors: [], problems: [] }
+
+/** Tags a Feature's scenarios inherit from what the spec is, though they are not written on it. */
+const inherited = (feature: Messages.Feature, tags: ReadonlyArray<string>, newId: IdGenerator.NewId): ReadonlyArray<Messages.Tag> =>
+  tags.map((tag) => ({ id: newId(), name: toTag(tag), location: { line: feature.location.line, column: 1 } }))
 
 /** The document, or the errors that kept the parser from reading it. */
 const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<Messages.GherkinDocument, ReadonlyArray<GherkinError>> => {
@@ -334,23 +340,19 @@ const paragraphs = (lines: ReadonlyArray<Paragraph>): ReadonlyArray<Paragraph> =
  */
 const readFeature = (
   specId: string,
-  written: Messages.Feature,
-  inherited: ReadonlyArray<string>,
+  feature: Messages.Feature,
   newId: IdGenerator.NewId,
   lines: ReadonlyArray<string>,
   comments: ReadonlyArray<Messages.Comment>
 ): GherkinResult => {
   const problems: Array<GherkinProblem> = []
-  // The feature carries what the spec inherits — its kind, and in Markdown its tags — before its own tags.
-  const location = { line: written.location.line, column: 1 }
-  const feature = { ...written, tags: [...inherited.map((tag) => ({ id: newId(), name: toTag(tag), location })), ...written.tags] }
   const pickles = compile({ feature, comments: [] }, specId, newId)
-  readTags(written.tags, "Feature", problems)
+  readTags(feature.tags, "Feature", problems)
 
   const astLines = new Map<string, number>()
   const astSteps = new Map<string, Messages.Step>()
   const scenarioDefs: Array<{ readonly scenario: Messages.Scenario; readonly rule: Messages.Rule | undefined }> = []
-  const described: Array<{ readonly location: Messages.Location; readonly description: string }> = [written]
+  const described: Array<{ readonly location: Messages.Location; readonly description: string }> = [feature]
   const visitSteps = (steps: ReadonlyArray<Messages.Step>) => {
     for (const step of steps) {
       astLines.set(step.id, step.location.line)

@@ -900,7 +900,7 @@ Rule: A spec is a Feature, and the tags above it say what it is and what it link
     And the parsed spec has scenarios:
       | id            | rule                     | tags    | attributes | links                |
       | REQ-pay#retry | A wallet is charged once | @serial | priority=1 | -covers-> REQ-refund |
-    And the executable tags of "REQ-pay#retry" are "@requirement, @checkout, @slow, @serial, @eu"
+    And the executable tags of "REQ-pay#retry" are "@checkout, @requirement, @slow, @serial, @eu"
     And sdp reports nothing
 
   Scenario Outline: What a hash covers is what a step can see: an annotation, the spec's kind aside, is none of it
