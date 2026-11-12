@@ -97,7 +97,11 @@ Scenario Outline: A tool has no stderr and no exit code, so an answer that may m
     """
     <arguments>
     """
-  Then the line after the output line with "incomplete: this answer may miss something" contains "note: "
+  Then the output contains:
+    """
+    incomplete: this answer may miss something
+    note:
+    """
   And the output contains '<note>'
 
   Examples:

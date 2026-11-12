@@ -61,7 +61,11 @@ Scenario: The view is every declared element and pattern, each with what it is f
   And the output contains "ARCH-orders -instance-of-> PAT-outbox"
   And the output contains "ARCH-orders -decided-by-> DEC-1"
   And the output contains "ARCH-orders -constrained-by-> NFR-latency"
-  And the line after the output line with "ARCH-billing — Billing (element)" contains "Owns invoices; tax rules are regulated and costly to change."
+  And the output contains:
+    """
+    ARCH-billing — Billing (element)
+    Owns invoices; tax rules are regulated and costly to change.
+    """
   And the output does not contain "REQ-receipts"
 
 Scenario: A decision or quality requirement is shown when a link joins it to the architecture; a mention is no link
@@ -93,7 +97,11 @@ Scenario: An element declared without a description is described by the code anc
     annotate(Mailer, { is: "ARCH-mailer" })
     """
   When I ask for the architecture view
-  Then the line after the output line with "ARCH-mailer — Mailer (element)" contains "Sends receipts, and retries while the provider is down."
+  Then the output contains:
+    """
+    ARCH-mailer — Mailer (element)
+    Sends receipts, and retries while the provider is down.
+    """
   When an agent calls the MCP tool "sdp_architecture" with:
     """
     { "json": true }

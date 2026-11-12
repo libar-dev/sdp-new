@@ -150,21 +150,17 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(output(world).includes(expected), `output does not contain ${JSON.stringify(expected)}:\n${output(world)}`)
   })
 
-  // The lines of the doc string, one after the other; how far each is indented does not count.
+  // Lines of the output that follow one another and contain the lines of the doc string, one each;
+  // a blank line stands for a blank line.
   Then("the output contains:", ({ doc, world }) => {
-    const flush = (text: string) => text.split("\n").map((line) => line.trimStart()).join("\n")
-    assert.ok(flush(output(world)).includes(flush(doc ?? "")), `output does not contain the text:\n${output(world)}`)
+    const wanted = (doc ?? "").split("\n").map((line) => line.trim())
+    const lines = output(world).split("\n")
+    const here = (start: number) => wanted.every((want, i) => want === "" ? lines[start + i]?.trim() === "" : lines[start + i]?.includes(want))
+    assert.ok(lines.some((_, start) => here(start)), `no lines of the output contain these, one after the other:\n${doc}\n\noutput:\n${output(world)}`)
   })
 
   Then("the output contains {string} {int} time(s)", ({ args: [text, count], world }) => {
     assert.equal(output(world).split(text).length - 1, count, `occurrences of ${JSON.stringify(text)} in:\n${output(world)}`)
-  })
-
-  Then("the line after the output line with {string} contains {string}", ({ args: [anchor, text], world }) => {
-    const lines = output(world).split("\n")
-    const index = lines.findIndex((line) => line.includes(anchor))
-    assert.ok(index >= 0, `no output line contains ${JSON.stringify(anchor)}:\n${output(world)}`)
-    assert.ok(lines[index + 1]?.includes(text), `the line after ${JSON.stringify(lines[index])} is ${JSON.stringify(lines[index + 1])}`)
   })
 
   Then("the output does not contain {string}", ({ args: [text], world }) => {

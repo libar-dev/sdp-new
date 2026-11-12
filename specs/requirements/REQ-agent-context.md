@@ -96,7 +96,7 @@ Scenario: The bundle leads with the contract, before the spec text: the scenario
     """
   When I ask for the context of "REQ-cart"
   Then the sections of the output are "Scenarios (3), Specification"
-  And the output section "Scenarios" contains:
+  And the output contains:
     """
     - [unrun] A new cart is empty — specs/REQ-cart.md:10
 
@@ -179,8 +179,16 @@ Scenario: A node declared inside another spec has no text to open, so its text a
     """
   When I ask for the context of "REQ-checkout"
   Then the output section "Relationships" contains "REQ-checkout <-specified-by- TERM-cart — Cart (term) specs/TERMS.md:5"
-  And the line after the output line with "TERM-cart — Cart" contains "  definition: The items a shopper has chosen and not yet paid for."
-  And the line after the output line with "REQ-checkout -iteration-> C1" contains "  start: 2026-11-16"
+  And the output contains:
+    """
+    TERM-cart — Cart
+    definition: The items a shopper has chosen and not yet paid for.
+    """
+  And the output contains:
+    """
+    REQ-checkout -iteration-> C1
+    start: 2026-11-16
+    """
 ~~~
 
 ## The steps still to write
@@ -369,7 +377,11 @@ Scenario: An element in reach that has no description is described by the code a
     annotate(Orders, { is: "ARCH-orders" })
     """
   When I ask for the context of "REQ-checkout"
-  Then the line after the output line with "- ARCH-orders — ARCH-orders (element)" contains "Owns the order aggregate and its transaction boundary."
+  Then the output contains:
+    """
+    - ARCH-orders — ARCH-orders (element)
+    Owns the order aggregate and its transaction boundary.
+    """
 
 Scenario: A quality requirement in reach comes with its measure: the outcome steps of its scenarios
   Given a file "specs/REQ-checkout.md" containing:

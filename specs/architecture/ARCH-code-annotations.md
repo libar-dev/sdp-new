@@ -46,12 +46,10 @@ Scenario: A typed annotation links a symbol, and brings its declaration's line a
     """
   When "src/graph.ts" is scanned for annotations
   Then the annotations are:
-    | line | relation    | targets           | binds to |
-    | 11   | is          | ARCH-graph        | Graph    |
-    | 11   | instance-of | PAT-derived-index | Graph    |
-    | 12   | implements  | REQ-graph         | the file |
-  And the annotated "Graph" is declared at line 10 and described as "The system graph. More detail follows."
-  And the annotated "the module" is declared at line 1 and described as "Graph module."
+    | line | relation    | targets           | binds to | declared at | described as                          |
+    | 11   | is          | ARCH-graph        | Graph    | 10          | The system graph. More detail follows. |
+    | 11   | instance-of | PAT-derived-index | Graph    | 10          | The system graph. More detail follows. |
+    | 12   | implements  | REQ-graph         | the file | 1           | Graph module.                          |
 
 Scenario: A namespace import is read too, and a third argument declares the node an is link names
   Given a file "src/cache.ts" containing:
@@ -95,7 +93,8 @@ Scenario Outline: What cannot be read without running the code is reported, not 
     <call>
     """
   When "src/pay.ts" is scanned for annotations
-  Then no annotations are found
+  Then the annotations are:
+    | line |
   And sdp reports:
     | line | message   |
     | 5    | <problem> |
@@ -116,7 +115,8 @@ Scenario Outline: A target that is not declared at the top of the module is repo
     <code>
     """
   When "src/items.ts" is scanned for annotations
-  Then no annotations are found
+  Then the annotations are:
+    | line |
   And sdp reports:
     | line | message                                                                                    |
     | 5    | the annotation target must be a module-level declaration or import.meta: <name> is not one |
@@ -157,8 +157,8 @@ Scenario Outline: Functions named annotate from any other module are not annotat
     annotate(pay, { implements: "REQ-pay" })
     """
   When "src/pay.ts" is scanned for annotations
-  Then no annotations are found
-
+  Then the annotations are:
+    | line |
   Examples:
     | module            |
     | ./decorators.ts   |
@@ -176,8 +176,8 @@ Scenario Outline: A name declared again in an enclosing scope is not the import
     <code>
     """
   When "src/pay.ts" is scanned for annotations
-  Then no annotations are found
-
+  Then the annotations are:
+    | line |
   Examples:
     | shadowed by                  | code                                                                                                                    |
     | a parameter                  | export const wrap = (annotate: (...a: Array<unknown>) => void) => annotate(pay, { is: "ARCH-fake" })                    |
@@ -214,7 +214,8 @@ Scenario Outline: A file that annotates but does not parse is reported, so none 
     export const pay = ( => 0
     """
   When "src/pay.ts" is scanned for annotations
-  Then no annotations are found
+  Then the annotations are:
+    | line |
   And sdp reports:
     | line | message                                                                      |
     | 3    | the file does not parse, so its annotations cannot be read: Unexpected token |
@@ -236,7 +237,8 @@ Scenario: A file that does not parse and does not annotate is none of sdp's busi
     export const pay = ( => 0
     """
   When "src/pay.ts" is scanned for annotations
-  Then no annotations are found
+  Then the annotations are:
+    | line |
   And sdp reports nothing
 
 Scenario: as const and satisfies change only types, so the objects inside are read
@@ -347,7 +349,8 @@ Scenario: Mentioning the marker is not an annotation, and one that follows code 
     export class Help {} // @sdp implements REQ-pay
     """
   When "src/help.ts" is scanned for annotations
-  Then no annotations are found
+  Then the annotations are:
+    | line |
   When the workspace is checked
   Then sdp reports at least:
     | rule               | at            |

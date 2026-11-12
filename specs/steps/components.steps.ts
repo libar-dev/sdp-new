@@ -111,12 +111,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       "in order"
     ))
 
-  Then("the parsed spec has no open questions", ({ world }) =>
-    assert.deepEqual(spec(world).openQuestions.map((q) => q.text), [], "the parsed spec has open questions"))
-
-  Then("the parsed spec has no scenarios", ({ world }) =>
-    assert.deepEqual(spec(world).scenarios.map((s) => s.id), [], "the parsed spec has scenarios"))
-
   Then("the executable steps of {string} are:", ({ args: [id], table, world }) =>
     assertRows(
       `executable steps of ${id}`,
@@ -153,18 +147,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     world.reported = scan.unreadable.map((problem) => ({ line: String(problem.line), message: problem.message }))
   })
 
-  Then("the annotated {string} is declared at line {int} and described as {string}", ({ args: [target, line, doc], world }) => {
-    const found = annotations(world).find((a) => (a.symbol ?? "the module") === target)
-    assert.ok(found, `no annotation of ${target}`)
-    assert.equal(found.symbolLine, line, `${target} is declared at line ${found.symbolLine}`)
-    assert.equal(found.doc, doc)
-  })
-
   Then("the annotations are:", ({ table, world }) =>
     assertRows("annotations", annotations(world).map(annotationRow), table, "in order"))
-
-  Then("no annotations are found", ({ world }) =>
-    assertRows("annotations", annotations(world).map(annotationRow), [["line", "relation", "targets", "binds to"]], "exactly"))
 
   // --- graph builder --------------------------------------------------------
 
@@ -252,8 +236,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the result has {int} path(s)", ({ args: [count], world }) => assert.equal(queried(world).paths.length, count))
 
-  Then("the result is truncated", ({ world }) => assert.equal(queried(world).truncated, true, "the result is complete"))
-
   Then("the result is truncated because {string}", ({ args: [limit], world }) =>
     assert.deepEqual(queried(world).limits, [limit], "the limits that cut the result short"))
 
@@ -307,6 +289,8 @@ const annotationRow = (a: Annotation): Row => ({
   relation: a.rel,
   targets: a.targets.join(", "),
   "binds to": a.symbol ?? "the file",
+  "declared at": String(a.symbolLine ?? ""),
+  "described as": a.doc ?? "",
   attributes: attrsText(a.attrs)
 })
 

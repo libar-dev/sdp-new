@@ -360,8 +360,10 @@ Scenario: What a renderer shows as code or HTML, or hides in a link's destinatio
     [reference]: https://example.com/[[DEFINED]]
     """
   When "specs/REQ-docs.md" is parsed
-  Then the parsed spec has no scenarios
-  And the parsed spec has no open questions
+  Then the parsed spec has scenarios:
+    | id |
+  And the parsed spec has open questions:
+    | question |
   And the parsed spec has prose links:
     | to      | line |
     | VISIBLE | 31   |
@@ -617,7 +619,8 @@ Rule: The fences of a file are one feature
       ```
       """
     When "specs/REQ-pay.md" is parsed
-    Then the parsed spec has no scenarios
+    Then the parsed spec has scenarios:
+      | id |
     And sdp reports:
       | rule           | severity | line |
       | gherkin-syntax | error    | 14   |
@@ -717,7 +720,8 @@ Rule: A Rule ends with its fence
       ```
       """
     When "specs/REQ-pay.md" is parsed
-    Then the parsed spec has no scenarios
+    Then the parsed spec has scenarios:
+      | id |
     And sdp reports:
       | rule           | severity | line | message                                                         |
       | gherkin-syntax | error    | 12   | a Background outside a Rule holds for the whole file |
