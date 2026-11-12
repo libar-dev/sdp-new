@@ -82,7 +82,7 @@ export const parseScript = (file: string, content: string): Script | undefined =
 }
 
 /** What a string literal, or a template literal with nothing in it computed, holds: a module's name written statically. */
-const literalName = (node: Node): string | undefined => {
+export const literalName = (node: Node): string | undefined => {
   if (node.type === "Literal") return typeof node.value === "string" ? node.value : undefined
   if (node.type !== "TemplateLiteral" || (node.expressions as ReadonlyArray<Node>).length > 0) return undefined
   return (node.quasis as ReadonlyArray<{ readonly value: { readonly cooked: string | null } }>)[0]?.value.cooked ?? undefined

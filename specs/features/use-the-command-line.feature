@@ -100,7 +100,7 @@ Feature: Use the command line
         | src/search.ts      | 3    | annotation-ignored    | export const search = 0\n\n/** @sdp is ARCH-index */\n\nexport const index = 1                                            |
         | src/search.ts      | 1    | annotation-ignored    | /** @sdp implements search via=index */\nexport const search = 0                                                               |
         | src/search.ts      | 1    | annotation-unreadable | /** @sdp implements search, search? */\nexport const search = 0                                                               |
-        | src/search.ts      | 3    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nannotate(search, { implements: "search" })               |
+        | src/search.ts      | 1    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nannotate(search, { implements: "search" })               |
         | src/search.ts      | 3    | declaration-conflict  | /** @sdp is ARCH-index owner=a */\nexport const a = 0\n/** @sdp is ARCH-index owner=b */\nexport const b = 0                |
 
   Rule: With --json, stdout is one envelope: whether the answer is complete, the notes, and the data

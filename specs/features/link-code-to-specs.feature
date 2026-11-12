@@ -100,8 +100,9 @@ Feature: Link code to specs
 
     A guessed annotation is a link nobody wrote, and a lost one a gap nobody sees. A tag that names
     an id and something that is no id was meant as a tag; one that names no id at all, as
-    `@sdp implements <ID>` does in a guide, only mentions the form. `annotate()` of
-    `sdp/annotations`, the form tags replaced, is read only to say so.
+    `@sdp implements <ID>` does in a guide, only mentions the form. `sdp/annotations`,
+    the module of the `annotate()` that tags replaced, is reported wherever a file imports it: what
+    its calls say is translated into tags only where a call plainly uses the import.
 
     Scenario: A file that annotates but does not parse is reported, so none of its annotations is lost silently
       Given a file "src/pay.ts" containing:
@@ -136,8 +137,13 @@ Feature: Link code to specs
       Examples:
         | case                         | code                                                                                                     | line | message                                                   | hint                                                         |
         | a list with a word that is no id | /** @sdp implements pay, pay? */\nexport const pay = (): number => 0                                   | 1    | "@sdp implements pay, pay?" names pay?, which is no id     | separated by commas                                          |
-        | the retired annotate()       | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: ["pay", "refund"] }) | 4    | annotate() of sdp/annotations is retired, so what it says of pay is not read | in the doc comment of pay: @sdp implements pay, refund |
-        | the retired annotate(), of a namespace | import * as annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 4    | annotate() of sdp/annotations is retired, so what it says of pay is not read | in the doc comment of pay: @sdp implements pay |
+        | the retired annotate() | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: ["pay", "refund"] }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay, refund (the call at line 4) |
+        | the retired annotate(), of a namespace | import * as annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |
+        | the retired module, as its default | import annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |
+        | the retired module, for its effects | import "sdp/annotations"\n\nexport const pay = (): number => 0 | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of each declaration: `@sdp <relation> <ID>` |
+        | the retired module, with import() | export const pay = (): number => 0\n\nvoid import("sdp/annotations") | 3 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of each declaration: `@sdp <relation> <ID>` |
+        | the retired module, with require() | const { annotate } = require("sdp/annotations")\n\nexport const pay = (): number => 0\nannotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of each declaration: `@sdp <relation> <ID>` |
+        | a retired call a name declared after it would hide | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nexport function paid(note = annotate(pay, { implements: "pay" })): void {\n  var annotate\n} | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |
 
     Scenario: A file that does not parse and does not annotate is none of sdp's business
       Given a file "src/pay.ts" containing:
@@ -278,8 +284,8 @@ Feature: Link code to specs
       Examples:
         | case                                     | code                                                                                                                              |
         | a function of another module             | import { annotate } from "./notes.ts"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: "pay" })                   |
-        | a parameter that shadows the retired one | import { annotate } from "sdp/annotations"\n\nexport const pay = (annotate: (note: string) => void): void => annotate("paid")         |
-        | a local function that shadows it         | import { annotate } from "sdp/annotations"\n\nexport function pay(): void {\n  const annotate = (note: string) => note\n  annotate("paid")\n} |
+        | a function of another module, imported whole | import * as notes from "./notes.ts"\n\nexport const pay = (): number => 0\nnotes.annotate(pay, { implements: "pay" })              |
+        | a function of the file's own                 | const annotate = (note: unknown, links: object): void => {}\n\nexport const pay = (): number => 0\nannotate(pay, { implements: "pay" }) |
 
     Scenario Outline: A comment line in any language carries a tag, bound to the declaration below it if sdp knows its keyword
       Given a file "sdp.config.yaml" containing:

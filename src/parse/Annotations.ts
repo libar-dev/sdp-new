@@ -18,7 +18,7 @@
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
  */
-import { children, type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
+import { children, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"
 
 export interface Annotation {
@@ -88,120 +88,86 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
   const { annotations, ignored, unreadable } = readTags(file, content, script)
   // Only a module anchored to a node depends on another through what it imports.
   const imports = annotations.some((annotation) => annotation.rel === anchor) ? script.imports() : []
-  return { annotations, unreadable: [...unreadable, ...retiredCalls(script)], ignored, imports }
+  return { annotations, unreadable: [...unreadable, ...retiredImports(script)], ignored, imports }
 }
 
 /** The module of `annotate()`, the form of annotation that tags replaced. */
 const retiredModule = "sdp/annotations"
 
 /**
- * Each call of what a file imports from the retired module, `annotate(pay, { implements: "pay" })`
- * or `annotations.annotate(…)` of the module imported whole: nothing reads it any more, so it is
- * reported with the tags that say the same. A function of the file's own, or of another module,
- * named `annotate` is ordinary code, and so is a name declared where the call is, which hides the
- * import.
+ * Each place the file names the retired module — an import or a re-export of it, types alone
+ * included, `import()`, `require()` or `import … = require()`: nothing reads what its `annotate()`
+ * says any more. The hint translates into tags each call that plainly uses an import of it, the
+ * function imported by name or `annotate` of the module imported whole, without asking what a name
+ * means where the call is: the import is reported whatever its calls are.
  */
-const retiredCalls = (script: Script): ReadonlyArray<Unread> => {
+const retiredImports = (script: Script): ReadonlyArray<Unread> => {
+  const imports = namesOf(script.program)
+  if (imports.length === 0) return []
   const specifiers = script.program.body.flatMap((statement) =>
-    statement.type === "ImportDeclaration" && (statement.source as Node).value === retiredModule
+    statement.type === "ImportDeclaration" && literalName(statement.source as Node) === retiredModule
       ? statement.specifiers as ReadonlyArray<Node>
       : []
   )
   const local = (specifier: Node) => (specifier.local as Node).name as string
-  const functions = new Set(specifiers.filter((specifier) => specifier.type !== "ImportNamespaceSpecifier").map(local))
+  const imported = (specifier: Node) => {
+    const name = specifier.imported as Node
+    return name.name ?? name.value
+  }
+  const functions = new Set(specifiers.filter((specifier) =>
+    specifier.type === "ImportDefaultSpecifier" || (specifier.type === "ImportSpecifier" && imported(specifier) === "annotate")
+  ).map(local))
   const modules = new Set(specifiers.filter((specifier) => specifier.type !== "ImportSpecifier").map(local))
-  if (specifiers.length === 0) return []
-  const retired = (callee: unknown, hidden: ReadonlySet<string>): boolean => {
+  const plain = (callee: unknown): boolean => {
     if (!isNode(callee)) return false
-    if (callee.type === "Identifier") return functions.has(callee.name as string) && !hidden.has(callee.name as string)
+    if (callee.type === "Identifier") return functions.has(callee.name as string)
     if (callee.type !== "MemberExpression" || !isNode(callee.object) || callee.object.type !== "Identifier") return false
-    const holder = callee.object.name as string
     const property = callee.property as Node
-    const member = callee.computed ? property.value : property.name
-    return modules.has(holder) && !hidden.has(holder) && member === "annotate"
+    return modules.has(callee.object.name as string) && (callee.computed ? property.value : property.name) === "annotate"
   }
-  const calls = (node: Node, hidden: ReadonlySet<string>): ReadonlyArray<Node> => {
-    const declared = declaredIn(node)
-    const inside = declared.length === 0 ? hidden : new Set([...hidden, ...declared])
-    return [
-      ...(node.type === "CallExpression" && retired(node.callee, inside) ? [node] : []),
-      ...children(node).flatMap((child) => calls(child, inside))
-    ]
-  }
-  return calls(script.program, new Set()).map((call) => {
+  const calls = (node: Node): ReadonlyArray<Node> => [
+    ...(node.type === "CallExpression" && plain(node.callee) ? [node] : []),
+    ...children(node).flatMap(calls)
+  ]
+  const said = calls(script.program).flatMap((call) => {
     const [subject, links] = call.arguments as ReadonlyArray<Node | undefined>
-    const name = subject?.type === "Identifier" ? subject.name as string : undefined
     const tags = isNode(links) && links.type === "ObjectExpression" ? retiredTags(links) : []
-    return {
-      line: script.lineOf(call.start),
-      message: `annotate() of ${retiredModule} is retired, so what it says${name === undefined ? "" : ` of ${name}`} is not read`,
-      hint: `write it as tags in the doc comment of ${name ?? "the declaration"}${tags.length > 0 ? `: ${tags.join("; ")}` : ", `@sdp <relation> <ID>`"}, and delete the call`
-    }
+    const of = subject?.type === "Identifier" ? subject.name as string : "the declaration it annotates"
+    return tags.length > 0 ? [`in the doc comment of ${of}, ${tags.join(" and ")} (the call at line ${script.lineOf(call.start)})`] : []
   })
+  const hint = `delete the import and its calls, and write what they say as tags${
+    said.length > 0 ? `: ${said.join("; ")}` : " in the doc comment of each declaration: `@sdp <relation> <ID>`"
+  }`
+  return imports.map((name) => ({
+    line: script.lineOf(name.start),
+    message: `${retiredModule} is retired, so no annotate() of it is read`,
+    hint
+  }))
 }
 
-/** The names a function, a block, a loop, a `switch` or a `catch` declares for the code inside it, a function's `var`s included. */
-const declaredIn = (node: Node): ReadonlyArray<string> => {
+/** Where `node` names the retired module as one to import from. */
+const namesOf = (node: Node): ReadonlyArray<Node> => {
+  const source = moduleNamed(node)
+  return [...(source !== undefined && literalName(source) === retiredModule ? [source] : []), ...children(node).flatMap(namesOf)]
+}
+
+/** The name of the module a node imports or re-exports from, loads, or requires. */
+const moduleNamed = (node: Node): Node | undefined => {
   switch (node.type) {
-    case "FunctionDeclaration":
-    case "FunctionExpression":
-    case "ArrowFunctionExpression":
-      return [
-        ...(node.type === "FunctionExpression" ? bound(node.id) : []),
-        ...(node.params as ReadonlyArray<Node>).flatMap(bound),
-        ...(isNode(node.body) ? hoisted(node.body) : [])
-      ]
-    case "ClassExpression":
-      return bound(node.id)
-    case "BlockStatement":
-    case "StaticBlock":
-      return (node.body as ReadonlyArray<Node>).flatMap(lexical)
-    case "SwitchStatement":
-      return (node.cases as ReadonlyArray<Node>).flatMap((branch) => (branch.consequent as ReadonlyArray<Node>).flatMap(lexical))
-    case "ForStatement":
-      return isNode(node.init) ? lexical(node.init) : []
-    case "ForInStatement":
-    case "ForOfStatement":
-      return isNode(node.left) ? lexical(node.left) : []
-    case "CatchClause":
-      return bound(node.param)
+    case "ImportDeclaration":
+    case "ExportNamedDeclaration":
+    case "ExportAllDeclaration":
+    case "ImportExpression":
+      return isNode(node.source) ? node.source : undefined
+    case "TSExternalModuleReference":
+      return node.expression as Node
+    case "CallExpression": {
+      const callee = node.callee as Node
+      const [name] = node.arguments as ReadonlyArray<Node | undefined>
+      return callee.type === "Identifier" && callee.name === "require" ? name : undefined
+    }
     default:
-      return []
-  }
-}
-
-/** The names a declaration statement declares. */
-const lexical = (statement: Node): ReadonlyArray<string> =>
-  statement.type === "VariableDeclaration"
-    ? (statement.declarations as ReadonlyArray<Node>).flatMap((declaration) => bound(declaration.id))
-    : ["FunctionDeclaration", "ClassDeclaration", "TSEnumDeclaration"].includes(statement.type)
-    ? bound(statement.id)
-    : []
-
-/** The `var`s of a function's body, which belong to the whole function, those of functions inside it excepted. */
-const hoisted = (node: Node): ReadonlyArray<string> => [
-  ...(node.type === "VariableDeclaration" && node.kind === "var" ? lexical(node) : []),
-  ...children(node).flatMap((child) => /Function/.test(child.type) ? [] : hoisted(child))
-]
-
-/** The names a binding pattern declares: `annotate`, `{ annotate }`, `[annotate]`, `annotate = …`, `...annotate`. */
-const bound = (pattern: unknown): ReadonlyArray<string> => {
-  if (!isNode(pattern)) return []
-  switch (pattern.type) {
-    case "Identifier":
-      return [pattern.name as string]
-    case "ObjectPattern":
-      return (pattern.properties as ReadonlyArray<Node>).flatMap((property) => bound(property.type === "RestElement" ? property.argument : property.value))
-    case "ArrayPattern":
-      return (pattern.elements as ReadonlyArray<unknown>).flatMap(bound)
-    case "AssignmentPattern":
-      return bound(pattern.left)
-    case "RestElement":
-      return bound(pattern.argument)
-    case "TSParameterProperty":
-      return bound(pattern.parameter)
-    default:
-      return []
+      return undefined
   }
 }
 
