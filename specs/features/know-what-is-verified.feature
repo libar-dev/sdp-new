@@ -812,10 +812,10 @@ Feature: Know what is verified
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
-  Rule: A scenario that reads the graph goes stale when a spec, or Markdown where specs live, changes; one that does not keeps its result
+  Rule: A scenario that reads the graph goes stale when a spec changes, or Markdown where specs live is added or removed; one that does not keeps its result
 
     What a step that reads the graph sees is built from every spec and the id declarations, and
-    warns of Markdown written where specs live.
+    warns of each Markdown file where specs live, none of which it reads.
 
     Scenario: Another spec is added
       Given a step definition "an empty cart" that passes
