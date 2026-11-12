@@ -4,32 +4,29 @@
 Feature: Grep-first
 
   Agents explore with `grep`, `find`, `sed` and `jq` before anything else, so every fact sdp knows
-  must be reachable with those tools. An id is literal text wherever it is declared or linked to;
-  every node and edge carries the `file:line` it came from; the exports are one record per line
-  (REQ-graph-export). Nothing lives only in a database or a binary index.
+  must be reachable with those tools. Nothing lives only in a database or a binary index.
 
-  Scenario: Every fact leads back to a line, and a link's line names its target
-    Then every node and link of this repository is at a file and line that exist
-    And the line of every link of this repository contains the id it links to
+  Rule: Every node and link is at a file and line that exist, and a link's line holds the id it links to
 
-  Scenario: The export keeps one fact per line, whatever the text
-    Given a file "specs/REQ-a.md" containing:
-      """
-      ---
-      id: REQ-a
-      title: "Alpha\twith a tab\nand a line break"
-      links:
-        realized-by: ARCH-x
-      ---
-      Alpha comes first.
-      """
-    And a file "specs/ARCH-x.md" containing:
-      """
-      ---
-      id: ARCH-x
-      kind: element
-      ---
-      # X
-      """
-    When the graph is exported
-    Then the output has one line per node and edge
+    Scenario: This repository's graph
+      Then every node and link of this repository is at a file and line that exist
+      And the line of every link of this repository contains the id it links to
+
+  Rule: The export is one record per line, whatever the text
+
+    Scenario: A reason that runs over two lines
+      Given a file "specs/REQ-a.feature" containing:
+        """
+        @id=REQ-a @realized-by:ARCH-x
+        Feature: Alpha "with quotes" and a \ backslash
+
+          Rule: Alpha comes first
+
+            Its reason runs
+            over two lines.
+        """
+      And these specs:
+        | tags       | Feature |
+        | @id=ARCH-x | X       |
+      When the graph is exported
+      Then the output has one line per node and edge
