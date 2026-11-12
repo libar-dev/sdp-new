@@ -10,14 +10,15 @@ Feature: Cart totals include VAT
   Rule: The total adds the VAT of the delivery country, rounded once to whole cents
 
     Scenario Outline: Gross total by country
-      Given a cart with <quantity> items at <price> cents
+      Given a cart with <lines> lines of <quantity> items at <price> cents
       When the delivery country is <country>
       Then the total is <total> cents
 
       Examples:
-        | quantity | price | country | total |
-        | 2        | 1000  | DE      | 2380  |
-        | 1        | 999   | HR      | 1249  |
+        | lines | quantity | price | country | total |
+        | 1     | 2        | 1000  | DE      | 2380  |
+        | 1     | 1        | 999   | HR      | 1249  |
+        | 2     | 1        | 1     | HR      | 3     |
 
   Rule: A country without a VAT rate has no total
 
@@ -26,7 +27,7 @@ Feature: Cart totals include VAT
       When the delivery country is XX
       Then pricing fails with "no VAT rate for XX"
 
-  Rule: The total of a thousand-line cart takes under 2 ms
+  Rule: The total of a thousand-line cart takes under 2 ms on average
 
     B2B customers order hundreds of lines, and the total is recalculated on every change: it must
     feel instant.
@@ -35,4 +36,4 @@ Feature: Cart totals include VAT
     Scenario: Large cart total
       Given a cart with 1000 distinct lines
       When the total is calculated 100 times
-      Then each calculation takes under 2 ms on average
+      Then the calculations take under 2 ms on average
