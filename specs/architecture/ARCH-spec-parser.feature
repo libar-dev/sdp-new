@@ -971,7 +971,22 @@ Feature: Spec parser
         | rule                | severity | line | message                               |
         | description-comment | warning  | 5    | "# Why" is a comment, so Gherkin leaves it out |
 
-    Scenario: A Rule or a Scenario tagged @open is a question still open, and its name is the question, so it needs no steps
+    Scenario: A second Feature in a file is text of the description above it, and an error: one file is one spec
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay
+      Feature: Pay
+
+        Shoppers pay.
+
+      Feature: Refund
+      """
+    When "specs/REQ-pay.feature" is parsed
+    Then sdp reports:
+      | rule           | severity | line | message                                                    |
+      | gherkin-syntax | error    | 6    | "Feature: Refund" is read as text of the description above it |
+
+  Scenario: A Rule or a Scenario tagged @open is a question still open, and its name is the question, so it needs no steps
       Given a file "specs/REQ-explorer.feature" containing:
         """
         @id=REQ-explorer
@@ -995,7 +1010,31 @@ Feature: Spec parser
       When the workspace is checked
       Then sdp reports nothing
 
-    Scenario: A scenario is an example of a rule; one outside every rule is an error, except in a suite named by its path
+    Scenario: A rule's id is the slug of what it says: two rules alike, or a rule and a scenario named alike, are one id twice, which stops a run
+    Gherkin accepts both, so sdp says so before results could be recorded for the wrong node.
+
+    Given a file "specs/REQ-pay.feature" containing:
+      """
+      @id=REQ-pay
+      Feature: Pay
+
+        Rule: A card is charged once
+
+          Scenario: A card is charged once
+            Then one charge is made
+
+        Rule: A card is charged once
+      """
+    When the workspace is loaded
+    Then sdp reports:
+      | rule         | at                       | message                                                                      |
+      | duplicate-id | specs/REQ-pay.feature:4  | id REQ-pay#a-card-is-charged-once is already declared at specs/REQ-pay.feature:6 |
+      | duplicate-id | specs/REQ-pay.feature:9  | id REQ-pay#a-card-is-charged-once is already declared at specs/REQ-pay.feature:6 |
+    When I run "sdp run"
+    Then the exit code is 1
+    And the output contains "specs/REQ-pay.feature:9 [duplicate-id]"
+
+  Scenario: A scenario is an example of a rule; one outside every rule is an error, except in a suite named by its path
       Given a file "specs/REQ-pay.feature" containing:
         """
         @id=REQ-pay

@@ -55,16 +55,24 @@ Feature: Guest checkout
   it means renaming it into the rule that was chosen and deleting the tag.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too.
 
-What the parser does with free text in a description, a line that starts with:
+The sharp edges of the format, each what the official parser does:
 
-| Line starts with | Read as | So |
+| In a description, a line that starts with | Is read as | So |
 | --- | --- | --- |
-| `#` | a comment | left out of the description silently (`description-comment` warns): no headings |
+| `#` | a comment, dropped | no headings; `description-comment` warns |
 | `@` | a tag line | a parse error |
-| `Scenario:`, `Example:`, `Rule:`, `Background:`, `Examples:` | a new block | start no sentence with one |
-| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario | a step | write lists with `-` |
+| `Scenario:`, `Scenario Outline:`, `Example:`, `Rule:`, `Background:` | a new block, silently | start no sentence with one |
+| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario or Background | a step, silently | write a reason under `Rule:`, lists with `-` |
+| `Feature:` | text of the description above | an error: one file is one spec |
+| `Examples:` under a Feature or a Rule | text | — |
 
-A Background cannot be tagged, and scenarios outside a Rule must come before the first Rule.
+- A tag holds no whitespace, so a value with a space has no tag form (`@title=Two words` is a
+  parse error): it is a sentence, and belongs in a description.
+- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a bare tag `@b.c`.
+- Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
+  kept, so `@verifies:REQ-a#slug` links to a rule.
+- A Background cannot be tagged. Scenarios outside a Rule come before the first Rule; after it,
+  every scenario belongs to the rule above it, whatever its indentation.
 
 ## What holds everywhere
 

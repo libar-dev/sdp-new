@@ -108,7 +108,7 @@ export interface GherkinError {
 
 /** Something the parser accepts that sdp cannot read as written: an annotation where it says nothing, a line Gherkin drops. */
 export interface GherkinProblem {
-  readonly rule: Extract<RuleId, "annotation" | "description-comment">
+  readonly rule: Extract<RuleId, "annotation" | "description-comment" | "gherkin-syntax">
   readonly message: string
   readonly line: number
   readonly hint: string
@@ -382,13 +382,23 @@ const readFeature = (
     }
   }
   if (lines.length > 0) {
-    const inside = new Set(described.flatMap((element) => placeDescription(lines, element).comments))
+    const placed = described.map((element) => placeDescription(lines, element))
+    const inside = new Set(placed.flatMap((description) => description.comments))
     for (const comment of comments.filter((c) => inside.has(c.location.line))) {
       problems.push({
         rule: "description-comment",
         message: `"${comment.text.trim()}" is a comment, so Gherkin leaves it out of the description around it`,
         line: comment.location.line,
         hint: "write it as text, or move the comment below the description; a heading has no place in a description"
+      })
+    }
+    // Gherkin reads a second Feature as text of the description above it, and nothing of it as a spec.
+    for (const { line, text } of placed.flatMap((description) => description.lines).filter((placed) => featureLine.test(placed.text))) {
+      problems.push({
+        rule: "gherkin-syntax",
+        message: `"${text}" is read as text of the description above it, so the Feature it opens is not read`,
+        line,
+        hint: "one file is one spec: move this Feature and what follows it to a file of its own"
       })
     }
   }
@@ -401,6 +411,9 @@ const readFeature = (
     else picklesByScenario.set(key, [pickle])
   }
 
+  // A rule is named by what it says, so two alike are one id twice: the graph reports it. A
+  // scenario's name says its case, and cases alike are numbered.
+  const ruleIds = new Map(writtenRules.map((rule, index) => [rule, `${specId}#${slugify(rule.name) || `rule-${index + 1}`}`]))
   const usedIds = new Set<string>()
   const unique = (slug: string) => {
     let id = `${specId}#${slug}`
@@ -408,8 +421,6 @@ const readFeature = (
     usedIds.add(id)
     return id
   }
-  // Rules first, in the order written, so a rule keeps its id whatever its examples are called.
-  const ruleIds = new Map(writtenRules.map((rule, index) => [rule, unique(slugify(rule.name) || `rule-${index + 1}`)]))
   const rules = writtenRules.map((rule): Rule => ({
     id: ruleIds.get(rule)!,
     name: rule.name,
