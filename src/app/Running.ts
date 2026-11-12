@@ -272,7 +272,7 @@ const recordMet = Effect.fnUntraced(function*(root: string, milestone: string) {
   if (reason !== undefined) return yield* new Refused({ reason })
   const { vocabulary } = project.config
   const unmet = spec.scenarios.flatMap((scenario) => {
-    const status = attribute(project.graph.node(scenario.id) ?? { attrs: {} }, "status")
+    const status = project.graph.node(scenario.id)?.attrs.status
     return isGate(scenario, spec, vocabulary) && status !== "passed" ? [`${scenario.id} (${String(status)})`] : []
   })
   const fs = yield* FileSystem.FileSystem

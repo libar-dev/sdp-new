@@ -158,7 +158,9 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 
   // By the last day first: a milestone is dated by the end of what it closes, and met in that order.
   const iterations = graph.ofKind(vocabulary.kinds.iteration).slice().sort((a, b) =>
-    (day(a, end) ?? "").localeCompare(day(b, end) ?? "") || (day(a, start) ?? "").localeCompare(day(b, start) ?? "") || a.id.localeCompare(b.id)
+    (day(a, end) ?? "").localeCompare(day(b, end) ?? "") ||
+    (day(a, start) ?? "").localeCompare(day(b, start) ?? "") ||
+    a.id.localeCompare(b.id)
   )
   const position = new Map(iterations.map((iteration, index) => [iteration.id, index]))
   const phaseOf = (iteration: GraphNode) => {
