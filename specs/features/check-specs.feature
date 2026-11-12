@@ -192,11 +192,12 @@ Feature: Check specs
     gone, still to come or a gate, unless what replaces its rule or its feature is live and has a
     new live example of its own: a gate enforces nothing, and a test the base already had takes over
     no other. Examples are compared one for one, each row of an outline on its own and a
-    Background's steps with those of each example: by their id, then by their steps, so a new name
-    or a new place for one is no removal, and an example edited under its name is the same example,
-    while one that is gone is not made up for by another that tests the same. The base is read with
-    its own configuration, and the specs of today with today's, so a live test that a configuration
-    leaves out is dropped like any other, and a file is read whatever its name.
+    Background's steps with those of each example: by their id, then by the example a Scenario names
+    with `@replaces:` as the one it was, then by their steps, so a new name or a new place for one
+    is no removal, and an example edited under its name is the same example, while one that is gone
+    is not made up for by another that tests the same. The base is read with its own configuration,
+    and the specs of today with today's, so a live test that a configuration leaves out is dropped
+    like any other, and a file is read whatever its name.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -248,6 +249,7 @@ Feature: Check specs
         | The live example moved under the rule still to come   | 1         | example-dropped, untested-rule | 3, 6  | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add an item\n      Then the cart holds 1 item                                               |
         | The live example and its rule renamed                 | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart keeps what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 item                                                                                                     |
         | The live example's steps edited                       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item                                                                          |
+        | The live example renamed, its steps edited, it named  | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @replaces:cart#add-an-item\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp                                                                     |
         | The rule still to come built                          | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp |
         | The rule still to come deleted with its example       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                    |
 

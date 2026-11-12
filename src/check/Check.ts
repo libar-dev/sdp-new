@@ -63,27 +63,33 @@ const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string
   return found.sort((a, b) => a.line - b.line)
 }
 
-/** A rule or a feature as a link that replaces names it: its id, its kind, and a rule's spec. */
+/** A rule, a feature or an example as a link that replaces names it: its id, its kind, and a rule's or an example's spec. */
 interface Replacing {
   readonly id: string
   readonly kind: string
   readonly spec?: unknown
 }
 
+const isExample = (node: Replacing) => node.kind === made.kinds.scenario
+
 /** Why `from` cannot replace `to`, whatever either's maturity, or undefined when it can. */
 const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): string | undefined => {
-  const replacing = (node: Replacing) => node.kind === made.kinds.rule || hasKind(vocabulary, "feature", node.kind)
+  const replacing = (node: Replacing) => isExample(node) || node.kind === made.kinds.rule || hasKind(vocabulary, "feature", node.kind)
   return !replacing(from)
-    ? `${from.id} is a ${from.kind}: only a rule or a feature replaces another`
+    ? `${from.id} is a ${from.kind}: only a rule, a feature or an example replaces another`
     : !replacing(to)
-    ? `${to.id} is a ${to.kind}, not a rule or a feature`
+    ? `${to.id} is a ${to.kind}, not a rule, a feature or an example`
+    : isExample(from) !== isExample(to)
+    ? "an example replaces only an example, and a rule or a feature only a rule or a feature"
     : from.id === to.id || from.spec === to.id || to.spec === from.id
     ? `${from.id} cannot replace itself, its own feature or a rule of its own`
     : undefined
 }
 
-const replacementHint = (rel: string) =>
-  `work still to come names the live rule or feature it replaces: @${rel}:<feature>#<rule>, or @${rel}:<feature> for all its rules`
+const replacementHint = (rel: string, from: Replacing) =>
+  isExample(from)
+    ? `an example renamed with its steps edited names the example it was, @${rel}:<feature>#<example>, in the change that renames it`
+    : `work still to come names the live rule or feature it replaces: @${rel}:<feature>#<rule>, or @${rel}:<feature> for all its rules`
 
 /** The relations whose targets must be nodes of the plan, with the kind roles one of which they must play. */
 const planRelations: ReadonlyArray<readonly [RelationRole, ReadonlyArray<KindRole>]> = [
@@ -161,7 +167,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
 
   // A rule or a feature still to come names the live rule or feature it replaces, which stays live
   // until the change that builds the replacement deletes it: so no two replace each other. A live
-  // one names what was live at the base, which the comparison with the base reads.
+  // one names what was live at the base, which the comparison with the base reads, and so does an
+  // example that names the one it was before its name and its steps changed.
   for (const edge of graph.edges().filter((candidate) => hasRelation(vocabulary, "replaces", candidate.rel))) {
     const from = graph.node(edge.from)
     const to = graph.node(edge.to)
@@ -169,7 +176,9 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     // the comparison with the base judges.
     if (!from || !to || to.kind === made.kinds.missing) continue
     const problem = cannotReplace({ ...from, spec: from.attrs.spec }, { ...to, spec: to.attrs.spec }, vocabulary) ??
-      (from.attrs.toCome !== true
+      (isExample(from)
+        ? `${edge.to} is still here: an example names the one it was in the change that renames it`
+        : from.attrs.toCome !== true
         ? `${edge.from} is live, so what it replaced is gone: the change that builds a replacement deletes what it replaces`
         : to.attrs.toCome === true
         ? `${edge.to} is still to come, so nothing built is replaced`
@@ -179,7 +188,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: ${problem}`,
       node: edge.from,
       source: edge.source,
-      hint: replacementHint(edge.rel)
+      hint: replacementHint(edge.rel, from)
     }))
   }
 
@@ -399,16 +408,22 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
 
 /**
  * Each example of the base paired with one example of the workspace at most, and no example of
- * the workspace with two: the same example unchanged, then the same id, edited, then the same steps
- * under another name or in another place. Rows of one outline pair in their order, a live row with a
- * live one before any other.
+ * the workspace with two: the same example unchanged, then the same id, edited, then the example
+ * whose Scenario names it as the one it was (`renamed`, by the id of the Scenario that names it),
+ * then the same steps under another name or in another place. Rows of one outline pair in their
+ * order, a live row with a live one before any other.
  */
-const pairExamples = (before: ReadonlyArray<Example>, now: ReadonlyArray<Example>): ReadonlyMap<Example, Example> => {
+const pairExamples = (
+  before: ReadonlyArray<Example>,
+  now: ReadonlyArray<Example>,
+  renamed: ReadonlyMap<string, ReadonlyArray<string>>
+): ReadonlyMap<Example, Example> => {
   const free = new Set(now)
   const paired = new Map<Example, Example>()
-  const index = (key: (example: Example) => string) => {
+  /** A base example's match: a free example of the workspace that `keys` gives the key `key` gives it. */
+  const index = (key: (example: Example) => string, keys: (example: Example) => ReadonlyArray<string> = (example) => [key(example)]) => {
     const by = new Map<string, Array<Example>>()
-    for (const example of now) by.set(key(example), [...by.get(key(example)) ?? [], example])
+    for (const example of now) for (const named of keys(example)) by.set(named, [...by.get(named) ?? [], example])
     return (example: Example) => {
       const candidates = (by.get(key(example)) ?? []).filter((candidate) => free.has(candidate))
       return candidates.find((candidate) => candidate.live === example.live) ?? candidates[0]
@@ -417,6 +432,7 @@ const pairExamples = (before: ReadonlyArray<Example>, now: ReadonlyArray<Example
   const passes: ReadonlyArray<(example: Example) => Example | undefined> = [
     index((example) => `${example.scenario.id}\u0000${example.tests}`),
     index((example) => example.scenario.id),
+    index((example) => example.scenario.id, (example) => renamed.get(example.scenario.id) ?? []),
     index((example) => example.tests)
   ]
   for (const find of passes) {
@@ -450,6 +466,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
   const before = liveTests(specs, base.config.vocabulary)
   const now = liveTests(project.specs, vocabulary)
   const at = `the base ${base.commit}`
+  const replacesWord = wordFor(vocabulary.relations.replaces)
   const out: Array<Diagnostic> = []
 
   const demoted = new Set<string>()
@@ -459,7 +476,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
       message: `${id} was live at ${at}: ${change}`,
       node: id,
       source: { file: spec.file, line },
-      hint: `a live test declares no maturity: delete it. A change to what it does is a rule still to come that replaces it, \`@${wordFor(vocabulary.relations.replaces)}:<feature>#<rule>\`, and deletes it once it is built`
+      hint: `a live test declares no maturity: delete it. A change to what it does is a rule still to come that replaces it, \`@${replacesWord}:<feature>#<rule>\`, and deletes it once it is built`
     }))
   }
   for (const spec of project.specs) {
@@ -475,42 +492,51 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     }
   }
 
-  // What replaces each rule or feature, here and at the base: a feature that replaces stands for its
-  // rules too. A link counts only where what it names may be replaced by what it starts from, read
-  // here or, once it is gone, at the base: a link from live work to what is gone, check() cannot judge.
+  // What replaces each rule or feature, here and at the base — a feature that replaces stands for its
+  // rules too — and the example each example here names as the one it was. A link counts only where
+  // what it starts from may replace what it names, read here or, once that is gone, at the base.
   const known = (written: ReadonlyArray<Spec>) =>
     new Map<string, Replacing>(written.flatMap((spec) => [
       [spec.id, { id: spec.id, kind: spec.kind }],
-      ...spec.rules.map((rule): [string, Replacing] => [rule.id, { id: rule.id, kind: made.kinds.rule, spec: spec.id }])
+      ...spec.rules.map((rule): [string, Replacing] => [rule.id, { id: rule.id, kind: made.kinds.rule, spec: spec.id }]),
+      ...spec.scenarios.map((scenario): [string, Replacing] => [scenario.id, { id: scenario.id, kind: made.kinds.scenario, spec: spec.id }])
     ]))
   const there = known(specs)
   const here = known(project.specs)
   const replacedBy = new Map<string, Set<string>>()
+  const renamed = new Map<string, Array<string>>()
   for (const [written, words, names] of [[specs, base.config.vocabulary, there], [project.specs, vocabulary, here]] as const) {
     for (const spec of written) {
       const work = workOf(spec)
       const linked = [
         { from: names.get(spec.id)!, links: spec.links, toCome: work.spec },
-        ...spec.rules.map((rule) => ({ from: names.get(rule.id)!, links: rule.links, toCome: work.rule(rule).toCome }))
+        ...spec.rules.map((rule) => ({ from: names.get(rule.id)!, links: rule.links, toCome: work.rule(rule).toCome })),
+        ...spec.scenarios.map((scenario) => ({ from: names.get(scenario.id)!, links: scenario.links, toCome: work.example(scenario) }))
       ]
       for (const { from, links, toCome } of linked) {
         for (const link of links.filter((candidate) => hasRelation(words, "replaces", candidate.rel))) {
           const to = names.get(link.to) ?? there.get(link.to)
-          const problem = to === undefined ? undefined : cannotReplace(from, to, words)
-          if (to !== undefined && problem === undefined) replacedBy.set(link.to, (replacedBy.get(link.to) ?? new Set()).add(from.id))
-          if (problem === undefined || names !== here || toCome || here.has(link.to)) continue
+          if (to === undefined) continue
+          const problem = cannotReplace(from, to, words)
+          if (problem === undefined) {
+            if (!isExample(from)) replacedBy.set(link.to, (replacedBy.get(link.to) ?? new Set()).add(from.id))
+            else if (names === here) renamed.set(from.id, [...renamed.get(from.id) ?? [], link.to])
+            continue
+          }
+          // check() judges a link to what is here; one from work still to come to what is gone dangles.
+          if (names !== here || toCome || here.has(link.to)) continue
           out.push(diagnostic("replacement", {
             message: `${from.id} -${link.rel}-> ${link.to}, which ${at} has: ${problem}`,
             node: from.id,
             source: { file: spec.file, line: link.line },
-            hint: replacementHint(link.rel)
+            hint: replacementHint(link.rel, from)
           }))
         }
       }
     }
   }
 
-  const paired = pairExamples(before.examples.filter((example) => example.live), now.examples)
+  const paired = pairExamples(before.examples.filter((example) => example.live), now.examples, renamed)
   // A replacement counts once it is live and has a live example the base did not have live: a test
   // that was already there takes over no other, and a gate enforces nothing.
   const kept = new Set(paired.values())
@@ -533,7 +559,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
       node: scenario.id,
       source: still === undefined ? { file: spec.file, line: pickle.exampleLine ?? scenario.line } : { file: still.spec.file, line: still.pickle.exampleLine ?? still.scenario.line },
       hint: still === undefined
-        ? "restore it; to remove what it tests, write what replaces its rule, `@replaces:<feature>#<rule>`, with a new live example of its own"
+        ? `restore it, or, renamed with its steps edited, name it on its new Scenario, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces its rule, \`@${replacesWord}:<feature>#<rule>\`, with a new live example of its own`
         : "a live test declares no maturity and is no gate: move it back under a live rule, or delete what makes it still to come"
     }))
   }

@@ -70,7 +70,8 @@ Feature: Guest checkout
   and a maturity on what was live there, or a live example that is gone, a gate or still to come, is
   an error — unless what replaces its rule or its feature is live with a new live example of its own.
   Examples are compared one for one, each row of an outline on its own: a new name or place for one
-  is no removal, and one edited under its name is the same example.
+  is no removal, one edited under its name is the same example, and one renamed with its steps
+  edited is the example its Scenario names with `@replaces:<feature>#<example>`.
 - **An open question is a Rule tagged `@open`**, its name the question. Answering it means
   renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
   has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
