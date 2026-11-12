@@ -240,13 +240,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.length, 0, `build output found: ${found.join(", ")}`)
   })
 
-  // Only the Markdown reader reports these, and its fixtures are gone; they go with it.
-  const markdownOnly = new Set(["front-matter", "missing-id", "link-conflict", "inline-node"])
-
   Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
     const spec = project.specById.get(scenario.specId)
     const cells = new Set((spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.flatMap((step) => step.dataTable?.flat() ?? []))))
-    const missing = Object.keys(rules).filter((rule) => !cells.has(rule) && !markdownOnly.has(rule))
+    const missing = Object.keys(rules).filter((rule) => !cells.has(rule))
     assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
   })
 

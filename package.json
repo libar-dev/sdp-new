@@ -30,7 +30,6 @@
     "@cucumber/tag-expressions": "^11.0.1",
     "@effect/platform-node": "^4.1.4",
     "effect": "^4.1.4",
-    "mdast-util-from-markdown": "^2.1.0",
     "oxc-parser": "^0.158.0",
     "yaml": "^2.9.1"
   },

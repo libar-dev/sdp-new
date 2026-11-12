@@ -610,7 +610,7 @@ Feature: Command line
       When I run "sdp vocabulary --json"
       Then the JSON output has:
         | data.vocabulary.maturity     | idea, draft, specified, ready                                                                |
-        | data.made.attributes         | stage, verification, scenarios, summary, file, openQuestions, declaredIn                     |
+        | data.made.attributes         | stage, verification, scenarios, summary, file, openQuestions                                 |
         | data.made.scenarioAttributes | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash |
         | data.made.ruleAttributes     | spec, description, tags, scenarios, verification                                             |
         | data.made.codeAttributes     | file, symbol, doc                                                                            |

@@ -20,7 +20,6 @@ import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import { withTag } from "../parse/Gherkin.ts"
-import { withFrontMatter } from "../parse/Markdown.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { fingerprint, isClosed, isGate } from "../run/Evidence.ts"
@@ -58,7 +57,7 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
   }
 })
 
-/** Fails when Gherkin or front matter does not parse, a spec has no id, or an id is declared twice, before anything runs. */
+/** Fails when Gherkin does not parse or an id is declared twice, before anything runs. */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = unread(project).filter((diagnostic) => diagnostic.severity === "error")
   return problems.length === 0 ? Effect.void : Effect.fail(new UnreadableSpecs({ problems: problems.map(problemLine) }))
@@ -284,8 +283,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
     const fs = yield* FileSystem.FileSystem
     const file = (yield* Path.Path).join(root, spec.file)
     const content = yield* fs.readFileString(file)
-    const key = vocabulary.attributes.met
-    const recorded = spec.format === "feature" ? withTag(content, `@${key}=${met}`) : withFrontMatter(content, key, met)
+    const recorded = withTag(content, `@${vocabulary.attributes.met}=${met}`)
     if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${milestone} on` })
     yield* fs.writeFileString(file, recorded)
   }

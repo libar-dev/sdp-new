@@ -296,7 +296,7 @@ Feature: Workspace configuration
         | data.made.relations         | rule-of                                                                                    |
         | data.made.tags              | @gate, @serial, @open                                                                      |
         | data.made.stages            | failing, in-progress, verified                                                             |
-        | data.made.reservedRelations | stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status |
+        | data.made.reservedRelations | stage, verification, scenarios, summary, file, openQuestions, maturity, status |
       When I run "sdp vocabulary"
       Then the output line with "decision" contains "adr"
       And the output line with "scenarioAttributes" contains "staleBecause"
@@ -322,20 +322,19 @@ Feature: Workspace configuration
       And loading the workspace fails with '<path>'
 
       Examples:
-        | config                                            | problem                                                  | path                                        |
-        | vocabulary: { maturity: [] }                      | needs at least one level                                 | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, ready, idea] }     | idea repeats                                             | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, verified] }        | verified is a stage sdp derives                          | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, " "] }             | a word cannot be empty                                   | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { relations: { anchor: "" } }         | a word cannot be empty                                   | at ["vocabulary"]["relations"]["anchor"]    |
-        | vocabulary: { kinds: { decision: [] } }           | a role needs at least one word                           | at ["vocabulary"]["kinds"]["decision"]      |
-        | vocabulary: { kinds: { milestone: [scenario] } }  | scenario is a kind sdp makes itself                      | at ["vocabulary"]["kinds"]["milestone"]     |
-        | vocabulary: { attributes: { activity: stage } }   | stage is an attribute sdp derives or checks itself       | at ["vocabulary"]["attributes"]["activity"] |
-        | vocabulary: { links: [status] }                   | status is an attribute sdp derives or checks itself      | at ["vocabulary"]["links"]                  |
-        | vocabulary: { relations: { mention: iteration } } | iteration is also a relation authors write as a link key | at ["vocabulary"]["relations"]["mention"]   |
-        | vocabulary: { relations: { scenario: is } }       | is is also relations.anchor                              | at ["vocabulary"]["relations"]["scenario"]  |
-        | ids: { component: MY-COMP }                       | must be letters only                                     | at ["ids"]["component"]                     |
-        | ids: { story: REQ }                               | requirement and story share the prefix REQ               | at ["ids"]                                  |
+        | config                                           | problem                                            | path                                        |
+        | vocabulary: { maturity: [] }                     | needs at least one level                           | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, ready, idea] }    | idea repeats                                       | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, verified] }       | verified is a stage sdp derives                    | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                             | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                             | at ["vocabulary"]["relations"]["anchor"]    |
+        | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                     | at ["vocabulary"]["kinds"]["decision"]      |
+        | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                | at ["vocabulary"]["kinds"]["milestone"]     |
+        | vocabulary: { attributes: { activity: stage } }  | stage is an attribute sdp derives or checks itself | at ["vocabulary"]["attributes"]["activity"] |
+        | vocabulary: { relations: { anchor: iteration } } | iteration is also a relation of the plan           | at ["vocabulary"]["relations"]["anchor"]    |
+        | vocabulary: { relations: { scenario: is } }      | is is also relations.anchor                        | at ["vocabulary"]["relations"]["scenario"]  |
+        | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
+        | ids: { story: REQ }                              | requirement and story share the prefix REQ         | at ["ids"]                                  |
 
     Scenario: A list written as a string
       Given a file "sdp.config.yaml" containing:

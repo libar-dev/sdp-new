@@ -26,6 +26,7 @@ Feature: Check rules
         | duplicate-id          | error    | specs/REQ-a.feature    | 4    | @id=REQ-a\nFeature: A\n  Rule: R\n  Rule: R                                                                                    |
         | dangling-link         | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @depends-on:REQ-gone\nFeature: A                                                                                     |
         | link-syntax           | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @maturity:ready\nFeature: A                                                                                          |
+        | link-conflict         | warning  | src/billing.py         | 2    | # @sdp uses ARCH-ledger via=events\n# @sdp uses ARCH-ledger via=http\nclass Billing: pass                                       |
         | derived-attribute     | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @verification=passing\nFeature: A                                                                                    |
         | gherkin-syntax        | error    | specs/REQ-a.feature    | 7    | @id=REQ-a\nFeature: A\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \|             |
         | annotation            | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @uses:A,B\nFeature: A                                                                                                |

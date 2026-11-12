@@ -2,9 +2,7 @@
  * A spec is a Gherkin file, read by the official Cucumber parser as it is: the Feature is the
  * node, a `Rule:` the unit of content, its scenarios the examples. Tags say what a Feature, a Rule
  * or a Scenario is and what it links to — `@key=value` describes, `@rel:ID` links, any other tag
- * is a Cucumber tag — and the free text under each keyword line is its description. Markdown specs
- * keep their Gherkin in fenced blocks, read here as one Feature with every line the line it has in
- * the Markdown file.
+ * is a Cucumber tag — and the free text under each keyword line is its description.
  */
 import { annotate } from "sdp/annotations"
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
@@ -14,14 +12,12 @@ import { Result } from "effect"
 import { createHash } from "node:crypto"
 import type { RuleId } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
-import type { Fence } from "./Markdown.ts"
 
 annotate(import.meta, { is: "ARCH-spec-parser" })
 
 export interface LinkDecl {
   readonly rel: string
   readonly to: string
-  readonly attrs?: Attrs | undefined
   readonly line: number
 }
 
@@ -129,56 +125,7 @@ export interface FeatureFile {
   readonly read: (specId: string, tags: ReadonlyArray<string>) => GherkinResult
 }
 
-export const gherkinLangs: ReadonlySet<string> = new Set(["gherkin", "feature", "cucumber"])
-
 const featureLine = /^\s*Feature:/
-
-/**
- * Parse the gherkin fences of a Markdown spec as one Feature. Each fence is parsed on its own, at
- * the lines it has in the file, so a `Rule:` — with its Background and its tags — ends with its
- * fence; a Background outside a Rule belongs to the file and opens it.
- */
-export const parseGherkinFences = (options: {
-  readonly specId: string
-  readonly title: string
-  readonly tags: ReadonlyArray<string>
-  readonly fences: ReadonlyArray<Fence>
-}): GherkinResult => {
-  const blocks = options.fences.filter((fence) => gherkinLangs.has(fence.lang))
-  if (blocks.length === 0) return empty
-  const newId = IdGenerator.incrementing()
-  const errors: Array<GherkinError> = []
-  const children: Array<Messages.FeatureChild> = []
-  let first: Messages.Feature | undefined
-  for (const block of blocks) {
-    // Only a `Feature:` line opening the first block counts; one inside a doc string is content.
-    // Every other block gets a feature line above its own lines: the fence line leaves room for it.
-    const opening = block.lines.find((line) => line.trim() !== "" && !/^\s*(#|@)/.test(line))
-    const explicit = block === blocks[0] && opening !== undefined && featureLine.test(opening)
-    const header = explicit ? [] : [`Feature: ${options.title.replace(/\n/g, " ")}`]
-    const padding = Array.from({ length: block.contentLine - 1 - header.length }, () => "")
-    const parsed = parseDocument([...header, ...padding, ...block.lines].join("\n"), newId)
-    if (Result.isFailure(parsed)) {
-      errors.push(...parsed.failure)
-      continue
-    }
-    const feature = parsed.success.feature
-    if (!feature) continue
-    for (const child of feature.children) {
-      if (first && child.background) {
-        errors.push({
-          message: "a Background outside a Rule holds for the whole file, so it opens the first block; put these scenarios under a Rule to give them one of their own",
-          line: child.background.location.line
-        })
-      }
-    }
-    first ??= feature
-    children.push(...feature.children)
-  }
-  if (errors.length > 0 || !first) return { ...empty, errors }
-  // The spec's tags and kind come first, as if written above the Feature.
-  return readFeature(options.specId, { ...first, tags: [...inherited(first, options.tags, newId), ...first.tags], children }, newId, [], [])
-}
 
 /** Parse a `.feature` file, or say where the parser stopped. */
 export const parseFeatureFile = (content: string): Result.Result<FeatureFile, ReadonlyArray<GherkinError>> => {
@@ -308,7 +255,7 @@ const describe = (description: string): string | undefined => {
 
 /**
  * Where the lines of an element's description are in the file, and the `#` lines among them:
- * Gherkin drops those without a word, so a Markdown heading written there vanishes.
+ * Gherkin drops those without a word, so a heading written there vanishes.
  */
 const placeDescription = (lines: ReadonlyArray<string>, element: { readonly location: Messages.Location; readonly description: string }) => {
   const wanted = element.description === "" ? [] : element.description.split("\n")
@@ -334,10 +281,7 @@ const paragraphs = (lines: ReadonlyArray<Paragraph>): ReadonlyArray<Paragraph> =
   return out
 }
 
-/**
- * The scenarios and rules of a Feature. `lines` and `comments` are the file's, for the checks only a
- * file read whole can make; a Feature put together from Markdown fences has neither.
- */
+/** The scenarios and rules of a Feature; `lines` and `comments` are the file's, for the checks of its descriptions. */
 const readFeature = (
   specId: string,
   feature: Messages.Feature,
@@ -381,26 +325,24 @@ const readFeature = (
       }
     }
   }
-  if (lines.length > 0) {
-    const placed = described.map((element) => placeDescription(lines, element))
-    const inside = new Set(placed.flatMap((description) => description.comments))
-    for (const comment of comments.filter((c) => inside.has(c.location.line))) {
-      problems.push({
-        rule: "description-comment",
-        message: `"${comment.text.trim()}" is a comment, so Gherkin leaves it out of the description around it`,
-        line: comment.location.line,
-        hint: "write it as text, or move the comment below the description; a heading has no place in a description"
-      })
-    }
-    // Gherkin reads a second Feature as text of the description above it, and nothing of it as a spec.
-    for (const { line, text } of placed.flatMap((description) => description.lines).filter((placed) => featureLine.test(placed.text))) {
-      problems.push({
-        rule: "gherkin-syntax",
-        message: `"${text}" is read as text of the description above it, so the Feature it opens is not read`,
-        line,
-        hint: "one file is one spec: move this Feature and what follows it to a file of its own"
-      })
-    }
+  const placed = described.map((element) => placeDescription(lines, element))
+  const inside = new Set(placed.flatMap((description) => description.comments))
+  for (const comment of comments.filter((c) => inside.has(c.location.line))) {
+    problems.push({
+      rule: "description-comment",
+      message: `"${comment.text.trim()}" is a comment, so Gherkin leaves it out of the description around it`,
+      line: comment.location.line,
+      hint: "write it as text, or move the comment below the description; a heading has no place in a description"
+    })
+  }
+  // Gherkin reads a second Feature as text of the description above it, and nothing of it as a spec.
+  for (const { line, text } of placed.flatMap((description) => description.lines).filter((placed) => featureLine.test(placed.text))) {
+    problems.push({
+      rule: "gherkin-syntax",
+      message: `"${text}" is read as text of the description above it, so the Feature it opens is not read`,
+      line,
+      hint: "one file is one spec: move this Feature and what follows it to a file of its own"
+    })
   }
 
   const picklesByScenario = new Map<string, Array<Messages.Pickle>>()

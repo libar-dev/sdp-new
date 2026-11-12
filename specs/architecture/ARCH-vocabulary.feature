@@ -28,9 +28,9 @@ Feature: Vocabulary profile
           ["quality"].includes(String(node.attrs.type))
         ]
         switch (edge.rel) {
-          case "mentions":
+          case "closes":
             break
         }
         """
       When the TypeScript files under "src" are searched for interpreted words
-      Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 quality, src/report.ts:9 type, src/report.ts:12 mentions"
+      Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 quality, src/report.ts:9 type, src/report.ts:12 closes"

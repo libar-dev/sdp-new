@@ -367,9 +367,9 @@ Feature: Spec parser
         """
       When "specs/REQ-explorer.feature" is parsed
       Then the parsed spec has open questions:
-        | question                                    | resolved | line |
-        | A static export, or a local server?         | no       | 7    |
-        | Is the code behind an element shown always? | no       | 12   |
+        | question                                    | line |
+        | A static export, or a local server?         | 7    |
+        | Is the code behind an element shown always? | 12   |
       When the workspace is checked
       Then sdp reports nothing
 

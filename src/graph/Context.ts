@@ -4,16 +4,15 @@
  * the node's rules with their state and reason, the names of its scenarios
  * with their status and the step definitions still to write — then the spec
  * itself, why it is not ready yet, what rests on it rule by rule,
- * its relationships, the architecture, quality requirements and decisions in
- * reach, and the code linked to it. What is in reach is reached through
- * links: a prose mention is listed as a relationship but leads no further.
+ * its relationships, and the architecture, quality requirements, decisions
+ * and code within reach of its links.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { description } from "../arch/Architecture.ts"
 import { unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
-import { attribute, criteria, hasKind, isDerived, isDriver, isMention, isPlanKind, made } from "../model/Vocabulary.ts"
+import { attribute, criteria, hasKind, isDriver, isPlanKind, made } from "../model/Vocabulary.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
@@ -51,7 +50,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   // The contract first: each rule with its state, what it rests on and why it holds, then its
   // examples with their status. Scenarios outside a rule come where they are written.
   if (spec && spec.scenarios.length + spec.rules.length > 0) {
-    const open = spec.openQuestions.filter((q) => !q.resolved).length
+    const open = spec.openQuestions.length
     const counts = [`${spec.rules.length} rule(s)`, `${spec.scenarios.length} scenario(s)`, ...(open > 0 ? [`${open} open`] : [])]
     out.push("## Contract", "", counts.join(", "), "")
     const scenarioLines = (s: Scenario) => {
@@ -132,20 +131,13 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   }
   if (outgoing.length + incoming.length > 0) {
     out.push("## Relationships", "")
-    // A node that several links lead to says what it is once.
-    const said = new Set<string>()
-    const words = (other: GraphNode | undefined) => {
-      if (!other || said.has(other.id)) return []
-      said.add(other.id)
-      return ownWords(other)
-    }
     for (const e of outgoing) {
       const other = graph.node(e.to)
-      out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`, ...words(other))
+      out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`)
     }
     for (const e of incoming) {
       const other = graph.node(e.from)
-      out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`, ...words(other))
+      out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`)
     }
     out.push("")
   }
@@ -173,7 +165,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("## Decisions in reach", "")
     for (const n of decisions) {
       // The whole of it: what was chosen over what, and why, is the one thing a decision holds.
-      const decided = (project.specById.get(n.id)?.prose ?? []).map((prose) => prose.text).join(" ")
+      const decided = (project.specById.get(n.id)?.description ?? []).map((paragraph) => paragraph.text).join(" ")
       out.push(`- ${describe(n)}${decided ? `\n  ${decided}` : ""}`)
     }
     out.push("")
@@ -191,17 +183,6 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   return out.join("\n")
 }
 annotate(contextBundle, { is: "ARCH-reports" })
-
-/**
- * What a node declared inside another spec says about itself. It has no text of its own to open, so
- * its text attributes are all there is: a term's `definition`, an iteration's dates.
- */
-const ownWords = (node: GraphNode): ReadonlyArray<string> =>
-  attribute(node, "declaredIn") === undefined
-    ? []
-    : Object.entries(node.attrs)
-      .filter(([key, value]) => Predicate.isString(value) && !isDerived(node.kind, key))
-      .map(([key, value]) => `  ${key}: ${String(value)}`)
 
 /** Why a spec below `ready` is not ready: what the criteria of ready still miss, or that its content already meets them. */
 const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
@@ -239,8 +220,8 @@ const describeStatus = (node: GraphNode) => {
 }
 
 /**
- * Nodes within `depth` hops in either direction along links (never prose mentions). Reach ends at a
- * scenario and at the plan's own nodes: what shares an iteration with a node is not its context.
+ * Nodes within `depth` hops in either direction along links. Reach ends at a scenario and at the
+ * plan's own nodes: what shares an iteration with a node is not its context.
  */
 export const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
   const { graph } = project
@@ -251,8 +232,8 @@ export const neighbourhood = (project: Project, id: string, depth: number): Read
   for (let d = 0; d < depth && frontier.length > 0; d++) {
     const next: Array<string> = []
     for (const current of frontier) {
-      for (const { edge, other } of graph.neighbours(current)) {
-        if (seen.has(other) || isMention(vocabulary, edge)) continue
+      for (const { other } of graph.neighbours(current)) {
+        if (seen.has(other)) continue
         seen.add(other)
         const kind = graph.node(other)?.kind ?? ""
         if (kind !== made.kinds.scenario && !isPlanKind(vocabulary, kind)) next.push(other)

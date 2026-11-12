@@ -1,6 +1,5 @@
 # sdp specifies itself; every key is described in specs/requirements/REQ-configuration.feature.
 features: ["specs/**/*.feature"]
-specs: []
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
 # Until the hand pass puts every scenario under the rule it is an example of; then this line goes.

@@ -224,7 +224,6 @@ Feature: Graph builder
         | code:src/ledger.ts#Ledger   | is         | ARCH-ledger  |              |
       And node "ARCH-billing" has attribute owner = "payments"
       And node "ARCH-billing" has attribute tier = "1"
-      And node "ARCH-ledger" has attribute declaredIn = "code"
 
     Scenario: A maturity given in code decides the stage like one written in the spec
       Given these specs:

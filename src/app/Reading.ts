@@ -178,7 +178,7 @@ export interface ArchitectureData {
   readonly drivers: ReadonlyArray<NodeRecord>
   /** The code anchored to them, each with what its own comment says of it (`attrs.doc`). */
   readonly anchors: ReadonlyArray<NodeRecord>
-  /** The links among all of these; prose mentions are not links. */
+  /** The links among all of these. */
   readonly edges: ReadonlyArray<EdgeRecord>
 }
 

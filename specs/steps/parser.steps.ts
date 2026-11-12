@@ -9,7 +9,7 @@ import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
 import type { Annotations, Scenario } from "../../src/parse/Gherkin.ts"
-import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
+import { type ParsedFile, parseFeatureSpec, type Spec } from "../../src/parse/Spec.ts"
 import { loadConfig } from "../../src/workspace/Workspace.ts"
 import { assertRows, attrsText, newWorld, reportRow, type Row, setFile, show, type World } from "./world.ts"
 
@@ -17,7 +17,7 @@ const parse = (world: World, path: string) =>
   Effect.map(loadConfig(memoryRoot).pipe(Effect.provide(layerMemoryWorkspace(world.files))), (config) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
-    const result = path.endsWith(".feature") ? parseFeatureSpec(path, content, config) : parseMarkdownSpec(path, content, config)
+    const result = parseFeatureSpec(path, content, config)
     world.scratch.parsed = result
     world.reported = result.diagnostics.map(reportRow)
   })
@@ -91,7 +91,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the parsed spec has {word} {string}", ({ args: [key, expected], world }) => {
     const s = spec(world)
-    const fields: Record<string, unknown> = { id: s.id, kind: s.kind, title: s.title, summary: s.summary, format: s.format }
+    const fields: Record<string, unknown> = { id: s.id, kind: s.kind, title: s.title, summary: s.summary }
     assert.equal(show(key in fields ? fields[key] : s.attrs[key]), expected, `${key} of the parsed spec`)
   })
 
@@ -108,44 +108,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assertRows("attribute lines", Object.entries(spec(world).attrLines).map(([key, line]) => ({ key, line: String(line) })), table, "exactly"))
 
   Then("the parsed spec has links:", ({ table, world }) =>
-    assertRows(
-      "links",
-      spec(world).links.map((link) => ({ rel: link.rel, to: link.to, line: String(link.line), attributes: attrsText(link.attrs) })),
-      table,
-      "in order"
-    ))
-
-  Then("the parsed spec has prose links:", ({ table, world }) =>
-    assertRows(
-      "prose links",
-      spec(world).references.map((ref) => ({ to: ref.id, rel: ref.rel ?? "mentions", line: String(ref.line) })),
-      table,
-      "in order"
-    ))
+    assertRows("links", spec(world).links.map((link) => ({ rel: link.rel, to: link.to, line: String(link.line) })), table, "in order"))
 
   Then("the parsed spec has open questions:", ({ table, world }) =>
-    assertRows(
-      "open questions",
-      spec(world).openQuestions.map((q) => ({ question: q.text, resolved: q.resolved ? "yes" : "no", line: String(q.line) })),
-      table,
-      "in order"
-    ))
-
-  Then("the parsed spec has inline nodes:", ({ table, world }) =>
-    assertRows(
-      "inline nodes",
-      spec(world).inlineNodes.map((n) => ({
-        id: n.id,
-        kind: n.kind,
-        title: n.title,
-        line: String(n.line),
-        attributes: attrsText(n.attrs),
-        links: n.links.map((l) => `-${l.rel}-> ${l.to}`).join(", "),
-        "link lines": n.links.map((l) => l.line).join(", ")
-      })),
-      table,
-      "in order"
-    ))
+    assertRows("open questions", spec(world).openQuestions.map((q) => ({ question: q.text, line: String(q.line) })), table, "in order"))
 
   // A scenario's rule by its name; its tags, attributes and links are its own annotations.
   Then("the parsed spec has scenarios:", ({ table, world }) => {

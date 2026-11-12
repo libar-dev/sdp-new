@@ -6,8 +6,8 @@
  *
  * Maturity criteria make declared maturity honest: a node may claim a level only
  * when its content supports it. They run on every node that declares maturity —
- * an inline or code-declared node has no content beyond its title, so it can
- * claim no more than the first level.
+ * a node declared in code has no content beyond its title, so it can claim no
+ * more than the first level.
  *
  *   idea       a title (anything goes; capture it before it is lost)
  *   draft      a description of the problem or intent
@@ -32,22 +32,20 @@ import {
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
 import { lifecycle, plannedDisciplines, unmetBefore } from "../lifecycle/Lifecycle.ts"
-import type { OpenQuestion } from "../parse/Markdown.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import type { Spec } from "../parse/Spec.ts"
+import type { OpenQuestion, Spec } from "../parse/Spec.ts"
 
 const builtinLevels: ReadonlyArray<string> = Object.values(criteria)
 
-/** What the maturity criteria look at: a spec has all of it, an inline or code-declared node none. */
+/** What the maturity criteria look at: a spec has all of it, a node declared in code none. */
 interface Content {
   readonly summary: string
-  readonly body: string
   readonly scenarios: ReadonlyArray<Scenario>
   readonly rules: ReadonlyArray<Rule>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
 }
 
-const noContent: Content = { summary: "", body: "", scenarios: [], rules: [], openQuestions: [] }
+const noContent: Content = { summary: "", scenarios: [], rules: [], openQuestions: [] }
 
 /** Why `content` does not meet `level` (empty when it does). Custom levels have no criteria. */
 export const unmetCriteria = (content: Content, level: string): ReadonlyArray<string> => {
@@ -63,7 +61,7 @@ export const unmetCriteria = (content: Content, level: string): ReadonlyArray<st
     reasons.push("no scenario states an outcome: add a Then step")
   }
   if (index >= 3) {
-    const open = content.openQuestions.filter((q) => !q.resolved)
+    const open = content.openQuestions
     if (open.length > 0) reasons.push(`${open.length} open question(s), e.g. "${open[0]!.text}" (line ${open[0]!.line})`)
     // An open rule is a question, counted above; any other rule is a to-do until it has an example.
     const bare = content.rules.filter((rule) => !content.scenarios.some((s) => s.rule === rule.id) && !open.some((q) => q.line === rule.line))
@@ -89,11 +87,11 @@ export const decisionPlaceholder = "Not <what a reasonable person would have cho
 /** and template scenarios name their parts in angle brackets: `Given <context>`. */
 const placeholderStep = /^<[^<>]+>$/
 
-/** Template text still in a spec, with its line: prose, rule and scenario names and steps. */
+/** Template text still in a spec, with its line: its description, rule and scenario names and steps. */
 export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
   const found: Array<{ text: string; line: number }> = []
-  for (const prose of spec.prose) {
-    if (prose.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: prose.line })
+  for (const paragraph of spec.description) {
+    if (paragraph.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: paragraph.line })
   }
   for (const rule of spec.rules) {
     if (placeholderStep.test(rule.name)) found.push({ text: `Rule: ${rule.name}`, line: rule.line })
@@ -118,7 +116,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const at = (spec: Spec, line = 1) => ({ file: spec.file, line })
-  /** Where an attribute of `node` is written: the line of its tag or front matter key in a spec, else the node's own line. */
+  /** Where an attribute of `node` is written: the line of its tag in a spec, else the node's own line. */
   const writtenAt = (node: GraphNode, key: string): SourceRef | undefined => {
     const spec = project.specById.get(node.id)
     return spec ? at(spec, spec.attrLines[key] ?? 1) : node.source
@@ -172,17 +170,14 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   // A decision says what was chosen over what, and why. Anything more has a place of its own.
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
     const spec = project.specById.get(node.id)
-    // The title is a heading too; a section is any heading below it.
-    const section = spec?.sections.find((heading) => heading.level > 1)
     const [rule] = spec?.rules ?? []
     const [scenario] = spec?.scenarios ?? []
-    if (!spec || (!section && !rule && !scenario)) continue
-    const has = [section && `a section ("${section.heading}")`, rule && `a rule ("${rule.name}")`, scenario && `a scenario ("${scenario.name}")`]
-      .filter(Boolean).join(" and ")
+    if (!spec || (!rule && !scenario)) continue
+    const has = [rule && `a rule ("${rule.name}")`, scenario && `a scenario ("${scenario.name}")`].filter(Boolean).join(" and ")
     out.push(diagnostic("decision-shape", {
       message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
       node: node.id,
-      source: at(spec, Math.min(section?.line ?? Infinity, rule?.line ?? Infinity, scenario?.line ?? Infinity)),
+      source: at(spec, Math.min(rule?.line ?? Infinity, scenario?.line ?? Infinity)),
       hint: "a rule is a scenario on what it constrains, which links here with `decided-by`; a cost is a risk; what is undecided is an open question on the spec it blocks"
     }))
   }

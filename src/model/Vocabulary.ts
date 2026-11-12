@@ -41,8 +41,6 @@ export interface Vocabulary {
     readonly phase: Words
     /** From a milestone to the phase or the iteration it ends. */
     readonly closes: Words
-    /** The edge sdp makes for a `[[ID]]` in prose. It is not a link: `*` does not follow it. */
-    readonly mention: string
     /** The edge sdp makes from a scenario to its spec. */
     readonly scenario: string
     /** The code annotation that anchors a node in code and may declare it. */
@@ -65,8 +63,6 @@ export interface Vocabulary {
   readonly maturity: Words
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
   readonly disciplines: ReadonlyMap<string, Words>
-  /** Front matter keys that link besides `links:`, the plan and phase relations and `activity`. */
-  readonly links: Words
   /**
    * Words of the workspace's own that nothing in its graph has yet. An assertion names only words
    * sdp knows — or a typo would pass — so a rule that there is none of something declares its word here.
@@ -90,7 +86,6 @@ export const defaultVocabulary: Vocabulary = {
     plan: ["iteration"],
     phase: ["phase"],
     closes: ["closes"],
-    mention: "mentions",
     scenario: "verifies",
     anchor: "is"
   },
@@ -112,7 +107,6 @@ export const defaultVocabulary: Vocabulary = {
     ["test", []],
     ["deployment", ["environment", "deployment"]]
   ]),
-  links: [],
   words: { kinds: [], relations: [], attributes: [] }
 }
 
@@ -132,7 +126,7 @@ export const made = {
   /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
   /** Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error. */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
+  attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
   /** Facts sdp computes on rule nodes. */
@@ -144,9 +138,7 @@ export const made = {
   /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
   recordedAt: "lastRun",
   /** Where a node is in delivery, beyond its declared maturity (DEC-0005). */
-  stages: { failing: "failing", inProgress: "in-progress", verified: "verified" },
-  /** `declaredIn` of a node an anchor annotation declares. */
-  declaredInCode: "code"
+  stages: { failing: "failing", inProgress: "in-progress", verified: "verified" }
 } as const
 
 /**
@@ -179,9 +171,6 @@ export const isPlanKind = (vocabulary: Vocabulary, kind: string): boolean =>
 export const attribute = (node: { readonly attrs: Readonly<Record<string, unknown>> }, key: string): unknown =>
   Object.hasOwn(node.attrs, key) ? node.attrs[key] : undefined
 
-/** A prose mention is not a link: the wildcard, the architecture view and context reach do not follow it. */
-export const isMention = (vocabulary: Vocabulary, edge: { readonly rel: string }): boolean => edge.rel === vocabulary.relations.mention
-
 /** Architectural drivers: kinds that are drivers, and any node whose quality attribute says it is one. */
 export const isDriver = (vocabulary: Vocabulary, node: { readonly kind: string; readonly attrs: Readonly<Record<string, unknown>> }): boolean => {
   const quality = attribute(node, vocabulary.attributes.quality)
@@ -189,9 +178,9 @@ export const isDriver = (vocabulary: Vocabulary, node: { readonly kind: string; 
     (typeof quality === "string" && vocabulary.qualities.includes(quality.toLowerCase()))
 }
 
-/** Front matter keys whose values are links: the plan, phase and closing relations and the workspace's own link keys. */
+/** The relations sdp reads the plan from: the plan, phase and closing relations. */
 export const linkKeys = (vocabulary: Vocabulary): Words =>
-  [...new Set([...vocabulary.relations.plan, ...vocabulary.relations.phase, ...vocabulary.relations.closes, ...vocabulary.links])]
+  [...new Set([...vocabulary.relations.plan, ...vocabulary.relations.phase, ...vocabulary.relations.closes])]
 
 /** The day a milestone was recorded as met. Anything but an ISO date written there records nothing. */
 export const metOn = (vocabulary: Vocabulary, node: { readonly attrs: Readonly<Record<string, unknown>> }): string | undefined => {

@@ -19,14 +19,7 @@
 import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
-import {
-  activityRelation,
-  defaultVocabulary,
-  isMention,
-  made,
-  type Vocabulary,
-  vocabularyWords
-} from "../model/Vocabulary.ts"
+import { activityRelation, made, type Vocabulary, vocabularyWords } from "../model/Vocabulary.ts"
 import type { Project } from "./Build.ts"
 
 annotate(import.meta, { is: "ARCH-query-engine" })
@@ -40,7 +33,7 @@ notes
   key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
   < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
   a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
-  rel: * or nothing is any relation but mentions (*|mentions for all), a|b either, a trailing + one or more hops
+  rel: * or nothing is any relation, a|b either, a trailing + one or more hops
   + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
   ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
 examples
@@ -73,7 +66,7 @@ export interface NodeSelector {
 
 export interface EdgeStep {
   readonly direction: "out" | "in" | "both"
-  /** Relation names; `*` among them stands for every relation but the mention relation. */
+  /** Relation names; `*` among them stands for every relation. */
   readonly rels: ReadonlyArray<string>
   readonly transitive: boolean
   readonly mode: "move" | "exists" | "not-exists"
@@ -116,8 +109,6 @@ export type Ladder = ReadonlyArray<ReadonlyArray<string>>
 export interface QueryOptions {
   /** Ladders for `<`/`>` on non-numeric attributes, by attribute: `maturity` → `[idea, draft, ...]`. */
   readonly orderings?: ReadonlyMap<string, Ladder> | undefined
-  /** The words the engine interprets: the mention relation, which `*` skips. */
-  readonly vocabulary?: Vocabulary | undefined
   /** Paths kept per step (default 10 000); more mark the result `truncated`. */
   readonly maxPaths?: number | undefined
   /** Hops a `+` step follows (default 12); a longer reach marks the result `truncated`. */
@@ -146,11 +137,7 @@ export const parseQuery = (source: string): Result.Result<Query, QueryError> => 
 export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {}): QueryResult => {
   const maxPaths = options.maxPaths ?? 10_000
   const maxDepth = options.maxDepth ?? 12
-  const context: Context = {
-    graph,
-    orderings: options.orderings ?? new Map(),
-    vocabulary: options.vocabulary ?? defaultVocabulary
-  }
+  const context: Context = { graph, orderings: options.orderings ?? new Map() }
   const limits = new Set<string>()
   const hopLimit = `a + edge reaches further than ${maxDepth} hops`
   const pathLimit = `a step has more than ${maxPaths} paths`
@@ -372,14 +359,13 @@ const splitTopLevel = (text: string): Array<string> => {
 
 const unquote = (value: string) => value.replace(/^(["'])([\s\S]*)\1$/, "$2")
 
-/** What evaluation reads besides the query: the graph, the ladders and the interpreted words. */
+/** What evaluation reads besides the query: the graph and the ladders. */
 interface Context {
   readonly graph: Graph
   readonly orderings: ReadonlyMap<string, Ladder>
-  readonly vocabulary: Vocabulary
 }
 
-/** In an edge step, every relation but the mention relation. */
+/** In an edge step, every relation. */
 const anyRelation = "*"
 
 const startNodes = (context: Context, selector: NodeSelector) => {
@@ -426,8 +412,7 @@ const valueOf = (context: Context, node: GraphNode, key: string): unknown => {
     case "source":
       return node.source ? `${node.source.file}:${node.source.line}` : undefined
   }
-  const { graph, vocabulary } = context
-  const linked = graph.out(node.id).filter((edge) => edge.rel === key && !isMention(vocabulary, edge)).map((edge) => edge.to)
+  const linked = context.graph.out(node.id).filter((edge) => edge.rel === key).map((edge) => edge.to)
   return linked.length === 0 ? ownValue(node, key) : linked.length === 1 ? linked[0] : linked
 }
 
@@ -492,9 +477,7 @@ const compare = (value: unknown, expected: string, ladder: Ladder | undefined, o
   }
 }
 
-/** `*` follows links, never prose mentions; a mention is followed only where the query names it. */
-const relMatches = (vocabulary: Vocabulary, edge: GraphEdge, rels: EdgeStep["rels"]) =>
-  rels.includes(edge.rel) || (rels.includes(anyRelation) && !isMention(vocabulary, edge))
+const relMatches = (edge: GraphEdge, rels: EdgeStep["rels"]) => rels.includes(edge.rel) || rels.includes(anyRelation)
 
 /** One edge walked from a node, to `node` at its other end. */
 interface Hop {
@@ -503,10 +486,10 @@ interface Hop {
 }
 
 const hops = (context: Context, id: string, step: EdgeStep): Array<Hop> => {
-  const { graph, vocabulary } = context
+  const { graph } = context
   const result: Array<Hop> = []
   const walk = (edge: GraphEdge, node: string) => {
-    if (relMatches(vocabulary, edge, step.rels)) result.push({ edge: { from: edge.from, rel: edge.rel, to: edge.to }, node })
+    if (relMatches(edge, step.rels)) result.push({ edge: { from: edge.from, rel: edge.rel, to: edge.to }, node })
   }
   if (step.direction !== "in") for (const edge of graph.out(id)) walk(edge, edge.to)
   if (step.direction !== "out") for (const edge of graph.in(id)) walk(edge, edge.from)
@@ -571,11 +554,8 @@ export const projectOrderings = (vocabulary: Vocabulary): ReadonlyMap<string, La
     ["verification", ["none", "unrun", "undefined", "partial", "failing", "passing"].map((value) => [value])]
   ])
 
-/** How a project's graph is queried: with its ladders and its vocabulary. */
-export const projectQueryOptions = (project: Project): QueryOptions => ({
-  orderings: projectOrderings(project.config.vocabulary),
-  vocabulary: project.config.vocabulary
-})
+/** How a project's graph is queried: with its ladders. */
+export const projectQueryOptions = (project: Project): QueryOptions => ({ orderings: projectOrderings(project.config.vocabulary) })
 
 /** Query a project's graph with its maturity and stage ladders. */
 export const queryProject = (project: Project, source: string): Result.Result<QueryResult, QueryError> =>

@@ -9,10 +9,10 @@ import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { type Attrs, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
 import { type RunResults, type StepStatus, type Verification, verificationOf } from "../model/Results.ts"
-import { hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Words } from "../model/Vocabulary.ts"
+import { activityRelation, hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Vocabulary, type Words } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
-import { linksOfKeys, parseFeatureSpec, parseMarkdownSpec, type Spec, writtenKind } from "../parse/Spec.ts"
+import { parseFeatureSpec, type Spec, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
 export interface SourceFile {
@@ -23,7 +23,6 @@ export interface SourceFile {
 export interface ProjectInput {
   readonly root: string
   readonly config: Config
-  readonly specFiles: ReadonlyArray<SourceFile>
   readonly featureFiles: ReadonlyArray<SourceFile>
   readonly codeFiles: ReadonlyArray<SourceFile>
   /** The step definition files: their definitions are read statically, never run. */
@@ -79,11 +78,6 @@ export const buildProject = (input: ProjectInput): Project => {
   const vocabulary = input.config.vocabulary
   const diagnostics: Array<Diagnostic> = []
   const specs: Array<Spec> = []
-  for (const file of input.specFiles) {
-    const parsed = parseMarkdownSpec(file.path, file.content, input.config)
-    diagnostics.push(...parsed.diagnostics)
-    if (parsed.spec) specs.push(parsed.spec)
-  }
   for (const file of input.featureFiles) {
     const parsed = parseFeatureSpec(file.path, file.content, input.config)
     diagnostics.push(...parsed.diagnostics)
@@ -227,8 +221,8 @@ export const buildProject = (input: ProjectInput): Project => {
     }
     const verification: Verification = verificationOf([...statuses.values()])
     if (!nodes.has(spec.id)) verifications.set(spec.id, verification)
-    const openQuestions = spec.openQuestions.filter((q) => !q.resolved).length
-    const at = (key: string): SourceRef => ({ file: spec.file, line: lineOfKey(spec.attrLines, key) ?? 1 })
+    const openQuestions = spec.openQuestions.length
+    const at = (key: string): SourceRef => ({ file: spec.file, line: spec.attrLines[key] ?? 1 })
     const attrs = authored(spec.id, spec.kind, spec.attrs, at)
     declare({
       id: spec.id,
@@ -244,20 +238,6 @@ export const buildProject = (input: ProjectInput): Project => {
       })),
       source: { file: spec.file, line: 1 }
     })
-    for (const inline of spec.inlineNodes) {
-      const at = (key?: string): SourceRef => ({
-        file: spec.file,
-        line: (key === undefined ? undefined : lineOfKey(inline.attrLines, key)) ?? inline.line
-      })
-      const attrs = authored(inline.id, inline.kind, inline.attrs, at)
-      declare({
-        id: inline.id,
-        kind: inline.kind,
-        title: inline.title,
-        attrs: staged(inline.id, inline.kind, { ...attrs, declaredIn: spec.id }),
-        source: at()
-      })
-    }
   }
 
   // Code: annotated locations become `code` nodes; the anchor relation may declare the node it anchors.
@@ -280,41 +260,23 @@ export const buildProject = (input: ProjectInput): Project => {
       const at = (): SourceRef => ({ file: annotation.file, line: annotation.line })
       const where = { file: annotation.file, owner: target, line: annotation.line }
       const kind = existing?.kind ?? writtenKind(rawKind, where, diagnostics) ?? vocabulary.kinds.anchored
-      const attrs = authored(target, kind, rest, at)
+      const { attrs, links } = codeLinks(authored(target, kind, rest, at), vocabulary, where, diagnostics)
       // A node a spec declares takes from code only the attributes the spec does not set.
       const added = existing ? Object.fromEntries(Object.entries(attrs).filter(([key]) => !Object.hasOwn(existing.attrs, key))) : attrs
       nodes.set(
         target,
         existing
           ? { ...existing, attrs: staged(target, kind, { ...existing.attrs, ...added }) }
-          : {
-            id: target,
-            kind,
-            title: Predicate.isString(title) ? title : target,
-            attrs: staged(target, kind, { ...attrs, declaredIn: made.declaredInCode }),
-            source: at()
-          }
+          : { id: target, kind, title: Predicate.isString(title) ? title : target, attrs: staged(target, kind, attrs), source: at() }
       )
-      for (const link of linksOfKeys(added, vocabulary, where, diagnostics)) {
-        edges.push({ from: target, rel: link.rel, to: link.to, attrs: link.attrs, source: at() })
-      }
+      for (const link of links) edges.push({ from: target, rel: link.rel, to: link.to, source: at() })
     }
   }
 
-  // Links are a property of the key, never of the value: everything under `links:`, and the keys the
-  // vocabulary names as links — plan and phase relations, each discipline of `activity`, and the
-  // workspace's own link keys. Every other attribute is a value.
+  // A tag `@rel:ID` links the Feature, the Rule or the Scenario it sits on.
   for (const spec of specs) {
-    // What the tags of a Rule or a Scenario link is linked from that node.
     for (const { id, links } of [{ id: spec.id, links: spec.links }, ...spec.rules, ...spec.scenarios]) {
-      for (const link of links) {
-        edges.push({ from: id, rel: link.rel, to: link.to, attrs: link.attrs, source: { file: spec.file, line: link.line } })
-      }
-    }
-    for (const inline of spec.inlineNodes) {
-      for (const link of inline.links) {
-        edges.push({ from: inline.id, rel: link.rel, to: link.to, attrs: link.attrs, source: { file: spec.file, line: link.line } })
-      }
+      for (const link of links) edges.push({ from: id, rel: link.rel, to: link.to, source: { file: spec.file, line: link.line } })
     }
   }
   for (const annotation of annotations) {
@@ -328,12 +290,6 @@ export const buildProject = (input: ProjectInput): Project => {
         attrs: annotation.rel === vocabulary.relations.anchor || Object.keys(attrs).length === 0 ? undefined : attrs,
         source: { file: annotation.file, line: annotation.line }
       })
-    }
-  }
-  for (const spec of specs) {
-    for (const ref of spec.references) {
-      if (ref.rel === undefined || ref.id === spec.id) continue
-      edges.push({ from: spec.id, rel: ref.rel, to: ref.id, source: { file: spec.file, line: ref.line } })
     }
   }
 
@@ -357,15 +313,6 @@ export const buildProject = (input: ProjectInput): Project => {
     }))
     return false
   })
-
-  // A prose mention is not a link: it adds an edge only between nodes no link joins.
-  const joined = new Set(links.flatMap((edge) => [`${edge.from}\u0000${edge.to}`, `${edge.to}\u0000${edge.from}`]))
-  for (const spec of specs) {
-    for (const ref of spec.references) {
-      if (ref.rel !== undefined || ref.id === spec.id || joined.has(`${spec.id}\u0000${ref.id}`)) continue
-      links.push({ from: spec.id, rel: vocabulary.relations.mention, to: ref.id, source: { file: spec.file, line: ref.line } })
-    }
-  }
 
   // Every reference to an unknown id is reported where it is written; the id stays visible as one
   // `missing` node, so it can be queried and fixed.
@@ -442,11 +389,43 @@ export const stageOf = (maturity: unknown, verification: Verification, ladder: W
     ? maturity
     : undefined
 
-/** The line a key is written on; an entry of a map (`activity.test`) falls back to the map's own line. */
-const lineOfKey = (lines: Readonly<Record<string, number>>, key: string): number | undefined => {
-  const own = Object.hasOwn(lines, key) ? lines[key] : undefined
-  const parent = key.split(".")[0]!
-  return own ?? (Object.hasOwn(lines, parent) ? lines[parent] : undefined)
+/**
+ * What a code annotation declares a node with, split into values and links: the keys the vocabulary
+ * names as links — the plan, phase and closing relations, and each discipline under `activity` —
+ * link to the ids they hold. A value there that is not an id is an error at the annotation.
+ */
+const codeLinks = (
+  declared: Attrs,
+  vocabulary: Vocabulary,
+  at: { readonly file: string; readonly owner: string; readonly line: number },
+  diagnostics: Array<Diagnostic>
+) => {
+  const keys = linkKeys(vocabulary)
+  const activity = vocabulary.attributes.activity
+  const links: Array<{ readonly rel: string; readonly to: string }> = []
+  const add = (rel: string, value: unknown) => {
+    for (const to of [value].flat()) {
+      if (Predicate.isString(to) || Predicate.isNumber(to)) {
+        links.push({ rel, to: String(to) })
+        continue
+      }
+      diagnostics.push(diagnostic("link-syntax", {
+        message: `${at.owner}: ${rel} ${JSON.stringify(to)} names no id`,
+        node: at.owner,
+        source: { file: at.file, line: at.line },
+        hint: `write the id it links to, e.g. ${rel}: "E1"`
+      }))
+    }
+  }
+  const values = Object.entries(declared).filter(([key, value]) => {
+    if (keys.includes(key)) add(key, value)
+    else if (key === activity && Predicate.isObject(value) && !Array.isArray(value)) {
+      for (const [discipline, iteration] of Object.entries(value)) add(activityRelation(vocabulary, discipline), iteration)
+    } else return true
+    return false
+  })
+  // Not assigned one by one: `__proto__` is a key like any other.
+  return { attrs: Object.fromEntries(values), links }
 }
 
 const compact = (record: Record<string, unknown>): Record<string, unknown> =>

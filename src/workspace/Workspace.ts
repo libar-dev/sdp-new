@@ -157,14 +157,12 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const path = yield* Path.Path
   const configFile = yield* readConfigFile(root)
   const config = yield* parseConfig(configFile)
-  const [specPaths, featurePaths, codePaths, stepPaths, inputPaths] = yield* Effect.all([
-    findFiles(root, config.specs, config.exclude),
+  const [featurePaths, codePaths, stepPaths, inputPaths] = yield* Effect.all([
     findFiles(root, config.features, config.exclude),
     findFiles(root, config.code, config.exclude),
     findFiles(root, config.steps, config.exclude),
     findFiles(root, config.evidence.inputs, config.exclude)
   ], { concurrency: "unbounded" })
-  const specFiles = yield* readAll(root, specPaths)
   const featureFiles = yield* readAll(root, featurePaths)
   const codeFiles = yield* readAll(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
@@ -189,16 +187,16 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
     inputs: declaredInputs(yield* readAll(root, inputPaths), config.evidence.env),
     // The id declarations too: a check reads them (`types-stale`), and so does a step that asks for diagnostics.
-    specs: fingerprint([...specFiles, ...featureFiles, ...(types === undefined ? [] : [{ path: config.types, content: types }])])
+    specs: fingerprint([...featureFiles, ...(types === undefined ? [] : [{ path: config.types, content: types }])])
   }
   const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const project = buildProject({ root, config, specFiles, featureFiles, codeFiles, stepFiles, types, evidence: view })
+  const project = buildProject({ root, config, featureFiles, codeFiles, stepFiles, types, evidence: view })
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
 })
 
-/** Reads config, specs, feature files, code, step definitions, stored results and id declarations and builds the project. */
+/** Reads config, feature files, code, step definitions, stored results and id declarations and builds the project. */
 export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
   return (yield* loadWorkspace(root, { results: options.withResults === false ? "none" : "all" })).project
 })

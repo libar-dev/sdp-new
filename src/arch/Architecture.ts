@@ -8,7 +8,7 @@
  */
 import { annotate } from "sdp/annotations"
 import type { GraphEdge, GraphNode } from "../model/Graph.ts"
-import { attribute, hasKind, isDriver, isMention } from "../model/Vocabulary.ts"
+import { attribute, hasKind, isDriver } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface ArchitectureView {
@@ -19,8 +19,7 @@ export interface ArchitectureView {
 
 /**
  * Every architectural node and the decisions and quality requirements linked to it — and nothing
- * else. A prose mention links nothing, so it pulls nothing in. This is the view to hand to a person
- * or an agent designing a change.
+ * else. This is the view to hand to a person or an agent designing a change.
  */
 export const architectureView = (project: Project): ArchitectureView => {
   const { graph } = project
@@ -28,13 +27,13 @@ export const architectureView = (project: Project): ArchitectureView => {
   const architecture = graph.nodes().filter((node) => hasKind(vocabulary, "architectural", node.kind))
   const keep = new Set(architecture.map((node) => node.id))
   for (const node of architecture) {
-    for (const { edge, other } of graph.neighbours(node.id)) {
+    for (const { other } of graph.neighbours(node.id)) {
       const o = graph.node(other)
-      if (o && !isMention(vocabulary, edge) && isDriver(vocabulary, o)) keep.add(o.id)
+      if (o && isDriver(vocabulary, o)) keep.add(o.id)
     }
   }
   const sub = graph.subgraph(keep)
-  return { nodes: sub.nodes(), edges: sub.edges().filter((edge) => !isMention(vocabulary, edge)) }
+  return { nodes: sub.nodes(), edges: sub.edges() }
 }
 annotate(architectureView, { is: "ARCH-architecture-view" })
 

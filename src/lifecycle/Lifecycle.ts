@@ -15,9 +15,8 @@
  *              discipline plans that one into iterations of its own
  *              (`@activity.implementation:C1 @activity.test:T1`)
  *
- * Plan facts are read as edges, which every link key yields whichever way it
- * is written. No other edge counts — a `[[E2]]` mention plans nothing — and a
- * node is counted once however many edges lead to the same iteration. The
+ * Plan facts are read as edges, and no other edge counts: a node is counted
+ * once however many edges lead to the same iteration. The
  * discipline × iteration chart is the plan; stages and executed scenarios are
  * evidence and are reported apart from it.
  */

@@ -22,7 +22,6 @@ const VocabularyFile = Schema.Struct({
     plan: Schema.optional(Words),
     phase: Schema.optional(Words),
     closes: Schema.optional(Words),
-    mention: Schema.optional(Word),
     scenario: Schema.optional(Word),
     anchor: Schema.optional(Word)
   })),
@@ -36,7 +35,6 @@ const VocabularyFile = Schema.Struct({
   qualities: Schema.optional(Words),
   maturity: Schema.optional(Words),
   disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
-  links: Schema.optional(Words),
   words: Schema.optional(Schema.Struct({
     kinds: Schema.optional(Words),
     relations: Schema.optional(Words),
@@ -47,7 +45,6 @@ type VocabularyFile = typeof VocabularyFile.Type
 
 /** Shape of `sdp.config.yaml`. Every key is optional; see `defaults` for what an empty file means. */
 export const ConfigFile = Schema.Struct({
-  specs: Schema.optional(Globs),
   features: Schema.optional(Globs),
   code: Schema.optional(Globs),
   steps: Schema.optional(Globs),
@@ -65,7 +62,6 @@ export const ConfigFile = Schema.Struct({
 export type ConfigFile = typeof ConfigFile.Type
 
 export interface Config {
-  readonly specs: ReadonlyArray<string>
   readonly features: ReadonlyArray<string>
   readonly code: ReadonlyArray<string>
   readonly steps: ReadonlyArray<string>
@@ -111,7 +107,6 @@ const defaultIds: ReadonlyArray<readonly [string, string]> = [
 ]
 
 export const defaults: Config = {
-  specs: ["**/*.md"],
   features: ["**/*.feature"],
   code: [`src/${sourceGlob}`, `lib/${sourceGlob}`, `app/${sourceGlob}`, `packages/${sourceGlob}`],
   steps: ["**/*.steps.{ts,mts,js,mjs}"],
@@ -135,7 +130,6 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
     qualities: file.qualities ?? d.qualities,
     maturity: file.maturity ?? d.maturity,
     disciplines: new Map([...d.disciplines, ...Object.entries(file.disciplines ?? {})]),
-    links: file.links ?? d.links,
     words: { ...d.words, ...file.words }
   }
 }
@@ -143,7 +137,6 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
 export const resolveConfig = (file: ConfigFile | undefined): Config => {
   if (!file) return defaults
   return {
-    specs: file.specs ?? defaults.specs,
     features: file.features ?? defaults.features,
     code: file.code ?? defaults.code,
     steps: file.steps ?? defaults.steps,
@@ -178,7 +171,7 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
 
   const v = resolveVocabulary(file)
   const { anchored, ...kindRoles } = v.kinds
-  const { anchor, mention, scenario, ...relationRoles } = v.relations
+  const { anchor, scenario, ...relationRoles } = v.relations
   const roles: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
     ...Object.entries(kindRoles).map(([role, words]) => [["kinds", role], words] as const),
     ...Object.entries(relationRoles).map(([role, words]) => [["relations", role], words] as const)
@@ -195,8 +188,7 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   // The names sdp reads or derives on every node are taken: by no relation, and by no other attribute.
   const named: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
     ...Object.entries(v.relations).map(([role, words]) => [["relations", role], [words].flat()] as const),
-    ...Object.entries(v.attributes).map(([role, word]) => [["attributes", role], [word]] as const),
-    [["links"], v.links]
+    ...Object.entries(v.attributes).map(([role, word]) => [["attributes", role], [word]] as const)
   ]
   for (const [path, words] of named) {
     for (const word of words.filter((candidate) => reservedRelations.includes(candidate))) {
@@ -204,13 +196,13 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
     }
   }
 
-  // A relation sdp makes or reads on code is no relation authors write in front matter, and no other one of its own.
-  const written = [...Object.values(relationRoles).flat(), ...v.links]
-  const own = { anchor, mention, scenario }
+  // A relation sdp makes or reads on code is no relation authors write in a tag, and no other one of its own.
+  const written = Object.values(relationRoles).flat()
+  const own = { anchor, scenario }
   for (const [role, word] of Object.entries(own)) {
     const others = Object.entries(own).filter(([other, its]) => other !== role && its === word).map(([other]) => `relations.${other}`)
     if (written.includes(word) || others.length > 0) {
-      problem(["relations", role], `${word} is also ${others[0] ?? "a relation authors write as a link key"}; this relation needs a word of its own`)
+      problem(["relations", role], `${word} is also ${others[0] ?? "a relation of the plan"}; this relation needs a word of its own`)
     }
   }
   return issues
