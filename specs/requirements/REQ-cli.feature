@@ -101,9 +101,9 @@ Feature: Command line
       And the output lines are "REQ-search"
 
       Examples:
-        | file               | line | rule                  | content                                                                                                                         |
-        | specs/b.feature    | 6    | gherkin-syntax        | Feature: B\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed                                              |
-        | specs/copy.feature | 1    | duplicate-id          | @id=REQ-search\nFeature: Search again                                                                                           |
+        | file               | line | rule                  | content                                                                                                                            |
+        | specs/b.feature    | 6    | gherkin-syntax        | Feature: B\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed                                             |
+        | specs/copy.feature | 1    | duplicate-id          | @id=REQ-search\nFeature: Search again                                                                                              |
         | src/search.ts      | 4    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nconst id = "REQ-search"\nannotate(search, { implements: id }) |
 
     Scenario Outline: A result cut short by a limit is incomplete and says which, even when it is empty
@@ -179,22 +179,22 @@ Feature: Command line
       And the file "<not written>" does not exist
 
       Examples:
-        | command                                 | refusal                                                         | not written                          |
-        | -C nowhere status                       | no such directory                                               | .sdp/results.json                    |
-        | -C specs/REQ-search.feature status      | a workspace is a directory, and this is a file                  | .sdp/results.json                    |
-        | -C specs/REQ-search.feature init        | a workspace is a directory, and this is a file                  | sdp.config.yaml                      |
-        | run --concurrency 0                     | the number of scenarios to run at once is 1 or more             | .sdp/results.json                    |
-        | run --tags '(@fast'                     | invalid --tags                                                  | .sdp/results.json                    |
-        | run REQ-serach                          | nothing matches REQ-serach                                      | .sdp/results.json                    |
-        | gate REQ-search                         | REQ-search has no gate scenarios                                | .sdp/results.json                    |
-        | context REQ-search --depth 0            | depth must be a whole number from 1 to 6                        | .sdp/results.json                    |
-        | context REQ-search --depth 7            | depth must be a whole number from 1 to 6                        | .sdp/results.json                    |
-        | new requirement ''                      | a requirement needs a title                                     | specs/requirements/REQ-0001.feature  |
-        | new a/b Carts                           | is not a kind: a kind is one word                               | specs/a/b/AB-carts.feature           |
-        | new ../x Carts                          | is not a kind: a kind is one word                               | x/X-carts.feature                    |
-        | new requirement Carts --id a/b          | cannot name a file: write it without a slash                    | specs/requirements/a/b.feature       |
-        | new requirement Carts --dir ''          | --dir needs a directory                                         | REQ-carts.feature                    |
-        | new requirement Carts --maturity done   | unknown maturity done: use one of idea, draft, specified, ready | specs/requirements/REQ-carts.feature |
+        | command                               | refusal                                                         | not written                          |
+        | -C nowhere status                     | no such directory                                               | .sdp/results.json                    |
+        | -C specs/REQ-search.feature status    | a workspace is a directory, and this is a file                  | .sdp/results.json                    |
+        | -C specs/REQ-search.feature init      | a workspace is a directory, and this is a file                  | sdp.config.yaml                      |
+        | run --concurrency 0                   | the number of scenarios to run at once is 1 or more             | .sdp/results.json                    |
+        | run --tags '(@fast'                   | invalid --tags                                                  | .sdp/results.json                    |
+        | run REQ-serach                        | nothing matches REQ-serach                                      | .sdp/results.json                    |
+        | gate REQ-search                       | REQ-search has no gate scenarios                                | .sdp/results.json                    |
+        | context REQ-search --depth 0          | depth must be a whole number from 1 to 6                        | .sdp/results.json                    |
+        | context REQ-search --depth 7          | depth must be a whole number from 1 to 6                        | .sdp/results.json                    |
+        | new requirement ''                    | a requirement needs a title                                     | specs/requirements/REQ-0001.feature  |
+        | new a/b Carts                         | is not a kind: a kind is one word                               | specs/a/b/AB-carts.feature           |
+        | new ../x Carts                        | is not a kind: a kind is one word                               | x/X-carts.feature                    |
+        | new requirement Carts --id a/b        | cannot name a file: write it without a slash                    | specs/requirements/a/b.feature       |
+        | new requirement Carts --dir ''        | --dir needs a directory                                         | REQ-carts.feature                    |
+        | new requirement Carts --maturity done | unknown maturity done: use one of idea, draft, specified, ready | specs/requirements/REQ-carts.feature |
 
     Scenario: An invalid configuration
       Given a file "broken/sdp.config.yaml" containing:

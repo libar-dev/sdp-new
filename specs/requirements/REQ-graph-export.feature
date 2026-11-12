@@ -41,10 +41,10 @@ Feature: The graph as plain data
       Then the output contains '<record>'
 
       Examples:
-        | what                         | record                                                                                                                                                                             |
+        | what                         | record                                                                                                                                                                                                              |
         | a node with its attributes   | {"type":"node","id":"REQ-a","kind":"requirement","title":"Alpha","file":"specs/REQ-a.feature","line":1,"attrs":{"maturity":"idea","file":"specs/REQ-a.feature","scenarios":0,"verification":"none","stage":"idea"}} |
-        | a node nothing declares      | {"type":"node","id":"REQ-gone","kind":"missing","title":"REQ-gone","file":null,"line":null,"attrs":{}}                                                                             |
-        | an edge stated in two places | {"type":"edge","from":"REQ-a","rel":"realized-by","to":"ARCH-x","attrs":{},"declared":[{"file":"specs/REQ-a.feature","line":1},{"file":"specs/REQ-a.feature","line":2}]}          |
+        | a node nothing declares      | {"type":"node","id":"REQ-gone","kind":"missing","title":"REQ-gone","file":null,"line":null,"attrs":{}}                                                                                                              |
+        | an edge stated in two places | {"type":"edge","from":"REQ-a","rel":"realized-by","to":"ARCH-x","attrs":{},"declared":[{"file":"specs/REQ-a.feature","line":1},{"file":"specs/REQ-a.feature","line":2}]}                                            |
 
     Scenario: A rule is a node of kind rule with what it holds and how its examples stand, and its edges say whose it is and what it rests on
       Given a file "specs/REQ-c.feature" containing:
@@ -121,11 +121,11 @@ Feature: The graph as plain data
       Then the output lines are "<answer>"
 
       Examples:
-        | query                          | answer   | jq                                                                                       |
-        | requirement[maturity=ready]    | REQ-b    | select(.type == "node" and .kind == "requirement" and .attrs.maturity == "ready") \| .id |
-        | *[source~^specs/ARCH-]         | ARCH-x   | select(.type == "node" and (.file // "" \| startswith("specs/ARCH-"))) \| .id           |
-        | #ARCH-x <-realized-by- *       | REQ-a    | select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-x") \| .from          |
-        | missing                        | REQ-gone | select(.type == "node" and .file == null) \| .id                                        |
+        | query                       | answer   | jq                                                                                       |
+        | requirement[maturity=ready] | REQ-b    | select(.type == "node" and .kind == "requirement" and .attrs.maturity == "ready") \| .id |
+        | *[source~^specs/ARCH-]      | ARCH-x   | select(.type == "node" and (.file // "" \| startswith("specs/ARCH-"))) \| .id            |
+        | #ARCH-x <-realized-by- *    | REQ-a    | select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-x") \| .from           |
+        | missing                     | REQ-gone | select(.type == "node" and .file == null) \| .id                                         |
 
     Scenario: A two-hop question is a few lines of jq
       When I run "sdp q 'requirement -realized-by-> element -decided-by-> decision' --ids"
