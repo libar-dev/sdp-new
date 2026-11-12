@@ -177,7 +177,8 @@ Scenario: With --json the answer is one envelope — complete, notes, data — a
     # A requirement sdp cannot read
     """
   When I run "sdp q requirement --json"
-  Then the output is valid JSON
+  Then the exit code is 2
+  And the output is valid JSON
   And the output contains '"complete": false'
   And the output contains '"not read: specs/REQ-broken.md:3 [front-matter]'
   And the output field "data.nodes" holds "REQ-search"
@@ -950,7 +951,8 @@ Scenario: A step that fails shows where it is defined; passed steps show with --
   And the output contains "no results"
   And the output does not contain "Given a catalogue with a desk lamp"
   When I run "sdp run REQ-search --verbose"
-  Then the output contains "Given a catalogue with a desk lamp"
+  Then the exit code is 1
+  And the output contains "Given a catalogue with a desk lamp"
 
 Scenario: A step file that defines nothing is reported
   Given a file "specs/steps/search.steps.ts" containing:
@@ -1053,7 +1055,8 @@ Scenario: Only milestones and @gate scenarios can be gates
 
 Scenario: gate --json prints nothing but JSON
   When I run "sdp gate MS-beta --json"
-  Then the output is valid JSON
+  Then the exit code is 1
+  And the output is valid JSON
   And the output contains '"passed": false'
 
 Scenario: gate --record records nothing while the gate does not pass

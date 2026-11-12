@@ -272,7 +272,8 @@ Scenario: A step that failed in the last run is listed with its error and where 
     })
     """
   When I run "sdp run"
-  And I run "sdp context REQ-cart"
+  Then the exit code is 1
+  When I run "sdp context REQ-cart"
   Then the output section "Scenarios" contains "- [failed] Add an item — specs/REQ-cart.md:7"
   And the output section "Scenarios" contains "failed: Given an empty cart — the cart service is down (defined at specs/steps/cart.steps.ts:4)"
 

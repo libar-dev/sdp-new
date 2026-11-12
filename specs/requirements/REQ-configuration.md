@@ -375,7 +375,8 @@ Scenario: sdp new writes what a renamed profile reads
   When I run "sdp q 'checkpoint -ends-> era' --ids"
   Then the output lines are "ERA-elaboration"
   When I run "sdp check"
-  Then the output does not contain "[dangling-link]"
+  Then the exit code is 1
+  And the output does not contain "[dangling-link]"
   And the output does not contain "[plan-reference]"
   When I run "sdp lifecycle --json"
   Then the output field "data.phases" holds "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition"

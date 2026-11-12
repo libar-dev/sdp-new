@@ -18,7 +18,7 @@ import { builtinSteps } from "../../src/run/Builtin.ts"
 import { runWorkspace } from "../../src/app/Running.ts"
 import { readResults } from "../../src/run/Store.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { ids, newWorld, reload, type World } from "./world.ts"
+import { ids, newWorld, output, produce, reload, stdout, type World } from "./world.ts"
 
 // --- scripted step definitions ---------------------------------------------
 
@@ -349,8 +349,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       `registerHooks({ load: (url, context, nextLoad) => (console.log(url), nextLoad(url, context)) })`,
       `await import(${JSON.stringify(specifier)})`
     ].join("\n")
-    const { stdout } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script], { cwd: project.root })
-    world.output = stdout
+    const { stdout: loaded } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script], { cwd: project.root })
+    produce(world, loaded)
   })
 
   // --- MCP and context ------------------------------------------------------
@@ -375,33 +375,33 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   // The MCP call step (sdp.steps.ts) records whether the tool answered with an error.
   Then("the MCP tool reports an error", ({ world }) => {
-    assert.equal(world.scratch.mcpError, true, `expected a tool error, got:\n${world.output}`)
+    assert.equal(world.scratch.mcpError, true, `expected a tool error, got:\n${output(world)}`)
   })
 
   // The field may be a path into the JSON: "data.nodes".
   Then("the output field {string} holds {string}", ({ args: [field, list], world }) => {
-    const value: unknown = field.split(".").reduce((json, key) => json?.[key], JSON.parse(String(world.scratch.stdout ?? world.output)))
-    assert.ok(Array.isArray(value), `${field} is not a list in:\n${world.output}`)
+    const value: unknown = field.split(".").reduce((json, key) => json?.[key], JSON.parse(stdout(world)))
+    assert.ok(Array.isArray(value), `${field} is not a list in:\n${output(world)}`)
     const actual = value.map((v: unknown) => typeof v === "object" && v !== null && "id" in v ? String(v.id) : String(v))
     assert.deepEqual(actual.sort(), ids(list))
   })
 
   // The `## ` headings of a Markdown document, in the order they come.
   Then("the sections of the output are {string}", ({ args: [expected], world }) => {
-    const headings = world.output.split("\n").filter((line) => line.startsWith("## ")).map((line) => line.slice(3))
+    const headings = output(world).split("\n").filter((line) => line.startsWith("## ")).map((line) => line.slice(3))
     assert.deepEqual(headings, expected.split(",").map((heading) => heading.trim()))
   })
 
   Then("the output section {string} contains {string}", ({ args: [heading, text], world }) => {
-    assert.ok(section(world.output, heading).includes(text), `section "${heading}" does not contain ${JSON.stringify(text)}:\n${world.output}`)
+    assert.ok(section(output(world), heading).includes(text), `section "${heading}" does not contain ${JSON.stringify(text)}:\n${output(world)}`)
   })
 
   Then("the output section {string} contains:", ({ args: [heading], doc, world }) => {
-    assert.ok(section(world.output, heading).includes(doc ?? ""), `section "${heading}" does not contain the text:\n${world.output}`)
+    assert.ok(section(output(world), heading).includes(doc ?? ""), `section "${heading}" does not contain the text:\n${output(world)}`)
   })
 
   Then("the output section {string} does not contain {string}", ({ args: [heading, text], world }) => {
-    assert.ok(!section(world.output, heading).includes(text), `section "${heading}" contains ${JSON.stringify(text)}:\n${world.output}`)
+    assert.ok(!section(output(world), heading).includes(text), `section "${heading}" contains ${JSON.stringify(text)}:\n${output(world)}`)
   })
 
   // --- check ----------------------------------------------------------------

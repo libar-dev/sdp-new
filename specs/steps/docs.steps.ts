@@ -7,11 +7,9 @@
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
-import { execFile } from "node:child_process"
-import { existsSync, rmSync } from "node:fs"
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { delimiter, dirname, join } from "node:path"
+import { existsSync } from "node:fs"
+import { readFile } from "node:fs/promises"
+import { join } from "node:path"
 import { newId } from "../../src/app/Templates.ts"
 import type { Project } from "../../src/graph/Build.ts"
 import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
@@ -19,7 +17,7 @@ import { formatSource, type SourceRef } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { findFiles } from "../../src/workspace/Workspace.ts"
-import { ids, load, newWorld, reload, setFile, type World } from "./world.ts"
+import { ids, load, newWorld, output, produce, reload, setFile, type World } from "./world.ts"
 
 const outputLine = (output: string, text: string) => {
   const line = output.split("\n").find((l) => l.includes(text))
@@ -33,7 +31,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("the lifecycle is computed on {string}", ({ args: [today], world }) =>
     Effect.map(load(world), (project) => {
       world.lifecycle = lifecycle(project, today)
-      world.output = renderLifecycle(world.lifecycle)
+      produce(world, renderLifecycle(world.lifecycle))
     }))
 
   Then("the current iteration is {string}", ({ args: [expected], world }) => {
@@ -42,20 +40,20 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   Then("the output line with {string} contains {string}", ({ args: [anchor, text], world }) => {
-    const line = outputLine(world.output, anchor)
+    const line = outputLine(output(world), anchor)
     assert.ok(line.includes(text), `${JSON.stringify(line)} does not contain ${JSON.stringify(text)}`)
   })
 
   Then("the output line with {string} does not contain {string}", ({ args: [anchor, text], world }) => {
-    const line = outputLine(world.output, anchor)
+    const line = outputLine(output(world), anchor)
     assert.ok(!line.includes(text), `${JSON.stringify(line)} contains ${JSON.stringify(text)}`)
   })
 
   // A section runs from the line that starts with its heading to the next blank line.
   Then("the output line with {string} under {string} contains {string}", ({ args: [anchor, heading, text], world }) => {
-    const lines = world.output.split("\n")
+    const lines = output(world).split("\n")
     const start = lines.findIndex((l) => l.startsWith(heading))
-    assert.ok(start >= 0, `no output line starts with ${JSON.stringify(heading)}:\n${world.output}`)
+    assert.ok(start >= 0, `no output line starts with ${JSON.stringify(heading)}:\n${output(world)}`)
     const end = lines.findIndex((l, i) => i > start && l.trim() === "")
     const line = outputLine(lines.slice(start + 1, end < 0 ? undefined : end).join("\n"), anchor)
     assert.ok(line.includes(text), `${JSON.stringify(line)} does not contain ${JSON.stringify(text)}`)
@@ -171,28 +169,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const found = ["dist", "build", "out"].filter((dir) => existsSync(join(project.root, dir)))
     assert.equal(found.length, 0, `build output found: ${found.join(", ")}`)
   })
-
-  // --- the command line, piped ----------------------------------------------
-
-  // What `I run {string}` cannot say: a pipeline. The given files are written to the scenario's
-  // directory and the script runs there under `sh`, with `sdp` on the PATH as this repository's CLI.
-  When("I run in a shell:", async ({ doc, project, world }) => {
-    const base = await shellBase(project.root)
-    const directory = world.directory ??= await mkdtemp(join(base, "workspace-"))
-    for (const [file, content] of world.files) {
-      await mkdir(dirname(join(directory, file)), { recursive: true })
-      await writeFile(join(directory, file), content)
-    }
-    const path = `${join(base, "bin")}${delimiter}${process.env.PATH ?? ""}`
-    const result = await new Promise<{ code: number; output: string }>((done) => {
-      execFile("sh", ["-c", doc ?? ""], { cwd: directory, env: { ...process.env, NO_COLOR: "1", PATH: path } }, (error, stdout, stderr) => {
-        const code = error === null ? 0 : typeof error.code === "number" ? error.code : 1
-        done({ code, output: stdout + stderr })
-      })
-    })
-    world.exitCode = result.code
-    world.output = result.output
-  })
 })
 
 const repository = (world: World): Project => {
@@ -200,15 +176,3 @@ const repository = (world: World): Project => {
   assert.ok(project, "start with: Given an agent that explores this repository with grep")
   return project
 }
-
-// Created once (scenarios may run concurrently, so the promise is shared): a temporary directory
-// with `bin/sdp`, a script that runs this repository's command line. Removed when the run exits.
-let shell: Promise<string> | undefined
-
-const shellBase = (root: string) =>
-  shell ??= mkdtemp(join(tmpdir(), "sdp-shell-")).then(async (base) => {
-    process.once("exit", () => rmSync(base, { recursive: true, force: true }))
-    await mkdir(join(base, "bin"))
-    await writeFile(join(base, "bin", "sdp"), `#!/bin/sh\nexec "${process.execPath}" "${join(root, "src/cli/main.ts")}" "$@"\n`, { mode: 0o755 })
-    return base
-  })

@@ -24,7 +24,7 @@ import { defineSteps } from "sdp/steps"
 import { defaultVocabulary, hasKind } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import type { Project } from "../../src/graph/Build.ts"
-import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
+import { ids, load, newWorld, node, output, produce, reload, setFile } from "./world.ts"
 
 /**
  * `A -rel-> B` for every value import from a module anchored to element A to a module anchored to
@@ -59,8 +59,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- workspace ------------------------------------------------------------
 
   Given("a file {string} containing:", ({ args: [path], doc, world }) => setFile(world, path, doc ?? ""))
-
-  Given("an empty workspace", () => {})
 
   When("the workspace is loaded", ({ world }) => Effect.asVoid(reload(world)))
 
@@ -160,7 +158,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("I ask for the architecture view", ({ world }) =>
     Effect.map(Reading.architecture(memoryRoot), (answer) => {
-      world.output = Text.architecture(answer.data)
+      produce(world, Text.architecture(answer.data))
     }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
 
   // --- context, exports, lifecycle, MCP ------------------------------------
@@ -168,51 +166,50 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // The bundle as it is before any step file is read: what a run recorded is all it knows of the steps.
   When("I ask for the context of {string}", ({ args: [id], world }) =>
     Effect.map(load(world), (project) => {
-      world.output = contextBundle(project, node(project, id))
+      produce(world, contextBundle(project, node(project, id)))
     }))
 
   When("the graph is exported", ({ world }) =>
     Effect.map(load(world), (project) => {
-      world.output = jsonLines(graphRecords(project.graph))
+      produce(world, jsonLines(graphRecords(project.graph)))
     }))
 
   // The programmatic API as a program calls it: `query` from the package's entry point, on these files.
   When("a program asks the API for {string}", ({ args: [expression], world }) =>
     Effect.map(Api.query(memoryRoot, { expression }), (answer) => {
-      world.output = JSON.stringify(answer, null, 2)
-      world.scratch.stdout = world.output
+      produce(world, JSON.stringify(answer, null, 2))
     }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
 
   // `\t` and `\n` in the expected text stand for a tab and a line break.
   Then("the output contains {string}", ({ args: [text], world }) => {
     const expected = text.replace(/\\t/g, "\t").replace(/\\n/g, "\n")
-    assert.ok(world.output.includes(expected), `output does not contain ${JSON.stringify(expected)}:\n${world.output}`)
+    assert.ok(output(world).includes(expected), `output does not contain ${JSON.stringify(expected)}:\n${output(world)}`)
   })
 
   // The lines of the doc string, one after the other; how far each is indented does not count.
   Then("the output contains:", ({ doc, world }) => {
     const flush = (text: string) => text.split("\n").map((line) => line.trimStart()).join("\n")
-    assert.ok(flush(world.output).includes(flush(doc ?? "")), `output does not contain the text:\n${world.output}`)
+    assert.ok(flush(output(world)).includes(flush(doc ?? "")), `output does not contain the text:\n${output(world)}`)
   })
 
   Then("the output contains {string} {int} time(s)", ({ args: [text, count], world }) => {
-    assert.equal(world.output.split(text).length - 1, count, `occurrences of ${JSON.stringify(text)} in:\n${world.output}`)
+    assert.equal(output(world).split(text).length - 1, count, `occurrences of ${JSON.stringify(text)} in:\n${output(world)}`)
   })
 
   Then("the line after the output line with {string} contains {string}", ({ args: [anchor, text], world }) => {
-    const lines = world.output.split("\n")
+    const lines = output(world).split("\n")
     const index = lines.findIndex((line) => line.includes(anchor))
-    assert.ok(index >= 0, `no output line contains ${JSON.stringify(anchor)}:\n${world.output}`)
+    assert.ok(index >= 0, `no output line contains ${JSON.stringify(anchor)}:\n${output(world)}`)
     assert.ok(lines[index + 1]?.includes(text), `the line after ${JSON.stringify(lines[index])} is ${JSON.stringify(lines[index + 1])}`)
   })
 
   Then("the output does not contain {string}", ({ args: [text], world }) => {
-    assert.ok(!world.output.includes(text), `output unexpectedly contains ${JSON.stringify(text)}`)
+    assert.ok(!output(world).includes(text), `output unexpectedly contains ${JSON.stringify(text)}`)
   })
 
   Then("the output has one line per node and edge", ({ world }) =>
     Effect.map(load(world), (project) => {
-      const lines = world.output.trimEnd().split("\n")
+      const lines = output(world).trimEnd().split("\n")
       assert.equal(lines.length, project.graph.nodes().length + project.graph.edges().length)
     }))
 
@@ -240,13 +237,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.gen(function*() {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
-      world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
-      world.scratch.stdout = world.output
+      produce(world, result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n"))
       world.scratch.mcpError = result.isError === true
     }).pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
-          world.output = Predicate.hasProperty(error, "message") ? String(error.message) : String(error)
+          produce(world, Predicate.hasProperty(error, "message") ? String(error.message) : String(error))
           world.scratch.mcpError = true
         })
       ),
@@ -255,7 +251,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     ))
 
   When("an agent reads the MCP server's instructions", ({ world }) => {
-    world.output = instructions
+    produce(world, instructions)
   })
 
   // --- this repository's architecture ---------------------------------------

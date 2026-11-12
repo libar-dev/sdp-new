@@ -90,7 +90,7 @@ Scenario: grep, jq and sdp q give the same answer
     """
   When I run "grep -rl DEC-0001 specs"
   Then the output contains "specs/REQ-guest-checkout.md"
-  When I run in a shell:
+  When I run the pipeline:
     """
     sdp graph | jq -r 'select(.rel == "decided-by" and .to == "DEC-0001") | .from'
     """
@@ -141,7 +141,6 @@ node src/cli/main.ts --help       # every command, one line each
 
 ~~~gherkin
 Scenario: Start in a repository of your own
-  Given an empty workspace
   When I run "sdp init"
   Then the output contains "created sdp.config.yaml"
   When I run "sdp new idea 'Gift wrapping'"

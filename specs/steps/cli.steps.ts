@@ -22,7 +22,7 @@ import { newSpec } from "../../src/app/Templates.ts"
 import * as Text from "../../src/app/Text.ts"
 import { registrations } from "../../src/mcp/Server.ts"
 import { defineSteps, Pending } from "sdp/steps"
-import { ids, load, newWorld, setFile, type World } from "./world.ts"
+import { exitCode, ids, load, newWorld, output, produce, setFile, settled, stdout, type World } from "./world.ts"
 
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)))
 const cli = join(repository, "src/cli/main.ts")
@@ -74,11 +74,8 @@ const exec = (command: string, cwd: string, input = "") =>
     child.stdin?.end(input)
   })
 
-const record = (world: World, result: { code: number; stdout: string; stderr: string }) => {
-  world.exitCode = result.code
-  world.output = result.stdout + result.stderr
-  world.scratch.stdout = result.stdout
-}
+const record = (world: World, line: string, result: { code: number; stdout: string; stderr: string }) =>
+  produce(world, result.stdout + result.stderr, { line, code: result.code, stdout: result.stdout })
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("the workspace is a copy of {string}", async ({ args: [source], world }) => {
@@ -112,7 +109,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     }))
 
   When("I run {string}", async ({ args: [command], world }) => {
-    record(world, await exec(command, await workspace(world)))
+    record(world, command, await exec(command, await workspace(world)))
   })
 
   // A shell pipeline, for what sdp's output is piped into; `sdp` is this repository's command line.
@@ -127,17 +124,17 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     })
     // What the pipeline shows cannot be judged on a machine that lacks one of its tools.
     if (result.code === 127) throw new Pending({ reason: `a command of the pipeline is not installed: ${result.stderr.trim()}` })
-    record(world, result)
+    record(world, (doc ?? "").trim(), result)
   })
 
   When("I run {string} in the repository", async ({ args: [command], project, world }) => {
-    record(world, await exec(command, project.root))
+    record(world, command, await exec(command, project.root))
   })
 
   When("I run {string} in {string}", async ({ args: [command, subdirectory], world }) => {
     const directory = await workspace(world)
     await mkdir(join(directory, subdirectory), { recursive: true })
-    record(world, await exec(command, join(directory, subdirectory)))
+    record(world, command, await exec(command, join(directory, subdirectory)))
   })
 
   // Suggested links are commented out in the templates: `  # realized-by: ARCH-…`.
@@ -162,9 +159,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const replies = result.stdout.split("\n").filter(Boolean).map((line) => JSON.parse(line))
     const reply = replies.find((m) => m.id === 2)
     assert.ok(reply?.result, `no reply to tools/call:\n${result.stdout}${result.stderr}`)
-    record(world, result)
-    world.output = reply.result.content.map((c: { text?: string }) => c.text ?? "").join("\n")
-    world.scratch.stdout = world.output
+    const text: string = reply.result.content.map((c: { text?: string }) => c.text ?? "").join("\n")
+    produce(world, text, { line: command, code: result.code, stdout: text })
   })
 
   // A program that runs a workspace more than once, as this process: it keeps the modules it imported.
@@ -172,7 +168,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.gen(function*() {
       const directory = yield* Effect.promise(() => workspace(world))
       const outcome = yield* Effect.result(run(directory))
-      world.output = Result.isSuccess(outcome) ? Text.runSummary(outcome.success.data) : describe(outcome.failure)
+      produce(world, Result.isSuccess(outcome) ? Text.runSummary(outcome.success.data) : describe(outcome.failure))
     }).pipe(Effect.provide(NodeServices.layer)))
 
   // A server in this very process, on the files on disk: like a long-running `sdp mcp`, every call
@@ -182,44 +178,48 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const directory = yield* Effect.promise(() => workspace(world))
       const client = yield* McpTest.makeClient(registrations(directory), { protocols: [McpProtocol.v2025_11_25] })
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
-      world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
-      world.scratch.stdout = world.output
+      produce(world, result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n"))
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)))
 
   Then("the exit code is {int}", ({ args: [code], world }) => {
-    assert.equal(world.exitCode, code, `exit code ${world.exitCode}, output:\n${world.output}`)
+    const actual = exitCode(world)
+    assert.equal(actual, code, `exit code ${actual}, output:\n${output(world)}`)
   })
 
   // What a command hands to the next one in a pipe: the lines of its stdout, in any order; `\t` stands for a tab.
   Then("the output lines are {string}", ({ args: [expected], world }) => {
-    const lines = String(world.scratch.stdout ?? world.output).split("\n").filter((line) => line !== "")
-    assert.deepEqual(lines.sort(), ids(expected.replace(/\\t/g, "\t")), `stdout:\n${String(world.scratch.stdout)}\noutput:\n${world.output}`)
+    const lines = stdout(world).split("\n").filter((line) => line !== "")
+    assert.deepEqual(lines.sort(), ids(expected.replace(/\\t/g, "\t")), `output:\n${output(world)}`)
   })
 
   Then("the output is valid JSON", ({ world }) => {
-    const stdout = String(world.scratch.stdout ?? world.output)
+    const text = stdout(world)
     try {
-      JSON.parse(stdout)
+      JSON.parse(text)
     } catch (error) {
-      assert.fail(`not JSON (${error instanceof Error ? error.message : String(error)}):\n${stdout}`)
+      assert.fail(`not JSON (${error instanceof Error ? error.message : String(error)}):\n${text}`)
     }
   })
 
   Then("the file {string} does not exist", async ({ args: [file], world }) => {
+    settled(world)
     const exists = await access(join(await directoryOf(world), file)).then(() => true, () => false)
     assert.ok(!exists, `${file} exists`)
   })
 
   Then("the file {string} is:", async ({ args: [file], doc, world }) => {
+    settled(world)
     assert.equal((await readFile(join(await directoryOf(world), file), "utf8")).trimEnd(), doc)
   })
 
   Then("the file {string} contains {string}", async ({ args: [file, text], world }) => {
+    settled(world)
     const content = await readFile(join(await directoryOf(world), file), "utf8")
     assert.ok(content.includes(text.replace(/\\t/g, "\t")), `${file} does not contain ${JSON.stringify(text)}:\n${content}`)
   })
 
   Then("the file {string} does not contain {string}", async ({ args: [file, text], world }) => {
+    settled(world)
     const content = await readFile(join(await directoryOf(world), file), "utf8")
     assert.ok(!content.includes(text), `${file} contains ${JSON.stringify(text)}:\n${content}`)
   })
