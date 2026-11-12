@@ -24,6 +24,7 @@ more likely.
 - Typed Cucumber Expressions and suggested definitions for undefined steps steer authors to one
   phrasing per behaviour, and ambiguous matches are reported as such, never silently resolved
   ([[REQ-executable-specs]]).
-- Agents are told to extend existing steps before adding one ([[AGENTS]]).
+- Agents are told to extend existing steps before adding one, and `sdp steps <text>` lists the
+  definitions that mention or match a phrase, each with its `file:line` ([[AGENTS]]).
 
 **Watch for:** ambiguous results in `sdp run`, and step modules that grow faster than specs.

@@ -33,8 +33,8 @@ export const readResults = Effect.fn("readResults")(function*(root: string, conf
   )
 })
 
-/** How long a commit waits for another run's commit, which takes milliseconds. */
-const lockAttempts = 100
+/** A commit waits two seconds for another run's commit, which takes milliseconds. */
+const lockAttempts = 40
 const lockPause = "50 millis"
 
 export interface Commit {
