@@ -61,7 +61,7 @@ const SdpShow = readOnly(Tool.make("sdp_show", {
 
 const SdpContext = readOnly(Tool.make("sdp_context", {
   description:
-    "Everything needed to work on one node, as Markdown: the spec text, why it is not ready yet, relationships, scenario status with the step definitions still to write (no run needed), significant architecture, patterns, quality requirements with their measures and decisions in reach, linked code.",
+    "Everything needed to work on one node, as Markdown: the spec text, why it is not ready yet, relationships, scenario status with the step definitions still to write (no run needed), architecture, quality requirements with their measures and decisions in reach, linked code.",
   parameters: Schema.Struct({
     id: Schema.String,
     depth: Schema.optional(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 6 }))).annotate({
@@ -88,7 +88,7 @@ const SdpCheck = readOnly(Tool.make("sdp_check", {
 
 const SdpArchitecture = readOnly(Tool.make("sdp_architecture", {
   description:
-    "The curated architecture only: the elements and patterns architects marked significant (with their rationale), the patterns they apply, and the decisions and quality requirements linked to them. Use before designing a change.",
+    "The architecture: every element and pattern architects declared, their relationships, and the decisions and quality requirements linked to them. Use before designing a change.",
   ...text
 }))
 
@@ -100,7 +100,7 @@ const SdpLifecycle = readOnly(Tool.make("sdp_lifecycle", {
 
 const SdpStatus = readOnly(Tool.make("sdp_status", {
   description:
-    "Summary counts: node kinds, relations in use, spec stages, decision statuses, scenario and gate results, significant elements, diagnostics.",
+    "Summary counts: node kinds, relations in use, spec stages, decision statuses, scenario and gate results, architectural nodes, diagnostics.",
   ...text
 }))
 
@@ -147,7 +147,7 @@ const handlers = (root: string) =>
           return Effect.succeed(
             [
               `${nodes.length} node(s)${cut}`,
-              ...nodes.map((n) => [n.id, n.kind, statusCell(n), n.title, formatSource(n.source)].join("\t"))
+              ...nodes.map((n) => [n.id, n.kind, statusCell(project.config.vocabulary, n), n.title, formatSource(n.source)].join("\t"))
             ].join("\n")
           )
         }),
@@ -206,7 +206,7 @@ const handlers = (root: string) =>
 export const registrations = (root: string) => McpServer.toolkit(SdpToolkit).pipe(Layer.provide(handlers(root)))
 
 export const instructions =
-  `sdp exposes a software delivery graph: specs (requirements, quality requirements, ideas) at any maturity, decision records, curated architecture (only significant elements), lifecycle (phases, iterations, milestones), scenarios with execution status, and the code linked to them. TypeScript and JavaScript link code with typed calls, \`annotate(target, { implements: "REQ-x" })\` imported from "sdp/annotations", whose ids the compiler checks once \`sdp types\` has run; other languages use comment lines, \`// @sdp implements REQ-x\`. Start with sdp_status, then sdp_query; use sdp_context before working on a spec and sdp_snippets to automate its scenarios. Relations are free-form; sdp's templates use ${relationVocabulary}. Source files are Markdown with YAML front matter — you can also grep them directly.`
+  `sdp exposes a software delivery graph: specs (requirements, quality requirements, ideas) at any maturity, decision records, curated architecture (the elements and patterns architects declared), lifecycle (phases, iterations, milestones), scenarios with execution status, and the code linked to them. TypeScript and JavaScript link code with typed calls, \`annotate(target, { implements: "REQ-x" })\` imported from "sdp/annotations", whose ids the compiler checks once \`sdp types\` has run; other languages use comment lines, \`// @sdp implements REQ-x\`. Start with sdp_status, then sdp_query; use sdp_context before working on a spec and sdp_snippets to automate its scenarios. Relations are free-form; sdp's templates use ${relationVocabulary}. Source files are Markdown with YAML front matter — you can also grep them directly.`
 
 export const serveMcp = (root: string) =>
   Layer.launch(

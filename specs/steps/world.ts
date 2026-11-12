@@ -80,6 +80,6 @@ export const ids = (list: string) => list.split(",").map((s) => s.trim()).filter
 
 export const node = (project: Project, id: string): GraphNode => {
   const found = project.graph.node(id)
-  assert.ok(found, `no node ${id}; nodes are: ${[...project.graph.nodes.keys()].join(", ")}`)
+  assert.ok(found, `no node ${id}; nodes are: ${project.graph.nodes().map((n) => n.id).join(", ")}`)
   return found
 }

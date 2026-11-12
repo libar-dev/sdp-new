@@ -29,7 +29,7 @@ Scenario: A two-hop query over 20,000 nodes answers within 250 ms
 @slow @serial
 Scenario: A negative filter over 20,000 nodes answers within 250 ms
   Given a generated graph of 20000 nodes and 60000 edges
-  When the query "element[significant] !-*- decision" runs on it
+  When the query "element !-*- decision" runs on it
   Then the median run completes within 250 ms
 
 @slow @serial

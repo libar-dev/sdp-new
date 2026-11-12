@@ -23,7 +23,8 @@ code. `sdp check --json` prints the same as objects (`rule`, `severity`, `messag
 
 An **error** means the graph is wrong or a claim is false; `sdp check` exits with 1 while there is
 one ([[REQ-cli]]). A **warning** means something was ignored or is probably a slip, and an **info**
-is a suggestion. Architectural significance is never checked: it is the architect's call ([[DEC-0008]]).
+is a suggestion. What belongs in the architecture is never checked: declaring it is the architect's
+call ([[DEC-0008]]).
 Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]]).
 
 ## Rules
@@ -33,18 +34,20 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping or is not closed; the file stays out of the graph | fix the YAML |
 | `missing-id` | warning | front matter declares a `kind` but no `id`, so the file is not part of the graph | add `id: <PREFIX>-<slug>` |
 | `duplicate-id` | error | a spec or inline node reuses an id declared elsewhere; the later one is left out | rename one of them |
-| `dangling-link` | error | a link, a `[[ID]]` mention or an `@sdp` code annotation names an id no node has; the target stays queryable as a `missing` node | create the node (`sdp new`) or fix the reference |
-| `link-syntax` | warning | an entry under `links:` has a shape sdp does not understand and is ignored | write `links: { <rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes } }` |
+| `dangling-link` | error | a link key ([[DEC-0010]]), a `[[ID]]` mention or a code annotation names an id no node has — each reference is reported; the target stays queryable as a `missing` node | create the node (`sdp new`) or fix the reference; for a plan or phase relation, the hint lists the declared ones |
+| `link-syntax` | warning | the value of a link key has a shape sdp does not understand and is ignored | write `<rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes }` |
+| `link-conflict` | warning | two declarations of the same link give one of its attributes different values; the first is kept | give the attribute one value, or declare the link once |
+| `derived-attribute` | error | a spec, an inline node or a code annotation writes an attribute sdp derives (`stage`, `verification`, …); the value is ignored | delete it |
 | `inline-node` | warning | an entry under `nodes:` has no `id` and is ignored | give it an `id` |
 | `gherkin-syntax` | error | a gherkin block does not parse; the first error is reported, with the number of follow-on errors | fix the Gherkin at that line |
 | `scenario-empty` | warning | a scenario has no steps | write its steps or delete it |
-| `maturity-value` | warning | `maturity` is not on the configured ladder | use one of the configured levels |
-| `maturity-gate` | error | the content does not support the declared maturity ([[REQ-maturity-gates]]) | complete the content or lower the maturity |
+| `maturity-value` | error | `maturity` is not on the configured ladder; the node gets no stage from it | use one of the configured levels |
+| `maturity-gate` | error | the content does not support the declared maturity — of a spec, an inline node or a node declared in code ([[REQ-maturity-gates]]) | complete the content or lower the maturity |
 | `maturity-promotable` | info | the content meets the `specified` or `ready` gate, above the declared maturity | raise the maturity if the team agrees |
 | `decision-status` | warning | a decision has no `status`, or one other than `proposed`, `accepted`, `rejected`, `deprecated`, `superseded` | set `status` |
 | `decision-supersede` | warning | a decision supersedes one whose status is not `superseded`, or a superseded decision has no successor | make both records agree |
 | `decision-content` | info | an accepted decision has no "Decision" or "Outcome" section ([[REQ-decision-records]]) | state the decision under `## Decision` |
-| `plan-reference` | warning | an `iteration:` or `phase:` value (or one of another configured plan or phase relation) names no iteration or phase, so the work or milestone is planned nowhere; or `activity:` is not a mapping, names a discipline that is not configured, or an iteration that is not declared ([[REQ-lifecycle-view]]) | use the id of a declared iteration, phase or discipline, or declare it |
+| `plan-reference` | warning | a plan or phase relation, or an entry of `activity:`, names a node that is not an iteration or a phase; `activity:` is not a mapping or names a discipline that is not configured; or a node whose kind belongs to no discipline is planned into an iteration, which plans no discipline's work ([[REQ-lifecycle-view]]) | name a declared iteration, phase or discipline, plan the work with `activity:`, or add the kind to a discipline |
 | `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
 | `annotation-unreadable` | warning | a typed annotation (`annotate(target, links)` from `sdp/annotations`) whose target is not a name or `import.meta`, or whose ids or attributes are computed rather than literal — sdp reads annotations without running code ([[ARCH-code-annotations]]) | write the target as a name and the ids as string literals |
 | `types-stale` | warning | the id declarations at the `types` path no longer match the graph, so `annotate()` may accept removed ids or reject new ones ([[REQ-configuration]]) | run `sdp types` |
@@ -78,16 +81,18 @@ Scenario Outline: Each rule reports its problem where it is
     | duplicate-id        | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [{ id: I1 }, { id: I1 }] }        |                                                                                       |
     | dangling-link       | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: { depends-on: REQ-gone } }       |                                                                                       |
     | link-syntax         | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, links: [REQ-b] }                        |                                                                                       |
+    | link-conflict       | warning  | specs/REQ-a.md   | 5    | id: REQ-a\nlinks:\n  iteration: { to: REQ-a, by: x }\niteration: { to: REQ-a, by: y } |                                                         |
+    | derived-attribute   | error    | specs/REQ-a.md   | 3    | id: REQ-a\nverification: passing                     |                                                                                       |
     | inline-node         | warning  | docs/PLAN.md     | 1    | { id: PLAN, nodes: [inception] }                     |                                                                                       |
     | gherkin-syntax      | error    | specs/REQ-a.md   | 10   | { id: REQ-a }                                        | ```gherkin\nScenario: Rows\n  Given the rows:\n    \| a \| b \|\n    \| c \|\n```     |
     | scenario-empty      | warning  | specs/REQ-a.md   | 7    | { id: REQ-a }                                        | ```gherkin\nScenario: Nothing yet\n```                                                |
-    | maturity-value      | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: someday }                     |                                                                                       |
+    | maturity-value      | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: someday }                     |                                                                                       |
     | maturity-gate       | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: specified }                   | Analysts export reports.                                                              |
     | maturity-promotable | info     | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: draft }                       | Analysts export reports.\n\n```gherkin\nScenario: Export\n  Then a file is saved\n``` |
     | decision-status     | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision }                     |                                                                                       |
     | decision-supersede  | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: superseded } |                                                                                       |
     | decision-content    | info     | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: accepted }   | We release weekly.                                                                    |
-    | plan-reference      | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, iteration: C9 }                         |                                                                                       |
+    | plan-reference      | warning  | specs/REQ-a.md   | 3    | id: REQ-a\niteration: REQ-a                          |                                                                                       |
     | annotation-ignored  | warning  | src/cart.ts      | 6    |                                                      | export const total = 0 // @sdp implements REQ-a                                       |
     | template-placeholder | warning | docs/DEC-0001.md | 8    | { id: DEC-0001, kind: decision, status: proposed }   | ## Decision\n\nWe will …                                                             |
 
@@ -114,12 +119,14 @@ Scenario Outline: Plans name declared iterations, phases and disciplines
   Then the check reports "plan-reference" for '<message>'
 
   Examples:
-    | front matter                                   | message                                          |
-    | iteration: elaboration                         | iteration "elaboration" names no iteration       |
-    | activity: { implementation: E9 }               | activity.implementation "E9" names no iteration  |
+    | front matter                                    | message                                                  |
+    | iteration: elaboration                          | iteration "elaboration" names no iteration               |
+    | phase: E1                                       | phase "E1" names no phase                                |
+    | activity: { implementation: PLAN }              | activity.implementation "PLAN" names no iteration        |
     | activity: { implementation: [E1, elaboration] } | activity.implementation "elaboration" names no iteration |
-    | activity: { testing: E1 }                      | activity names "testing", which is not a discipline |
-    | activity: E1                                   | activity should map disciplines to iterations    |
+    | activity: { testing: E1 }                       | activity names "testing", which is not a discipline      |
+    | activity: E1                                    | activity should map disciplines to iterations            |
+    | kind: risk\niteration: E1                        | kind risk belongs to no discipline                       |
 
 Scenario: A plan that names what it declares is clean
   Given a file "docs/PLAN.md" containing:

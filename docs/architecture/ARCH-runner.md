@@ -2,10 +2,6 @@
 id: ARCH-runner
 kind: element
 title: Scenario runner
-significant: true
-rationale: >-
-  Turns specifications into evidence. The delivery stage of every spec and every milestone gate
-  is derived from its results (DEC-0005), so its semantics (undefined vs. failed) are load-bearing.
 iteration: I1
 links:
   decided-by: [DEC-0005, DEC-0004]
@@ -23,5 +19,8 @@ Built-in steps assert against the graph through the query engine and the checker
 gates and guards execute. Matching is separate from running (`src/run/Match.ts`): `sdp context`,
 `sdp run --snippets` and the MCP tool `sdp_snippets` match steps without executing them. What it
 does for authors: [[REQ-executable-specs]].
+
+Turns specifications into evidence. The delivery stage of every spec and every milestone gate is
+derived from its results (DEC-0005), so its semantics (undefined vs. failed) are load-bearing.
 
 Code: `src/run/`.

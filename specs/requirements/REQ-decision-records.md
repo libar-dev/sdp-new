@@ -13,8 +13,8 @@ links:
 
 # Decision records for any decision
 
-Teams record decisions the way they record requirements: a spec with `kind: decision`, linked
-into the graph. Architecture decisions are one category among many — `category` is free text:
+Teams record decisions the way they record requirements: a spec with `kind: decision` — or the
+team's own word for it, `vocabulary.kinds.decision` in [[REQ-configuration]] — linked into the graph. Architecture decisions are one category among many — `category` is free text:
 `architecture`, `product`, `process`, `technology`, `organization`, …
 
 A record follows MADR-like sections — Context, Options, Decision, Consequences — and has a
@@ -23,8 +23,9 @@ links to it, conventionally with `decided-by`; the link is written once, on the 
 the decision's context lists those nodes as incoming links. A record may `supersede` an older
 decision. `sdp check` keeps records consistent: a known status (`decision-status`), `supersedes`
 links and `superseded` statuses that agree (`decision-supersede`), and an accepted decision that
-states what was decided (`decision-content`). Rejected, deprecated and superseded records keep
-their text but no longer guard anything: `sdp run` skips their scenarios.
+states what was decided under a Decision or Outcome heading (`decision-content`). The statuses and
+which of them retire a record are the vocabulary's too: by default rejected, deprecated and
+superseded records keep their text but no longer guard anything, and `sdp run` skips their scenarios.
 
 When a decision can be checked mechanically, its record carries the check as a guard scenario —
 [[DEC-0001]] asserts that all Gherkin parses, [[DEC-0002]] that every reference resolves. Whether

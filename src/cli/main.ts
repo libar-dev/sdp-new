@@ -8,17 +8,18 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
-import { architectureJson, architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
+import { architectureJson, architectureView, renderArchitecture } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { isGate } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
-import { formatPath, queryProject, querySyntax, unusedNamesNote } from "../graph/Query.ts"
+import { formatPath, queryProject, querySyntax, stageLadder, unusedNamesNote } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { idsDeclaration } from "../graph/Types.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
+import { renderVocabulary, vocabularyJson } from "../model/Vocabulary.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { makeMatcher, snippetModule } from "../run/Match.ts"
 import type { ScenarioResult } from "../run/Results.ts"
@@ -91,12 +92,12 @@ const graphCommand = Command.make(
       const fs = yield* FileSystem.FileSystem
       const path = yield* Path.Path
       yield* fs.makeDirectory(path.join(root, ".sdp"), { recursive: true })
-      yield* fs.writeFileString(path.join(root, ".sdp/graph.jsonl"), exportGraph(graph, "jsonl"))
-      yield* fs.writeFileString(path.join(root, ".sdp/graph.tsv"), exportGraph(graph, "tsv"))
-      yield* Console.log(`wrote .sdp/graph.jsonl and .sdp/graph.tsv (${graph.nodes.size} nodes, ${graph.edges.length} edges)`)
+      yield* fs.writeFileString(path.join(root, ".sdp/graph.jsonl"), exportGraph(graph, "jsonl", project.config.vocabulary))
+      yield* fs.writeFileString(path.join(root, ".sdp/graph.tsv"), exportGraph(graph, "tsv", project.config.vocabulary))
+      yield* Console.log(`wrote .sdp/graph.jsonl and .sdp/graph.tsv (${graph.nodes().length} nodes, ${graph.edges().length} edges)`)
       return
     }
-    process.stdout.write(exportGraph(graph, format))
+    process.stdout.write(exportGraph(graph, format, project.config.vocabulary))
   })
 ).pipe(Command.withDescription("Export the whole system graph (jsonl, json, tsv, dot, mermaid)"))
 
@@ -121,7 +122,7 @@ const queryCommand = Command.make(
     } else if (ids) {
       for (const n of nodes) yield* Console.log(n.id)
     } else if (nodes.length > 0) {
-      yield* Console.log(table(nodeRows(nodes)))
+      yield* Console.log(table(nodeRows(project.config.vocabulary, nodes)))
     }
     if (truncated) yield* Console.error(c.yellow(`result cut short: ${result.success.limits.join("; ")} — the answer may be incomplete`))
     if (!ids) yield* Console.error(c.dim(`${nodes.length} node(s)`))
@@ -135,7 +136,7 @@ const queryCommand = Command.make(
   Command.withDescription(`Query the graph with a path pattern (SDPQ):\n\n${querySyntax.replace(/^/gm, "  ")}`),
   Command.withExamples([
     { command: "sdp q 'requirement[maturity<ready]'", description: "Requirements not ready yet" },
-    { command: "sdp q 'element[significant] !-*- decision'", description: "Significant elements without a decision" },
+    { command: "sdp q 'element !-*- decision'", description: "Elements without a decision" },
     { command: "sdp q '#DEC-0002 <-*- *'", description: "Everything that points at a decision" }
   ])
 )
@@ -164,7 +165,7 @@ const contextCommand = Command.make(
   {
     id: Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout")),
     depth: Flag.Int("depth").pipe(
-      Flag.withDescription("Hops to search for significant architecture, quality requirements and decisions"),
+      Flag.withDescription("Hops to search for architecture, quality requirements and decisions"),
       Flag.withDefault(2)
     )
   },
@@ -320,7 +321,7 @@ const gateCommand = Command.make(
     const node = project.graph.node(milestone)
     if (!node) return yield* fail(`no node ${milestone}`)
     const spec = project.specById.get(milestone)
-    if (!spec?.scenarios.some((scenario) => isGate(scenario, spec))) {
+    if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, project.config.vocabulary))) {
       return yield* fail(`${milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`)
     }
     if (!json) yield* Console.log(`${c.bold(node.id)} ${node.title}`)
@@ -337,46 +338,21 @@ const archCommand = Command.make(
       Flag.withAlias("f"),
       Flag.withDescription("Output format"),
       Flag.withDefault("text")
-    ),
-    candidates: Flag.Boolean("candidates").pipe(
-      Flag.withDescription("Suggest elements an architect may want to look at (suggestions only)"),
-      Flag.withDefault(false)
     )
   },
-  Effect.fn(function*({ candidates, format }) {
+  Effect.fn(function*({ format }) {
     const project = yield* loadProject(yield* workspaceRoot)
-    const summary = architectureSummary(project)
     const view = architectureView(project)
-    if (candidates) {
-      const ranked = rankCandidates(project)
-      if (format === "json") return yield* printJson(ranked.map((r) => ({ ...nodeJson(r.node), score: r.score, reasons: r.reasons })))
-      yield* Console.log("Candidates worth a look (suggestions; what is significant is the architect's call):")
-      for (const r of ranked) yield* Console.log(`  ${String(r.score).padStart(3)}  ${r.node.id}  ${c.dim(r.reasons.join("; "))}`)
-      return
-    }
     if (format === "json") {
       return yield* printJson(architectureJson(project))
     }
     if (format !== "text") {
-      process.stdout.write(exportGraph(project.graph.subgraph(view.nodes.map((n) => n.id)), format))
+      process.stdout.write(exportGraph(project.graph.subgraph(view.nodes.map((n) => n.id)), format, project.config.vocabulary))
       return
     }
-    yield* Console.log(`${c.bold("Significant")} (marked by architects): ${summary.significant.length}`)
-    for (const n of summary.significant) {
-      yield* Console.log(`\n  ${c.bold(n.id)}  ${n.title}  ${c.dim(formatSource(n.source))}`)
-      if (n.attrs.rationale) yield* Console.log(`    why: ${String(n.attrs.rationale)}`)
-      for (const e of view.edges.filter((e) => e.from === n.id)) {
-        yield* Console.log(`    -${e.rel}-> ${e.to}  ${c.dim(project.graph.node(e.to)?.title ?? "")}`)
-      }
-      for (const e of view.edges.filter((e) => e.to === n.id)) {
-        yield* Console.log(`    <-${e.rel}- ${e.from}  ${c.dim(project.graph.node(e.from)?.title ?? "")}`)
-      }
-    }
-    if (summary.declared.length > 0) {
-      yield* Console.log(c.dim(`\n  ${summary.declared.length} declared, not significant: ${summary.declared.map((n) => n.id).join(", ")}`))
-    }
+    process.stdout.write(renderArchitecture(project))
   })
-).pipe(Command.withDescription("The curated architecture: significant elements, their patterns, decisions and quality requirements"))
+).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it"))
 
 const lifecycleCommand = Command.make(
   "lifecycle",
@@ -415,7 +391,7 @@ const statusCommand = Command.make(
   Effect.fn(function*({ json }) {
     const project = yield* loadProject(yield* workspaceRoot)
     const summary = statusSummary(project)
-    const stageOrder = [...project.config.maturity, "in-progress", "verified"]
+    const stageOrder = stageLadder(project.config.vocabulary).flat()
     if (json) return yield* printJson(summary)
     const line = (label: string, m: Record<string, number>, order?: ReadonlyArray<string>, none = "—") => {
       const keys = order ? [...order.filter((k) => k in m), ...Object.keys(m).filter((k) => !order.includes(k))] : Object.keys(m)
@@ -425,17 +401,27 @@ const statusCommand = Command.make(
     yield* Console.log(`${c.bold("graph".padEnd(13))} ${summary.nodes} nodes, ${summary.edges} edges, ${summary.specFiles} spec files`)
     yield* Console.log(line("kinds", summary.kinds))
     yield* Console.log(line("relations", summary.relations))
-    yield* Console.log(line("spec stages", summary.stages, stageOrder))
+    yield* Console.log(line("stages", summary.stages, stageOrder))
     yield* Console.log(line("decisions", summary.decisions))
     yield* Console.log(line("scenarios", summary.scenarios, results))
     yield* Console.log(line("gates", summary.gates, results))
     if (Object.keys(summary.stale).length > 0) yield* Console.log(`${line("stale", summary.stale)}  ${c.dim("(sdp run refreshes them)")}`)
     yield* Console.log(
-      `${c.bold("architecture".padEnd(13))} ${summary.architecture.significant} significant · ${summary.architecture.declared} declared, not significant`
+      `${c.bold("architecture".padEnd(13))} ${summary.architecture} node(s) of an architectural kind`
     )
     yield* Console.log(line("check", summary.diagnostics, ["error", "warning", "info"], "no diagnostics"))
   })
 ).pipe(Command.withDescription("One-screen summary of the delivery state"))
+
+const vocabularyCommand = Command.make(
+  "vocabulary",
+  { json },
+  Effect.fn(function*({ json }) {
+    const config = yield* loadConfig(yield* workspaceRoot)
+    if (json) return yield* printJson(vocabularyJson(config.vocabulary))
+    yield* Console.log(renderVocabulary(config.vocabulary))
+  })
+).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured"))
 
 // --- authoring --------------------------------------------------------------
 
@@ -463,7 +449,7 @@ const newCommand = Command.make(
     const project = yield* loadProject(root, { withResults: false })
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
-    const ladder = project.config.maturity
+    const ladder = project.config.vocabulary.maturity
     if (Option.isSome(maturity) && !ladder.includes(maturity.value)) {
       return yield* fail(`unknown maturity ${maturity.value}: use one of ${ladder.join(", ")}`)
     }
@@ -473,7 +459,7 @@ const newCommand = Command.make(
       maturity: Option.getOrUndefined(maturity),
       today: DateTime.formatIsoDate(yield* DateTime.now),
       config: project.config,
-      existing: [...project.graph.nodes.keys()],
+      existing: project.graph.nodes().map((n) => n.id),
       id: Option.getOrUndefined(id),
       dir: Option.getOrUndefined(dir)
     })
@@ -569,6 +555,7 @@ sdp.pipe(
     gateCommand,
     archCommand,
     lifecycleCommand,
+    vocabularyCommand,
     typesCommand,
     mcpCommand
   ]),

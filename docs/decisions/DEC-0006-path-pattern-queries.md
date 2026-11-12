@@ -14,7 +14,7 @@ iteration: I1
 ## Context
 
 People, agents, milestone gates and decision guards all ask the graph multi-hop questions:
-"ready requirements whose significant elements have no decision", "everything that points at this
+"ready requirements whose elements have no decision", "everything that points at this
 decision". The question has to fit a shell argument and a single Gherkin step.
 
 ## Options
@@ -27,7 +27,7 @@ decision". The question has to fit a shell argument and a single Gherkin step.
 
 ## Decision
 
-Option 3: `requirement[maturity<ready] -realized-by-> element[significant]`. An edge prefixed
+Option 3: `requirement[maturity<ready] -realized-by-> element !-decided-by-> decision`. An edge prefixed
 with `!` or `?` keeps the nodes without or with such a neighbour; a trailing `+` follows a
 relation transitively. A query returns nodes or paths, nothing more — aggregation stays with
 `jq`/`awk` over `--json` output, and the JSON/JSONL exports remain for jq users. The language is

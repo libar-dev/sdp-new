@@ -16,23 +16,35 @@ links:
 
 Authors declare how mature a spec is; `sdp check` verifies that the content supports the claim
 ([[DEC-0005]]). Whether a spec is implemented is not declared at all: it is derived from scenario
-results ([[REQ-executable-specs]]).
+results ([[REQ-executable-specs]]), and writing a derived fact such as `stage` is an error
+(`derived-attribute`, [[ARCH-graph-builder]]).
 
 | Level | The content must have |
 | --- | --- |
 | idea | a title |
 | draft | a description of the problem or intent |
 | specified | at least one scenario that states an outcome (`Then`) |
-| ready | no unresolved open questions; every scenario has steps and an outcome |
+| ready | no unresolved open questions; every scenario has an outcome |
 
 Open questions are written as [[REQ-progressive-specs]] describes.
 
-A spec claiming more than its content supports is an error (`maturity-gate`), with a hint naming
-the level it does reach. Content ahead of its label is not wrong, only worth knowing: when the
-content reaches `specified` or `ready` above the label, `sdp check` adds an informational
-`maturity-promotable`. Teams can rename or extend the ladder (`maturity` in [[REQ-configuration]]);
-levels of their own have no built-in gate but take part in ordering, so `maturity<ready` keeps
-working in queries.
+A node claiming more than its content supports is an error (`maturity-gate`), with a hint naming
+the level it does reach. The criteria apply wherever a maturity is declared: a node declared inline
+or in code has only a title, so it can claim no more than the first level. A maturity that is not
+on the ladder is an error (`maturity-value`). Content ahead of its label is not wrong, only worth
+knowing: when the content reaches `specified` or `ready` above the label, `sdp check` adds an
+informational `maturity-promotable`. Teams can rename or extend the ladder (`vocabulary.maturity`
+in [[REQ-configuration]]); levels of their own have no built-in gate but take part in ordering, so
+`maturity<ready` keeps working in queries.
+
+## Stage
+
+`maturity` is declared and checked; `verification` is derived from scenario results. `stage` sums
+the two up in one word, and only on nodes that declare a maturity or have scenarios: `verified`
+when every scenario passes, `failing` when any fails — a regression is not work in progress —
+`in-progress` while automation is partial, and otherwise the declared maturity. In comparisons
+`failing` ranks with `in-progress`, above every maturity level and below `verified`
+([[REQ-graph-query]]). Every report counts stages the same way: each node that has one.
 
 ## Structural, not a judgement
 
@@ -94,6 +106,38 @@ Scenario Outline: A claim is checked against the content
     | draft     |                              | reports "maturity-gate" for "REQ-csv"   |
     | draft     | Analysts want data in Excel. | does not report "maturity-gate"         |
     | specified | Analysts want data in Excel. | reports "maturity-gate" for "REQ-csv"   |
+
+Scenario: Specified means a scenario states an outcome
+  Given a file "specs/REQ-csv.md" containing:
+    """
+    ---
+    id: REQ-csv
+    maturity: specified
+    ---
+    # Export to CSV
+
+    Analysts want data in Excel.
+
+    ```gherkin
+    Scenario: Export current rows
+      When I export the report
+    ```
+    """
+  When the workspace is checked
+  Then the check reports "maturity-gate" for "REQ-csv"
+
+Scenario Outline: A node without a spec of its own can claim no more than the first level
+  Given a file "<file>" containing:
+    """
+    <content>
+    """
+  When the workspace is checked
+  Then the check reports "maturity-gate" for "<id>"
+
+  Examples:
+    | file            | content                                                                                     | id         |
+    | docs/backlog.md | ---\nid: BACKLOG\nnodes:\n  - { id: REQ-export, kind: requirement, maturity: ready }\n---\n# Backlog | REQ-export |
+    | src/pay.py      | # @sdp is REQ-pay kind=requirement maturity=ready\ndef pay(): pass                            | REQ-pay    |
 
 Scenario: Ready means no open questions
   Given a file "specs/REQ-csv.md" containing:
@@ -204,7 +248,7 @@ Scenario Outline: A team's Definition of Ready is a gate of its own
 Scenario: Levels a team adds have no built-in gate
   Given a file "sdp.config.yaml" containing:
     """
-    maturity: [idea, draft, approved, specified, ready]
+    vocabulary: { maturity: [idea, draft, approved, specified, ready] }
     """
   And a file "specs/REQ-csv.md" containing:
     """
@@ -217,4 +261,105 @@ Scenario: Levels a team adds have no built-in gate
   When the workspace is checked
   Then the check does not report "maturity-gate"
   And the check does not report "maturity-value"
+
+Scenario Outline: Stage is the declared maturity until scenarios say more
+  Given a file "specs/REQ-csv.md" containing:
+    """
+    ---
+    id: REQ-csv
+    <maturity>
+    ---
+    # Export to CSV
+
+    Analysts want data in Excel.
+
+    ```gherkin
+    Scenario: Export current rows
+      When I export the report
+      Then I get a CSV file
+    ```
+    """
+  And a step definition "I export the report" that passes
+  And a step definition "<defined>" that <outcome>
+  When the scenarios are run
+  Then node "REQ-csv" has attribute stage = "<stage>"
+
+  Examples:
+    | maturity            | defined          | outcome | stage       |
+    | maturity: specified | I get a CSV file | passes  | verified    |
+    | maturity: specified | I get a CSV file | fails   | failing     |
+    | maturity: specified | I get a CSV file | pends   | in-progress |
+    | maturity: specified | something else   | passes  | specified   |
+    |                     | something else   | passes  | undefined   |
+    | maturity: verified  | something else   | passes  | undefined   |
+
+Scenario: Every report counts stages the same way, and failing ranks with in-progress
+  Given a file "docs/plan.md" containing:
+    """
+    ---
+    id: PLAN
+    nodes:
+      - { id: I1, kind: iteration }
+    ---
+    # Plan
+    """
+  And a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    maturity: specified
+    iteration: I1
+    ---
+    # A
+
+    Something to export.
+
+    ```gherkin
+    Scenario: Export
+      Then a file is saved
+    ```
+    """
+  And a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    maturity: draft
+    iteration: I1
+    ---
+    # B
+
+    Something to import.
+    """
+  And a file "docs/DEC-1.md" containing:
+    """
+    ---
+    id: DEC-1
+    kind: decision
+    status: accepted
+    iteration: I1
+    ---
+    # Files are CSV
+
+    ## Decision
+
+    Every export is CSV.
+
+    ```gherkin
+    Scenario: The decision holds
+      Then the guard holds
+    ```
+    """
+  And a step definition "a file is saved" that fails
+  And a step definition "the guard holds" that passes
+  When the scenarios are run
+  Then sdp status counts the stages "draft:1 failing:1 verified:1"
+  And the lifecycle evidence of "I1" counts the stages "draft:1 failing:1 verified:1"
+  When I query "*[stage>ready]"
+  Then the result is "DEC-1, REQ-a"
+  When I query "*[stage<verified]"
+  Then the result is "REQ-a, REQ-b"
+  When I query "*[stage=in-progress]"
+  Then the result is "nothing"
+  When I query "*[stage>=in-progress, stage<=failing]"
+  Then the result is "REQ-a"
 ~~~

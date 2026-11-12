@@ -26,13 +26,16 @@ the plan — the evidence for that work.
 | Iteration (I1, E1, E2, C1, …) | `kind: iteration` nodes with `phase:`, `start:` and `end:` |
 | Milestone (LCO, LCA, IOC, PR) | `kind: milestone` specs with `phase:`; their scenarios are the gate |
 | Planned work | any node with `iteration: <id>`, or with an iteration in its `activity:` |
-| Discipline (business modeling … deployment) | a set of node kinds (`lifecycle.disciplines`, see [[REQ-configuration]]) |
+| Discipline (business modeling … deployment) | a set of node kinds (`vocabulary.disciplines`, see [[REQ-configuration]]) |
 | Discipline activity on a piece of work | `activity:`, iterations per discipline |
 
-**What plans work.** Only the configured plan relations do — `iteration`, unless
-`lifecycle.planRelations` says otherwise — and only the phase relations (`phase`) put iterations
-and milestones into a phase ([[REQ-configuration]]). A `[[E2]]` mention in prose plans nothing,
-and a node is counted once in an iteration however many relations lead there.
+**What plans work.** Only the plan relations do — `iteration`, unless `vocabulary.relations.plan`
+says otherwise — and only the phase relations (`phase`) put iterations and milestones into a phase
+([[REQ-configuration]]). They are link keys, so they plan the same whichever way they are written
+and must name declared nodes ([[DEC-0010]]). A `[[E2]]` mention in prose plans nothing, a node is
+counted once in an iteration however many relations lead there, and the plan's own phases,
+iterations and milestones are not planned work. Every node with a maturity that is planned nowhere
+is listed as unplanned.
 
 **Discipline activity is planned, per piece of work.** A node's `iteration:` plans the work of its
 own kind's discipline — a requirement is written, a decision taken, a release deployed — in that
@@ -48,12 +51,14 @@ activity:
   test: [C1, C2]
 ```
 
-Keyed by discipline, it reads like the chart's rows, and it adds no relation names: disciplines
-are configuration, so they stay out of the free-form relation vocabulary. A discipline that
-`activity:` names takes exactly the iterations listed there (an empty list plans none); the others
-keep the default. `sdp check` reports an `activity` value that names no
-iteration and a key that names no discipline (`plan-reference`, [[REQ-check-rules]]). Queries reach
-it as an attribute: `sdp q 'requirement[activity.implementation=C1]'`.
+Keyed by discipline, it reads like the chart's rows. Each entry is a link named by its path —
+`-activity.implementation-> C1` — and, like every link, also an attribute:
+`sdp q 'requirement[activity.implementation=C1]'` and `sdp q 'requirement -activity.implementation-> #C1'`
+find the same nodes. A discipline that `activity:` names takes exactly the iterations listed there
+(an empty list plans none); the others keep the default. `sdp check` reports an `activity` value
+that names no iteration, a key that names no discipline, and a node whose kind belongs to no
+discipline planned with `iteration:` alone, which no row of the chart would show
+(`plan-reference`, [[REQ-check-rules]]).
 
 The chart is the familiar RUP "hump" chart, one row per discipline and one column per iteration:
 each cell counts the nodes with that discipline's work planned there, shaded `░ ▒ ▓ █` relative to
@@ -137,6 +142,7 @@ Scenario: A gate falls due when its phase starts
   And the output line with "elaboration" contains "E2*"
   And the output line with "elaboration" contains "◀ now"
   And the output line with "◆ LCA" does not contain "not due"
+  And the output line with "◆ LCA" does not contain "overdue"
 
 Scenario: A break between iterations stays in the phase just worked on
   When the lifecycle is computed on "2026-01-31"
@@ -168,7 +174,7 @@ Scenario: The calendar never marks a milestone met
   Then the output line with "◆ LCO" contains "overdue"
   And the output line with "◆ LCO" does not contain "✔"
 
-Scenario: An iteration plans each node once, and mentions plan nothing
+Scenario: An iteration plans each node once, and mentions and the plan's own nodes are no work
   Given a file "specs/REQ-m.md" containing:
     """
     ---
@@ -180,10 +186,41 @@ Scenario: An iteration plans each node once, and mentions plan nothing
 
     Discussed in [[E1]]; see also [[E2]].
     """
+  And a file "MS-demo.md" containing:
+    """
+    ---
+    id: MS-demo
+    kind: milestone
+    phase: elaboration
+    iteration: E2
+    ---
+    # Demo
+    """
   When the lifecycle is computed
   Then iteration "E1" plans "DEC-1, REQ-a, REQ-m"
   And iteration "E2" plans "nothing"
   And "requirements" activity in iteration "E1" is 2
+
+Scenario: Only nodes with a maturity can be unplanned
+  Given a file "specs/REQ-later.md" containing:
+    """
+    ---
+    id: REQ-later
+    maturity: idea
+    ---
+    # Later
+    """
+  And a file "docs/ARCH-cache.md" containing:
+    """
+    ---
+    id: ARCH-cache
+    kind: element
+    ---
+    # Cache
+    """
+  When the lifecycle is computed on "2026-01-20"
+  Then the output line with "unplanned" contains "REQ-later"
+  And the output line with "unplanned" does not contain "ARCH-cache"
 
 Scenario: Discipline activity defaults to the kind's discipline in the node's iteration
   When the lifecycle is computed
@@ -215,21 +252,26 @@ Scenario: activity plans other disciplines into iterations of their own
   And "test" activity in iteration "E2" is 1
   And iteration "E2" plans "REQ-b"
 
-Scenario: A discipline activity names takes only the iterations listed there
+Scenario Outline: A discipline activity names takes only the iterations listed there
   Given a file "specs/REQ-b.md" containing:
     """
     ---
     id: REQ-b
     maturity: idea
     iteration: E1
-    activity: { requirements: E2 }
+    activity: { requirements: <iterations> }
     ---
     # Beta
     """
   When the lifecycle is computed
   Then "requirements" activity in iteration "E1" is 1
-  And "requirements" activity in iteration "E2" is 1
+  And "requirements" activity in iteration "E2" is <in E2>
   And iteration "E1" plans "DEC-1, REQ-a, REQ-b"
+
+  Examples:
+    | iterations | in E2 |
+    | E2         | 1     |
+    | []         | 0     |
 
 Scenario: The chart shades each discipline relative to its busiest iteration
   Given a file "specs/REQ-b.md" containing:

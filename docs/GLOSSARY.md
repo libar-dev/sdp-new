@@ -18,17 +18,25 @@ nodes:
     title: Kind
     definition: >-
       The type of a node in the authors' words (`requirement`, `decision`, `term`). Inferred from
-      the id prefix when omitted ([[REQ-configuration]]).
+      the id prefix when omitted ([[REQ-configuration]]). sdp reads meaning only into the kinds its
+      vocabulary profile names.
     links: { specified-by: REQ-flexible-graph }
   - id: TERM-relation
     kind: term
     title: Relation
     definition: >-
-      The name of an edge, chosen by its author (`refines`, `realized-by`, `decided-by`). sdp
-      creates `verifies` and `mentions` edges itself, and reads only `is` in code annotations,
-      `supersedes` between decisions, and the plan and phase relations the lifecycle is
-      configured with (`iteration`, `phase`); every other relation means what its authors say.
+      The name of an edge, chosen by its author (`refines`, `realized-by`, `decided-by`). sdp reads
+      meaning only into the relations its vocabulary profile names; every other relation means what
+      its authors say.
     links: { specified-by: REQ-flexible-graph }
+  - id: TERM-vocabulary-profile
+    kind: term
+    title: Vocabulary profile
+    definition: >-
+      The few kinds, relations, attributes, statuses, maturity levels and disciplines sdp
+      interprets, each a role with a default word a workspace can rename under `vocabulary:`.
+      `sdp vocabulary` prints it.
+    links: { specified-by: ARCH-vocabulary }
   - id: TERM-inline-node
     kind: term
     title: Inline node
@@ -36,19 +44,22 @@ nodes:
       A node declared in another spec's `nodes:` front matter list, for things too small for a
       file of their own: phases, iterations, principles, terms.
     links: { specified-by: ARCH-graph-builder }
-  - id: TERM-implicit-link
+  - id: TERM-link-key
     kind: term
-    title: Implicit link
+    title: Link key
     definition: >-
-      An edge created by an attribute whose value is a node id, named after the key:
-      `iteration: E2` gives `-iteration-> E2`.
+      A front matter key whose values are links whatever they are: every entry of `links:`, the plan
+      and phase relations, each discipline of `activity`, and a workspace's own `vocabulary.links`.
+      Its targets must resolve, and it reads as an attribute too: `[iteration=E2]` agrees with
+      `-iteration-> #E2`. Every other key is a value.
     links: { specified-by: ARCH-graph-builder }
   - id: TERM-mention
     kind: term
     title: Mention
     definition: >-
-      A `[[ID]]` reference in prose, which becomes a `mentions` edge; `rel:: [[ID]]` names the
-      relation instead.
+      A `[[ID]]` reference in prose. It becomes a `mentions` edge unless a link already joins the two
+      nodes, and it is not a link: the `*` relation of a query, the architecture view and context
+      reach do not follow it. `rel:: [[ID]]` writes a link instead.
     links: { specified-by: REQ-flexible-graph }
   - id: TERM-code-annotation
     kind: term
@@ -64,15 +75,15 @@ nodes:
     kind: term
     title: Dangling link
     definition: >-
-      A reference to an id no node has. It stays visible as a node of kind `missing` and is
-      reported as an error.
+      A reference to an id no node has. It stays visible as a node of kind `missing`, and every
+      such reference is reported as an error where it is written.
     links: { specified-by: ARCH-graph-builder }
   - id: TERM-sdpq
     kind: term
     title: SDPQ
     definition: >-
       sdp's one-line path-pattern query language, borrowing Cypher's ASCII-art edges:
-      `requirement[maturity<ready] -realized-by-> element[significant]`.
+      `requirement[maturity<ready] -realized-by-> element !-decided-by-> decision`.
     links: { specified-by: REQ-graph-query }
   - id: TERM-workspace
     kind: term
@@ -86,9 +97,9 @@ nodes:
     kind: term
     title: Maturity
     definition: >-
-      How far a spec's authoring has come: idea, draft, specified or ready, unless the workspace
-      configures its own ladder. Authors declare it; `sdp check` verifies that the content supports
-      it.
+      How far a node's authoring has come: idea, draft, specified or ready, unless the workspace
+      configures its own ladder. Authors declare it; `sdp check` verifies that it is on the ladder
+      and that the content supports it.
     links: { specified-by: REQ-maturity-gates }
   - id: TERM-maturity-gate
     kind: term
@@ -169,9 +180,9 @@ nodes:
     kind: term
     title: Stage
     definition: >-
-      Where a spec is in delivery: its declared maturity until a scenario passes, fails or pends;
-      then in-progress, or verified when all its scenarios pass. Derived from evidence, never
-      declared.
+      Where a node with a maturity or scenarios is in delivery: verified when all its scenarios
+      pass, failing when any fails, in-progress while automation is partial, otherwise its
+      declared maturity. Derived from evidence, never declared; failing ranks with in-progress.
     links: { specified-by: REQ-executable-specs }
   # Quality, decisions and architecture
   - id: TERM-quality-attribute-scenario
@@ -201,12 +212,20 @@ nodes:
     definition: >-
       A scenario in a decision record that checks the decision still holds.
     links: { specified-by: REQ-decision-records }
+  - id: TERM-architecture
+    kind: term
+    title: Architecture
+    definition: >-
+      Every node of an architectural kind — elements and patterns — in the graph. The graph is
+      curated: what an architect declares or anchors in code is, by that act, significant, and sdp
+      never computes, ranks, limits or suggests what belongs in it.
+    links: { specified-by: REQ-curated-architecture }
   - id: TERM-element
     kind: term
     title: Element
     definition: >-
-      A part of the system declared as a node of kind `element`: a component, module or service
-      worth naming.
+      A part of the system an architect declared as a node of kind `element`: a component, module
+      or service that shapes the architecture. Its description says why.
     links: { specified-by: REQ-curated-architecture }
   - id: TERM-pattern
     kind: term
@@ -215,40 +234,19 @@ nodes:
       A node of kind `pattern`; elements that apply it link to it, conventionally with
       `instance-of`.
     links: { specified-by: REQ-curated-architecture }
-  - id: TERM-significant
-    kind: term
-    title: Significant
-    definition: >-
-      Marked `significant: true` by an architect because the element or pattern shapes the
-      architecture. Never computed or checked by sdp.
-    links: { specified-by: REQ-curated-architecture }
-  - id: TERM-rationale
-    kind: term
-    title: Rationale
-    definition: >-
-      The architect's reason for marking a node significant: the quality attributes, risks or cost
-      of change it carries.
-    links: { specified-by: REQ-curated-architecture }
   - id: TERM-architectural-driver
     kind: term
     title: Architectural driver
     definition: >-
-      A decision or quality requirement linked to a significant node; the curated view shows it
-      next to that node.
-    links: { specified-by: REQ-curated-architecture }
-  - id: TERM-candidate
-    kind: term
-    title: Candidate
-    definition: >-
-      A node that is not marked significant but that `sdp arch --candidates` suggests an architect
-      look at. A suggestion, never a decision.
+      A decision or quality requirement linked to the architecture; the architecture view shows it
+      next to what it shapes.
     links: { specified-by: REQ-curated-architecture }
   - id: TERM-context-bundle
     kind: term
     title: Context bundle
     definition: >-
       Everything needed to work on one node, as one Markdown document: the spec, its links,
-      scenario status, nearby significant architecture and decisions, and linked code.
+      scenario status, the architecture and decisions within reach, and linked code.
     links: { specified-by: REQ-agent-context }
   # Lifecycle
   - id: TERM-phase
@@ -328,41 +326,35 @@ behind it.
 
 ## Attributes
 
-Front matter keys become attributes of their node; sdp attaches meaning to a few of them.
+Front matter keys become attributes of their node.
 
-**Reserved keys** shape the node itself: `id`, `kind`, `title`, `links`, `nodes`.
+**Reserved keys** shape the node itself: `id`, `kind`, `title`, `links`, `nodes`. sdp also always
+reads `maturity` (the authoring ladder), `status` (of decisions) and `tags`.
 
-**Conventional attributes** are ones sdp or this repository reads; any other key is equally
-valid and simply carried along.
+**Interpreted words** — the kinds, relations, attributes and statuses sdp reads meaning into — are
+the vocabulary profile's ([[ARCH-vocabulary]]); `sdp vocabulary` prints them with their roles.
+
+**This repository's conventions** mean nothing to sdp; any other key is equally valid and simply
+carried along:
 
 | Attribute | On | Meaning |
 | --- | --- | --- |
-| `maturity` | specs | authoring maturity: idea, draft, specified, ready |
-| `tags` | any node | free labels; also the tags of the spec's scenarios |
-| `iteration` | planned work | the iteration the node is planned into, for the work of its kind's discipline |
-| `activity` | planned work | disciplines and the iterations their work on the node is planned into: `{ implementation: C1, test: [C1, T1] }` |
-| `phase` | iterations, milestones | the phase they belong to |
-| `order` | phases | position in the lifecycle |
-| `start`, `end` | iterations | ISO dates |
-| `type` | any spec | `quality`, `non-functional`, `nfr` or `constraint` marks a quality requirement of any kind |
 | `quality` | quality requirements | the quality attribute: performance, modifiability, … |
-| `status` | decisions, risks | proposed, accepted, rejected, deprecated, superseded; open, mitigated, accepted |
 | `category` | decisions | architecture, product, process, technology, organization, … |
 | `date`, `deciders` | decisions | when and by whom |
-| `significant`, `rationale` | elements, patterns | marked by an architect, and why |
 | `role` | `instance-of` links | the element's role in the pattern |
 | `exposure` | risks | high, medium, low |
 | `definition` | terms | what the term means |
 
-**Derived attributes** are computed, never written:
+**Derived attributes** are computed; writing one is a `derived-attribute` error:
 
 | On | Attributes |
 | --- | --- |
 | every spec | `file`; `summary`, the first paragraph; `scenarios`, their count; `verification`; `stage`; `openQuestions`, the number unresolved |
-| inline nodes | `declaredIn`, the spec that declares them |
+| inline nodes and nodes declared in code | `declaredIn`, the spec that declares them or `code`; `stage` |
 | scenarios | `spec`, `keyword`, `tags`, `rule`, `steps`, `examples`, `status`, `staleBecause`, `lastRun`, `hash` |
-| code nodes | `file`, `symbol` |
-| implicit edges | `implicit: true` |
+| code nodes | `file`, `symbol`, `doc` |
+| edges | `sources`, every declaration that states the edge |
 
 ## Scenarios
 
@@ -372,4 +364,7 @@ Scenario: Every term is defined
 
 Scenario: Every term points to the spec that specifies it
   Then the query "term !-specified-by-> *[file]" returns no results
+
+Scenario: Every attribute sdp derives is listed here
+  Then this glossary lists every attribute sdp derives
 ~~~

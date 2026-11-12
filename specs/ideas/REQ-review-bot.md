@@ -21,7 +21,7 @@ delivery delta between its base and its head:
 
 - maturity transitions, and specs that changed maturity without changing content;
 - scenarios whose status changed, and specs whose stage changed;
-- elements newly marked or unmarked significant;
+- elements and patterns added to or removed from the architecture;
 - the decisions within reach of the changed specs and code.
 
 ## Open questions

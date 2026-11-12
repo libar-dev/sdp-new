@@ -39,7 +39,7 @@ export const fileNameFor = (kind: string, id: string, title: string) =>
 export const newSpec = (options: {
   readonly kind: string
   readonly title: string
-  /** Defaults to `idea` for ideas and to the first level of the configured ladder otherwise. */
+  /** Defaults to the first level of the configured ladder. */
   readonly maturity?: string | undefined
   readonly today: string
   readonly config: Config
@@ -50,13 +50,14 @@ export const newSpec = (options: {
   const { config, dir, existing, title } = options
   const idea = options.kind === "idea"
   const kind = idea ? "requirement" : options.kind
-  const maturity = options.maturity ?? (idea ? "idea" : config.maturity[0] ?? "idea")
+  const maturity = options.maturity ?? config.vocabulary.maturity[0]!
   const id = options.id ?? newId(kind, title, config, existing)
-  const directory = (dir ?? directoryFor[options.kind] ?? `specs/${kind}`).replace(/(.)\/+$/, "$1")
+  const directory = (dir ?? (Object.hasOwn(directoryFor, options.kind) ? directoryFor[options.kind] : undefined) ?? `specs/${kind}`)
+    .replace(/(.)\/+$/, "$1")
   return {
     id,
     file: `${directory}/${fileNameFor(kind, id, title)}`,
-    content: specTemplate({ kind, id, title, maturity, today: options.today, ladder: config.maturity })
+    content: specTemplate({ kind, id, title, maturity, today: options.today, ladder: config.vocabulary.maturity })
   }
 }
 
@@ -118,8 +119,6 @@ What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be 
 id: ${id}
 kind: element
 title: ${title}
-significant: false      # the architects' call
-# rationale: which quality attributes, risks or costs of change make this significant?
 links:
   # instance-of: PAT-…
   # decided-by: DEC-…
@@ -129,7 +128,7 @@ links:
 
 # ${title}
 
-Responsibility in one or two sentences. Anchor it in code next to the declaration that is it:
+Responsibility in one or two sentences, and why it matters to the architecture. Anchor it in code next to the declaration that is it:
 \`annotate(Thing, { is: "${id}" })\` in TypeScript (from \`sdp/annotations\`; run \`sdp types\`
 so the id is typed), or an \`@sdp is ${id}\` comment in other languages.
 `
@@ -138,8 +137,6 @@ so the id is typed), or an \`@sdp is ${id}\` comment in other languages.
 id: ${id}
 kind: pattern
 title: ${title}
-significant: false      # the architects' call
-# rationale: why applying this pattern consistently matters to the architecture
 links:
   # decided-by: DEC-…
 ---
@@ -267,14 +264,11 @@ export const configTemplate = [
   `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
   `# results: ${defaults.results}`,
   `# types: ${defaults.types}         # written by \`sdp types\`: types the ids annotate() accepts`,
-  `# maturity: [${defaults.maturity.join(", ")}]`,
-  "# architecture:",
-  `#   kinds: [${defaults.architecture.kinds.join(", ")}]     # abstractions architects may mark significant`,
-  `#   drivers: [${defaults.architecture.drivers.join(", ")}]  # shown next to significant elements in \`sdp arch\``,
-  "# lifecycle:",
+  "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
+  `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]`,
+  `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,
+  `#   relations: { plan: [${defaults.vocabulary.relations.plan.join(", ")}] }    # relations that plan a node into an iteration`,
   "#   disciplines: {}            # merged with the RUP disciplines, e.g. { operations: [runbook] }",
-  `#   planRelations: [${defaults.planRelations.join(", ")}]   # relations that plan a node into an iteration`,
-  `#   phaseRelations: [${defaults.phaseRelations.join(", ")}]     # relations from an iteration or milestone to its phase`,
   ""
 ].join("\n")
 
@@ -296,7 +290,7 @@ YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form o
 - Find anything by id: \`grep -rn "REQ-guest-checkout" .\`
 - Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\` (syntax: \`sdp q --help\`)
 - Everything about one node before you change it: \`sdp context REQ-guest-checkout\`
-- Curated architecture (only what architects marked significant): \`sdp arch\`
+- The architecture (every element and pattern architects declared): \`sdp arch\`
 - Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
 - Line-oriented dumps for grep/jq: \`sdp graph --write\` → .sdp/graph.jsonl, .sdp/graph.tsv
 
@@ -307,6 +301,6 @@ prints a step definition module for them.
 Relations are free-form: name them for what they mean. The templates use ${relationVocabulary}.
 Link code to specs with typed annotations in TypeScript — \`annotate(pay, { implements: "REQ-…" })\`
 from \`sdp/annotations\`, after \`sdp types\` so ids are checked — or \`@sdp implements REQ-…\`
-comments in other languages. Architectural significance (\`significant: true\`
-plus a \`rationale\`) is the architects' call: propose it, do not set it yourself.
+comments in other languages. What belongs in the architecture is the architects' call: propose an
+element, a pattern or an \`is\` annotation, do not add or remove one yourself.
 `

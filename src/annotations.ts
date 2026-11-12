@@ -47,8 +47,6 @@ export type Links = { readonly [relation: string]: Id | ReadonlyArray<Id> }
 export interface Declaration {
   readonly kind?: string
   readonly title?: string
-  readonly significant?: boolean
-  readonly rationale?: string
 }
 
 /**

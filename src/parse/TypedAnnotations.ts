@@ -54,7 +54,8 @@ const isNode = (value: unknown): value is Node =>
   typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string"
 
 /** Reads the `annotate()` calls of one TS/JS file without running it; computed ids are reported, not guessed. */
-export const scanTypedAnnotations = (file: string, content: string): TypedScan => {
+/** `anchor` is the relation whose annotation the declaration (the third argument) belongs to. */
+export const scanTypedAnnotations = (file: string, content: string, anchor: string): TypedScan => {
   const lang = languageOf(file)
   if (!lang || !content.includes("annotate")) return empty
   const lineStarts = [0]
@@ -172,7 +173,7 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
         line,
         rel,
         targets,
-        attrs: rel === "is" ? attrs : {},
+        attrs: rel === anchor ? attrs : {},
         symbol,
         symbolLine: where?.line ?? line,
         doc: where?.doc

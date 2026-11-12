@@ -20,13 +20,13 @@ the CLI or plain grep instead; MCP is optional.
 
 | Tool | Arguments | Answers with |
 | --- | --- | --- |
-| `sdp_status` | — | summary counts as JSON: kinds, relations, stages, decision statuses, scenario results, significant elements, diagnostics |
+| `sdp_status` | — | summary counts as JSON: kinds, relations, stages, decision statuses, scenario results, nodes of an architectural kind, diagnostics |
 | `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when nothing matches because the pattern names a kind or relation nothing uses, a note listing those in use; when a limit cut evaluation short ([[ARCH-query-engine]]), a first line that says so and names the limit, even if nothing matched |
 | `sdp_show` | `id` | the node as JSON with its outgoing and incoming edges |
 | `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle ([[REQ-agent-context]]) |
 | `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one ([[REQ-executable-specs]]) |
 | `sdp_check` | optional minimum `severity` (`warning`) | diagnostics with rule, `file:line` and hint ([[REQ-check-rules]]) |
-| `sdp_architecture` | — | the curated architecture as JSON: significant ids, ids declared but not significant, and the view's nodes and edges ([[REQ-curated-architecture]]) |
+| `sdp_architecture` | — | the architecture as JSON: every element and pattern with the decisions and quality requirements linked to it, as the view's nodes and edges ([[REQ-curated-architecture]]) |
 | `sdp_lifecycle` | — | phases with their milestone gates, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
 
 Every tool only reads, and answers the same when asked twice: the tools are annotated read-only,
@@ -79,7 +79,7 @@ Scenario Outline: Every tool answers from the workspace
     | sdp_show         | { "id": "REQ-a" }                                     | "rel": "depends-on"                                |
     | sdp_context      | { "id": "REQ-a" }                                     | # REQ-a — Alpha                                    |
     | sdp_check        | {}                                                    | error [dangling-link] REQ-a -depends-on-> REQ-gone |
-    | sdp_architecture | {}                                                    | "significant": []                                  |
+    | sdp_architecture | {}                                                    | "nodes": []                                        |
     | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
     | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
     | sdp_query        | { "expression": "requirement -realised-by-> *" }      | no relation realised-by; relations in use: depends-on |
@@ -177,16 +177,17 @@ Scenario: Diagnostics tell the agent what to do
   And the output contains "specs/REQ-a.md:5"
   And the output contains "→ create a spec with `id: REQ-gone`"
 
-Scenario: The architecture tool returns only what architects marked significant
+Scenario: The architecture tool returns the declared architecture and what shaped it
   Given a file "docs/architecture.md" containing:
     """
     ---
     id: ARCH-overview
     kind: view
     nodes:
-      - { id: ARCH-orders, kind: element, significant: true, rationale: owns the order aggregate, links: { decided-by: DEC-0001 } }
+      - { id: ARCH-orders, kind: element, links: { decided-by: DEC-0001 } }
       - { id: ARCH-cache, kind: element }
-      - { id: DEC-0001, kind: decision, status: accepted, decision: one transaction per order }
+      - { id: DEC-0001, kind: decision, status: accepted }
+      - { id: DEC-0002, kind: decision, status: accepted }
     ---
     # Architecture
     """
@@ -194,9 +195,7 @@ Scenario: The architecture tool returns only what architects marked significant
     """
     {}
     """
-  Then the output field "significant" holds "ARCH-orders"
-  And the output field "declared" holds "ARCH-cache"
-  And the output field "nodes" holds "ARCH-orders, DEC-0001"
+  Then the output field "nodes" holds "ARCH-cache, ARCH-orders, DEC-0001"
 
 Scenario: Every call sees the files as they are now
   When an agent calls the MCP tool "sdp_query" with:

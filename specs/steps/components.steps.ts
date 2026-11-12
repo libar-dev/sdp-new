@@ -12,6 +12,7 @@ import { strict as assert } from "node:assert"
 import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
 import { type Attrs, formatSource } from "../../src/model/Graph.ts"
+import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { type Annotation, scanAnnotations } from "../../src/parse/Annotations.ts"
 import { scanTypedAnnotations } from "../../src/parse/TypedAnnotations.ts"
 import type { Scenario } from "../../src/parse/Gherkin.ts"
@@ -141,7 +142,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("{string} is scanned for typed annotations", ({ args: [path], world }) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
-    const scan = scanTypedAnnotations(path, content)
+    const scan = scanTypedAnnotations(path, content, defaultVocabulary.relations.anchor)
     world.scratch.annotations = scan.annotations
     world.scratch.annotationProblems = scan.problems
   })
@@ -176,7 +177,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.map(load(world), (project) =>
       assertRows(
         "nodes",
-        [...project.graph.nodes.values()].map((n) => ({ id: n.id, kind: n.kind, title: n.title, source: formatSource(n.source) })),
+        project.graph.nodes().map((n) => ({ id: n.id, kind: n.kind, title: n.title, source: formatSource(n.source) })),
         table,
         "exactly"
       )))
@@ -185,11 +186,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.map(load(world), (project) =>
       assertRows(
         "edges",
-        project.graph.edges.map((e) => ({
+        project.graph.edges().map((e) => ({
           from: e.from,
           rel: e.rel,
           to: e.to,
           source: formatSource(e.source),
+          sources: (e.sources ?? []).map(formatSource).join(", "),
           attributes: attrsText(e.attrs)
         })),
         table,
@@ -198,19 +200,19 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the workspace graph has no {string} edges", ({ args: [rel], world }) =>
     Effect.map(load(world), (project) => {
-      const found = project.graph.edges.filter((e) => e.rel === rel)
+      const found = project.graph.edges().filter((e) => e.rel === rel)
       assert.equal(found.length, 0, found.map((e) => `${e.from} -${e.rel}-> ${e.to}`).join(", "))
     }))
 
-  Then("the implicit edges are {string}", ({ args: [expected], world }) =>
+  Then("the edges from {string} are {string}", ({ args: [from, expected], world }) =>
     Effect.map(load(world), (project) =>
-      assert.deepEqual(
-        project.graph.edges.filter((e) => e.attrs?.implicit === true).map((e) => `${e.from} -${e.rel}-> ${e.to}`).sort(),
-        ids(expected)
-      )))
+      assert.deepEqual(project.graph.out(from).map((e) => `${e.from} -${e.rel}-> ${e.to}`).sort(), ids(expected))))
 
   Then("building the graph reports nothing", ({ world }) =>
     Effect.map(load(world), (project) => assertRows("graph diagnostics", project.diagnostics.map(builderRow), [["rule", "at", "message"]], "exactly")))
+
+  Then("building the graph reports {string}", ({ args: [expected], world }) =>
+    Effect.map(load(world), (project) => assert.deepEqual(project.diagnostics.map((d) => d.rule).sort(), ids(expected))))
 
   Then("building the graph reports:", ({ table, world }) =>
     Effect.map(load(world), (project) => assertRows("graph diagnostics", project.diagnostics.map(builderRow), table, "exactly")))
@@ -232,7 +234,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the query {string} runs on it with at most {int} paths", ({ args: [source, maxPaths], world }) => {
     assert.ok(world.graph, "generate a graph first")
-    const result = query(world.graph, source, { maxPaths, orderings: projectOrderings(["idea", "draft", "specified", "ready"]) })
+    const result = query(world.graph, source, { maxPaths, orderings: projectOrderings(defaultVocabulary) })
     if (Result.isFailure(result)) assert.fail(`query failed: ${result.failure.message}`)
     world.result = result.success
   })

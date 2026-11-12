@@ -8,11 +8,23 @@ import { Predicate } from "effect"
 import { createHash } from "node:crypto"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
-import { Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
+import { type Attrs, Graph, type GraphEdge, type GraphNode, mergeEdges, type SourceRef } from "../model/Graph.ts"
+import {
+  activityRelation,
+  attribute,
+  hasKind,
+  hasRelation,
+  isDerived,
+  isInactiveStatus,
+  linkKeys,
+  made,
+  type Vocabulary,
+  type Words
+} from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, ignoredAnnotations, scanAnnotations } from "../parse/Annotations.ts"
 import { scanTypedAnnotations } from "../parse/TypedAnnotations.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
+import { normalizeLinks, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
 import { type RunResults, type ScenarioResult, type StepStatus, type Verification, verificationOf } from "../run/Results.ts"
 
 export interface SourceFile {
@@ -63,11 +75,9 @@ export interface Project {
   readonly evidence: WorkspaceEvidence
 }
 
-/** Attribute keys whose values are never turned into implicit links. */
-const notLinks = new Set(["id", "kind", "title", "summary", "maturity", "status", "stage", "verification", "tags", "file", "type", "declaredIn"])
-
 /** Builds the whole-system graph from parsed sources — specs, annotations and stored results — without any IO. */
 export const buildProject = (input: ProjectInput): Project => {
+  const vocabulary = input.config.vocabulary
   const diagnostics: Array<Diagnostic> = []
   const specs: Array<Spec> = []
   for (const file of input.specFiles) {
@@ -83,7 +93,7 @@ export const buildProject = (input: ProjectInput): Project => {
   const annotations: Array<Annotation> = []
   for (const file of input.codeFiles) {
     annotations.push(...scanAnnotations(file.path, file.content))
-    const typed = scanTypedAnnotations(file.path, file.content)
+    const typed = scanTypedAnnotations(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...typed.annotations)
     for (const problem of typed.problems) {
       diagnostics.push({
@@ -121,10 +131,34 @@ export const buildProject = (input: ProjectInput): Project => {
         source: node.source,
         hint: "ids must be unique across the workspace; rename one of them"
       })
-      return
+      return false
     }
     nodes.set(node.id, node)
+    return true
   }
+  /** An authored node's attributes without those sdp derives; each one written is reported where it is. */
+  const authored = (id: string, kind: string, attrs: Attrs, at: (key: string) => SourceRef): Record<string, unknown> => {
+    const kept: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(attrs)) {
+      if (!isDerived(kind, key)) {
+        kept[key] = value
+        continue
+      }
+      diagnostics.push({
+        rule: "derived-attribute",
+        severity: "error",
+        message: `${id}: ${key} is derived by sdp, so the value written here is ignored`,
+        node: id,
+        source: at(key),
+        hint: `delete \`${key}\`; sdp computes it (\`sdp vocabulary\` lists what it derives)`
+      })
+    }
+    return kept
+  }
+  /** The stage of a node without scenarios: its maturity, while that is a level of the ladder. */
+  const declaredStage = (attrs: Attrs) => stageOf(attrs.maturity, "none", vocabulary.maturity)
+  /** Authored nodes, with where each writes its attributes, so the links those hold point at the right line. */
+  const writtenAt = new Map<string, (key: string) => SourceRef>()
 
   // Results count only while what they ran against is unchanged. Gates may read the ordinary
   // results, so those are settled first — ordinary scenarios run first and record no results —
@@ -138,7 +172,7 @@ export const buildProject = (input: ProjectInput): Project => {
     const stale = result ? staleness(result, scenario, { ...fingerprints, results }) : undefined
     return { result, stale, status: result && !stale ? result.status : undefined }
   }
-  const ordinary = specs.flatMap((spec) => spec.scenarios.filter((scenario) => !isGate(scenario, spec)))
+  const ordinary = specs.flatMap((spec) => spec.scenarios.filter((scenario) => !isGate(scenario, spec, vocabulary)))
   const evidence: WorkspaceEvidence = {
     ...fingerprints,
     results: digest(ordinary.map((scenario) => {
@@ -157,7 +191,7 @@ export const buildProject = (input: ProjectInput): Project => {
       statuses.push(status)
       declare({
         id: scenario.id,
-        kind: "scenario",
+        kind: made.kinds.scenario,
         title: scenario.name,
         attrs: compact({
           spec: spec.id,
@@ -173,68 +207,80 @@ export const buildProject = (input: ProjectInput): Project => {
         }),
         source: { file: spec.file, line: scenario.line }
       })
-      edges.push({ from: scenario.id, rel: "verifies", to: spec.id, source: { file: spec.file, line: scenario.line } })
+      edges.push({ from: scenario.id, rel: vocabulary.relations.scenario, to: spec.id, source: { file: spec.file, line: scenario.line } })
     }
     const verification: Verification = verificationOf(statuses)
     const openQuestions = spec.openQuestions.filter((q) => !q.resolved).length
-    declare({
+    const at = (key: string): SourceRef => ({ file: spec.file, line: spec.attrLines[key] ?? 1 })
+    const attrs = authored(spec.id, spec.kind, spec.attrs, at)
+    const declared = declare({
       id: spec.id,
       kind: spec.kind,
       title: spec.title,
       attrs: compact({
-        ...spec.attrs,
+        ...attrs,
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,
         verification,
-        stage: stageOf(spec.attrs.maturity, verification),
+        stage: stageOf(attrs.maturity, verification, vocabulary.maturity),
         openQuestions: openQuestions > 0 ? openQuestions : undefined
       }),
       source: { file: spec.file, line: 1 }
     })
+    if (declared) writtenAt.set(spec.id, at)
     for (const inline of spec.inlineNodes) {
-      declare({
+      const at = (): SourceRef => ({ file: spec.file, line: inline.line })
+      const attrs = authored(inline.id, inline.kind, inline.attrs, at)
+      const declared = declare({
         id: inline.id,
         kind: inline.kind,
         title: inline.title,
-        attrs: { ...inline.attrs, declaredIn: spec.id },
-        source: { file: spec.file, line: inline.line }
+        attrs: compact({ ...attrs, stage: declaredStage(attrs), declaredIn: spec.id }),
+        source: at()
       })
+      if (declared) writtenAt.set(inline.id, at)
     }
   }
 
-  // Code: annotated locations become `code` nodes; `is` may declare the node it anchors.
+  // Code: annotated locations become `code` nodes; the anchor relation may declare the node it anchors.
   for (const annotation of annotations) {
     const id = codeNodeId(annotation)
     if (!nodes.has(id)) {
       nodes.set(id, {
         id,
-        kind: "code",
+        kind: made.kinds.code,
         title: annotation.symbol ?? annotation.file,
         attrs: compact({ file: annotation.file, symbol: annotation.symbol, doc: annotation.doc }),
         source: { file: annotation.file, line: annotation.symbolLine ?? annotation.line }
       })
     }
   }
-  for (const annotation of annotations.filter((a) => a.rel === "is")) {
+  for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
     for (const target of annotation.targets) {
       const existing = nodes.get(target)
-      const { kind, title, ...attrs } = annotation.attrs
+      const { kind: rawKind, title, ...rest } = annotation.attrs
+      const kind = Predicate.isString(rawKind) ? rawKind : existing?.kind ?? vocabulary.kinds.anchored
+      const at = (): SourceRef => ({ file: annotation.file, line: annotation.line })
+      const attrs = authored(target, kind, rest, at)
       if (!existing) {
         nodes.set(target, {
           id: target,
-          kind: Predicate.isString(kind) ? kind : "element",
+          kind,
           title: Predicate.isString(title) ? title : target,
-          attrs: { ...attrs, declaredIn: "code" },
-          source: { file: annotation.file, line: annotation.line }
+          attrs: compact({ ...attrs, stage: declaredStage(attrs), declaredIn: made.declaredInCode }),
+          source: at()
         })
+        writtenAt.set(target, at)
       } else if (Object.keys(attrs).length > 0) {
         nodes.set(target, { ...existing, attrs: { ...attrs, ...existing.attrs } })
       }
     }
   }
 
-  // Edges.
+  // Links are a property of the key, never of the value: everything under `links:`, and the keys the
+  // vocabulary names as links — plan and phase relations, each discipline of `activity`, and the
+  // workspace's own link keys. Every other attribute is a value.
   for (const spec of specs) {
     for (const link of spec.links) {
       edges.push({ from: spec.id, rel: link.rel, to: link.to, attrs: link.attrs, source: { file: spec.file, line: link.line } })
@@ -244,9 +290,19 @@ export const buildProject = (input: ProjectInput): Project => {
         edges.push({ from: inline.id, rel: link.rel, to: link.to, attrs: link.attrs, source: { file: spec.file, line: link.line } })
       }
     }
-    for (const ref of spec.references) {
-      if (ref.id === spec.id) continue
-      edges.push({ from: spec.id, rel: ref.rel ?? "mentions", to: ref.id, source: { file: spec.file, line: ref.line } })
+  }
+  const keys = linkKeys(vocabulary)
+  for (const [id, at] of writtenAt) {
+    const node = nodes.get(id)!
+    const linked: Array<readonly [string, unknown]> = keys.flatMap((key) => Object.hasOwn(node.attrs, key) ? [[key, node.attrs[key]] as const] : [])
+    const activity = attribute(node, vocabulary.attributes.activity)
+    if (Predicate.isObject(activity) && !Array.isArray(activity)) {
+      for (const [discipline, value] of Object.entries(activity)) linked.push([activityRelation(vocabulary, discipline), value])
+    }
+    for (const [rel, value] of linked) {
+      const source = at(rel.split(".")[0]!)
+      const links = normalizeLinks({ [rel]: value }, { file: source.file, owner: id, line: source.line, lineOf: () => source.line }, diagnostics)
+      for (const link of links) edges.push({ from: id, rel: link.rel, to: link.to, attrs: link.attrs, source })
     }
   }
   for (const annotation of annotations) {
@@ -257,47 +313,64 @@ export const buildProject = (input: ProjectInput): Project => {
         from,
         rel: annotation.rel,
         to,
-        attrs: annotation.rel === "is" || Object.keys(attrs).length === 0 ? undefined : attrs,
+        attrs: annotation.rel === vocabulary.relations.anchor || Object.keys(attrs).length === 0 ? undefined : attrs,
         source: { file: annotation.file, line: annotation.line }
       })
     }
   }
-  // Implicit links: an attribute whose value is a known id becomes an edge named after the key
-  // (`iteration: E2` → `-iteration-> E2`), and so does each entry of a map attribute, named by its
-  // path (`activity: { implementation: C1 }` → `-activity.implementation-> C1`). Explicit links are
-  // never required for the obvious ones.
-  for (const node of [...nodes.values()]) {
-    if (node.kind === "scenario" || node.kind === "code") continue
-    const spec = specById.get(node.id)
-    for (const [key, value] of Object.entries(node.attrs)) {
-      if (notLinks.has(key)) continue
-      const line = spec?.attrLines[key]
-      const source = node.source && line !== undefined ? { file: node.source.file, line } : node.source
-      const entries: Array<readonly [string, unknown]> = Predicate.isObject(value) && !Array.isArray(value)
-        ? Object.entries(value).map(([entry, v]) => [`${key}.${entry}`, v] as const)
-        : [[key, value]]
-      for (const [rel, entryValue] of entries) {
-        for (const v of Array.isArray(entryValue) ? entryValue : [entryValue]) {
-          if (Predicate.isString(v) && v !== node.id && nodes.has(v)) {
-            edges.push({ from: node.id, rel, to: v, attrs: { implicit: true }, source })
-          }
-        }
-      }
+  // A prose mention is not a link: it adds an edge only between nodes no authored link joins.
+  const joined = new Set(edges.flatMap((edge) => [`${edge.from}\u0000${edge.to}`, `${edge.to}\u0000${edge.from}`]))
+  for (const spec of specs) {
+    for (const ref of spec.references) {
+      if (ref.id === spec.id) continue
+      const rel = ref.rel ?? vocabulary.relations.mention
+      if (rel === vocabulary.relations.mention && joined.has(`${spec.id}\u0000${ref.id}`)) continue
+      edges.push({ from: spec.id, rel, to: ref.id, source: { file: spec.file, line: ref.line } })
     }
   }
 
-  // Unresolved references stay visible as `missing` nodes so they can be queried and fixed.
+  // Every reference to an unknown id is reported where it is written; the id stays visible as one
+  // `missing` node, so it can be queried and fixed.
+  const declaredIds = new Set(nodes.keys())
+  const iterations = [...nodes.values()].filter((n) => hasKind(vocabulary, "iteration", n.kind)).map((n) => n.id)
+  const phases = [...nodes.values()].filter((n) => hasKind(vocabulary, "phase", n.kind)).map((n) => n.id)
+  const activityPrefix = `${vocabulary.attributes.activity}.`
+  const hintFor = (edge: GraphEdge) => {
+    const known = hasRelation(vocabulary, "phase", edge.rel)
+      ? { what: "phase", ids: phases }
+      : hasRelation(vocabulary, "plan", edge.rel) || edge.rel.startsWith(activityPrefix)
+      ? { what: "iteration", ids: iterations }
+      : undefined
+    return known && known.ids.length > 0
+      ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
+      : `create a spec with \`id: ${edge.to}\` (sdp new) or fix the reference`
+  }
   for (const edge of edges) {
-    if (nodes.has(edge.to)) continue
+    if (declaredIds.has(edge.to)) continue
     diagnostics.push({
       rule: "dangling-link",
       severity: "error",
       message: `${edge.from} -${edge.rel}-> ${edge.to}: no node has id ${edge.to}`,
       node: edge.from,
       source: edge.source,
-      hint: `create a spec with \`id: ${edge.to}\` (sdp new) or fix the reference`
+      hint: hintFor(edge)
     })
-    nodes.set(edge.to, { id: edge.to, kind: "missing", title: edge.to, attrs: {} })
+    if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
+  }
+
+  const merged = mergeEdges(edges)
+  for (const conflict of merged.conflicts) {
+    const { edge, key } = conflict
+    diagnostics.push({
+      rule: "link-conflict",
+      severity: "warning",
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${key} is ${JSON.stringify(conflict.dropped.value)} here but ${
+        JSON.stringify(conflict.kept.value)
+      } at ${fmt(conflict.kept.source)}, which is kept`,
+      node: edge.from,
+      source: conflict.dropped.source,
+      hint: `give ${key} one value in every declaration of this link, or declare it once`
+    })
   }
 
   return {
@@ -306,7 +379,7 @@ export const buildProject = (input: ProjectInput): Project => {
     specs,
     specById,
     annotations,
-    graph: new Graph(nodes.values(), edges),
+    graph: new Graph(nodes.values(), merged.edges),
     diagnostics: sortDiagnostics(diagnostics),
     results: input.results,
     types: input.types,
@@ -316,17 +389,19 @@ export const buildProject = (input: ProjectInput): Project => {
 annotate(buildProject, { is: "ARCH-graph-builder", "instance-of": ["PAT-derived-index", "PAT-pipes-and-filters"] })
 
 /** Records that no longer apply keep their text but stop guarding anything. */
-export const inactiveStatuses: ReadonlySet<string> = new Set(["superseded", "rejected", "deprecated"])
-
-export const isActive = (spec: { readonly attrs: Readonly<Record<string, unknown>> }): boolean =>
-  !inactiveStatuses.has(String(spec.attrs.status ?? ""))
+export const isActive = (spec: { readonly attrs: Readonly<Record<string, unknown>> }, vocabulary: Vocabulary): boolean =>
+  !isInactiveStatus(vocabulary, spec.attrs.status)
 
 /**
  * Gate scenarios run after all others: those of milestones and those tagged `@gate` — in a run that
  * selects some examples, those of the selected examples.
  */
-export const isGate = (scenario: Scenario, spec: Spec, pickles: ReadonlyArray<Pickle> = scenario.pickles): boolean =>
-  spec.kind === "milestone" || pickles.some((pickle) => pickle.tags.includes("@gate"))
+export const isGate = (
+  scenario: Scenario,
+  spec: Spec,
+  vocabulary: Vocabulary,
+  pickles: ReadonlyArray<Pickle> = scenario.pickles
+): boolean => hasKind(vocabulary, "milestone", spec.kind) || pickles.some((pickle) => pickle.tags.includes("@gate"))
 
 /** Why a stored result no longer counts as evidence: what changed since it ran. */
 export type Staleness = "scenario-changed" | "code-changed" | "specs-changed" | "results-changed"
@@ -361,17 +436,20 @@ export const staleCounts = (project: Project, results: RunResults | undefined = 
 }
 
 /**
- * Where a spec is in delivery: its declared authoring maturity until automation
- * exists, then `in-progress` while scenarios are pending/failing and `verified`
- * once they all pass. Implemented and unimplemented specs share one format;
- * evidence, not a status field, says which is which.
+ * Where a node is in delivery: `verified` once all its scenarios pass, `failing` while any fails (a
+ * regression is not work in progress), `in-progress` while automation is partial — otherwise its
+ * declared maturity, while that is a level of the ladder. Implemented and unimplemented specs share
+ * one format; evidence, not a status field, says which is which. A node with neither scenarios nor a
+ * maturity has no stage.
  */
-export const stageOf = (maturity: unknown, verification: Verification): string | undefined =>
+export const stageOf = (maturity: unknown, verification: Verification, ladder: Words): string | undefined =>
   verification === "passing"
-    ? "verified"
-    : verification === "failing" || verification === "pending"
-    ? "in-progress"
-    : Predicate.isString(maturity)
+    ? made.stages.verified
+    : verification === "failing"
+    ? made.stages.failing
+    : verification === "pending"
+    ? made.stages.inProgress
+    : Predicate.isString(maturity) && ladder.includes(maturity)
     ? maturity
     : undefined
 

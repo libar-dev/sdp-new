@@ -25,8 +25,8 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
    and the `file:line` of its definition; and each step that no step definition — or more than one —
    matches, with a suggested definition. Steps are matched against the step definitions as they are
    now, so this needs no run; the step files are named, to add the definitions to;
-6. the significant architecture within two hops (`--depth`), with the rationale for each element,
-   and the patterns it applies;
+6. the architecture within two hops (`--depth`): each element and pattern with the first paragraph
+   of its description, which says why it matters;
 7. the quality requirements within reach, each with its measure: the outcome (`Then`) steps of its
    scenarios;
 8. the decisions within reach that still apply, each with what was decided — its `## Decision`
@@ -34,9 +34,8 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 9. the code linked by annotations within reach — typed `annotate` calls or `@sdp` comments
    ([[ARCH-code-annotations]]) — each with its `file:line`, symbol and what it links to.
 
-Only curated architecture is included. An element or pattern that no architect marked significant
-is design detail: it shows up as a direct relationship, never as architecture — the bundle does not
-list every class nearby.
+What is within reach is reached through links. A prose mention is listed among the relationships
+but leads no further: it is not a link ([[DEC-0010]]).
 
 ## Scenarios
 
@@ -59,12 +58,12 @@ Scenario: One call gives an agent the whole picture
     ---
     id: ARCH-orders
     kind: element
-    significant: true
-    rationale: owns the order aggregate and its transaction boundary
     links:
       decided-by: DEC-0001
     ---
     # Orders
+
+    Owns the order aggregate and its transaction boundary.
     """
   And a file "docs/DEC-0001.md" containing:
     """
@@ -83,20 +82,22 @@ Scenario: One call gives an agent the whole picture
   When I ask for the context of "REQ-checkout"
   Then the output contains "Shoppers pay for their cart."
   And the output contains "REQ-checkout -realized-by-> ARCH-orders — Orders"
-  And the output contains "rationale: owns the order aggregate"
+  And the output section "Architecture within" contains "Owns the order aggregate"
   And the output contains "DEC-0001 — One database transaction per order"
   And the output section "Code" contains "src/orders.ts:1 checkout — implements REQ-checkout"
 
-Scenario: Only curated architecture within two hops is included
+Scenario: The architecture within two hops is included, reached through links
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
     id: REQ-checkout
     maturity: idea
     links:
-      realized-by: [ARCH-orders, ARCH-cache]
+      realized-by: ARCH-orders
     ---
     # Checkout
+
+    Unlike the [[ARCH-cache]].
     """
   And a file "docs/architecture.md" containing:
     """
@@ -104,9 +105,9 @@ Scenario: Only curated architecture within two hops is included
     id: ARCH-overview
     kind: view
     nodes:
-      - { id: ARCH-orders, kind: element, significant: true, rationale: owns the order aggregate, links: { instance-of: PAT-saga, publishes-to: ARCH-ledger } }
-      - { id: ARCH-ledger, kind: element, significant: true, rationale: the books must balance, links: { replicates-to: ARCH-archive } }
-      - { id: ARCH-archive, kind: element, significant: true, rationale: kept for ten years }
+      - { id: ARCH-orders, kind: element, links: { instance-of: PAT-saga, publishes-to: ARCH-ledger } }
+      - { id: ARCH-ledger, kind: element, links: { replicates-to: ARCH-archive } }
+      - { id: ARCH-archive, kind: element }
       - { id: ARCH-cache, kind: element, links: { instance-of: PAT-memo } }
       - { id: PAT-saga, kind: pattern }
       - { id: PAT-memo, kind: pattern }
@@ -114,13 +115,13 @@ Scenario: Only curated architecture within two hops is included
     # Architecture
     """
   When I ask for the context of "REQ-checkout"
-  Then the output section "Significant architecture" contains "ARCH-orders"
-  And the output section "Significant architecture" contains "ARCH-ledger"
-  And the output section "Significant architecture" does not contain "ARCH-archive"
-  And the output section "Significant architecture" does not contain "ARCH-cache"
-  And the output section "Patterns" contains "PAT-saga"
-  And the output section "Patterns" does not contain "PAT-memo"
-  And the output section "Relationships" contains "ARCH-cache"
+  Then the output section "Architecture within" contains "ARCH-orders"
+  And the output section "Architecture within" contains "ARCH-ledger"
+  And the output section "Architecture within" contains "PAT-saga"
+  And the output section "Architecture within" does not contain "ARCH-archive"
+  And the output section "Architecture within" does not contain "ARCH-cache"
+  And the output section "Architecture within" does not contain "PAT-memo"
+  And the output section "Relationships" contains "-mentions-> ARCH-cache"
 
 Scenario: Only decisions that still apply are included
   Given a file "specs/REQ-checkout.md" containing:

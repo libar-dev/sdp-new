@@ -1,11 +1,13 @@
 /**
  * Rule checks over a built project. Every diagnostic carries a rule id, a
  * `file:line`, and a hint phrased as an instruction, so humans and agents can
- * fix issues without reading this file. Architectural significance is never
- * checked: it is the architect's call.
+ * fix issues without reading this file. What belongs in the architecture is
+ * never checked: declaring it is the architect's call.
  *
- * Maturity gates make declared maturity honest: a spec may claim a level only
- * when its content supports it.
+ * Maturity criteria make declared maturity honest: a node may claim a level only
+ * when its content supports it. They run on every node that declares maturity —
+ * an inline or code-declared node has no content beyond its title, so it can
+ * claim no more than the first level.
  *
  *   idea       a title (anything goes; capture it before it is lost)
  *   draft      a description of the problem or intent
@@ -14,50 +16,68 @@
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
+import type { GraphNode, SourceRef } from "../model/Graph.ts"
+import {
+  attribute,
+  criteria,
+  hasKind,
+  hasRelation,
+  type KindRole,
+  made,
+  type RelationRole,
+  type Vocabulary
+} from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
 import { declaredActivity } from "../lifecycle/Lifecycle.ts"
+import type { OpenQuestion } from "../parse/Markdown.ts"
+import type { Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 
-const builtinLevels = ["idea", "draft", "specified", "ready"] as const
+const builtinLevels: ReadonlyArray<string> = Object.values(criteria)
 
-/** Why `spec` does not meet `level` (empty when it does). Custom levels have no gate. */
-export const gateReasons = (spec: Spec, level: string): ReadonlyArray<string> => {
+/** What the maturity criteria look at: a spec has all of it, an inline or code-declared node none. */
+export interface Content {
+  readonly summary: string
+  readonly body: string
+  readonly scenarios: ReadonlyArray<Scenario>
+  readonly openQuestions: ReadonlyArray<OpenQuestion>
+}
+
+const noContent: Content = { summary: "", body: "", scenarios: [], openQuestions: [] }
+
+/** Why `content` does not meet `level` (empty when it does). Custom levels have no criteria. */
+export const gateReasons = (content: Content, level: string): ReadonlyArray<string> => {
   const reasons: Array<string> = []
-  const index = builtinLevels.indexOf(level as (typeof builtinLevels)[number])
-  if (index >= 1 && spec.summary.trim() === "" && spec.body.replace(/^#.*$/gm, "").trim() === "") {
+  const index = builtinLevels.indexOf(level)
+  if (index >= 1 && content.summary.trim() === "" && content.body.replace(/^#.*$/gm, "").trim() === "") {
     reasons.push("no description: write a paragraph on the problem or intent")
   }
-  if (index >= 2 && spec.scenarios.length === 0) {
+  if (index >= 2 && content.scenarios.length === 0) {
     reasons.push("no scenarios: add a ```gherkin block with at least one Scenario")
   }
-  if (index >= 2 && spec.scenarios.length > 0 && !spec.scenarios.some((s) => s.hasOutcome)) {
+  if (index >= 2 && content.scenarios.length > 0 && !content.scenarios.some((s) => s.hasOutcome)) {
     reasons.push("no scenario states an outcome: add a Then step")
   }
   if (index >= 3) {
-    const open = spec.openQuestions.filter((q) => !q.resolved)
+    const open = content.openQuestions.filter((q) => !q.resolved)
     if (open.length > 0) reasons.push(`${open.length} open question(s), e.g. "${open[0]!.text}" (line ${open[0]!.line})`)
-    const noOutcome = spec.scenarios.filter((s) => !s.hasOutcome)
+    const noOutcome = content.scenarios.filter((s) => !s.hasOutcome)
     if (noOutcome.length > 0) reasons.push(`scenario "${noOutcome[0]!.name}" has no Then step`)
-    const empty = spec.scenarios.filter((s) => s.steps.length === 0)
-    if (empty.length > 0) reasons.push(`scenario "${empty[0]!.name}" has no steps`)
   }
   return reasons
 }
 
-/** The highest built-in level whose gate the spec passes. */
-export const achievableMaturity = (spec: Spec): string => {
-  let best: string = builtinLevels[0]
+/** The highest built-in level whose criteria the content meets. */
+export const achievableMaturity = (content: Content): string => {
+  let best: string = builtinLevels[0]!
   for (const level of builtinLevels) {
-    if (gateReasons(spec, level).length === 0) best = level
+    if (gateReasons(content, level).length === 0) best = level
     else break
   }
   return best
 }
-
-const decisionStatuses = ["proposed", "accepted", "rejected", "deprecated", "superseded"]
 
 /** How lines of `sdp new` templates begin that ask the author to write something in their place. */
 const placeholderLines = [
@@ -98,105 +118,114 @@ export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text:
   return found.sort((a, b) => a.line - b.line)
 }
 
-/**
- * Attributes whose values name lifecycle nodes, with the kind they must name: the configured plan
- * relations name iterations, the phase relations phases. Anything else is a typo or a missing plan entry.
- */
-const planKeys = (config: Config): ReadonlyArray<readonly [string, string]> => [
-  ...config.planRelations.map((key) => [key, "iteration"] as const),
-  ...config.phaseRelations.map((key) => [key, "phase"] as const)
-]
+/** The relations whose targets must be lifecycle nodes, with the kind role they must play. */
+const planRelations: ReadonlyArray<readonly [RelationRole, KindRole]> = [["plan", "iteration"], ["phase", "phase"]]
 
-/** Every rule check over a built project, as diagnostics with `file:line` and a hint; significance is never checked. */
+/** Every rule check over a built project, as diagnostics with `file:line` and a hint. */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const out: Array<Diagnostic> = [...project.diagnostics]
-  const { graph, config } = project
+  const { graph } = project
+  const vocabulary = project.config.vocabulary
   const at = (spec: Spec, line = 1) => ({ file: spec.file, line })
+  /** Where an attribute of `node` is written: its line in a spec's front matter, else the node's own line. */
+  const written = (node: GraphNode, key: string): SourceRef | undefined => {
+    const spec = project.specById.get(node.id)
+    return spec ? at(spec, spec.attrLines[key] ?? 1) : node.source
+  }
+  const authored = graph.nodes().filter((node) =>
+    node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
+  )
 
-  for (const spec of project.specs) {
-    const maturity = spec.attrs.maturity
+  for (const node of authored) {
+    const maturity = attribute(node, "maturity")
     if (maturity === undefined) continue
-    if (!Predicate.isString(maturity) || !config.maturity.includes(maturity)) {
+    const spec = project.specById.get(node.id)
+    const source = spec ? at(spec) : node.source
+    if (!Predicate.isString(maturity) || !vocabulary.maturity.includes(maturity)) {
       out.push({
         rule: "maturity-value",
-        severity: "warning",
-        message: `${spec.id}: unknown maturity "${String(maturity)}"`,
-        node: spec.id,
-        source: at(spec),
-        hint: `use one of: ${config.maturity.join(", ")}`
+        severity: "error",
+        message: `${node.id}: unknown maturity "${String(maturity)}"`,
+        node: node.id,
+        source,
+        hint: `use one of: ${vocabulary.maturity.join(", ")}`
       })
       continue
     }
-    const reasons = gateReasons(spec, maturity)
+    const content = spec ?? noContent
+    const reasons = gateReasons(content, maturity)
     if (reasons.length > 0) {
       out.push({
         rule: "maturity-gate",
         severity: "error",
-        message: `${spec.id} claims maturity "${maturity}" but ${reasons.join("; ")}`,
-        node: spec.id,
-        source: at(spec),
-        hint: `fix the content or lower maturity to "${achievableMaturity(spec)}"`
+        message: `${node.id} claims maturity "${maturity}" but ${reasons.join("; ")}`,
+        node: node.id,
+        source,
+        hint: spec
+          ? `fix the content or lower maturity to "${achievableMaturity(content)}"`
+          : `give it a spec file of its own for content beyond a title, or lower maturity to "${achievableMaturity(content)}"`
       })
     } else {
       // Only worth mentioning once there is behaviour to look at; idea → draft is noise.
-      const achievable = achievableMaturity(spec)
+      const achievable = achievableMaturity(content)
       if (
-        config.maturity.indexOf(achievable) > config.maturity.indexOf(maturity) &&
-        builtinLevels.indexOf(achievable as (typeof builtinLevels)[number]) >= 2
+        vocabulary.maturity.indexOf(achievable) > vocabulary.maturity.indexOf(maturity) &&
+        builtinLevels.indexOf(achievable) >= builtinLevels.indexOf(criteria.specified)
       ) {
         out.push({
           rule: "maturity-promotable",
           severity: "info",
-          message: `${spec.id} meets the "${achievable}" gate but is marked "${maturity}"`,
-          node: spec.id,
-          source: at(spec),
+          message: `${node.id} meets the "${achievable}" gate but is marked "${maturity}"`,
+          node: node.id,
+          source,
           hint: `set maturity: ${achievable} if the team agrees`
         })
       }
     }
   }
 
-  for (const node of graph.ofKind("decision")) {
+  for (const node of graph.ofKind(vocabulary.kinds.decision)) {
     const spec = project.specById.get(node.id)
-    const status = node.attrs.status
-    if (!Predicate.isString(status) || !decisionStatuses.includes(status)) {
+    const status = attribute(node, "status")
+    const statuses = vocabulary.statuses
+    if (!Predicate.isString(status) || !statuses.decision.includes(status)) {
       out.push({
         rule: "decision-status",
         severity: "warning",
-        message: `${node.id}: decision status should be one of ${decisionStatuses.join(", ")} (got ${String(status)})`,
+        message: `${node.id}: decision status should be one of ${statuses.decision.join(", ")} (got ${String(status)})`,
         node: node.id,
         source: node.source,
         hint: "set `status:` in the front matter"
       })
     }
-    for (const edge of graph.out(node.id).filter((e) => e.rel === "supersedes")) {
+    for (const edge of graph.out(node.id).filter((e) => vocabulary.relations.supersedes.includes(e.rel))) {
       const old = graph.node(edge.to)
-      if (old && old.kind === "decision" && old.attrs.status !== "superseded") {
+      if (old && hasKind(vocabulary, "decision", old.kind) && attribute(old, "status") !== statuses.superseded) {
         out.push({
           rule: "decision-supersede",
           severity: "warning",
-          message: `${node.id} supersedes ${old.id}, but ${old.id} has status ${String(old.attrs.status)}`,
+          message: `${node.id} supersedes ${old.id}, but ${old.id} has status ${String(attribute(old, "status"))}`,
           node: old.id,
           source: old.source,
-          hint: `set status: superseded on ${old.id}`
+          hint: `set status: ${statuses.superseded} on ${old.id}`
         })
       }
     }
-    if (status === "superseded" && !graph.in(node.id).some((e) => e.rel === "supersedes")) {
+    if (status === statuses.superseded && !graph.in(node.id).some((e) => vocabulary.relations.supersedes.includes(e.rel))) {
       out.push({
         rule: "decision-supersede",
         severity: "warning",
-        message: `${node.id} is superseded but no decision supersedes it`,
+        message: `${node.id} is ${statuses.superseded} but no decision supersedes it`,
         node: node.id,
         source: node.source,
-        hint: "add `links: { supersedes: <old id> }` to the newer decision"
+        hint: `add \`links: { ${vocabulary.relations.supersedes[0] ?? "supersedes"}: <old id> }\` to the newer decision`
       })
     }
-    if (status === "accepted" && spec && !spec.headings.some((h) => /decision|outcome/i.test(h)) && !node.attrs.decision) {
+    if (status === statuses.accepted && spec && !spec.headings.some((h) => /decision|outcome/i.test(h))) {
       out.push({
         rule: "decision-content",
         severity: "info",
-        message: `${node.id} is accepted but has no "Decision" section`,
+        message: `${node.id} is ${statuses.accepted} but has no "Decision" section`,
         node: node.id,
         source: node.source,
         hint: "state the decision under a `## Decision` heading"
@@ -206,67 +235,86 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
 
   for (const spec of project.specs) {
     const placeholders = templatePlaceholders(spec)
-    if (placeholders.length > 0) {
-      const [first] = placeholders
+    if (placeholders.length === 0) continue
+    const [first] = placeholders
+    out.push({
+      rule: "template-placeholder",
+      severity: "warning",
+      message: `${spec.id} still has template text: "${first!.text}"${placeholders.length > 1 ? ` (and ${placeholders.length - 1} more)` : ""}`,
+      node: spec.id,
+      source: at(spec, first!.line),
+      hint: "replace the template's text with your own, or delete it"
+    })
+  }
+
+  // Plans: what a plan or phase relation names must be an iteration or a phase (a target that does
+  // not exist at all is a dangling link), and `activity:` must map disciplines to iterations.
+  for (const node of authored) {
+    const planReference = (rel: string, target: string, role: KindRole, key: string) => {
+      const known = graph.ofKind(vocabulary.kinds[role]).map((n) => n.id)
+      const what = vocabulary.kinds[role][0] ?? role
       out.push({
-        rule: "template-placeholder",
+        rule: "plan-reference",
         severity: "warning",
-        message: `${spec.id} still has template text: "${first!.text}"${placeholders.length > 1 ? ` (and ${placeholders.length - 1} more)` : ""}`,
-        node: spec.id,
-        source: at(spec, first!.line),
-        hint: "replace the template's text with your own, or delete it"
+        message: `${node.id}: ${rel} "${target}" names no ${what}`,
+        node: node.id,
+        source: written(node, key),
+        hint: known.length > 0
+          ? `use one of the declared ${what} ids: ${known.join(", ")}`
+          : `declare the ${what} in a plan (sdp new plan) or remove \`${rel}: ${target}\``
       })
     }
-    const owners = [
-      { id: spec.id, attrs: spec.attrs, line: (key: string) => spec.attrLines[key] ?? 1 },
-      ...spec.inlineNodes.map((inline) => ({ id: inline.id, attrs: inline.attrs, line: () => inline.line }))
-    ]
-    for (const owner of owners) {
-      const planReference = (key: string, value: unknown, kind: string) => {
-        const known = graph.ofKind(kind).map((n) => n.id)
-        out.push({
-          rule: "plan-reference",
-          severity: "warning",
-          message: `${owner.id}: ${key} "${String(value)}" names no ${kind}`,
-          node: owner.id,
-          source: at(spec, owner.line(key.split(".")[0]!)),
-          hint: known.length > 0
-            ? `use one of the declared ${kind} ids: ${known.join(", ")}`
-            : `declare the ${kind} in a plan (sdp new plan) or remove \`${key}: ${String(value)}\``
-        })
-      }
-      for (const [key, kind] of planKeys(config)) {
-        const values = [owner.attrs[key]].flat().filter(Predicate.isString)
-        for (const value of values.filter((v) => graph.node(v)?.kind !== kind)) planReference(key, value, kind)
-      }
-      if (owner.attrs.activity === undefined) continue
-      const activity = declaredActivity(owner.attrs)
-      if (activity === undefined) {
-        out.push({
-          rule: "plan-reference",
-          severity: "warning",
-          message: `${owner.id}: activity should map disciplines to iterations`,
-          node: owner.id,
-          source: at(spec, owner.line("activity")),
-          hint: "write `activity: { implementation: C1, test: [C1, T1] }`"
-        })
-        continue
-      }
-      for (const [discipline, values] of activity) {
-        if (!Object.hasOwn(config.disciplines, discipline)) {
-          out.push({
-            rule: "plan-reference",
-            severity: "warning",
-            message: `${owner.id}: activity names "${discipline}", which is not a discipline`,
-            node: owner.id,
-            source: at(spec, owner.line("activity")),
-            hint: `use one of: ${Object.keys(config.disciplines).join(", ")}, or add it under lifecycle.disciplines in the configuration`
-          })
-        }
-        for (const value of values.filter((v) => !Predicate.isString(v) || graph.node(v)?.kind !== "iteration")) {
-          planReference(`activity.${discipline}`, value, "iteration")
+    const activityKey = vocabulary.attributes.activity
+    for (const edge of graph.out(node.id)) {
+      const target = graph.node(edge.to)
+      if (!target || target.kind === made.kinds.missing) continue
+      for (const [relation, role] of planRelations) {
+        if (vocabulary.relations[relation].includes(edge.rel) && !hasKind(vocabulary, role, target.kind)) {
+          planReference(edge.rel, edge.to, role, edge.rel)
         }
       }
+      if (edge.rel.startsWith(`${activityKey}.`) && !hasKind(vocabulary, "iteration", target.kind)) {
+        planReference(edge.rel, edge.to, "iteration", activityKey)
+      }
+    }
+    // An `iteration:` plans the work of the node's kind's discipline; a kind in no discipline has none.
+    const planned = graph.out(node.id).find((edge) =>
+      hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
+    )
+    const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(node.kind))
+    if (planned && !disciplined && !isLifecycleKind(vocabulary, node.kind)) {
+      out.push({
+        rule: "plan-reference",
+        severity: "warning",
+        message: `${node.id}: kind ${node.kind} belongs to no discipline, so its iteration plans no discipline's work`,
+        node: node.id,
+        source: planned.source,
+        hint: `plan the work with \`${activityKey}: { <discipline>: <iteration> }\`, or add ${node.kind} to a discipline under vocabulary.disciplines`
+      })
+    }
+    if (attribute(node, activityKey) === undefined) continue
+    const activity = declaredActivity(vocabulary, node.attrs)
+    if (activity === undefined) {
+      out.push({
+        rule: "plan-reference",
+        severity: "warning",
+        message: `${node.id}: ${activityKey} should map disciplines to iterations`,
+        node: node.id,
+        source: written(node, activityKey),
+        hint: `write \`${activityKey}: { implementation: C1, test: [C1, T1] }\``
+      })
+      continue
+    }
+    for (const discipline of activity.keys()) {
+      if (vocabulary.disciplines.has(discipline)) continue
+      out.push({
+        rule: "plan-reference",
+        severity: "warning",
+        message: `${node.id}: ${activityKey} names "${discipline}", which is not a discipline`,
+        node: node.id,
+        source: written(node, activityKey),
+        hint: `use one of: ${[...vocabulary.disciplines.keys()].join(", ")}, or add it under vocabulary.disciplines in the configuration`
+      })
     }
   }
 
@@ -297,3 +345,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   return sortDiagnostics(out)
 }
 annotate(check, { is: "ARCH-checker" })
+
+/** The plan's own nodes — phases, iterations, milestones — are not work any discipline does. */
+const isLifecycleKind = (vocabulary: Vocabulary, kind: string) =>
+  hasKind(vocabulary, "phase", kind) || hasKind(vocabulary, "iteration", kind) || hasKind(vocabulary, "milestone", kind)

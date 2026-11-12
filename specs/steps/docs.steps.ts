@@ -93,7 +93,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("a new {word} titled {string} gets the id {string}", ({ args: [kind, title, expected], world }) =>
     Effect.map(load(world), (project) =>
-      assert.equal(newId(kind, title, project.config, [...project.graph.nodes.keys()]), expected)))
+      assert.equal(newId(kind, title, project.config, project.graph.nodes().map((n) => n.id)), expected)))
 
   // --- quality attributes ---------------------------------------------------
 
@@ -132,7 +132,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const project = repository(world)
       const files = new Map<string, string>()
       const misses: Array<string> = []
-      for (const node of project.graph.nodes.values()) {
+      for (const node of project.graph.nodes()) {
         if (!node.source || node.kind === "scenario" || node.kind === "code") continue
         const file = node.source.file
         if (!files.has(file)) files.set(file, await readFile(join(project.root, file), "utf8"))
@@ -148,7 +148,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   When("it exports the graph as {word}", ({ args: [format], world }) => {
-    world.output = exportGraph(repository(world).graph, format as GraphFormat)
+    world.output = exportGraph(repository(world).graph, format as GraphFormat, repository(world).config.vocabulary)
   })
 
   Then("every line of the export ends with a file and line", ({ world }) => {

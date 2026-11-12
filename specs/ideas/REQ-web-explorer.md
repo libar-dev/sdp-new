@@ -21,5 +21,5 @@ generated from the graph would cover reading; editing stays in the files.
 ## Open questions
 
 - [ ] Static HTML export or a local server that watches files?
-- [ ] Should the explorer show non-significant elements at all, or only on demand?
+- [ ] Should the explorer show the code nodes behind each element at all, or only on demand?
 - [x] Editing in the browser? No — files stay the source of truth ([[DEC-0003]]).

@@ -14,7 +14,7 @@ decisions made so far are accepted.
 ~~~gherkin
 Scenario: Vision and scope are captured
   Then the query "vision" returns 1 result
-  And the query "#VISION -*-> capability" returns at least 1 result
+  And the query "#VISION -*|mentions-> capability" returns at least 1 result
   And the query "capability !<-refines- requirement|nfr" returns no results
   And the query "requirement|nfr !-refines-> capability" returns no results
 

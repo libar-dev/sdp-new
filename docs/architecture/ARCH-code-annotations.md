@@ -40,8 +40,7 @@ annotate(import.meta, { is: "ARCH-query-engine" })   // the whole module
   until `sdp types` has run any string is accepted, and `sdp check` reports `types-stale` when the
   declaration no longer matches the graph.
 - **Links** map free-form relation names to one id or a list of ids. An optional third argument
-  declares the node an `is` link names when no spec does: `kind`, `title`, `significant`,
-  `rationale`.
+  declares the node an `is` link names when no spec does: `kind` and `title`.
 - **Literals only.** Ids and attributes must be literals; a computed one is reported as
   `annotation-unreadable` instead of guessed. Type-only wrappers do not count as computing:
   `{ is: "ARCH-x" } as const` and `satisfies Declaration` read as the object inside.
@@ -119,12 +118,12 @@ Scenario: A namespace import works, and a declaration comes along with an is lin
     import * as sdp from "sdp/annotations"
 
     export const cache = new Map()
-    sdp.annotate(cache, { is: "ARCH-cache" }, { kind: "element", significant: true, rationale: "hot path" })
+    sdp.annotate(cache, { is: "ARCH-cache" }, { kind: "element", title: "Hot-path cache" })
     """
   When "src/cache.ts" is scanned for typed annotations
   Then the annotations are:
-    | line | relation | targets    | binds to | attributes                                         |
-    | 4    | is       | ARCH-cache | cache    | kind="element" significant=true rationale="hot path" |
+    | line | relation | targets    | binds to | attributes                               |
+    | 4    | is       | ARCH-cache | cache    | kind="element" title="Hot-path cache"    |
 
 Scenario Outline: What cannot be read without running the code is reported, not guessed
   Given a file "src/pay.ts" containing:
@@ -252,14 +251,14 @@ Scenario: as const and satisfies change only types, so the objects inside are re
     import { annotate, type Declaration } from "sdp/annotations"
 
     export const cache = new Map()
-    annotate(cache, { is: "ARCH-cache" } as const, { kind: "element", significant: true } satisfies Declaration)
+    annotate(cache, { is: "ARCH-cache" } as const, { kind: "element", title: "Cache" } satisfies Declaration)
     annotate(cache, ({ uses: ["ARCH-store"] }) satisfies Record<string, unknown>)
     """
   When "src/cache.ts" is scanned for typed annotations
   Then the annotations are:
-    | line | relation | targets    | binds to | attributes                      |
-    | 4    | is       | ARCH-cache | cache    | kind="element" significant=true |
-    | 5    | uses     | ARCH-store | cache    |                                 |
+    | line | relation | targets    | binds to | attributes                     |
+    | 4    | is       | ARCH-cache | cache    | kind="element" title="Cache"   |
+    | 5    | uses     | ARCH-store | cache    |                                |
   And the scan reports nothing
 
 Scenario: In the graph, typed annotations become code nodes at the declaration
