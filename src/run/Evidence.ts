@@ -43,7 +43,7 @@ export interface Fingerprints {
   readonly toolchain: string
   /** The files of `evidence.inputs` and the variables of `evidence.env`. */
   readonly inputs: string
-  /** The spec and feature files and the id declarations: what a step that reads the graph sees. */
+  /** The spec and feature files, the id declarations and the Markdown where specs live: what a step that reads the graph sees. */
   readonly specs: string
 }
 

@@ -49,7 +49,7 @@ export const Evidence = Schema.Struct({
   toolchain: Schema.String,
   /** The declared inputs: the files of `evidence.inputs` and the variables of `evidence.env`. */
   inputs: Schema.String,
-  /** The spec and feature files and the id declarations, recorded when a step read the graph (`project`). */
+  /** The spec and feature files, the id declarations and the Markdown where specs live, recorded when a step read the graph (`project`). */
   specs: Schema.optional(Schema.String),
   /** What the graph showed a gate of the ordinary scenarios' results — each one's status, or why it no longer counts — recorded when the gate read the graph. */
   results: Schema.optional(Schema.String)

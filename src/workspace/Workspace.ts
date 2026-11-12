@@ -206,7 +206,8 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
     inputs: declaredInputs(yield* readAll(root, inputPaths), config.evidence.env),
-    specs: fingerprint(featureFiles)
+    // Markdown where specs live counts by its path: the graph warns of it, and reads none of it.
+    specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
   }
   const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)

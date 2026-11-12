@@ -742,9 +742,10 @@ Feature: Know what is verified
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
-  Rule: A scenario that reads the graph goes stale when any spec changes; one that does not keeps its result
+  Rule: A scenario that reads the graph goes stale when a spec, or Markdown where specs live, changes; one that does not keeps its result
 
-    What a step that reads the graph sees is built from every spec and the id declarations.
+    What a step that reads the graph sees is built from every spec and the id declarations, and
+    warns of Markdown written where specs live.
 
     Scenario: Another spec is added
       Given a step definition "an empty cart" that passes
@@ -765,6 +766,23 @@ Feature: Know what is verified
       Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
       And node "catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
       And node "cart#add-an-item" has attribute status = "passed"
+
+    Scenario: Markdown is written where specs live
+      Given a file "specs/guard.feature" containing:
+        """
+        @id=guard
+        Feature: Guard
+          Rule: The specs are clean
+            Scenario: No warnings
+              Then there are no warning diagnostics
+        """
+      When the workspace is run
+      And a file "specs/notes.md" containing:
+        """
+        # Notes
+        """
+      Then node "guard#no-warnings" has attribute status = "stale"
+      And node "guard#no-warnings" has attribute staleBecause = "specs-changed"
 
   Rule: No scenario reads the layer of evidence it belongs to
 
