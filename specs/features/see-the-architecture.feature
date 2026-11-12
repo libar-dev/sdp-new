@@ -130,14 +130,18 @@ Feature: See the architecture
       Then the result is "<imports>"
 
       Examples:
-        | import                                     | imports     |
-        | import { Mailer } from "./mailer.ts"       | ARCH-mailer |
-        | import { Mailer } from "./mailer.js"       | ARCH-mailer |
-        | import { Mailer } from "./mailer"          | ARCH-mailer |
-        | export { Mailer } from "./mailer.ts"       | ARCH-mailer |
-        | const mailer = () => import("./mailer.ts") | ARCH-mailer |
-        | import type { Mailer } from "./mailer.ts"  | nothing     |
-        | import { type Mailer } from "./mailer.ts"  | nothing     |
+        | import                                          | imports     |
+        | import { Mailer } from "./mailer.ts"            | ARCH-mailer |
+        | import { Mailer } from "./mailer.js"            | ARCH-mailer |
+        | import { Mailer } from "./mailer"               | ARCH-mailer |
+        | export { Mailer } from "./mailer.ts"            | ARCH-mailer |
+        | import Mailer = require("./mailer.ts")          | ARCH-mailer |
+        | const mailer = () => import("./mailer.ts")      | ARCH-mailer |
+        | const mailer = () => import("./mailer\u002ets") | ARCH-mailer |
+        | const mailer = () => import(`./mailer\u002ets`) | ARCH-mailer |
+        | import type { Mailer } from "./mailer.ts"       | nothing     |
+        | import { type Mailer } from "./mailer.ts"       | nothing     |
+        | import type {} from "./mailer.ts"               | nothing     |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 

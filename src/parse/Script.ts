@@ -3,7 +3,7 @@
  * code statically — annotations, the modules it imports and step definitions —
  * it reads from this one parse, with the line of everything it finds.
  */
-import { type EcmaScriptModule, parseSync } from "oxc-parser"
+import { parseSync } from "oxc-parser"
 
 export interface Comment {
   readonly type: "Line" | "Block"
@@ -29,8 +29,9 @@ export interface Script {
   readonly error: { readonly line: number; readonly message: string } | undefined
   readonly lineOf: (offset: number) => number
   /**
-   * The modules the file imports or re-exports a value from, or loads with `import()`: an import of
-   * types alone loads no code, and an `import()` of a computed name names no module.
+   * The modules the file imports or re-exports a value from, `import … = require()` among them, or
+   * loads with `import()`: an import of types alone loads no code, and an `import()` of a computed
+   * name names no module.
    */
   readonly imports: () => ReadonlyArray<Import>
 }
@@ -44,6 +45,10 @@ const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
 
 export const isNode = (value: unknown): value is Node =>
   typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string"
+
+/** The nodes directly inside `node`. */
+export const children = (node: Node): ReadonlyArray<Node> =>
+  Object.values(node).flatMap((value) => (Array.isArray(value) ? value : [value]).filter(isNode))
 
 /** Parses a TypeScript or JavaScript file; undefined for any other language. */
 export const parseScript = (file: string, content: string): Script | undefined => {
@@ -63,32 +68,64 @@ export const parseScript = (file: string, content: string): Script | undefined =
   }
 
   const parsed = parseSync(file, content, { lang, sourceType: "module" })
+  const program = parsed.program as unknown as Script["program"]
   const error = parsed.errors[0]
   return {
-    program: parsed.program as unknown as Script["program"],
+    program,
     comments: parsed.comments,
     error: error && { line: lineOf(error.labels[0]?.start ?? 0), message: error.message },
     lineOf,
-    imports: () => valueImports(content, parsed.module, lineOf)
+    imports: () => valueImports(program, parsed.module.dynamicImports.length > 0, lineOf)
   }
 }
 
-/** A string literal, or a template literal with nothing in it computed: what `import()` names statically. */
-const literalName = /^(?:"([^"\\]*)"|'([^'\\]*)'|`([^`\\$]*)`)$/
+/** What a string literal, or a template literal with nothing in it computed, holds: a module's name written statically. */
+const literalName = (node: Node): string | undefined => {
+  if (node.type === "Literal") return typeof node.value === "string" ? node.value : undefined
+  if (node.type !== "TemplateLiteral" || (node.expressions as ReadonlyArray<Node>).length > 0) return undefined
+  return (node.quasis as ReadonlyArray<{ readonly value: { readonly cooked: string | null } }>)[0]?.value.cooked ?? undefined
+}
 
-const valueImports = (content: string, module: EcmaScriptModule, lineOf: (offset: number) => number): ReadonlyArray<Import> => {
-  const named = [
-    ...module.staticImports.filter((i) => i.entries.length === 0 || i.entries.some((entry) => !entry.isType)).map((i) => i.moduleRequest),
-    ...module.staticExports.flatMap((e) => e.entries.flatMap((entry) => entry.moduleRequest && !entry.isType ? [entry.moduleRequest] : [])),
-    ...module.dynamicImports.flatMap(({ moduleRequest: { end, start } }) => {
-      const match = literalName.exec(content.slice(start, end))
-      return match ? [{ value: match[1] ?? match[2] ?? match[3]!, start }] : []
-    })
-  ]
-  // One statement re-exports several names from one module: it is one import.
+/** The names of what a top-level statement imports or re-exports a value from. */
+const valueSources = (statement: Node): ReadonlyArray<Node> => {
+  switch (statement.type) {
+    case "ImportDeclaration": {
+      const names = statement.specifiers as ReadonlyArray<Node>
+      // Without names it imports the module for its effects, unless it is `import type {}`, erased with the types.
+      const values = statement.importKind !== "type" && (names.length === 0 || names.some((name) => name.importKind !== "type"))
+      return values ? [statement.source as Node] : []
+    }
+    case "ExportNamedDeclaration": {
+      if (isNode(statement.declaration)) return valueSources(statement.declaration)
+      const names = statement.specifiers as ReadonlyArray<Node>
+      const values = statement.exportKind !== "type" && names.some((name) => name.exportKind !== "type")
+      return values && isNode(statement.source) ? [statement.source] : []
+    }
+    case "ExportAllDeclaration":
+      return statement.exportKind === "type" ? [] : [statement.source as Node]
+    case "TSImportEqualsDeclaration": {
+      const reference = statement.moduleReference as Node
+      return statement.importKind !== "type" && reference.type === "TSExternalModuleReference" ? [reference.expression as Node] : []
+    }
+    default:
+      return []
+  }
+}
+
+/** The names `import()` loads within `node`. */
+const dynamicSources = (node: Node): ReadonlyArray<Node> => [
+  ...(node.type === "ImportExpression" && isNode(node.source) ? [node.source] : []),
+  ...children(node).flatMap(dynamicSources)
+]
+
+const valueImports = (program: Script["program"], dynamic: boolean, lineOf: (offset: number) => number): ReadonlyArray<Import> => {
+  const named = [...program.body.flatMap(valueSources), ...(dynamic ? dynamicSources(program) : [])]
+  // One module named twice on a line is one import.
   const seen = new Set<string>()
-  return named.flatMap(({ start, value }) => {
-    const line = lineOf(start)
+  return named.flatMap((source) => {
+    const value = literalName(source)
+    if (value === undefined) return []
+    const line = lineOf(source.start)
     const key = `${line}\u0000${value}`
     if (seen.has(key)) return []
     seen.add(key)
