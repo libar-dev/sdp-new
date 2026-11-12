@@ -11,19 +11,25 @@ Feature: Configure a workspace
   Not a schema for specs: kinds, relations and attributes are whatever authors write, and only the
   words sdp reads meaning into are configured.
 
-  Rule: A key left out keeps its default; one written replaces it, except exclude, which adds to it
+  Rule: A key left out keeps its default; a list or value written replaces it and exclude adds to it, while ids and vocabulary change only the entries they name
 
     The defaults find specs and code where most repositories keep them, so an empty file or none at
-    all is a configuration that works.
+    all is a configuration that works. A team names only the prefixes and roles it calls by words of
+    its own, and keeps sdp's for the rest.
 
     Scenario Outline: Each key, in YAML or JSON
       Given these specs:
-        | tags                             | Feature |
-        | @id=REQ-login @maturity=approved | Login   |
+        | tags                          | Feature |
+        | @id=REQ-login @maturity=ready | Login   |
       And a file "notes/REQ-scratch.feature" containing:
         """
         @id=REQ-scratch @maturity=idea
         Feature: Scratch
+        """
+      And a file "node_modules/kit/REQ-vendored.feature" containing:
+        """
+        @id=REQ-vendored @maturity=idea
+        Feature: Vendored
         """
       And a file "src/orders.ts" containing:
         """
@@ -43,14 +49,16 @@ Feature: Configure a workspace
       Then the result is "<result>"
 
       Examples:
-        | key        | file            | config                                                              | query                          | result                                           |
-        | none       | sdp.config.yaml |                                                                     | requirement\|code              | REQ-login, REQ-scratch, code:src/orders.ts#order |
-        | features   | sdp.config.yaml | features: ["specs/**/*.feature"]                                    | requirement                    | REQ-login                                        |
-        | code       | sdp.config.yaml | code: ["tools/**/*.ts"]                                             | code                           | code:tools/report.ts#report                      |
-        | exclude    | sdp.config.yaml | exclude: ["notes/**"]                                               | requirement                    | REQ-login                                        |
-        | vocabulary | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | requirement[maturity<approved] | REQ-scratch                                      |
-        | json       | sdp.config.json | { "exclude": ["notes/**"] }                                         | requirement                    | REQ-login                                        |
-        | yml        | sdp.config.yml  | exclude: ["notes/**"]                                               | requirement                    | REQ-login                                        |
+        | key             | file            | config                                                              | query                           | result                                           |
+        | none            | sdp.config.yaml |                                                                     | requirement\|code               | REQ-login, REQ-scratch, code:src/orders.ts#order |
+        | features        | sdp.config.yaml | features: ["specs/**/*.feature"]                                    | requirement                     | REQ-login                                        |
+        | code            | sdp.config.yaml | code: ["tools/**/*.ts"]                                             | code                            | code:tools/report.ts#report                      |
+        | exclude         | sdp.config.yaml | exclude: ["notes/**"]                                               | requirement                     | REQ-login                                        |
+        | ids             | sdp.config.yaml | ids: { nfr: QR }                                                    | requirement                     | REQ-login, REQ-scratch                           |
+        | vocabulary      | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | requirement[maturity<approved]  | REQ-scratch                                      |
+        | vocabulary role | sdp.config.yaml | vocabulary: { kinds: { decision: [adr] } }                          | requirement[maturity<specified] | REQ-scratch                                      |
+        | json            | sdp.config.json | { "exclude": ["notes/**"] }                                         | requirement                     | REQ-login                                        |
+        | yml             | sdp.config.yml  | exclude: ["notes/**"]                                               | requirement                     | REQ-login                                        |
 
     Scenario: Step modules only where steps says, and results where results says
       Given a file "sdp.config.yaml" containing:

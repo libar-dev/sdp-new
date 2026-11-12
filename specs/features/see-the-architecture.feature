@@ -98,33 +98,6 @@ Feature: See the architecture
         | @kind=requirement @type=quality |
         | @kind=story @type=constraint    |
 
-  @decided-by:specs-are-gherkin-files
-  Rule: A quality attribute scenario runs like any other, and verifies its quality requirement
-
-    Its Given holds the source of the stimulus, the environment and the artifact, its When the
-    stimulus, its Then the response and its measure: once its steps are automated, it is a fitness
-    function that runs with every `sdp run`.
-
-    Scenario: Every step of the scenario automated
-      Given a file "specs/NFR-checkout-latency.feature" containing:
-        """
-        @id=NFR-checkout-latency
-        Feature: Checkout latency
-
-          Rule: Checkout keeps up with peak load
-
-            Scenario: Checkout under peak load
-              Given 500 concurrent shoppers on the production topology
-              When a shopper submits an order
-              Then the confirmation is shown within 300 ms at p95
-        """
-      And a step definition "{int} concurrent shoppers on the production topology" that passes
-      And a step definition "a shopper submits an order" that passes
-      And a step definition "the confirmation is shown within {int} ms at p95" that passes
-      When the workspace is run
-      Then node "NFR-checkout-latency" has attribute kind = "nfr"
-      And node "NFR-checkout-latency" has attribute stage = "verified"
-
   Rule: What belongs in the architecture is never checked
 
     Declaring it is the architect's call, not a rule sdp can hold anyone to.

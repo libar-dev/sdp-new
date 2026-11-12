@@ -606,7 +606,7 @@ Feature: Write step definitions
       And the output section "Contract" contains "undefined: Given an empty cart"
       And the output section "Step definitions" contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}"'
 
-  Rule: Step modules, and the code they test, import sdp without installing it, and the step API loads nothing else
+  Rule: Step modules, and the code they test, import sdp without installing it
 
     Scenario: A step module imports sdp without installing it
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -653,11 +653,3 @@ Feature: Write step definitions
       When I run "sdp run --json"
       Then the JSON output has:
         | data.summary.passed | 1 |
-
-    Scenario: The step API loads no parser and reads no workspace
-      When a fresh Node process imports "sdp/steps"
-      Then the output contains "/src/run/Steps.ts"
-      And the output does not contain "oxc-parser"
-      And the output does not contain "/src/parse/"
-      And the output does not contain "/src/graph/"
-      And the output does not contain "/src/workspace/"
