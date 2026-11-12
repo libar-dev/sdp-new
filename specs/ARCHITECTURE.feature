@@ -126,15 +126,3 @@ Feature: Architecture
         """
       When the TypeScript files under "src" are searched for interpreted words
       Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 quality, src/report.ts:9 type, src/report.ts:12 closes"
-
-  @open
-  Rule: Does `src/app/` — the use cases, the answer envelope, the templates — get an element of its own?
-
-  @open
-  Rule: Which element is `src/model/Results.ts`, the results a run records as data?
-
-  @open
-  Rule: Is `src/run/Builtin.ts`, the built-in steps, part of the runner? An agent anchored it there, not an architect.
-
-  @open
-  Rule: May the spec parser depend on the vocabulary? It imports the profile since it began to read which keys link.

@@ -4,7 +4,7 @@
  * fields separated by tabs, so it pipes into grep and cut; on a terminal the
  * same fields are aligned in columns and coloured.
  *
- * @sdp is ARCH-reports
+ * @sdp is ARCH-application
  */
 import type { NodeRecord } from "../graph/Export.ts"
 import { formatPath } from "../graph/Query.ts"

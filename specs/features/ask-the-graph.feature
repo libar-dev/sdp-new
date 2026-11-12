@@ -1,5 +1,5 @@
 @id=ask-the-graph
-@realized-by:ARCH-query-engine @realized-by:ARCH-reports
+@realized-by:ARCH-query-engine @realized-by:ARCH-application @realized-by:ARCH-reports
 Feature: Ask the graph
 
   Developers, architects and AI agents need answers that cross specs, decisions, architecture and

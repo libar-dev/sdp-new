@@ -1,5 +1,5 @@
 @id=use-the-command-line
-@realized-by:ARCH-cli @realized-by:ARCH-reports @realized-by:ARCH-workspace
+@realized-by:ARCH-cli @realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-workspace
 Feature: Use the command line
 
   People, scripts and agents run one command, `sdp`. A script needs to know from the exit code

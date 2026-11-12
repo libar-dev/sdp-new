@@ -1,5 +1,5 @@
 @id=check-specs
-@realized-by:ARCH-checker @realized-by:ARCH-reports
+@realized-by:ARCH-checker @realized-by:ARCH-application
 Feature: Check specs
 
   Authors and reviewers, people and agents, need every problem in the specs reported at the line to

@@ -3,6 +3,8 @@
  * signature, members or type, on one line and without bodies, initial values or comments, as a
  * declaration file would have it. Read from the parse and never with a type checker, so a type the
  * compiler would infer is not there.
+ *
+ * @sdp is ARCH-code-annotations
  */
 import { isNode, type Node, type Script } from "./Script.ts"
 

@@ -4,7 +4,7 @@
  * never in the file. A new spec is a Gherkin file: its
  * tags say what it is and what it links to, its Feature's name is its title.
  *
- * @sdp is ARCH-reports
+ * @sdp is ARCH-application
  */
 import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"

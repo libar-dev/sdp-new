@@ -3,6 +3,8 @@
  * on, as stored in the results file, and how scenario statuses roll up into a
  * spec's verification. Plain data: the runner writes it, the graph builder
  * reads it.
+ *
+ * @sdp is ARCH-graph
  */
 import { Schema } from "effect"
 

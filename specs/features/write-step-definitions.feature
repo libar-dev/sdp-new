@@ -1,5 +1,5 @@
 @id=write-step-definitions
-@realized-by:ARCH-runner @realized-by:ARCH-spec-parser
+@realized-by:ARCH-runner @realized-by:ARCH-builtin-steps @realized-by:ARCH-spec-parser
 Feature: Write step definitions
 
   Developers and agents who automate a spec want its scenarios to run as they are written: each

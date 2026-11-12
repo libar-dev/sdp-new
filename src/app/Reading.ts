@@ -5,7 +5,7 @@
  * fails with a typed error (Errors.ts). The command line and the MCP server
  * call these and nothing else, so they cannot disagree.
  *
- * @sdp is ARCH-reports
+ * @sdp is ARCH-application
  * @sdp plays PAT-answer
  */
 import { DateTime, Effect, Result } from "effect"
@@ -20,6 +20,7 @@ import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } f
 import { atLeast, type Diagnostic, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
+import { builtinSteps } from "../run/Builtin.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
 import { type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
@@ -106,7 +107,7 @@ export const context = Effect.fn("context")(function*(root: string, input: { rea
   // The bundle matches the steps of the node's scenarios: a registration that was not read may define one of them.
   const matched = (project.specById.get(node.id)?.scenarios.length ?? 0) > 0
   const missing = matched ? stepsMissing(project) : []
-  return answer(project, contextBundle(project, node, depth, readSteps(project)), { missing })
+  return answer(project, contextBundle(project, node, depth, readSteps(project, builtinSteps.definitions)), { missing })
 })
 
 export interface DiagnosticRecord {
@@ -167,7 +168,7 @@ export const check = Effect.fn("check")(function*(root: string, input: { readonl
 /** `sdp steps`: the step definitions a run would know, read from the step files without running them. */
 export const steps = Effect.fn("steps")(function*(root: string, input: { readonly text?: string | undefined } = {}) {
   const project = yield* loadProject(root, { withResults: false })
-  const data: ReadonlyArray<ListedStep> = listSteps(project, input.text)
+  const data: ReadonlyArray<ListedStep> = listSteps(project, builtinSteps.definitions, input.text)
   // The listing is read from the step files alone: a spec that was not read takes nothing from it.
   const notes = stepsMissing(project)
   return { complete: notes.length === 0, notes, data } satisfies Answer<typeof data>
@@ -179,7 +180,7 @@ export const snippets = Effect.fn("snippets")(function*(root: string, input: { r
   const { id } = yield* known(project, input.id)
   const spec = project.specById.get(id)
   if (!spec || spec.scenarios.length === 0) return answer(project, `${id} has no scenarios`)
-  const { files, matcher } = readSteps(project)
+  const { files, matcher } = readSteps(project, builtinSteps.definitions)
   const unmatched = unmatchedSteps(project, matcher, (_, s) => s.id === id)
   const where = files.length > 0 ? `step files: ${files.join(", ")}` : "no step files yet"
   const about = { missing: stepsMissing(project) }

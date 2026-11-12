@@ -7,6 +7,8 @@
  * default branch: origin's HEAD, else main, else master. A base that is named and cannot be read
  * stops the check; one that is not named and cannot be found leaves it with nothing to compare, an
  * answer that may miss a test turned off; `none` waives the comparison.
+ *
+ * @sdp is ARCH-workspace
  */
 import { Context, Effect, Glob, Layer, Result, Schema, Stream } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"

@@ -1,5 +1,5 @@
 @id=plan-delivery
-@realized-by:ARCH-lifecycle @realized-by:ARCH-reports @realized-by:ARCH-runner @realized-by:ARCH-checker
+@realized-by:ARCH-lifecycle @realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-runner @realized-by:ARCH-checker
 Feature: Plan delivery
 
   A team, and whoever leads its delivery, needs to see where the project stands, read from evidence

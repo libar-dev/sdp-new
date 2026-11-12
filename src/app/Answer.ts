@@ -10,7 +10,7 @@
  * Both transports hand it over the same way (use-the-command-line, serve-agents): as
  * JSON, the envelope itself; as text, the data on its own and the notes apart.
  *
- * @sdp is ARCH-reports
+ * @sdp is ARCH-application
  */
 import type { Project } from "../graph/Build.ts"
 import { type Diagnostic, problemLine, unreadRules } from "../model/Diagnostic.ts"

@@ -1,5 +1,5 @@
 @id=see-the-architecture
-@realized-by:ARCH-architecture-view @realized-by:ARCH-reports @realized-by:ARCH-graph-builder @realized-by:ARCH-code-annotations
+@realized-by:ARCH-architecture-view @realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-graph-builder @realized-by:ARCH-code-annotations
 Feature: See the architecture
 
   Architects, and anyone designing a change, person or agent, need the few elements and patterns

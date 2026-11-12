@@ -15,7 +15,6 @@ import { formatSource } from "../model/Graph.ts"
 import type { PickleStep, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { expressionProblem, type StepSignature } from "../parse/StepDefinitions.ts"
-import { builtinSteps } from "./Builtin.ts"
 
 type Definition = Pick<StepSignature, "expression" | "location">
 
@@ -73,9 +72,9 @@ export const makeMatcher = <D extends Definition>(definitions: ReadonlyArray<D>)
   }
 }
 
-/** Every step definition a run would know, as read without running the workspace: sdp's built-in ones, then those of the step files. */
-export const stepDefinitions = (project: Project): ReadonlyArray<StepSignature> => [
-  ...builtinSteps.definitions,
+/** Every step definition a run would know, as read without running the workspace: the modules it is given, then those of the step files. */
+export const stepDefinitions = (project: Project, given: ReadonlyArray<StepSignature>): ReadonlyArray<StepSignature> => [
+  ...given,
   ...project.steps.definitions
 ]
 
@@ -88,9 +87,12 @@ export const stepProblems = (project: Project): ReadonlyArray<string> =>
     .filter((diagnostic) => diagnostic.rule === "step-unreadable" || diagnostic.rule === "step-expression")
     .map((diagnostic) => `${formatSource(diagnostic.source)}: ${diagnostic.message}`)
 
-/** What a reader knows of the workspace's steps without running anything: a matcher, the step files, and what could not be read. */
-export const readSteps = (project: Project) => ({
-  matcher: makeMatcher(stepDefinitions(project)),
+/**
+ * What a reader knows of the workspace's steps without running anything — a matcher, the step files,
+ * and what could not be read — besides the definitions of the modules a run is given.
+ */
+export const readSteps = (project: Project, given: ReadonlyArray<StepSignature>) => ({
+  matcher: makeMatcher(stepDefinitions(project, given)),
   files: project.steps.files,
   problems: stepProblems(project)
 })
@@ -111,9 +113,9 @@ export interface ListedStep {
   readonly expression: string
 }
 
-/** The step definitions a run would know; with `text`, those whose expression contains it or that match it as a step. */
-export const listSteps = (project: Project, text?: string): ReadonlyArray<ListedStep> => {
-  const all = stepDefinitions(project)
+/** The step definitions a run would know, `given` first; with `text`, those whose expression contains it or that match it as a step. */
+export const listSteps = (project: Project, given: ReadonlyArray<StepSignature>, text?: string): ReadonlyArray<ListedStep> => {
+  const all = stepDefinitions(project, given)
   const matching = new Set(text === undefined ? all : makeMatcher(all).match(text).map((match) => match.definition))
   const mentions = (expression: string) => text !== undefined && expression.toLowerCase().includes(text.toLowerCase())
   return all.filter((step) => matching.has(step) || mentions(String(step.expression))).map((step) => {

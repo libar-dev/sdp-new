@@ -9,7 +9,7 @@
  * written, or has a scenario outside a rule or under a question, does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
  *
- * @sdp is ARCH-reports
+ * @sdp is ARCH-application
  * @sdp plays PAT-answer
  */
 import parseTagExpression from "@cucumber/tag-expressions"

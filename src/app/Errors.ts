@@ -4,7 +4,7 @@
  * one line that names the input or the file — a user's mistake is never a
  * stack trace.
  *
- * @sdp is ARCH-reports
+ * @sdp is ARCH-application
  */
 import { Predicate, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"

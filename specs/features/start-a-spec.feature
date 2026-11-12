@@ -1,5 +1,5 @@
 @id=start-a-spec
-@realized-by:ARCH-reports @realized-by:ARCH-checker
+@realized-by:ARCH-application @realized-by:ARCH-checker
 Feature: Start a spec
 
   Whoever starts sdp in a repository, and every author who starts a spec, person or agent, needs a

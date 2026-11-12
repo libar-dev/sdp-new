@@ -1,5 +1,5 @@
 @id=serve-agents
-@realized-by:ARCH-reports @realized-by:ARCH-mcp
+@realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-mcp
 Feature: Serve AI agents
 
   AI agents work on specifications as much as people do. Before they change a node they need, in

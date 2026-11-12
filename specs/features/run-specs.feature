@@ -1,5 +1,5 @@
 @id=run-specs
-@realized-by:ARCH-runner @realized-by:ARCH-reports
+@realized-by:ARCH-runner @realized-by:ARCH-application
 Feature: Run specs as tests
 
   Developers, CI jobs and agents run the scenarios of the specs they are working on, or all of them,
