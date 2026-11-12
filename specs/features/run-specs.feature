@@ -191,9 +191,10 @@ Feature: Run specs as tests
       And the output contains "<said>"
 
       Examples:
-        | outcome | ordinary | exit code | said                                                                                                   |
-        | failing | feature  | 1         | wishlist#nothing-of-a-kind ran with the gates, and an example of it that is no gate did not pass: it fails the run |
-        | passing | decision | 0         | 1 gate scenario(s): 1 passed                                                                           |
+        | outcome                | ordinary                | exit code | said                                                                                                                       |
+        | failing                | feature                 | 1         | wishlist#nothing-of-a-kind is recorded with the gates, and an example of it that is no gate did not pass: it fails the run |
+        | passing                | decision                | 0         | 1 gate scenario(s): 1 passed                                                                                               |
+        | reading delivery state | feature[stage=verified] | 1         | an ordinary scenario sees none                                                                                             |
 
     Scenario Outline: A spec <declaring>, and an example without a step definition
       Given a file "specs/export-to-csv.feature" containing:

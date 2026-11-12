@@ -20,7 +20,7 @@ import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
-import { notPassing, type RunResults, type ScenarioResult, type StepStatus } from "../model/Results.ts"
+import { notPassing, type RunResults, type ScenarioResult, type StepStatus, worstStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import { withTag } from "../parse/Gherkin.ts"
@@ -138,12 +138,22 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const unknown = unmatched(before.project, options.selection?.targets ?? [])
   if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
   const { config } = before.project
-  // Whether a scenario is a gate is decided by the examples this run selected.
+  // Whether an example is a gate is decided by its own tags and spec, and it runs as one only if it
+  // is: an outline that is partly gates runs its other selected rows with the ordinary scenarios.
   const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {
     const chosen = isClosed(spec, config.vocabulary) ? undefined : selected(scenario, spec)
-    return chosen && isGate(scenario, spec, config.vocabulary, chosen) === gates ? chosen : undefined
+    if (chosen === undefined || chosen.length === 0) {
+      return chosen && isGate(scenario, spec, config.vocabulary, chosen) === gates ? chosen : undefined
+    }
+    const rows = chosen.filter((pickle) => isGate(scenario, spec, config.vocabulary, [pickle]) === gates)
+    return rows.length > 0 ? rows : undefined
   }
+  // Their results are one result, recorded and reported with the gates.
+  const partlyGates = new Set(before.project.specs.flatMap((spec) =>
+    spec.scenarios.flatMap((scenario) => select(false)(scenario, spec) && select(true)(scenario, spec) ? [scenario.id] : [])
+  ))
   const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))
+  const scenarios = new Map(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => [scenario.id, { spec, scenario }] as const)))
   const toCome = (graph: Project["graph"], id: string) => graph.node(id)?.attrs.toCome === true
   const { onScenario } = options
   /**
@@ -159,7 +169,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     const executed = batch.map((result) => ({ ...result, evidence: { ...result.evidence, sources } }))
     return { executed, results: yield* commitResults(root, config, { executed, live, imports: imports() }) }
   })
-  const run = (workspace: Workspace, gates: boolean) =>
+  const run = (workspace: Workspace, gates: boolean, complete: (result: ScenarioResult) => ScenarioResult | undefined) =>
     runScenarios({
       project: workspace.project,
       modules: options.modules,
@@ -168,13 +178,37 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       gates,
       timeout: options.timeout,
       concurrency: options.concurrency,
-      onScenario: onScenario && ((result) => onScenario(result, toCome(workspace.project.graph, result.id)))
+      onScenario: onScenario && ((result) => {
+        const whole = complete(result)
+        return whole ? onScenario(whole, toCome(workspace.project.graph, whole.id)) : Effect.void
+      })
     })
 
-  const ordinary = yield* commit(yield* run(before, false), before)
+  const ranFirst = yield* run(before, false, (result) => partlyGates.has(result.id) ? undefined : result)
+  const ordinary = yield* commit(ranFirst.filter((result) => !partlyGates.has(result.id)), before)
+  const rows = new Map(ranFirst.filter((result) => partlyGates.has(result.id)).map((result) => [result.id, result]))
+  // The gate rows of an outline that is partly gates, with the rows that ran as ordinary examples.
+  const whole = (result: ScenarioResult): ScenarioResult => {
+    const ordinaryRows = rows.get(result.id)
+    const written = scenarios.get(result.id)
+    if (ordinaryRows === undefined || written === undefined) return result
+    const { scenario, spec } = written
+    const examples = result.examples.map((example, index) => {
+      const pickle = scenario.pickles[index]
+      return pickle === undefined || isGate(scenario, spec, config.vocabulary, [pickle]) ? example : ordinaryRows.examples[index] ?? example
+    })
+    const specs = result.evidence.specs ?? ordinaryRows.evidence.specs
+    return {
+      ...result,
+      status: worstStatus(examples.map((example) => example.status)),
+      evidence: { ...result.evidence, ...(specs === undefined ? {} : { specs }) },
+      durationMs: result.durationMs + ordinaryRows.durationMs,
+      examples
+    }
+  }
   // Gates see what the ordinary results say, the fresh ones included, and never the results of gates.
   const after = yield* loadWorkspace(root, { results: "ordinary", imports: imports() })
-  const gates = yield* commit(yield* run(after, true), after)
+  const gates = yield* commit((yield* run(after, true, whole)).map(whole), after)
   const { project } = yield* loadWorkspace(root)
   const { graph } = project
   const reasons = graph.ofKind([made.kinds.scenario]).flatMap((node) => {
@@ -185,9 +219,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   // Which examples are live is read from the graph the run ran against; whether one
   // fails the run, from the result this run recorded for it.
   const ranAgainst = before.project.graph
-  // An outline that is partly gates runs with the gates, and each of its rows that is no gate is
-  // judged as an ordinary example all the same.
-  const scenarios = new Map(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => [scenario.id, { spec, scenario }] as const)))
+  // An outline that is partly gates is recorded with the gates, and each of its rows that is no
+  // gate is judged as an ordinary example all the same.
   const ordinaryRows = gates.executed.filter((result) => {
     const written = scenarios.get(result.id)
     if (written === undefined || toCome(ranAgainst, result.id)) return false
@@ -272,7 +305,7 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   const notes = [
     ...steps.empty.map((file) => `${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``),
     ...(enforce === "gates" ? [] : run.regressions.filter((id) => gated.has(id))).map((id) =>
-      `${id} ran with the gates, and an example of it that is no gate did not pass: it fails the run`
+      `${id} is recorded with the gates, and an example of it that is no gate did not pass: it fails the run`
     ),
     ...run.livable.map(({ delete: written, file, id, keep }) =>
       `${id} is still to come, and every example of it passes: make it live, delete ${
