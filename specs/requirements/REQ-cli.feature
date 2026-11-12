@@ -483,7 +483,7 @@ Feature: Command line
 
     Gates are counted apart from the other scenarios: a gate may be unmet with nothing broken.
 
-    Scenario: As data
+    Scenario: The counts as data
       When I run "sdp status --json"
       Then the JSON output has:
         | data.kinds.requirement     | 1 |
@@ -556,7 +556,7 @@ Feature: Command line
 
   Rule: show prints a node with its attributes and every edge, with the title at its other end
 
-    Scenario: As text
+    Scenario: A requirement as text
       When I run "sdp show REQ-search"
       Then the output contains 'maturity: "specified"'
       And the output contains "-realized-by-> ARCH-index  Search index"
@@ -583,7 +583,7 @@ Feature: Command line
 
   Rule: arch prints the declared architecture and its links, as text, as data or as a flowchart
 
-    Scenario: As text
+    Scenario: The architecture as text
       When I run "sdp arch"
       Then the output contains "Architecture: 2 node(s)"
       And the output contains "ARCH-index -decided-by-> DEC-0001"
@@ -616,7 +616,7 @@ Feature: Command line
 
   Rule: lifecycle shows where the project is, the first milestone not met, then the planned work, with the evidence apart from the plan
 
-    Scenario: As text
+    Scenario: The milestones and the chart as text
       When I run "sdp lifecycle"
       Then the output line with "MS-beta" contains "▶"
       And the output line with "MS-beta" contains "Construction"
@@ -624,7 +624,7 @@ Feature: Command line
       And the output contains "DISCIPLINE ACTIVITY"
       And the output contains "░ ▒ ▓ █  more work in an iteration, relative to the discipline's busiest; blank: none"
 
-    Scenario: As data
+    Scenario: Where the project is, as data
       When I run "sdp lifecycle --json"
       Then the JSON output has:
         | data.position.milestone             | MS-beta         |
@@ -693,7 +693,7 @@ Feature: Command line
       When I run "sdp check --severity error"
       Then the output does not contain "[scenario-empty]"
 
-    Scenario: As data
+    Scenario: The diagnostics as data
       Given these specs:
         | tags                           | Feature |
         | @id=REQ-a @depends-on:REQ-gone | Example |
