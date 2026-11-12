@@ -46,7 +46,7 @@ export interface ParsedFile {
 const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not run until it parses"
 
 /** The id of a feature file without an `@id=`: someone else's suite, named by its path. */
-export const suiteId = (file: string): string => `feature:${file}`
+export const suiteId = (file: string): string => `suite:${file}`
 
 /**
  * A `.feature` file is a spec: the tags above `Feature:` say what it is — `@id=`, `@kind=` and any
@@ -65,7 +65,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
   const { id: writtenId, kind: rawKind, ...attrs } = feature.attrs
   const id = Predicate.isString(writtenId) ? writtenId : fallbackId
   const kind = writtenKind(rawKind, { file, owner: id, line: attrLines.kind ?? 1 }, diagnostics) ??
-    (id === fallbackId ? "feature" : inferKind(id, config))
+    (id === fallbackId ? "suite" : inferKind(id, config))
   const gherkin = read(id, [kind])
   diagnostics.push(...gherkinDiagnostics(id, file, gherkin))
   // A scenario is an example of a rule. A file named by its path is a suite sdp runs as it is.

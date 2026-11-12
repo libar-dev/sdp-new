@@ -77,7 +77,7 @@ Feature: Write a spec
         | tags                          | name           | id                              | kind        | title          |
         | @id=REQ-search                | Product search | REQ-search                      | requirement | Product search |
         | @id=SEARCH-1 @kind=story @web | Product search | SEARCH-1                        | story       | Product search |
-        | @web                          | Product search | feature:features/search.feature | feature     | Product search |
+        | @web                          | Product search | suite:features/search.feature   | suite       | Product search |
         | @id=REQ-search                |                | REQ-search                      | requirement | REQ-search     |
         | @id=true @kind=false          | Product search | true                            | false       | Product search |
 
