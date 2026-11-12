@@ -15,8 +15,9 @@ links:
 
 Agents explore with `grep`, `find`, `sed` and `jq` before anything else. Every fact the tool knows
 must therefore be reachable with those tools: ids are literal text in the files that declare them,
-every node and edge carries the `file:line` it came from, and exports are line-oriented (one fact
-per line). Nothing lives only in a database or a binary index.
+every node and edge carries the `file:line` it came from, and the exports for grep and jq are
+line-oriented, one fact per line ([[REQ-graph-export]]). Nothing lives only in a database or a
+binary index.
 
 ## Scenarios
 
@@ -31,16 +32,16 @@ Scenario: Every fact in this repository points at a file and line
 Scenario: Ids are literal text in the files that declare them
   Then every node id of this repository appears literally in its source file
 
-Scenario: Exports have one fact per line
+Scenario Outline: Line-oriented exports keep one fact per line, whatever the text
   Given a file "specs/REQ-a.md" containing:
     """
     ---
     id: REQ-a
-    maturity: idea
+    title: "Alpha\twith a tab\nand a line break"
     links:
       realized-by: ARCH-x
     ---
-    # Alpha
+    Alpha comes first.
     """
   And a file "docs/ARCH-x.md" containing:
     """
@@ -50,7 +51,11 @@ Scenario: Exports have one fact per line
     ---
     # X
     """
-  When the graph is exported as tsv
+  When the graph is exported as <format>
   Then the output has one line per node and edge
-  And the output contains "edge\tREQ-a\trealized-by\tARCH-x\tspecs/REQ-a.md:5"
+
+  Examples:
+    | format |
+    | jsonl  |
+    | tsv    |
 ~~~

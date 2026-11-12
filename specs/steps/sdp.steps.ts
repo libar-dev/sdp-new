@@ -1,7 +1,8 @@
 /**
  * Core step definitions for sdp's own specifications: building workspaces,
- * graph assertions, queries, checks, runs, context, exports, lifecycle, MCP and
- * quality measurements. Shares its world with every other module (world.ts).
+ * graph assertions, queries, checks, context, exports, lifecycle, MCP and quality
+ * measurements. Running scenarios lives in execution.steps.ts. Shares its world
+ * with every other module (world.ts).
  */
 import { Effect, Layer, Path, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
@@ -18,10 +19,7 @@ import { check } from "../../src/check/Check.ts"
 import { registrations } from "../../src/mcp/Server.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import type { RunResults } from "../../src/run/Results.ts"
-import { builtinSteps } from "../../src/run/Builtin.ts"
-import { runScenarios } from "../../src/run/Runner.ts"
-import { defineSteps, pending, type StepModule } from "../../src/run/Steps.ts"
+import { defineSteps } from "../../src/run/Steps.ts"
 import { layerMemory, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
 
@@ -135,39 +133,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.severity, severity)
   })
 
-  // --- execution ------------------------------------------------------------
-
-  Given("a step definition {string} that {word}", ({ args: [expression, behaviour], world }) => {
-    world.definitions.push({ expression, behaviour })
-  })
-
-  When("the scenarios are run", ({ world }) =>
-    Effect.gen(function*() {
-      const project = yield* reload(world)
-      const module: StepModule<{}> = defineSteps(() => ({}), ({ Step }) => {
-        for (const { behaviour, expression } of world.definitions) {
-          Step(expression, () => {
-            if (behaviour === "fails") throw new Error(`deliberate failure in "${expression}"`)
-            if (behaviour === "pends") return pending("not yet")
-          })
-        }
-      })
-      world.run = yield* runScenarios({ project, modules: [builtinSteps, module] })
-      world.files.set(".sdp/results.json", JSON.stringify(world.run))
-      yield* reload(world)
-    }))
-
-  Then("scenario {string} has status {string}", ({ args: [id, status], world }) => {
-    assert.ok(world.run, "run the scenarios first")
-    assert.equal(world.run.scenarios[id]?.status, status, `status of ${id}`)
-  })
-
-  Then("the step {string} suggests the definition {string}", ({ args: [text, suggestion], world }) => {
-    const step = Object.values(world.run?.scenarios ?? {}).flatMap((s) => s.pickles.flatMap((p) => p.steps)).find((s) => s.text === text)
-    assert.ok(step, `no step "${text}"`)
-    assert.ok(step.snippet?.includes(suggestion), `snippet was ${step.snippet}`)
-  })
-
   Then("the check reports nothing", ({ world }) => {
     const found = world.diagnostics ?? []
     assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
@@ -244,6 +209,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
       world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
+      world.scratch.mcpError = result.isError === true
     }).pipe(Effect.scoped, Effect.provide(Layer.merge(layerMemory(world.files), Path.layer))))
 
   // --- quality attributes ---------------------------------------------------

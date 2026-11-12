@@ -59,10 +59,8 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
     let blocked = false
     for (const step of pickle.steps) {
       const base = { keyword: step.keyword, text: step.text, line: step.line }
-      if (blocked) {
-        steps.push({ ...base, status: "skipped", durationMs: 0 })
-        continue
-      }
+      // Every step is matched, even after one did not pass, so all missing and
+      // ambiguous definitions show up in one run; only execution stops.
       const matches = compiled.flatMap((c) => {
         const args = c.expression.match(step.text)
         return args ? [{ c, args }] : []
@@ -80,6 +78,10 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
           durationMs: 0,
           error: `matches ${matches.length} definitions: ${matches.map((m) => where(m.c.definition.location)).join(", ")}`
         })
+        continue
+      }
+      if (blocked) {
+        steps.push({ ...base, status: "skipped", durationMs: 0 })
         continue
       }
       const { args, c } = matches[0]!
