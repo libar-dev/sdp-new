@@ -598,9 +598,6 @@ export const queryProject = (project: Project, source: string): Result.Result<Qu
 /** Keys every node answers to, whatever it declares: what it is, and the two attributes sdp reads on any kind. */
 const universalKeys = ["id", "kind", "title", "source", "maturity", "status"]
 
-/** The attribute that holds a Feature's, a Rule's or a Scenario's Cucumber tags as written, each with its `@`. */
-const tagsKey = "tags"
-
 /**
  * What a query names that the workspace does not know, one line each with the closest word it does
  * know: an id no node has, a kind or relation it neither uses, makes nor names in its vocabulary, an
@@ -641,7 +638,7 @@ export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<str
     const selected = selector.ids ? `#${selector.ids.join("|")}` : selector.kinds === "*" ? "*" : selector.kinds.join("|")
     for (const { key, op, values } of selector.conditions) {
       if (!carried.has(key) && !carried.has(key.split(".")[0]!)) unknown(`${selected} has no attribute`, key, carried)
-      if (key !== tagsKey || (op !== "=" && op !== "!=")) continue
+      if (key !== made.tagsKey || (op !== "=" && op !== "!=")) continue
       for (const value of values.filter((value) => !value.startsWith("@"))) found.push(`no tag ${value}; a tag is written with its @, as @${value}`)
     }
   }

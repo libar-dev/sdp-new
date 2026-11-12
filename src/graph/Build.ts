@@ -173,11 +173,15 @@ export const buildProject = (input: ProjectInput): Project => {
         kept.push([key, value])
         continue
       }
+      // What tags holds is said wherever a node is declared: sdp derives none for one declared in code.
+      const [holds, hint] = key === made.tagsKey
+        ? ["holds the Cucumber tags of a Feature, a Rule or a Scenario as written", `name the attribute otherwise: sdp keeps ${key} for the Cucumber tags it reads`]
+        : ["is derived by sdp", `delete it: sdp computes ${key} (\`sdp vocabulary\` lists what it derives)`]
       diagnostics.push(diagnostic("derived-attribute", {
-        message: `${id}: ${key} is derived by sdp, so the value written here is ignored`,
+        message: `${id}: ${key} ${holds}, so the value written here is ignored`,
         node: id,
         source: at(key),
-        hint: `delete it: sdp computes ${key} (\`sdp vocabulary\` lists what it derives)`
+        hint
       }))
     }
     // Not assigned one by one: `__proto__` is a key like any other.

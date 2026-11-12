@@ -145,6 +145,8 @@ export const made = {
   },
   /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
+  /** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
+  tagsKey: "tags",
   /**
    * Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error.
    * `tags` holds the Cucumber tags of a Feature, a Rule or a Scenario as written, `toCome` marks work
