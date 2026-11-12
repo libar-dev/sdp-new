@@ -289,3 +289,6 @@ Feature: Graph builder
 
   @open
   Rule: Only a code annotation can still give a link attributes (`@sdp uses X via=events`): are they worth the merging of declarations and link-conflict that exist for them?
+
+    No edge of this repository has attributes, and the final review recommends deleting them with
+    the conflict records, which were the one part of a graph its readers could change.

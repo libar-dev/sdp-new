@@ -135,3 +135,6 @@ Feature: sdp, shown by running it
 
   @open
   Rule: Does a Markdown file where specs live make every answer incomplete, as a spec that cannot be read does, or is the warning from sdp check enough?
+
+    The final review found that today only `sdp check` says so: a query of the same workspace is
+    complete and carries no note, so an agent that never runs check never hears of the file.
