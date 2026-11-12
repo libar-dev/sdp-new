@@ -44,3 +44,17 @@ server show the architecture with the decisions and quality requirements linked 
   `Then the query "element !-*- decision|nfr" returns no results`.
 - Code that matters to nobody's architecture stays out of the graph; annotating it is a design
   statement, not bookkeeping.
+
+~~~gherkin
+Scenario: However much code there is, the architecture is what an architect anchored
+  Given a file "src/orders.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+    export class Orders {}
+    export class OrderMapper {}
+    export class OrderValidator {}
+    annotate(Orders, { is: "ARCH-orders" })
+    """
+  When I query "element|pattern"
+  Then the result is "ARCH-orders"
+~~~

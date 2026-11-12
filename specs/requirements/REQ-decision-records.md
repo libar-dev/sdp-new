@@ -30,7 +30,7 @@ superseded records keep their text but no longer guard anything, and `sdp run` s
 When a decision can be checked mechanically, its record carries the check as a guard scenario —
 [[DEC-0001]] asserts that all Gherkin parses, [[DEC-0002]] that every reference resolves. Whether
 a changed decision is superseded or rewritten in place is the team's policy; sdp supports both, and
-this repository rewrites them while in Inception ([[DEC-0007]]).
+this repository rewrites them while in Inception ([[DEC-0016]]).
 
 ## Scenarios
 

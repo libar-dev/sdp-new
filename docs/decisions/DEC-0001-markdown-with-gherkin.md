@@ -22,7 +22,8 @@ people, natural for LLMs to read and write, diff well in git, and be greppable.
 
 1. **Plain Gherkin `.feature` files.** Executable and widely known. But a Feature without
    scenarios is an awkward place for an idea; structured metadata only fits in tags; prose,
-   tables, diagrams and decision rationale have nowhere good to live; NFRs and decisions feel forced.
+   tables, diagrams and decision rationale have nowhere good to live; quality requirements and
+   decisions feel forced.
 2. **Gauge-style Markdown specs** (`# Spec`, `## Scenario`, `* step`). Markdown-native and
    executable, but a small ecosystem, no Given/When/Then semantics, no Scenario Outline/Rule, and
    steps are indistinguishable from ordinary bullet lists.
@@ -30,7 +31,7 @@ people, natural for LLMs to read and write, diff well in git, and be greppable.
    to what we want, but it turns every heading and bullet into syntax, so ordinary prose has to
    avoid looking like Gherkin, and front matter is not part of it.
 4. **EARS statements** ("When <trigger>, the <system> shall <response>"). Excellent for crisp
-   requirement sentences and NFRs, but not executable and no example data.
+   requirement sentences and quality requirements, but not executable and no example data.
 5. **TypeScript DSL / code-first specs.** Typed and refactorable, but excludes non-developers,
    cannot hold an idea-level spec gracefully, and couples specs to one language.
 6. **YAML/JSON requirement records.** Easy to query, poor to write prose in, and still need a

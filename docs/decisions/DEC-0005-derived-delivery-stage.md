@@ -31,7 +31,7 @@ ladder); `sdp check` verifies that it is on the ladder and that the content supp
 declares that something works: `verification` is derived from scenario results, and writing a
 derived fact is an error. `stage` sums the two up in one word — `verified` when all scenarios pass,
 `failing` when any fails, `in-progress` while automation is partial, otherwise the declared maturity
-([[REQ-maturity-gates]]).
+([[REQ-maturity-criteria]]).
 
 ## Consequences
 
@@ -39,4 +39,22 @@ derived fact is an error. `stage` sums the two up in one word — `verified` whe
   progress.
 - The built-in maturity criteria are structural: `ready` means nothing is left open, not that the
   design is settled. What else a team requires before work starts is its own Definition of Ready,
-  written as a gate ([[REQ-maturity-gates]]).
+  written as a gate ([[REQ-maturity-criteria]]).
+
+~~~gherkin
+Scenario: Nobody can declare that a requirement works
+  Given a file "specs/REQ-export.md" containing:
+    """
+    ---
+    id: REQ-export
+    maturity: draft
+    stage: verified
+    ---
+    # Export
+
+    Orders can be exported.
+    """
+  When the workspace is checked
+  Then the check reports "derived-attribute" for "REQ-export"
+  And node "REQ-export" has attribute stage = "draft"
+~~~
