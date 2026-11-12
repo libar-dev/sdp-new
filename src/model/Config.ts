@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { defaultVocabulary, isKey, isValueWord, made, reservedRelations, type Vocabulary } from "./Vocabulary.ts"
+import { defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
@@ -254,6 +254,12 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
       issues.push({
         path: ["vocabulary", "maturity"],
         issue: `${derived.join(", ")} is a stage sdp derives from scenario results, so it cannot be declared as a maturity`
+      })
+    }
+    if (ladder.includes(retiredMaturity)) {
+      issues.push({
+        path: ["vocabulary", "maturity"],
+        issue: `${retiredMaturity} is the retired rung: what is built declares no maturity, so no rung can say so`
       })
     }
   }

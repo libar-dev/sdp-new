@@ -23,6 +23,7 @@ import {
   type KindRole,
   made,
   type RelationRole,
+  retiredMaturity,
   type Vocabulary,
   wordFor
 } from "../model/Vocabulary.ts"
@@ -100,6 +101,25 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
       }))
     }
+  }
+
+  // The rung that once said a spec was built would now say it is still to come, and switch its examples off.
+  const retired = (declared: unknown) => [declared].flat().some((value) => value === retiredMaturity)
+  const retiredAt = (id: string, source: SourceRef | undefined) =>
+    out.push(diagnostic("retired-maturity", {
+      message: `${id} declares @maturity=${retiredMaturity}, the retired rung: any maturity makes work still to come, so its examples would fail no run`,
+      node: id,
+      source,
+      hint: "delete it: what declares no maturity is live, and its examples must pass"
+    }))
+  for (const spec of project.specs) {
+    if (retired(attribute(spec, "maturity"))) retiredAt(spec.id, at(spec, spec.attrLines.maturity ?? 1))
+    for (const rule of spec.rules) {
+      if (retired(attribute(rule, "maturity"))) retiredAt(rule.id, at(spec, rule.attrLines.maturity ?? rule.line))
+    }
+  }
+  for (const node of authored.filter((candidate) => !project.specById.has(candidate.id) && candidate.kind !== made.kinds.rule)) {
+    if (retired(attribute(node, "maturity"))) retiredAt(node.id, node.source)
   }
 
   // A question is still to come, whatever maturity it would have: examples under it would be switched off with it.

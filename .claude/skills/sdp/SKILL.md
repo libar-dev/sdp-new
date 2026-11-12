@@ -59,10 +59,11 @@ Feature: Guest checkout
   come is a to-do.
 - **A Feature or a Rule still to come declares a `@maturity=`; one that is built declares none, and
   is live.** The maturity — idea, draft, specified, ready, or a word of the team's own — is the
-  team's judgement, and sdp checks nothing about it: whatever it says, the work is still to come,
-  and its examples run and fail no run, so they are written before the code. A live Feature or Rule
-  is a test: its examples must pass. A Rule without a maturity of its own has its Feature's, so a
-  change to a built feature is rules of it, each with a maturity of its own, with
+  team's judgement, and sdp checks nothing about it but the retired rung `implemented`, an error to
+  delete: whatever it says, the work is still to come, and its examples run and fail no run, so
+  they are written before the code. A live Feature or Rule is a test: its examples must pass. A
+  Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
+  it, each with a maturity of its own, with
   `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
   Nothing live goes back: `sdp check` compares the specs with the git base (where HEAD meets the
   default branch, or `--base`), and a maturity on what was live there, or a live example that is

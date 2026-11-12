@@ -707,3 +707,34 @@ Feature: Run specs as tests
         | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Scenario: Outside\n    Then there are no error diagnostics                                     | 3    | scenario-outside-rule |
         | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Rule: Kept\n    @maturity=draft\n    Scenario: Keep\n      Then there are no error diagnostics | 4    | annotation            |
         | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @open\n  Rule: Kept?\n    Scenario: Keep\n      Then there are no error diagnostics            | 5    | question-example      |
+
+    Scenario Outline: A spec that declares the retired rung, for <command>
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+
+          Rule: Every feature is ready
+
+            Scenario: None is below ready
+              Then the query "feature[maturity<ready]" returns no results
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=<rung>
+        Feature: Wishlist
+
+          Rule: Kept
+
+            Scenario: Keep
+              Then there are no error diagnostics
+        """
+      When I run "<command>"
+      Then the exit code is 1
+      And the output contains "specs/wishlist.feature:1 [retired-maturity]"
+      And the file ".sdp/results.json" does not exist
+
+      Examples:
+        | command          | rung        |
+        | sdp run          | implemented |
+        | sdp gate MS-beta | implemented |

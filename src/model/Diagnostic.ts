@@ -22,6 +22,7 @@ export const rules = {
   "untested-rule": "error",
   "question-example": "error",
   "replacement": "error",
+  "retired-maturity": "error",
   "demotion": "error",
   "example-dropped": "error",
   "decision-shape": "warning",

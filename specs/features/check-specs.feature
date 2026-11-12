@@ -155,6 +155,35 @@ Feature: Check specs
         | someday              |
         | idea @maturity=ready |
 
+  Rule: The retired rung is an error, and its hint is to delete it
+
+    A live test declares no maturity. The rung that once said a spec was built would now say that it
+    is still to come, and switch its examples off in silence; no other value is judged.
+
+    Scenario Outline: The retired rung, on <on>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=<feature's>
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          @maturity=<rule's>
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule             | severity | node | at                        | message                                                 | hint                                         |
+        | retired-maturity | error    | <id> | specs/cart.feature:<line> | the retired rung: any maturity makes work still to come | delete it: what declares no maturity is live |
+
+      Examples:
+        | on        | feature's   | rule's      | line | id                               |
+        | a feature | implemented | ready       | 1    | cart                             |
+        | a rule    | draft       | implemented | 6    | cart#a-cart-holds-what-was-added |
+
   Rule: Nothing live stops being live without an error
 
     Built work cannot go back to work still to come, or a test is turned off in silence, so check

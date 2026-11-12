@@ -175,6 +175,12 @@ export const made = {
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
 /**
+ * The rung that once said work was built. A live test declares no maturity, so this one would say
+ * the opposite of what its author meant: it is reported, and no ladder may have it.
+ */
+export const retiredMaturity = "implemented"
+
+/**
  * Whether a declared maturity makes work still to come: any value does, whatever it is, and a
  * Feature or a Rule that declares none is live.
  */

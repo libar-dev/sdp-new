@@ -319,6 +319,7 @@ Feature: Configure a workspace
         | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                             | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                       | at ["vocabulary"]["maturity"]               |
         | vocabulary: { implemented: done }                | excess property                                    | at ["vocabulary"]["implemented"]            |
+        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                    | at ["vocabulary"]["maturity"]               |
         | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                             | at ["vocabulary"]["relations"]["anchor"]    |
         | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                     | at ["vocabulary"]["kinds"]["decision"]      |
         | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                | at ["vocabulary"]["kinds"]["milestone"]     |
