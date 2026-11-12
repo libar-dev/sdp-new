@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
+import { defaultDisciplines, defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
@@ -117,17 +117,21 @@ export const defaults: Config = {
   vocabulary: defaultVocabulary
 }
 
-/** Each role the file names replaces its default; disciplines merge one by one. */
+/**
+ * Each role the file names replaces its default; disciplines merge one by one, over defaults that
+ * name the kinds in the file's words.
+ */
 const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
   const d = defaultVocabulary
   if (!file) return d
+  const kinds = { ...d.kinds, ...file.kinds }
   return {
-    kinds: { ...d.kinds, ...file.kinds },
+    kinds,
     relations: { ...d.relations, ...file.relations },
     attributes: { ...d.attributes, ...file.attributes },
     qualities: file.qualities ?? d.qualities,
     maturity: file.maturity ?? d.maturity,
-    disciplines: new Map([...d.disciplines, ...Object.entries(file.disciplines ?? {})]),
+    disciplines: new Map([...defaultDisciplines(kinds), ...Object.entries(file.disciplines ?? {})]),
     words: { ...d.words, ...file.words }
   }
 }

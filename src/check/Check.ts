@@ -21,6 +21,7 @@ import {
   hasKind,
   hasRelation,
   isPlanKind,
+  isWork,
   type KindRole,
   made,
   type RelationRole,
@@ -278,8 +279,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
     )
     const kind = workKind(project, node)
-    const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
-    if (planned && !disciplined && !isPlanKind(vocabulary, node.kind)) {
+    if (planned && !isWork(vocabulary, kind) && !isPlanKind(vocabulary, node.kind)) {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: kind ${kind} belongs to no discipline, so its iteration plans no discipline's work`,
         node: node.id,

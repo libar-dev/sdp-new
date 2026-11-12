@@ -195,6 +195,31 @@ Feature: Configure a workspace
         | requirements | 1  |
         | operations   | 1  |
 
+    Scenario: Features called req are requirements work: new writes them at a maturity, and an iteration plans them
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { kinds: { feature: [req] } }
+        """
+      And these specs:
+        | tags                                         | Feature |
+        | @id=IT-one @start=2026-11-02 @end=2026-11-13 | One     |
+        | @id=search @maturity=idea @iteration:IT-one  | Search  |
+      When I run the pipeline:
+        """
+        sdp new req 'Saved carts'
+        sdp new idea 'Gift wrap'
+        """
+      Then the exit code is 0
+      And the file "specs/features/saved-carts.feature" contains "@id=saved-carts @maturity=idea"
+      And the file "specs/features/gift-wrap.feature" contains "@id=gift-wrap @maturity=idea"
+      When I run "sdp check --base none"
+      Then the exit code is 0
+      And the output contains "0 error(s), 0 warning(s)"
+      When I run "sdp lifecycle --json"
+      Then the JSON output has:
+        | data.disciplines.requirements | 1                      |
+        | data.unplanned                | gift-wrap, saved-carts |
+
     Scenario: A milestone recorded as reached
       Given a file "sdp.config.yaml" containing:
         """

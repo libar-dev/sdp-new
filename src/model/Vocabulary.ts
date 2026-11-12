@@ -78,19 +78,37 @@ export interface Vocabulary {
   readonly words: { readonly kinds: Words; readonly relations: Words; readonly attributes: Words }
 }
 
+const defaultKinds: Vocabulary["kinds"] = {
+  feature: ["feature"],
+  decision: ["decision"],
+  milestone: ["milestone"],
+  phase: ["phase"],
+  iteration: ["iteration"],
+  pattern: ["pattern"],
+  architectural: ["element", "pattern"],
+  driver: ["decision", "nfr"],
+  anchored: "element"
+}
+
+/**
+ * The disciplines of a workspace that names none of its own, and the kinds whose planned nodes are
+ * work in each: its features are requirements work, and its architecture analysis and design, in
+ * the words its vocabulary gives them.
+ */
+export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
+  new Map<string, Words>([
+    ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
+    ["requirements", [...new Set(["requirement", "nfr", ...kinds.feature, "story", "use-case", "epic"])]],
+    ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern])]],
+    // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
+    ["implementation", []],
+    ["test", []],
+    ["deployment", ["environment", "deployment"]]
+  ])
+
 /** What an empty configuration means. */
 export const defaultVocabulary: Vocabulary = {
-  kinds: {
-    feature: ["feature"],
-    decision: ["decision"],
-    milestone: ["milestone"],
-    phase: ["phase"],
-    iteration: ["iteration"],
-    pattern: ["pattern"],
-    architectural: ["element", "pattern"],
-    driver: ["decision", "nfr"],
-    anchored: "element"
-  },
+  kinds: defaultKinds,
   relations: {
     plan: ["iteration"],
     phase: ["phase"],
@@ -108,15 +126,7 @@ export const defaultVocabulary: Vocabulary = {
   },
   qualities: ["quality", "non-functional", "nfr", "constraint"],
   maturity: ["idea", "draft", "specified", "ready"],
-  disciplines: new Map<string, Words>([
-    ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
-    ["requirements", ["requirement", "nfr", "feature", "story", "use-case", "epic"]],
-    ["analysis-design", ["element", "pattern"]],
-    // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
-    ["implementation", []],
-    ["test", []],
-    ["deployment", ["environment", "deployment"]]
-  ]),
+  disciplines: defaultDisciplines(defaultKinds),
   words: { kinds: [], relations: [], attributes: [] }
 }
 
@@ -200,6 +210,13 @@ export const hasKind = (vocabulary: Vocabulary, role: KindRole, kind: string): b
 
 /** Whether `rel` plays `role`, e.g. `hasRelation(v, "plan", edge.rel)`. */
 export const hasRelation = (vocabulary: Vocabulary, role: RelationRole, rel: string): boolean => vocabulary.relations[role].includes(rel)
+
+/**
+ * Whether nodes of a kind are work: what a discipline names, which is still to come at a maturity
+ * and planned. Any other kind is what it is, live, and nothing plans it.
+ */
+export const isWork = (vocabulary: Vocabulary, kind: string): boolean =>
+  [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
 
 /** The plan's own nodes — phases, iterations, milestones: they say when, and are no work themselves. */
 export const isPlanKind = (vocabulary: Vocabulary, kind: string): boolean =>

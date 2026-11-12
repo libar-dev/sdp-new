@@ -10,7 +10,7 @@ import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, isWork, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -158,9 +158,6 @@ const nextIteration = (graph: Graph, vocabulary: Vocabulary, today: string) => {
   if (last === undefined) return { start: today, phase: phases.length === 1 ? phases[0]!.id : undefined }
   return { start: addDays(end(last), 1), phase: graph.out(last).find((edge) => hasRelation(vocabulary, "phase", edge.rel))?.to }
 }
-
-/** Whether a kind is work: what a discipline names, which is still to come at a maturity and planned. */
-const isWork = (vocabulary: Vocabulary, kind: string) => [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
 
 /**
  * The content of a new spec. The words sdp interprets — kinds, relations, attributes — are written
