@@ -1,4 +1,4 @@
-@id=check-specs @kind=feature @maturity=ready
+@id=check-specs @maturity=ready
 @realized-by:ARCH-checker @realized-by:ARCH-reports
 Feature: Check specs
 

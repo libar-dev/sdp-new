@@ -1,4 +1,4 @@
-@id=explore-the-graph-in-a-browser @kind=feature @maturity=draft
+@id=explore-the-graph-in-a-browser @maturity=draft
 Feature: Explore the graph in a browser
 
   Stakeholders who do not live in a terminal want to read the graph too: the curated architecture,

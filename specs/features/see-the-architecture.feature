@@ -1,4 +1,4 @@
-@id=see-the-architecture @kind=feature @maturity=ready
+@id=see-the-architecture @maturity=ready
 @realized-by:ARCH-architecture-view @realized-by:ARCH-reports
 Feature: See the architecture
 

@@ -1,4 +1,4 @@
-@id=start-a-spec @kind=feature @maturity=ready
+@id=start-a-spec @maturity=ready
 @realized-by:ARCH-reports @realized-by:ARCH-checker
 Feature: Start a spec
 

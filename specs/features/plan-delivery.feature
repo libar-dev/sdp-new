@@ -1,4 +1,4 @@
-@id=plan-delivery @kind=feature @maturity=ready
+@id=plan-delivery @maturity=ready
 @realized-by:ARCH-lifecycle @realized-by:ARCH-reports @realized-by:ARCH-runner @realized-by:ARCH-checker
 Feature: Plan delivery
 

@@ -1,4 +1,4 @@
-@id=install-from-npm @kind=feature @maturity=draft
+@id=install-from-npm @maturity=draft
 @iteration:IT-packaging
 Feature: Install sdp from npm
 

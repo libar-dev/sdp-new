@@ -1,4 +1,4 @@
-@id=serve-agents @kind=feature @maturity=ready
+@id=serve-agents @maturity=ready
 @realized-by:ARCH-reports @realized-by:ARCH-mcp
 Feature: Serve AI agents
 

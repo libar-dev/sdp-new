@@ -1,4 +1,4 @@
-@id=review-a-pull-request-by-its-specs @kind=feature @maturity=draft
+@id=review-a-pull-request-by-its-specs @maturity=draft
 Feature: Review a pull request by its specs
 
   Reviewers of a pull request want to see what it does to the delivery state, not only to the code.

@@ -1,4 +1,4 @@
-@id=write-a-spec @kind=feature @maturity=ready
+@id=write-a-spec @maturity=ready
 @realized-by:ARCH-spec-parser @realized-by:ARCH-graph-builder
 Feature: Write a spec
 

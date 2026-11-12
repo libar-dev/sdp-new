@@ -1,4 +1,4 @@
-@id=link-specs @kind=feature @maturity=ready
+@id=link-specs @maturity=ready
 @realized-by:ARCH-graph-builder @realized-by:ARCH-graph @realized-by:ARCH-code-annotations @realized-by:ARCH-vocabulary
 @decided-by:files-are-the-source-of-truth
 Feature: Link specs into one graph

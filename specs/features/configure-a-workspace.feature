@@ -1,4 +1,4 @@
-@id=configure-a-workspace @kind=feature @maturity=ready
+@id=configure-a-workspace @maturity=ready
 @realized-by:ARCH-workspace @realized-by:ARCH-vocabulary
 Feature: Configure a workspace
 

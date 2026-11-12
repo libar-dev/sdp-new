@@ -1,4 +1,4 @@
-@id=use-the-command-line @kind=feature @maturity=ready
+@id=use-the-command-line @maturity=ready
 @realized-by:ARCH-cli @realized-by:ARCH-reports @realized-by:ARCH-workspace
 Feature: Use the command line
 

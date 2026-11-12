@@ -1,4 +1,4 @@
-@id=run-existing-cucumber-suites @kind=feature @maturity=draft
+@id=run-existing-cucumber-suites @maturity=draft
 @iteration:IT-scale-and-compatibility
 Feature: Run an existing Cucumber suite
 

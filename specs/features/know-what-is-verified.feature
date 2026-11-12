@@ -1,4 +1,4 @@
-@id=know-what-is-verified @kind=feature @maturity=ready
+@id=know-what-is-verified @maturity=ready
 @realized-by:ARCH-runner @realized-by:ARCH-graph-builder @realized-by:ARCH-spec-parser
 Feature: Know what is verified
 

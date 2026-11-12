@@ -1,4 +1,4 @@
-@id=write-step-definitions @kind=feature @maturity=ready
+@id=write-step-definitions @maturity=ready
 @realized-by:ARCH-runner @realized-by:ARCH-spec-parser
 Feature: Write step definitions
 

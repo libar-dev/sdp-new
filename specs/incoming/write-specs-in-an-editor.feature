@@ -1,4 +1,4 @@
-@id=write-specs-in-an-editor @kind=feature @maturity=draft
+@id=write-specs-in-an-editor @maturity=draft
 Feature: Write specs in an editor
 
   Authors write specs in their editor, and want it to know what sdp knows of them. Today it knows

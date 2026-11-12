@@ -1,4 +1,4 @@
-@id=ask-the-graph @kind=feature @maturity=ready
+@id=ask-the-graph @maturity=ready
 @realized-by:ARCH-query-engine @realized-by:ARCH-reports
 Feature: Ask the graph
 

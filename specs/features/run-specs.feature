@@ -1,4 +1,4 @@
-@id=run-specs @kind=feature @maturity=ready
+@id=run-specs @maturity=ready
 @realized-by:ARCH-runner @realized-by:ARCH-reports
 Feature: Run specs as tests
 
