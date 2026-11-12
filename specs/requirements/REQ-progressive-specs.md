@@ -65,10 +65,10 @@ Scenario: One file says what a spec is, what it links to, what is still open and
     ```
     """
   When the workspace is loaded
-  Then the workspace graph has node "REQ-guest-checkout" of kind "requirement"
+  Then node "REQ-guest-checkout" has attribute kind = "requirement"
   And node "REQ-guest-checkout" has attribute summary = "Shoppers without an account can buy."
   And node "REQ-guest-checkout" has attribute openQuestions = "1"
-  And node "REQ-guest-checkout" has 1 scenario
+  And node "REQ-guest-checkout" has attribute scenarios = "1"
   And the edges from "REQ-guest-checkout" are "REQ-guest-checkout -iteration-> C2, REQ-guest-checkout -activity.implementation-> C3, REQ-guest-checkout -refines-> CAP-online-sales, REQ-guest-checkout -realized-by-> ARCH-orders, REQ-guest-checkout -realized-by-> ARCH-payments, REQ-guest-checkout -constrained-by-> NFR-checkout-latency, REQ-guest-checkout -mentions-> DEC-0004, REQ-guest-checkout -guarded-by-> POL-fraud"
 
 Scenario: An idea is an id and a title
@@ -81,7 +81,7 @@ Scenario: An idea is an id and a title
     # Dark mode
     """
   When the workspace is loaded
-  Then the workspace graph has node "REQ-dark-mode" of kind "requirement"
+  Then node "REQ-dark-mode" has attribute kind = "requirement"
   And node "REQ-dark-mode" has attribute title = "Dark mode"
   And node "REQ-dark-mode" has attribute stage = "idea"
 
@@ -105,10 +105,12 @@ Scenario: A fenced Gherkin block holds scenarios, each a node that verifies its 
     ```
     """
   When the workspace is loaded
-  Then node "REQ-login" has 1 scenario
-  And the workspace graph has node "REQ-login#valid-credentials" of kind "scenario"
-  And there is an edge "REQ-login#valid-credentials" -verifies-> "REQ-login"
-  And scenario "REQ-login#valid-credentials" is at line 11
+  Then node "REQ-login" has attribute scenarios = "1"
+  And node "REQ-login#valid-credentials" has attribute kind = "scenario"
+  And the workspace graph has edges:
+    | from                        | rel      | to        |
+    | REQ-login#valid-credentials | verifies | REQ-login |
+  And node "REQ-login#valid-credentials" has attribute source = "specs/REQ-login.md:11"
 
 Scenario: An outline is one scenario with one executable example per row
   Given a file "specs/REQ-vat.md" containing:
@@ -132,7 +134,7 @@ Scenario: An outline is one scenario with one executable example per row
     ```
     """
   When the workspace is loaded
-  Then scenario "REQ-vat#vat-by-country" has 3 examples
+  Then node "REQ-vat#vat-by-country" has attribute examples = "3"
 
 Scenario: A classic feature file is a spec too, with its id and attributes in the tags of its Feature
   Given a file "features/search.feature" containing:
@@ -144,7 +146,7 @@ Scenario: A classic feature file is a spec too, with its id and attributes in th
         Then I see lamps
     """
   When the workspace is loaded
-  Then the workspace graph has node "REQ-search" of kind "requirement"
+  Then node "REQ-search" has attribute kind = "requirement"
   And node "REQ-search" has attribute maturity = "ready"
-  And node "REQ-search" has 1 scenario
+  And node "REQ-search" has attribute scenarios = "1"
 ~~~

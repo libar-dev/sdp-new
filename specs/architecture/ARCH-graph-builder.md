@@ -73,7 +73,7 @@ Scenario: A spec, each of its scenarios and each inline node is a node at the li
   And node "REQ-pay" has attribute scenarios = "1"
   And node "REQ-pay" has attribute openQuestions = "1"
   And node "E1" has attribute declaredIn = "PLAN"
-  And the workspace graph has no "declaredIn" edges
+  And the edges from "E1" are "nothing"
 
 Scenario: A scenario node carries the rule it is an example of, with the text under the rule and under itself
   Given a file "specs/REQ-pay.md" containing:
@@ -218,7 +218,8 @@ Scenario Outline: A link cannot take the name of an attribute, wherever it is de
   Then sdp reports:
     | rule        | severity | at   | message   |
     | link-syntax | error    | <at> | <message> |
-  And the workspace graph has no "<name>" edges
+  When I query "* -<name>-> *"
+  Then the result is "nothing"
   When I query "*[<name>=verified]"
   Then the result is "nothing"
 
@@ -254,9 +255,9 @@ Scenario: A kind sdp makes itself cannot be written; the node has the kind its i
     | derived-attribute | REQ-b   | specs/REQ-a.md:6 | sdp makes the nodes of kind scenario itself |
     | derived-attribute | REQ-pay | src/pay.py:1     | sdp makes the nodes of kind code itself     |
     | maturity-criteria | REQ-a   | specs/REQ-a.md:1 |                                             |
-  And the workspace graph has node "REQ-a" of kind "requirement"
-  And the workspace graph has node "REQ-b" of kind "requirement"
-  And the workspace graph has node "REQ-pay" of kind "element"
+  And node "REQ-a" has attribute kind = "requirement"
+  And node "REQ-b" has attribute kind = "requirement"
+  And node "REQ-pay" has attribute kind = "element"
 
 Scenario: A maturity given in code decides the stage like one written in the spec
   Given a file "specs/REQ-pay.md" containing:

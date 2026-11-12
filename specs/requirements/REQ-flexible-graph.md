@@ -51,9 +51,11 @@ Scenario: Kinds and relations are named by their author
     # Events over calls
     """
   When the workspace is loaded
-  Then the workspace graph has node "ARCH-orders" of kind "bounded-context"
-  And there is an edge "ARCH-orders" -publishes-to-> "ARCH-event-bus"
-  And there is an edge "ARCH-orders" -guarded-by-> "DEC-0001"
+  Then node "ARCH-orders" has attribute kind = "bounded-context"
+  And the workspace graph has edges:
+    | from        | rel          | to             |
+    | ARCH-orders | publishes-to | ARCH-event-bus |
+    | ARCH-orders | guarded-by   | DEC-0001       |
 
 Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] links
   Given a file "specs/REQ-refunds.md" containing:
@@ -84,8 +86,10 @@ Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] lin
     # Refund policy
     """
   When the workspace is loaded
-  Then there is an edge "REQ-refunds" -mentions-> "DEC-0001"
-  And there is an edge "REQ-refunds" -realized-by-> "ARCH-orders"
+  Then the workspace graph has edges:
+    | from        | rel         | to          |
+    | REQ-refunds | mentions    | DEC-0001    |
+    | REQ-refunds | realized-by | ARCH-orders |
 
 Scenario Outline: A link reads the same whichever way it is written, as an edge and as an attribute of the node it starts from
   Given a file "specs/plan.md" containing:

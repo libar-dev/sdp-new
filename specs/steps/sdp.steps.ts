@@ -19,7 +19,7 @@ import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
-import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
+import { formatSource, Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
 import { defaultVocabulary, hasKind } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
@@ -70,37 +70,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       world.reported = project.diagnostics.map(reportRow)
     }))
 
-  Then("the workspace graph has node {string} of kind {string}", ({ args: [id, kind], world }) =>
-    Effect.map(load(world), (project) => assert.equal(node(project, id).kind, kind)))
-
+  // Any attribute, or one of what every node has: kind, title, source (`file:line`).
   Then("node {string} has attribute {word} = {string}", ({ args: [id, key, value], world }) =>
     Effect.map(load(world), (project) => {
       const n = node(project, id)
-      const actual = key === "title" ? n.title : key === "kind" ? n.kind : n.attrs[key]
+      const actual = key === "title" ? n.title : key === "kind" ? n.kind : key === "source" ? formatSource(n.source) : n.attrs[key]
       assert.equal(String(actual), value, `${id}.${key}`)
     }))
-
-  Then("there is an edge {string} -{word}-> {string}", ({ args: [from, rel, to], world }) =>
-    Effect.map(load(world), (project) => {
-      const edges = project.graph.out(from)
-      assert.ok(
-        edges.some((e) => e.rel === rel && e.to === to),
-        `no edge ${from} -${rel}-> ${to}; ${from} has: ${edges.map((e) => `-${e.rel}-> ${e.to}`).join(", ") || "no edges"}`
-      )
-    }))
-
-  Then("node {string} has {int} scenario(s)", ({ args: [id, count], world }) =>
-    Effect.map(load(world), (project) => assert.equal(project.specById.get(id)?.scenarios.length ?? 0, count)))
-
-  Then("scenario {string} has {int} example(s)", ({ args: [id, count], world }) =>
-    Effect.map(load(world), (project) => {
-      const scenario = project.specs.flatMap((s) => s.scenarios).find((s) => s.id === id)
-      assert.ok(scenario, `no scenario ${id}`)
-      assert.equal(scenario.pickles.length, count)
-    }))
-
-  Then("scenario/node {string} is at line {int}", ({ args: [id, line], world }) =>
-    Effect.map(load(world), (project) => assert.equal(node(project, id).source?.line, line)))
 
   // --- query ----------------------------------------------------------------
 

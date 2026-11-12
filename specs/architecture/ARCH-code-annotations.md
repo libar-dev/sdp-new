@@ -272,9 +272,11 @@ Scenario: In the graph, typed annotations become code nodes at the declaration
     annotate(pay, { implements: "REQ-pay" })
     """
   When the workspace is loaded
-  Then there is an edge "code:src/pay.ts#pay" -implements-> "REQ-pay"
+  Then the workspace graph has edges:
+    | from                | rel        | to      |
+    | code:src/pay.ts#pay | implements | REQ-pay |
   And node "code:src/pay.ts#pay" has attribute doc = "Charges the card on file."
-  And node "code:src/pay.ts#pay" is at line 4
+  And node "code:src/pay.ts#pay" has attribute source = "src/pay.ts:4"
 
 Scenario: Annotating costs nothing at run time: the module that exports annotate imports nothing
   When a fresh Node process imports "sdp/annotations"

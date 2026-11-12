@@ -32,7 +32,7 @@ Scenario: A decision is a title and a sentence
     """
   When the workspace is checked
   Then sdp reports nothing
-  And the workspace graph has node "DEC-0001" of kind "decision"
+  And node "DEC-0001" has attribute kind = "decision"
 
 Scenario Outline: A decision that grows a section or a scenario is reported
   Given a file "specs/DEC-0001.md" containing:

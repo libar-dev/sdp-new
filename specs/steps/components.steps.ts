@@ -193,12 +193,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
         "including"
       )))
 
-  Then("the workspace graph has no {string} edges", ({ args: [rel], world }) =>
-    Effect.map(load(world), (project) => {
-      const found = project.graph.edges().filter((e) => e.rel === rel)
-      assert.equal(found.length, 0, found.map((e) => `${e.from} -${e.rel}-> ${e.to}`).join(", "))
-    }))
-
   Then("the edges from {string} are {string}", ({ args: [from, expected], world }) =>
     Effect.map(load(world), (project) =>
       assert.deepEqual(project.graph.out(from).map((e) => `${e.from} -${e.rel}-> ${e.to}`).sort(), ids(expected))))

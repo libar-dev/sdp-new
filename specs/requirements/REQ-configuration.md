@@ -93,7 +93,7 @@ Scenario Outline: Without a declared kind the id prefix decides it, in any case,
     ---
     """
   When the workspace is loaded
-  Then the workspace graph has node "<id>" of kind "<kind>"
+  Then node "<id>" has attribute kind = "<kind>"
 
   Examples:
     | id                  | kind        |
