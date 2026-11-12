@@ -190,10 +190,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(world.exitCode, code, `exit code ${world.exitCode}, output:\n${world.output}`)
   })
 
-  // What a command hands to the next one in a pipe: the lines of its stdout, in any order.
+  // What a command hands to the next one in a pipe: the lines of its stdout, in any order; `\t` stands for a tab.
   Then("the output lines are {string}", ({ args: [expected], world }) => {
     const lines = String(world.scratch.stdout ?? world.output).split("\n").filter((line) => line !== "")
-    assert.deepEqual(lines.sort(), ids(expected), `stdout:\n${String(world.scratch.stdout)}\noutput:\n${world.output}`)
+    assert.deepEqual(lines.sort(), ids(expected.replace(/\\t/g, "\t")), `stdout:\n${String(world.scratch.stdout)}\noutput:\n${world.output}`)
   })
 
   Then("the output is valid JSON", ({ world }) => {
@@ -208,6 +208,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the file {string} does not exist", async ({ args: [file], world }) => {
     const exists = await access(join(await directoryOf(world), file)).then(() => true, () => false)
     assert.ok(!exists, `${file} exists`)
+  })
+
+  Then("the file {string} is:", async ({ args: [file], doc, world }) => {
+    assert.equal((await readFile(join(await directoryOf(world), file), "utf8")).trimEnd(), doc)
   })
 
   Then("the file {string} contains {string}", async ({ args: [file, text], world }) => {

@@ -18,241 +18,17 @@ The scenarios in a spec run as tests once step definitions exist — without rew
 that, they are still valid specifications: a step without a definition is *undefined*, which means
 "not automated yet", not "broken". Results roll up into each spec's `verification` and `stage`, so
 the difference between specified and implemented is evidence, not a status someone remembered to
-update. The spec never changes format; only the evidence around it does.
+update.
 
-## Step definitions
-
-Step definitions are TypeScript or JavaScript modules found by the `steps` globs of the
-configuration ([[REQ-configuration]]). Each binds Cucumber Expressions to handlers:
-
-```ts
-// specs/steps/cart.steps.ts
-import { Effect } from "effect"
-import { defineSteps, pending } from "sdp/steps"
-
-export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When, Then }) => {
-  Given("a cart with {int} items", ({ world, args: [n] }) => { world.cart = Array(n).fill("item") })
-  When("the guest checks out with a valid card", () => pending("payment sandbox not wired yet"))
-  Then("an order is created", ({ world }) => Effect.sync(() => { /* assert */ }))
-})
-```
-
-- **Parameters are typed by the expression**: `{int}` and `{float}` arrive as numbers; `{string}`
-  (in `"` or `'` quotes), `{word}` and `{}` as strings. A regular expression passes its captures on
-  as the text they matched, `undefined` for a group that took no part. A step's doc string arrives
-  as `doc`, its data table as `table` (rows of cells).
-- **Handlers** return nothing, a Promise or an Effect. A thrown error, a rejected Promise or a failed
-  Effect fails the step; `pending(reason)`, returned or thrown, marks it recognised but not
-  implemented.
-- **Timeouts are cooperative.** A step has 30 seconds. When they are over the step fails, and the
-  context's `signal`, an `AbortSignal`, aborts — as it does when the run is interrupted. An Effect
-  is interrupted either way; a Promise keeps running unless its handler passes the signal on — to
-  `fetch`, a child process, a timer. Code that never yields cannot be stopped at all: such a step
-  fails as timed out once it returns. Killing a step that hangs is an idea
-  ([[REQ-step-isolation]]).
-- **Worlds.** The first argument of `defineSteps` is a world factory. Every scenario gets a fresh
-  world per factory; modules passing the same factory share that world, so a step library can be
-  split across files (sdp's own steps share `specs/steps/world.ts`). A world is made as part of the
-  first step that needs it: a factory that throws fails that step, naming the module's file.
-- Steps match by text, not keyword: `Given`, `When`, `Then` and `Step` register alike.
-- **`import … from "sdp/steps"`** — and `"sdp/annotations"` in the application code the steps
-  exercise — always resolve to the sdp that runs the steps, so a workspace needs no package
-  installed for it, and step modules and runner never disagree about versions. `sdp/steps` is all
-  a step file needs: importing it loads no parser and reads no workspace (`sdp` is the
-  programmatic API).
-- A step file must export its module (`export default defineSteps(…)`); one that exports none is
-  noted, and one that fails to load stops the run with one line naming the file ([[REQ-cli]]).
-- **A process imports step modules once**, and Node.js keeps a module for as long as the process
-  lives. `sdp run` is a new process every time. A program that runs a workspace again through the
-  API runs the modules it already imported: when a step file or a file it imported has changed
-  since, the run is refused before anything is recorded, naming the files — its results would be
-  evidence about code that did not run.
-
-### Reading step definitions never runs them
-
-Only `sdp run` and `sdp gate` import step modules. Everything else that needs to know the step
-definitions — `sdp context`, `sdp steps`, `sdp check`, the MCP tools — reads the step files
-statically, as it reads `annotate()` calls ([[ARCH-code-annotations]]), so inspecting a workspace
-executes none of its code:
-
-| In a step file | Read as |
-| --- | --- |
-| `defineSteps(world, ({ Given, When, Then, Step }) => { … })` at the top level, `defineSteps` imported from `sdp/steps` | a step module; the registrar may be destructured, renamed (`{ Given: given }`) or taken whole (`(steps) => steps.Given(…)`) |
-| `Given("a cart with {int} items", …)`, a template without placeholders, or `Given(/^a cart$/, …)` as a statement of that callback | a step definition, with its keyword, expression and `file:line` |
-| a registration under a condition, in a loop, through another name for the registrar or a helper, or with a computed expression; a step file without such a `defineSteps` call | `step-unreadable` ([[REQ-check-rules]]): only a run knows that step |
-| anything inside a handler | not read: a handler registers nothing |
-| a Cucumber Expression that is malformed | `step-expression`, an error: `sdp run` refuses to start, naming its `file:line` |
-
-`sdp steps [text]` lists what was read, sdp's built-in steps included ([[REQ-cli]]). What could
-not be read is never passed over in silence: `sdp steps`, the context bundle and `sdp_snippets`
-name each such registration with its `file:line`, because a step they show as undefined may be
-defined there.
-
-Not supported yet: custom parameter types and Before/After hooks ([[REQ-cucumber-compatibility]]).
-
-## Statuses
-
-`sdp run` compiles every scenario to examples — a Scenario Outline yields one per row of its
-Examples table — and matches each step against every step definition.
-
-| Step status | Meaning |
-| --- | --- |
-| `passed` | the handler succeeded |
-| `failed` | the handler threw, rejected, failed or timed out |
-| `pending` | the handler returned or threw `pending()` |
-| `undefined` | no definition matches: not automated yet, *not* a failure; it comes with a suggested definition |
-| `ambiguous` | more than one definition matches; the error names them |
-| `skipped` | an earlier step of the same example did not pass |
-
-A scenario without any steps is `undefined` as a whole: nothing in it is automated.
-
-`--tags` selects examples, not whole scenarios: an example runs when its own tags — those of its
-feature, its scenario and its Examples block — match. An example a run did not select is recorded
-as `skipped`, without steps.
-
-Every step is matched even after one did not pass, so one run reports every missing and ambiguous
-definition; only execution stops. An example's status is the worst of its steps, and a scenario's
-the worst of its examples, in this order: `failed`, `ambiguous`, `undefined`, `pending`, `skipped`,
-`passed`. A scenario therefore stays `undefined` until every step has a definition; the stubs that
-`--snippets` suggests return `pending()`, so pasting them turns it `pending` until they are
-implemented. Likewise a scenario is `passed` only when one run executed and passed every example:
-a run that selected some examples of an outline leaves it `skipped` at best.
-
-Matching needs no run: `sdp context <id>` and the MCP tool `sdp_snippets` match a spec's steps
-against the step definitions as read from the step files and list those without exactly one
-([[REQ-agent-context]]).
-A suggested definition is registered with the keyword the step means — `And` and `But` take the
-keyword before them, `*` registers with `Step`. `sdp run --snippets` prints all suggestions of a run
-as one module to save as a `.steps.ts` file: imports, a world factory, and each expression once
-(defining it twice would make the step ambiguous), naming the existing step files it could join.
-
-## Evidence
-
-The statuses of a spec's scenarios roll up into the spec (the first matching row applies):
-
-| Scenario statuses | `verification` | `stage` |
-| --- | --- | --- |
-| no scenarios | `none` | declared maturity |
-| any failed or ambiguous | `failing` | `failing` |
-| all passed | `passing` | `verified` |
-| none run yet, or all stale | `unrun` | declared maturity |
-| each undefined or not run | `undefined` | declared maturity |
-| anything else: some pending, or some passed while others are not | `partial` | `in-progress` |
-
-`verified` therefore promises exactly this, and nothing wider: **every scenario of the spec
-passed against the fingerprinted inputs below, and none of them has changed since.** It says
-nothing about what sdp was not told of — a service the steps call, the clock, a file read while
-running that `evidence.inputs` does not name ([[DEC-0011]]).
-
-### What a result records
-
-`sdp run` records one result per scenario in `.sdp/results.json` (the `results` setting): its
-status, each example's steps with their status, error, matching definition (`file:line`),
-suggested definition and duration, and fingerprints of what it ran against. A result counts only
-while every fingerprint it recorded still matches the workspace. Otherwise it is **stale** — kept,
-but not counted: the scenario node's `status` is `stale`, and `staleBecause` names the first
-fingerprint that differs.
-
-| Recorded | Covers | `staleBecause` |
-| --- | --- | --- |
-| `hash` | what a handler can observe of the scenario: each example's name, its tags — those inherited from the spec, the feature, the rule and the Examples block too — step text, doc strings and tables | `scenario-changed` |
-| `evidence.sources` | the configuration file, the code (`code` globs), the step definition files (`steps` globs) and every workspace file they imported up to the end of the run, one that a handler imports only while it runs included — as the process loaded them; a file added or removed counts | `code-changed` |
-| `evidence.toolchain` | the sdp version, the Node.js major version, and the lockfile at the workspace root (`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`) | `toolchain-changed` |
-| `evidence.inputs` | what the configuration declares ([[REQ-configuration]]): the files matching `evidence.inputs` — fixtures, data — and the environment variables named in `evidence.env`, set or not; only a digest is stored, never a value | `inputs-changed` |
-| `evidence.specs` | the spec and feature files and the id declarations (`types`, which `sdp check` reads); recorded when a step read the graph (`project`), as the built-in steps do | `specs-changed` |
-| `evidence.results` | what the graph shows a gate of the ordinary scenarios' results: for each its status, or why it is stale; recorded when a gate read the graph | `results-changed` |
-
-A spec whose scenarios are all stale is back at its declared maturity, so nothing stays `verified`
-on evidence about other code, and a gate that requires verified work is unmet until the scenarios
-run again. Invalidation is deliberately coarse: any change to the code invalidates every result.
-The imported files are the exception, because which they are is a fact about one run: each result
-is compared with the files its own run imported, so a partial run that reaches another file
-leaves earlier results standing, and a file that step definitions no longer import stops counting
-once the results that ran with it are replaced. `sdp status` counts stale results by reason;
-`sdp run` says how many earlier results it left stale — those it did not select.
-
-### Layers
-
-Evidence is layered so that no scenario reads the layer it belongs to:
-
-| Scenario | The graph it sees (`project`) |
-| --- | --- |
-| ordinary | no results: every scenario `unrun`, every spec at its declared maturity |
-| gate | what the results of the ordinary scenarios say, those of this run included: each scenario's `status`, `staleBecause` when it is stale, and the `verification` and `stage` they roll up to. Never the result of a gate, its own included |
-
-An ordinary scenario therefore cannot depend on another scenario's outcome, nor a gate on a
-gate's. A gate sees exactly what its `evidence.results` fingerprint covers: not when a scenario
-ran (`lastRun`), how long it took or what a step reported — those change with every run, and a
-gate that read them would be stale the moment it was recorded. A scenario that asserts on delivery
-state is a gate — tag it `@gate` or put it in a milestone — and a built-in step that reads `stage`,
-`verification`, `staleBecause` or a scenario's `status` in an ordinary scenario fails and says so
-([[REQ-builtin-steps]]). Every other reader — `sdp status`, `sdp q`, context bundles — sees all
-results that still count, with their details.
-
-The layers are what sdp hands a step as `project`. A step that reads the workspace or the results
-file by itself is outside them, like anything else sdp was not told of.
-
-### The results file
-
-Runs may overlap: agents, shells, CI jobs. A run records only what it executed. It takes a lock
-(`<results>.lock`), reads the file as it is then, replaces the results of the scenarios it ran,
-drops those of scenarios that no longer exist, and puts the new file in place in one step — so a
-partial run (`sdp run <ids or paths>`, `--tags`) keeps everything else, and two runs at once never
-restore what the other replaced. A run that cannot get the lock within two seconds fails, naming
-the lock file. The file is generated; never edit it by hand.
-
-It is plain JSON, one flat record per scenario, made to be taken apart with `jq`:
-
-| Where | Fields |
-| --- | --- |
-| top level | `version`; `imports`, for each `evidence.sources` fingerprint of a stored result the workspace files its run's step definitions had imported; `scenarios`, keyed by scenario id |
-| `scenarios.<id>` | `id`, `spec`, `name`, `file`, `line`, `status`, `runAt`, `durationMs`, `hash`, `evidence` (the fingerprints above), `examples` |
-| `examples[]` | `name`, `status`, `exampleLine` for a row of an outline, `steps` |
-| `steps[]` | `keyword`, `text`, `line`, `status`, `durationMs`, and where they apply `error`, `definition` (`file:line`), `snippet` |
-
-```sh
-jq -r '.scenarios[] | select(.status != "passed") | [.file, .line, .status, .id] | @tsv' .sdp/results.json
-```
-
-## Runs need readable specs
-
-A run that cannot read every scenario does not start. When Gherkin or front matter does not parse
-(`gherkin-syntax`, `front-matter`), a file plainly meant as a spec — a `kind` in its front matter,
-or a Gherkin block — has no id (`missing-id`, so its scenarios would be dropped silently), or an
-id is declared twice (`duplicate-id`, so results could be filed under the wrong scenario),
-`sdp run` and `sdp gate` list those errors, one line each with `file:line`, and exit with 1 before
-anything executes or is recorded ([[REQ-cli]]). Other errors
-`sdp check` reports, such as a dangling link, leave every scenario readable and do not stop a run;
-neither do undefined steps, which are specifications not automated yet.
-
-## Gates and records that no longer apply
-
-`sdp run` executes ordinary scenarios first and **gate scenarios** second — scenarios of milestones
-(`kind: milestone`) and scenarios tagged `@gate` — against a graph rebuilt with the fresh results
-of the ordinary ones (*Layers* above), so a gate can require what the run just verified; with
-`--tags`, a scenario is a gate when a selected example is tagged `@gate`. Gates assert against the graph with built-in steps
-([[REQ-builtin-steps]]). An unmet gate is reported but does not fail `sdp run`, because a future
-milestone is expected to be unmet; `sdp gate <milestone>` ([[REQ-cli]]) evaluates one milestone
-and exits with 1 while it is unmet. A failed or ambiguous ordinary scenario does fail `sdp run`.
-
-Specs whose `status` is `superseded`, `rejected` or `deprecated` keep their text but do not run: a
-decision that no longer applies stops guarding anything.
-
-## Running concurrently
-
-`sdp run --concurrency <n>` runs up to `n` scenarios at once, which pays off when steps wait on
-processes, files or networks. Scenarios tagged `@serial` — timing measurements, anything sharing a
-resource — always run alone, after the others; with `--tags`, those with a selected example tagged
-`@serial`. Results are reported once each and in scenario order whatever finishes first — one
-reporter publishes them, however slow it is — so output stays stable.
-The default is one at a time, because step definitions written for a sequential run may share
-state.
+`verified` promises exactly this, and nothing wider: **every scenario of the spec passed against
+what sdp fingerprinted, and none of that has changed since.** It says nothing about what sdp was
+not told of — a service the steps call, the clock, a file read while running that
+`evidence.inputs` does not name ([[DEC-0011]]).
 
 ## Scenarios
 
-Every scenario starts from a cart spec whose steps nobody has automated yet. Step definitions are
-scripted per scenario (`Given a step definition "…" that passes`); small extra fixtures are classic
-`.feature` files, which are specs too ([[REQ-progressive-specs]]).
+Every scenario starts from a cart spec whose steps nobody has automated yet; step definitions are
+scripted per scenario.
 
 ~~~gherkin
 Background:
@@ -277,6 +53,9 @@ Background:
 
 ### Evidence
 
+A spec's scenario statuses roll up into its `verification` and `stage`, and a result counts only
+while what it ran against is unchanged: after that it is stale — kept, but not counted.
+
 ~~~gherkin
 Scenario: Until its scenarios run, a spec's stage is its declared maturity
   Given a file "specs/REQ-wishlist.md" containing:
@@ -294,13 +73,13 @@ Scenario: Until its scenarios run, a spec's stage is its declared maturity
   And node "REQ-wishlist" has attribute verification = "none"
   And node "REQ-wishlist" has attribute stage = "idea"
 
-Scenario: Without step definitions a spec is simply not automated yet
+Scenario: Without step definitions a scenario is undefined, not failed, and its spec keeps the declared maturity
   When the scenarios are run
   Then scenario "REQ-cart#add-an-item" has status "undefined"
   And node "REQ-cart" has attribute verification = "undefined"
   And node "REQ-cart" has attribute stage = "ready"
 
-Scenario: A scenario without steps automates nothing
+Scenario: A scenario without steps is undefined: it automates nothing
   Given a file "specs/REQ-later.md" containing:
     """
     ---
@@ -326,7 +105,7 @@ Scenario: A scenario stays undefined until every step has a definition
   Then scenario "REQ-cart#add-an-item" has status "undefined"
   And node "REQ-cart" has attribute stage = "ready"
 
-Scenario Outline: Results of automated steps decide the stage
+Scenario Outline: All passed is verified, a failure is failing, and anything between is in-progress
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that <adding>
   And a step definition "the cart holds {int} item(s)" that passes
@@ -366,6 +145,24 @@ Scenario: A spec is verified only when every one of its scenarios passed
   And scenario "REQ-wishlist#share-the-list" has status "undefined"
   And node "REQ-wishlist" has attribute verification = "partial"
   And node "REQ-wishlist" has attribute stage = "in-progress"
+
+Scenario: Verification orders from none to passing, so a query can ask for everything short of it
+  Given a file "specs/REQ-wishlist.md" containing:
+    """
+    ---
+    id: REQ-wishlist
+    maturity: idea
+    ---
+    # Wishlist
+    """
+  And a step definition "an empty cart" that passes
+  And a step definition "I add a lamp" that passes
+  And a step definition "the cart holds {int} item(s)" that passes
+  When the scenarios are run
+  And I query "requirement[verification<passing]"
+  Then the result is "REQ-wishlist"
+  When I query "requirement[verification>=passing]"
+  Then the result is "REQ-cart"
 
 Scenario: Editing a scenario makes its last result stale
   Given a step definition "an empty cart" that passes
@@ -426,7 +223,7 @@ Scenario Outline: A tag is part of the scenario, wherever it is inherited from
     |              | @slow    |
     | tags: [slow] |          |
 
-Scenario Outline: A result counts only while what it ran against is unchanged
+Scenario Outline: A result counts only while the code, the configuration, the step files, the lockfile and the declared inputs are unchanged
   Given a file "sdp.config.yaml" containing:
     """
     evidence:
@@ -450,6 +247,10 @@ Scenario Outline: A result counts only while what it ran against is unchanged
     | sdp.config.yaml           | results: .sdp/results.json    | code-changed      |
     | specs/steps/cart.steps.ts | export const phrases = []     | code-changed      |
     | package-lock.json         | { "lockfileVersion": 3 }      | toolchain-changed |
+    | npm-shrinkwrap.json       | { "lockfileVersion": 3 }      | toolchain-changed |
+    | pnpm-lock.yaml            | lockfileVersion: "9.0"        | toolchain-changed |
+    | yarn.lock                 | # yarn lockfile v1            | toolchain-changed |
+    | bun.lock                  | { "lockfileVersion": 1 }      | toolchain-changed |
     | fixtures/lamps.json       | [{ "name": "Ada" }]           | inputs-changed    |
 
 Scenario: A scenario that reads the graph also goes stale when a spec changes
@@ -698,8 +499,11 @@ Scenario: A declared environment variable is part of the evidence, and only its 
 
 ### Step definitions
 
+A handler gets typed arguments, a world and a deadline it is asked, not forced, to keep: killing a
+step that hangs is an idea ([[REQ-step-isolation]]).
+
 ~~~gherkin
-Scenario Outline: Handlers return nothing, a Promise or an Effect
+Scenario Outline: A handler returns nothing, a Promise or an Effect; a failure fails the step, and pending() marks it recognised but not built
   Given a step definition "an empty cart" that <handler>
   When the scenarios are run
   Then the step "an empty cart" has status "<status>"
@@ -829,6 +633,9 @@ Scenario: A world factory that throws fails the step that needs the world
 
 ### Matching
 
+Every step is matched against every definition, so one run reports all that is missing or
+ambiguous.
+
 ~~~gherkin
 Scenario Outline: Every undefined step comes with a suggested definition
   When the scenarios are run
@@ -841,29 +648,34 @@ Scenario Outline: Every undefined step comes with a suggested definition
     | I add a lamp          | When("I add a lamp", ({ world }) => pending())                           |
     | the cart holds 1 item | Then("the cart holds {int} item", ({ world, args: [int] }) => pending()) |
 
-Scenario: A step that matches more than one definition is ambiguous
+Scenario: A step that matches more than one definition is ambiguous, which fails its spec
   Given a step definition "an empty cart" that passes
   And a step definition "an {word} cart" that passes
   When the scenarios are run
   Then the step "an empty cart" has status "ambiguous"
+  And scenario "REQ-cart#add-an-item" has status "ambiguous"
   And the step "an empty cart" reports "matches 2 definitions"
   And node "REQ-cart" has attribute verification = "failing"
 
-Scenario Outline: After a step that does not pass, the rest are skipped but still matched
+Scenario Outline: After a step that does not pass the rest are skipped but still matched, and the scenario takes the worst status
   Given a step definition "an empty cart" that <first step>
   And a step definition "I add a lamp" that passes
   When the scenarios are run
   Then the step "an empty cart" has status "<status>"
   And the step "I add a lamp" has status "skipped"
   And the step "the cart holds 1 item" has status "undefined"
+  And scenario "REQ-cart#add-an-item" has status "<scenario>"
 
-  Examples:
-    | first step | status  |
-    | fails      | failed  |
-    | pends      | pending |
+  Examples: Worst first: failed, ambiguous, undefined, pending, skipped, passed
+    | first step | status  | scenario  |
+    | fails      | failed  | failed    |
+    | pends      | pending | undefined |
 ~~~
 
 ### Step modules
+
+Only `sdp run` and `sdp gate` import step modules. Every other command reads the step files
+statically, so inspecting a workspace executes none of its code.
 
 ~~~gherkin
 Scenario: A step module imports sdp without installing it
@@ -941,6 +753,31 @@ Scenario Outline: Reading a workspace runs none of its step files
     | sdp check            | does not exist                 |
     | sdp status           | does not exist                 |
     | sdp run              | contains "this step file ran"  |
+
+Scenario: A step definition is read whether its registrar is destructured, renamed or taken whole, and it matches by text, whatever keyword registered it
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), ({ Given: given, Then }) => {
+      given("an empty cart", () => {})
+      Then(`I add a lamp`, () => {})
+    })
+    """
+  And a file "specs/steps/more.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), (steps) => {
+      steps.Step(/^the cart holds [0-9]+ items?$/, () => {})
+    })
+    """
+  When I run "sdp steps cart"
+  Then the exit code is 0
+  And the output contains "specs/steps/cart.steps.ts:4\tGiven\tan empty cart"
+  And the output contains "specs/steps/more.steps.ts:4\tStep\t/^the cart holds [0-9]+ items?$/"
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
 
 Scenario: A step registered other than by a statement of its own is reported, never guessed
   Given a file "specs/steps/cart.steps.ts" containing:
@@ -1022,6 +859,8 @@ Scenario: --snippets prints one module for every undefined step, each expression
 ~~~
 
 ### Runs
+
+Runs may overlap — agents, shells, CI jobs — so a run records only what it executed.
 
 ~~~gherkin
 Scenario Outline: Records that no longer apply do not run
@@ -1223,6 +1062,9 @@ Scenario: Whether a scenario runs alone depends on the examples a run selects
 ~~~
 
 ### Gates
+
+Evidence is layered so that no scenario reads the layer it belongs to: an ordinary scenario sees
+no results, a gate what the ordinary ones say.
 
 ~~~gherkin
 Rule: Gates run last

@@ -386,6 +386,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.deepEqual(actual.sort(), ids(list))
   })
 
+  // The `## ` headings of a Markdown document, in the order they come.
+  Then("the sections of the output are {string}", ({ args: [expected], world }) => {
+    const headings = world.output.split("\n").filter((line) => line.startsWith("## ")).map((line) => line.slice(3))
+    assert.deepEqual(headings, expected.split(",").map((heading) => heading.trim()))
+  })
+
   Then("the output section {string} contains {string}", ({ args: [heading, text], world }) => {
     assert.ok(section(world.output, heading).includes(text), `section "${heading}" does not contain ${JSON.stringify(text)}:\n${world.output}`)
   })
@@ -404,13 +410,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   // --- this repository ------------------------------------------------------
-
-  // A row of the table: | `rule` | severity | …
-  Then("the rules table gives every rule the severity sdp reports it with", ({ project, scenario }) => {
-    const body = project.specById.get(scenario.specId)?.body ?? ""
-    const listed = Object.fromEntries([...body.matchAll(/^\| `([a-z-]+)` \| (\w+) \|/gm)].map((row) => [row[1]!, row[2]!]))
-    assert.deepEqual(listed, { ...rules })
-  })
 
   Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
     const spec = project.specById.get(scenario.specId)

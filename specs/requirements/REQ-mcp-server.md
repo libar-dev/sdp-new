@@ -14,56 +14,10 @@ links:
 # Graph access over MCP
 
 Agents that speak the Model Context Protocol get the graph as tools by running `sdp mcp`, a server
-on stdio. Each call reads the workspace afresh — the step files too, where a tool uses them — so
-an agent sees its own edits immediately. Agents with a shell can do everything through
-the CLI or plain grep instead; MCP is optional.
-
-Each tool is the use case of the command of the same name ([[REQ-cli]]): the same code answers
-both, so a tool and its command never differ in what they accept, in their limits or in what they
-make of a workspace that cannot be fully read.
-
-| Tool | Arguments | Answers with |
-| --- | --- | --- |
-| `sdp_status` | — | summary counts: kinds, relations, stages, decision statuses, scenario results, nodes of an architectural kind, diagnostics |
-| `sdp_query` | `expression`, optional `paths` | the nodes the pattern leads to, one per line (id, kind, status or stage, title, `file:line`, separated by tabs), or the paths that led to them ([[REQ-graph-query]]) |
-| `sdp_show` | `id` | the node with its attributes and its outgoing and incoming edges |
-| `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle, as Markdown ([[REQ-agent-context]]) |
-| `sdp_steps` | optional `text` | the step definitions a run would know, one per line (`file:line`, keyword, expression) — all of them, or those whose expression contains the text or that match it as a step ([[REQ-executable-specs]]) |
-| `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one |
-| `sdp_check` | optional minimum `severity` (default `info`: everything) | diagnostics with rule, `file:line` and hint ([[REQ-check-rules]]) |
-| `sdp_architecture` | — | every element and pattern with what its spec says it is for and its links, the decisions and quality requirements among them ([[REQ-curated-architecture]]) |
-| `sdp_lifecycle` | — | phases with their milestone gates, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
-
-**Text or data.** A tool answers with the text its command prints. Every tool but the two that
-answer with a document — `sdp_context` and `sdp_snippets` — also takes `json: true` and then
-answers with the envelope the command prints with `--json`: `{ complete, notes, data }`, its data
-made of the same records ([[REQ-graph-export]]).
-
-**Complete or not.** A tool has no stderr and no exit code, so what the command says there comes
-first in a text answer: a line starting `incomplete:` when the answer may miss something — a spec
-could not be read, a query was cut short by a limit ([[ARCH-query-engine]]) — and a `note:` line
-for each thing the reader should know, such as a word in a query that the workspace does not
-know. An answer with nothing in it says `nothing`, so "none" is never an empty reply.
-
-Every tool only reads files, and answers the same when asked twice: the tools are annotated
-read-only, idempotent, non-destructive and closed-world, so clients can call them without asking
-for permission. None of them imports or runs code of the workspace: step definitions are read from
-the step files statically ([[REQ-executable-specs]]), so inspecting a checkout an agent does not
-trust yet executes nothing of it. Running scenarios is `sdp run`, on the command line.
-
-Mistakes come back as tool errors that an agent can read and act on, not as protocol failures: a
-malformed query returns the parser's message together with the query syntax, an unknown id says
-so and names the closest one, a depth out of range says what the range is. Arguments are checked
-against each tool's schema before it runs: a misspelt argument, or one of the wrong type, is
-rejected as invalid parameters, naming the argument, instead of being silently ignored.
-
-The server's instructions suggest where to start: `sdp_status`, then `sdp_query`, and
-`sdp_context` before working on a spec. They say how code links to the graph ([[DEC-0009]]): to
-the architecture, with an `is` annotation that says which code an element is — a typed `annotate`
-call in TypeScript and JavaScript, an `@sdp` comment in other languages
-([[ARCH-code-annotations]]) — while a requirement names its element with `realized-by`. And they
-say whose call the architecture is ([[DEC-0008]]): an agent proposes an element, a pattern or an
-`is` annotation, and adds or removes none on its own.
+on stdio. Each tool is the use case of the command of the same name ([[REQ-cli]]): the same code
+answers both, so a tool and its command never differ in what they accept, in their limits or in
+what they make of a workspace that cannot be fully read. Agents with a shell can do everything
+through the CLI or plain grep instead; MCP is optional.
 
 ## Scenarios
 
@@ -82,12 +36,12 @@ Background:
     Alpha comes first.
     """
 
-Scenario: The server offers one tool per question, every one of them read-only
+Scenario: The server offers one tool per question, each read-only and idempotent, so a client can call it without asking
   When an agent lists the MCP tools
   Then the MCP tools are "sdp_architecture, sdp_check, sdp_context, sdp_lifecycle, sdp_query, sdp_show, sdp_snippets, sdp_status, sdp_steps"
   And every MCP tool is marked "readOnlyHint, idempotentHint"
 
-Scenario Outline: Every tool answers from the workspace, as its command does
+Scenario Outline: Every tool answers with the text its command prints; an answer with nothing in it says nothing
   When an agent calls the MCP tool "<tool>" with:
     """
     <arguments>
@@ -128,7 +82,7 @@ Scenario Outline: Asked for JSON, a tool answers with the envelope its command p
     | sdp_architecture | { "json": true }                                  | "architecture": []           |
     | sdp_lifecycle    | { "json": true }                                  | "phases": []                 |
 
-Scenario Outline: An answer that may miss something says so first
+Scenario Outline: A tool has no stderr and no exit code, so an answer that may miss something says so first
   Given a chain of 14 nodes linked by "next"
   And 25 nodes, each linked to all the others by "knows"
   And a file "specs/REQ-broken.md" containing:
@@ -198,7 +152,7 @@ Scenario Outline: An unknown id is a tool error
     | sdp_context  |
     | sdp_snippets |
 
-Scenario Outline: A misspelt or out-of-range argument is rejected
+Scenario Outline: An argument that is misspelt, out of range or not the tool's is rejected, naming it, never ignored
   When an agent calls the MCP tool "<tool>" with:
     """
     <arguments>
@@ -213,8 +167,10 @@ Scenario Outline: A misspelt or out-of-range argument is rejected
     | sdp_context | { "id": "REQ-a", "depth": 1.5 }         | ["depth"]                                |
     | sdp_query   | { "expression": "requirement", "ids": true } | ["ids"]                             |
     | sdp_status  | { "verbose": true }                     | ["verbose"]                              |
+    | sdp_context | { "id": "REQ-a", "json": true }         | ["json"]                                 |
+    | sdp_snippets | { "id": "REQ-a", "json": true }        | ["json"]                                 |
 
-Scenario: Snippets list the steps still to automate, with a module to save
+Scenario: Snippets list the steps that no definition matches, or more than one, with a module to save
   Given a file "specs/REQ-b.md" containing:
     """
     ---
@@ -238,7 +194,7 @@ Scenario: Snippets list the steps still to automate, with a module to save
   And the output contains '  Given("alpha is done", ({ world }) => pending())'
   And the output does not contain "returns 1 result"
 
-Scenario: Diagnostics tell the agent what to do
+Scenario: A diagnostic comes with its rule, its file:line and a hint that says what to do
   When an agent calls the MCP tool "sdp_check" with:
     """
     {}
@@ -248,7 +204,7 @@ Scenario: Diagnostics tell the agent what to do
   And the output contains "→ create a spec with `id: REQ-gone`"
 
 Scenario: The architecture tool returns the declared architecture and what shaped it
-  Given a file "docs/architecture.md" containing:
+  Given a file "specs/architecture.md" containing:
     """
     ---
     id: ARCH-overview
@@ -268,7 +224,7 @@ Scenario: The architecture tool returns the declared architecture and what shape
   Then the output field "data.architecture" holds "ARCH-cache, ARCH-orders"
   And the output field "data.drivers" holds "DEC-0001"
 
-Scenario: Every call sees the files as they are now
+Scenario: Every call reads the workspace afresh, so an agent sees its own edits
   When an agent calls the MCP tool "sdp_query" with:
     """
     { "expression": "requirement" }

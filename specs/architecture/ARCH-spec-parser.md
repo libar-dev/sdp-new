@@ -11,86 +11,21 @@ links:
 
 # Spec parser
 
-Turns one file into one spec in the format [[REQ-progressive-specs]] defines: identity,
-attributes, links, prose links, open questions and executable scenarios, plus a diagnostic for
-anything it cannot read. It is a pure function of the file's content and the configuration, and it
-keeps the line of every fact, so each node, edge and diagnostic built from it points at a greppable
-`file:line`. Annotations in code are read by [[ARCH-code-annotations]].
+Turns one file into one spec in the format of [[REQ-progressive-specs]] — identity, attributes,
+links, prose links, open questions and executable scenarios — plus a diagnostic for anything it
+cannot read. It is a pure function of the file's content and the configuration, it never throws on
+content, and it keeps the line of every fact, so each node, edge and diagnostic built from it
+points at a greppable `file:line`.
 
-Defines the one specification format (DEC-0001). A change here changes what every spec file in every
-workspace means — the highest cost of change in the system.
-
-## Markdown
-
-The format is CommonMark with YAML front matter, fenced Gherkin and `[[wiki-links]]` in prose
-([[DEC-0001]]). Each file is parsed once, and the spec carries everything later stages read, so
-the checker and the context bundle never read Markdown themselves.
-
-- **Front matter** is the YAML between a first line `---` and the next `---` or `...`, parsed as a
-  YAML document whose every node keeps its line: an attribute, an entry of a map attribute, an
-  inline node and each link target point at the line they are written on, never at another
-  occurrence of the same text. It holds JSON data — strings, numbers, booleans, null, lists, maps
-  with plain keys, `__proto__` and `constructor` being keys like any other. An anchor may be
-  repeated by an alias, which stands for the anchor's value at the alias's own line; an alias
-  inside the value it names or one that names no anchor, a tag JSON has no type for (`!!set`,
-  `!!binary`), a number it cannot hold (`.inf`) or a key that is not plain text is an error.
-- **Links** are read from the keys that link ([[DEC-0010]]): the entries of `links:`, and the keys
-  the vocabulary names — the plan and phase relations, a workspace's own link keys and each
-  discipline of `activity`, as `activity.<discipline>`. A key's value is one id, a comma-separated
-  or YAML list of ids, or a map with `to` and the link's attributes; each link is at the line of
-  its target.
-- **Kinds.** A node has the kind its `kind` gives it, else the kind its id prefix says
-  ([[DEC-0018]]). The kinds sdp makes itself — `scenario`, `code`, `missing` — are not an author's
-  to give: one written is a `derived-attribute` error and counts as not written.
-- **The body** is CommonMark, parsed by `mdast-util-from-markdown`. What a renderer shows as code
-  — fenced and indented code blocks, code spans — and HTML, comments included, is never read as a
-  scenario, a link, a heading or an open question; nor is a `[[wiki-link]]` read out of what a
-  Markdown link does not show as its text: its destination, its title, an image, a definition; fences close as CommonMark says (same
-  character, at least as long, nothing after it), CRLF and tabs count as CommonMark counts them.
-- **Gherkin** is a fenced code block whose language is `gherkin`, `feature` or `cucumber`,
-  wherever it is: in a list or a quote too.
-- **Attributes.** `tags` becomes a list without `@`, from a list or a comma- or space-separated
-  string; every other value is kept as YAML parsed it.
-- **Prose** is the paragraphs, lists and quotes of the body, as written. The first paragraph is the
-  summary (at most 280 characters) and the description the criteria of `draft` ask for
-  ([[REQ-maturity-criteria]]); each heading's section is the prose under it, up to the next heading
-  of the same or a higher level.
-- **Open questions** are the list items, nested ones included, under an open-questions heading,
-  up to the next heading of the same or a higher level.
-
-## Gherkin
-
-The blocks are joined into one Gherkin document for the Cucumber parser, and every scenario, step
-and example row is mapped back to its line in the Markdown file. The Feature is named after the
-spec, unless a `Feature:` line opens the first block, and is tagged with the spec's tags and kind;
-a `Feature:` line anywhere else is content.
-
-- A scenario's id is `<spec id>#<slug of its name>`, made unique within the file with `-2`, `-3`, …;
-  an unnamed scenario is `#scenario-<position>`.
-- Outlines compile to one executable example per row, Background steps included.
-- Each scenario carries a hash of what a step handler can observe of it — its examples' names,
-  their tags (inherited ones too), step text, doc strings and tables. Editing any of them makes
-  earlier results stale; editing prose around them does not.
-
-## Diagnostics
-
-The parser never throws on content. Front matter it cannot read (`front-matter`, at the offending
-line) leaves the file out of the graph; a file with a `kind` in its front matter or with a Gherkin
-block, but no `id`, is an error (`missing-id`): it is plainly meant as a spec, and its scenarios
-would otherwise be dropped silently. The reserved keys are checked
-for their shape, and what they cannot hold is an error at the line it is written on: `links:` that
-is not a map or a list, or a link without a target (`link-syntax`); `nodes:` that is not a list, or
-an entry that is not a map with an id (`inline-node`). An inline node's id follows the rules of a
-spec's: a string, trimmed, not empty. An empty `links:` or `nodes:` declares nothing. A Gherkin
-syntax error (`gherkin-syntax`) is reported once, at the line where parsing stopped. Each of these
-drops only what could not be read.
-
-Code: `src/parse/Markdown.ts`, `src/parse/Gherkin.ts`, `src/parse/Spec.ts`.
+It is architecture because it defines the one specification format: a change here changes what
+every spec file in every workspace means — the highest cost of change in the system.
 
 ## Scenarios
 
+### Front matter
+
 ~~~gherkin
-Scenario: Identity, attributes and summary are read from the file
+Scenario: Identity, attributes and the summary are read from the file; an alias stands for its anchor's value
   Given a file "specs/REQ-guest-checkout.md" containing:
     """
     ---
@@ -143,15 +78,15 @@ Scenario Outline: The title falls back to the first top-level heading, then the 
     | maturity: idea  | ## Basket        | REQ-basket |
     | maturity: idea  | Just a sentence. | REQ-basket |
 
-Scenario Outline: Markdown without an id is not a spec
-  Given a file "docs/notes.md" containing:
+Scenario Outline: Markdown without a usable id is not a spec, and no problem
+  Given a file "specs/notes.md" containing:
     """
     ---
     <front matter>
     ---
     # Notes
     """
-  When "docs/notes.md" is parsed
+  When "specs/notes.md" is parsed
   Then the file is not a spec
   And parsing reports nothing
 
@@ -161,8 +96,8 @@ Scenario Outline: Markdown without an id is not a spec
     | id: ""           |
     | # a comment only |
 
-Scenario: Front matter with a kind but no id is flagged
-  Given a file "docs/DEC-cache.md" containing:
+Scenario: Front matter with a kind but no id is plainly meant as a spec, and is an error
+  Given a file "specs/DEC-cache.md" containing:
     """
     ---
     kind: decision
@@ -170,13 +105,13 @@ Scenario: Front matter with a kind but no id is flagged
     ---
     # Cache product pages
     """
-  When "docs/DEC-cache.md" is parsed
+  When "specs/DEC-cache.md" is parsed
   Then the file is not a spec
   And parsing reports:
     | rule       | severity | line | message                            |
     | missing-id | error    | 1    | declares kind "decision" but no id |
 
-Scenario Outline: Broken front matter is reported at its line
+Scenario Outline: Front matter that cannot be read is reported at its line, and leaves the file out of the graph
   Given a file "specs/REQ-basket.md" containing:
     """
     ---
@@ -197,7 +132,7 @@ Scenario Outline: Broken front matter is reported at its line
     | id: REQ-cart   | ---            | 3    | Map keys must be unique                        |
     | title: Basket  | maturity: idea | 1    | front matter is not closed with ---            |
 
-Scenario Outline: Front matter is JSON data
+Scenario Outline: Front matter holds JSON data: an alias inside itself or to no anchor, a tag or number JSON has no type for, a key that is not text are errors
   Given a file "specs/REQ-basket.md" containing:
     """
     ---
@@ -222,7 +157,7 @@ Scenario Outline: Front matter is JSON data
     | owners: !!set { a, b }   | !!set has no JSON type                    |
     | logo: !!binary aGVsbG8=  | !!binary has no JSON type                 |
 
-Scenario: Links accept every shape, each at the line of its target
+Scenario: A link is one id, a comma-separated or YAML list, or a map with to and attributes, each at the line of its target
   Given a file "specs/REQ-cart.md" containing:
     """
     ---
@@ -301,7 +236,7 @@ Scenario: Every key, map entry and link target is at the line it is written on
     | id              | line | links             | link lines |
     | ARCH-cart-store | 18   | -stores-> ARCH-db | 21         |
 
-Scenario Outline: A reserved key of the wrong shape is an error at its line
+Scenario Outline: links or nodes of the wrong shape is an error at its line, and drops only what could not be read
   Given a file "specs/REQ-cart.md" containing:
     """
     ---
@@ -328,8 +263,8 @@ Scenario Outline: A reserved key of the wrong shape is an error at its line
     | nodes: [{ id: "  " }]                   | inline-node | an entry under nodes needs an id         |
     | nodes: [{ id: 7, kind: requirement }]   | inline-node | an entry under nodes needs an id         |
 
-Scenario: Inline nodes are declared under nodes, each at the line of its id
-  Given a file "docs/plan.md" containing:
+Scenario: Inline nodes are declared under nodes, each at the line of its id, which is a trimmed, non-empty string
+  Given a file "specs/plan.md" containing:
     """
     ---
     id: PLAN
@@ -345,7 +280,7 @@ Scenario: Inline nodes are declared under nodes, each at the line of its id
     ---
     # Plan
     """
-  When "docs/plan.md" is parsed
+  When "specs/plan.md" is parsed
   Then the parsed spec has inline nodes:
     | id         | kind      | title      | line | attributes          | links              | link lines |
     | E10        | iteration | E10        | 6    |                     |                    |            |
@@ -355,6 +290,13 @@ Scenario: Inline nodes are declared under nodes, each at the line of its id
     | rule        | severity | line | message                          |
     | inline-node | error    | 11   | an entry under nodes needs an id |
 
+~~~
+
+### The body
+
+CommonMark: what a renderer shows as code or hides is never read as a scenario, a link or a question.
+
+~~~gherkin
 Scenario: Prose links are mentions or typed, and never inside code
   Given a file "specs/REQ-refunds.md" containing:
     """
@@ -426,7 +368,7 @@ Scenario: What a renderer shows as code or HTML, or hides in a link's destinatio
     | VISIBLE | 31   |
     | LINKED  | 33   |
 
-Scenario: Gherkin in a quote or a list item runs, and CRLF and tabs count as CommonMark counts them
+Scenario: Gherkin in a quote or a list item is read, and CRLF and tabs count as CommonMark counts them
   Given a file "specs/REQ-pay.md" containing:
     """
     ---
@@ -457,7 +399,7 @@ Scenario: Gherkin in a quote or a list item runs, and CRLF and tabs count as Com
   And the parsed spec has prose links:
     | to |
 
-Scenario: Code, comments and an empty fence are not a description
+Scenario: Code, comments and an empty fence are not a description, so they give no summary
   Given a file "specs/REQ-csv.md" containing:
     """
     ---
@@ -475,7 +417,7 @@ Scenario: Code, comments and an empty fence are not a description
   When the workspace is checked
   Then the check reports "maturity-criteria" for "REQ-csv"
 
-Scenario: Open questions are the list items under their heading
+Scenario: Open questions are the list items under their heading, nested ones included, up to the next heading of its level; a checked or struck one is resolved
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
@@ -508,7 +450,7 @@ Scenario: Open questions are the list items under their heading
     | Do we take wallets?                | no       | 13   |
     | Do we keep receipts for ten years? | no       | 16   |
 
-Scenario Outline: Several headings introduce open questions
+Scenario Outline: Open question, Questions, Unresolved questions and TBD introduce open questions too
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
@@ -531,7 +473,15 @@ Scenario Outline: Several headings introduce open questions
     | Unresolved questions |
     | TBD                  |
 
-Scenario: Scenarios and steps keep their lines in the Markdown file
+~~~
+
+### Gherkin
+
+The blocks of a file are joined into one document for the Cucumber parser, and everything in it is
+mapped back to its line in the Markdown file.
+
+~~~gherkin
+Scenario: Scenarios and steps keep their lines in the Markdown file, Background steps included, and carry the spec's tags and kind
   Given a file "specs/REQ-pay.md" containing:
     """
     ---
@@ -560,7 +510,7 @@ Scenario: Scenarios and steps keep their lines in the Markdown file
     | Then    | an order is created      | 13   |
   And the executable tags of "REQ-pay#card-payment" are "@checkout, @requirement"
 
-Scenario: All blocks of a file form one feature with unique scenario ids
+Scenario: All blocks of a file — gherkin, feature or cucumber — form one feature: ids are unique in it, and a Rule holds every scenario after it
   Given a file "specs/REQ-pay.md" containing:
     """
     ---
@@ -583,6 +533,11 @@ Scenario: All blocks of a file form one feature with unique scenario ids
       Scenario:
         Given no wallet
     ```
+
+    ```cucumber
+    Scenario: Refund
+      Given a refunded wallet
+    ```
     """
   When "specs/REQ-pay.md" is parsed
   Then the parsed spec has scenarios:
@@ -590,6 +545,7 @@ Scenario: All blocks of a file form one feature with unique scenario ids
     | REQ-pay#retry      | 7    |         |
     | REQ-pay#retry-2    | 15   | Wallets |
     | REQ-pay#scenario-3 | 18   | Wallets |
+    | REQ-pay#refund     | 23   | Wallets |
 
 Scenario: A Feature line inside a doc string is content
   Given a file "specs/REQ-docs.md" containing:
@@ -637,7 +593,7 @@ Scenario: A Feature line may open the first block
     | REQ-search#by-name | 11   |
   And the executable tags of "REQ-search#by-name" are "@catalog, @requirement, @smoke"
 
-Scenario: A Gherkin syntax error is reported at its Markdown line
+Scenario: A Gherkin syntax error is reported once, at the Markdown line where parsing stopped
   Given a file "specs/REQ-pay.md" containing:
     """
     ---
@@ -657,7 +613,7 @@ Scenario: A Gherkin syntax error is reported at its Markdown line
     | rule           | severity | line |
     | gherkin-syntax | error    | 9    |
 
-Scenario Outline: The scenario hash covers executable content only
+Scenario Outline: The scenario hash covers what a step handler can observe, and nothing of the prose around it
   Given a file "specs/REQ-pay.md" containing:
     """
     ---
@@ -686,6 +642,11 @@ Scenario Outline: The scenario hash covers executable content only
     | Shoppers pay by card. | Shoppers pay by card or wallet. | stays the same |
     | # Pay                 | # Payment                       | stays the same |
 
+~~~
+
+### Feature files
+
+~~~gherkin
 Scenario Outline: A feature file is identified by its tags, else by its path
   Given a file "features/search.feature" containing:
     """

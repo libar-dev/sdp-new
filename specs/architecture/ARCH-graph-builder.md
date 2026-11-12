@@ -10,37 +10,16 @@ links:
 
 # Graph builder
 
-Builds the system graph from what the workspace read — specs from [[ARCH-spec-parser]], annotations
-from [[ARCH-code-annotations]] and the last scenario results — and from nothing else. It is pure
-and runs on every command ([[PAT-derived-index]]). It never fails on content: problems become
-diagnostics, and the graph stays complete enough to query them, with unresolved references visible
-as nodes. The words it interprets come from the vocabulary profile ([[ARCH-vocabulary]]).
-
-| Source | Becomes |
-| --- | --- |
-| a spec | A node of its kind at `file:1`, with its attributes and derived facts: `file`, `summary`, `scenarios`, `openQuestions` (unresolved only), and `verification` and `stage` from the results. |
-| a scenario | A `scenario` node at its line that `-verifies->` its spec. |
-| an inline node | A node at the line of its `id`; `declaredIn` names its spec and is an attribute, not an edge. |
-| a link key: an entry of `links:`, a plan or phase relation, an entry of `activity`, a key under `vocabulary.links` | An edge named by its relation (`activity.implementation` for an entry of `activity`), at the line of its target, with the link's attributes ([[DEC-0010]]). Every other key is a value and never links. |
-| a link named like an attribute: one of `stage`, `verification`, `scenarios`, `summary`, `file`, `openQuestions`, `declaredIn`, `maturity`, `status`, or an attribute the node it starts from has | A `link-syntax` error where it is written, and no edge: a link reads as an attribute of its node, so it would pass for that fact. In front matter, in prose (`stage:: [[ID]]`) and in code alike. |
-| a prose link | `-mentions->`, or the typed relation. A spec mentioning itself, or a node a link already joins it to, adds nothing. |
-| an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`) — at the declaration's line, with its JSDoc as `doc` for typed annotations — with an edge to each target carrying the annotation's attributes. |
-| `@sdp is <ID>` | Anchors the node in code. Declares it (kind `element` unless given) when no spec does; otherwise adds only the attributes the spec does not set. Either way the node's stage follows from all its attributes, a `maturity` given in code included. |
-| a link stated more than once | One edge with every declaration (`sources`) and the union of their attributes; declarations that give an attribute different values are a `link-conflict`. |
-| a derived attribute written by an author, or a kind sdp makes itself (`scenario`, `code`, `missing`) | A `derived-attribute` error where it is written; the value is ignored, on a spec, an inline node or a node declared in code alike. |
-| an id declared again | A `duplicate-id` error at the later declaration; the first, in path order, is kept. |
-| a reference to an unknown id | A `missing` node without a source, and a `dangling-link` error at every reference. |
-
-What is read, and the id prefixes that kinds are inferred from, is configured
-([[REQ-configuration]]).
-
-Code: `src/graph/Build.ts`.
+Builds the system graph from what the workspace read — specs, annotations and the last scenario
+results — and from nothing else. It is pure and runs on every command ([[PAT-derived-index]]). It
+never fails on content: a problem becomes a diagnostic, and the graph stays complete enough to
+query it, with unresolved references visible as nodes.
 
 ## Scenarios
 
 ~~~gherkin
-Scenario: Specs, scenarios and inline nodes become nodes at their lines
-  Given a file "docs/plan.md" containing:
+Scenario: A spec, each of its scenarios and each inline node is a node at the line it is declared on, with the facts sdp derives
+  Given a file "specs/plan.md" containing:
     """
     ---
     id: PLAN
@@ -76,15 +55,15 @@ Scenario: Specs, scenarios and inline nodes become nodes at their lines
   When the workspace is loaded
   Then the workspace graph has exactly these nodes:
     | id                   | kind        | source              |
-    | PLAN                 | plan        | docs/plan.md:1      |
-    | E1                   | iteration   | docs/plan.md:5      |
-    | ARCH-cache           | element     | docs/plan.md:6      |
+    | PLAN                 | plan        | specs/plan.md:1      |
+    | E1                   | iteration   | specs/plan.md:5      |
+    | ARCH-cache           | element     | specs/plan.md:6      |
     | REQ-pay              | requirement | specs/REQ-pay.md:1  |
     | REQ-pay#card-payment | scenario    | specs/REQ-pay.md:15 |
   And the workspace graph has edges:
     | from                 | rel       | to      | source              | attributes    |
     | REQ-pay#card-payment | verifies  | REQ-pay | specs/REQ-pay.md:15 |               |
-    | ARCH-cache           | speeds-up | REQ-pay | docs/plan.md:7      |               |
+    | ARCH-cache           | speeds-up | REQ-pay | specs/plan.md:7      |               |
     | REQ-pay              | iteration | E1      | specs/REQ-pay.md:4  |               |
   And node "REQ-pay" has attribute file = "specs/REQ-pay.md"
   And node "REQ-pay" has attribute summary = "Shoppers pay by card."
@@ -93,8 +72,8 @@ Scenario: Specs, scenarios and inline nodes become nodes at their lines
   And node "E1" has attribute declaredIn = "PLAN"
   And the workspace graph has no "declaredIn" edges
 
-Scenario Outline: A key links or it does not, whatever its value
-  Given a file "docs/model.md" containing:
+Scenario Outline: A link key always links and any other key never does, whatever its value
+  Given a file "specs/model.md" containing:
     """
     ---
     id: MODEL
@@ -120,7 +99,7 @@ Scenario Outline: A key links or it does not, whatever its value
     | activity: { implementation: E1, test: [E1, ARCH-orders] } | REQ-pay -activity.implementation-> E1, REQ-pay -activity.test-> ARCH-orders, REQ-pay -activity.test-> E1 | nothing       |
     | activity: { test: [] }                                    | nothing                                                                                                 | nothing       |
 
-Scenario: A link stated twice is one edge that keeps both declarations
+Scenario: A link stated more than once is one edge that keeps every declaration; attributes that disagree are a conflict, and the first holds
   Given a file "specs/REQ-a.md" containing:
     """
     ---
@@ -133,7 +112,7 @@ Scenario: A link stated twice is one edge that keeps both declarations
 
     iteration:: [[E1]]
     """
-  And a file "docs/plan.md" containing:
+  And a file "specs/plan.md" containing:
     """
     ---
     id: PLAN
@@ -150,7 +129,7 @@ Scenario: A link stated twice is one edge that keeps both declarations
     | rule          | at               | message                                            |
     | link-conflict | specs/REQ-a.md:5 | why is "promised" here but "planned" at specs/REQ-a.md:4 |
 
-Scenario: A mention adds nothing between nodes a link already joins
+Scenario: A mention adds nothing between nodes a link already joins, nor does a spec that mentions itself
   Given a file "specs/REQ-a.md" containing:
     """
     ---
@@ -160,9 +139,9 @@ Scenario: A mention adds nothing between nodes a link already joins
     ---
     # A
 
-    Follows [[DEC-1]], weighs [[RISK-1]] and keeps [[DEC-2]] in mind.
+    Follows [[DEC-1]], weighs [[RISK-1]] and keeps [[DEC-2]] in mind, says [[REQ-a]] of itself.
     """
-  And a file "docs/model.md" containing:
+  And a file "specs/model.md" containing:
     """
     ---
     id: MODEL
@@ -191,12 +170,12 @@ Scenario Outline: What sdp derives cannot be written, wherever a node is declare
   Examples:
     | file              | content                                                                       | at                  |
     | specs/REQ-a.md    | ---\nid: REQ-a\nmaturity: idea\nstage: verified\n---\n# A                   | specs/REQ-a.md:4    |
-    | docs/plan.md      | ---\nid: PLAN\nnodes:\n  - { id: REQ-b, kind: requirement, stage: verified }\n---\n# Plan | docs/plan.md:4      |
+    | specs/plan.md      | ---\nid: PLAN\nnodes:\n  - { id: REQ-b, kind: requirement, stage: verified }\n---\n# Plan | specs/plan.md:4      |
     | src/pay.py        | # @sdp is REQ-pay kind=requirement stage=verified\ndef pay(): pass               | src/pay.py:1        |
     | specs/pay.feature | @id:REQ-f @stage:verified\nFeature: Pay                                         | specs/pay.feature:1 |
 
 Scenario Outline: A link cannot take the name of an attribute, wherever it is declared
-  Given a file "docs/model.md" containing:
+  Given a file "specs/model.md" containing:
     """
     ---
     id: MODEL
@@ -270,7 +249,7 @@ Scenario: A maturity given in code decides the stage like one written in the spe
   Then node "REQ-pay" has attribute maturity = "idea"
   And node "REQ-pay" has attribute stage = "idea"
 
-Scenario: Annotated code becomes code nodes linked to what it names
+Scenario: Annotated code is a code node linked to what it names; an is link declares its node when no spec does, and overrides nothing a spec says
   Given a file "specs/REQ-pay.md" containing:
     """
     ---
@@ -278,7 +257,7 @@ Scenario: Annotated code becomes code nodes linked to what it names
     ---
     # Pay
     """
-  And a file "docs/ARCH-billing.md" containing:
+  And a file "specs/ARCH-billing.md" containing:
     """
     ---
     id: ARCH-billing
@@ -304,7 +283,7 @@ Scenario: Annotated code becomes code nodes linked to what it names
   Then the workspace graph has exactly these nodes:
     | id                          | kind        | title          | source                 |
     | REQ-pay                     | requirement | Pay            | specs/REQ-pay.md:1     |
-    | ARCH-billing                | element     | Billing        | docs/ARCH-billing.md:1 |
+    | ARCH-billing                | element     | Billing        | specs/ARCH-billing.md:1 |
     | code:src/billing.ts         | code        | src/billing.ts | src/billing.ts:1       |
     | code:src/billing.ts#Billing | code        | Billing        | src/billing.ts:3       |
     | code:src/ledger.ts#Ledger   | code        | Ledger         | src/ledger.ts:1        |

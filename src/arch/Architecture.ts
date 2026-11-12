@@ -8,7 +8,7 @@
  */
 import { annotate } from "sdp/annotations"
 import type { GraphEdge, GraphNode } from "../model/Graph.ts"
-import { hasKind, isDriver, isMention } from "../model/Vocabulary.ts"
+import { attribute, hasKind, isDriver, isMention } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface ArchitectureView {
@@ -37,3 +37,19 @@ export const architectureView = (project: Project): ArchitectureView => {
   return { nodes: sub.nodes(), edges: sub.edges().filter((edge) => !isMention(vocabulary, edge)) }
 }
 annotate(architectureView, { is: "ARCH-architecture-view" })
+
+/**
+ * What an architectural node says it is for: the first paragraph of its spec. One declared
+ * without a description is described by the code anchored to it, in that code's own words.
+ */
+export const description = (project: Project, node: GraphNode): ReadonlyArray<string> => {
+  const { graph } = project
+  const summary = attribute(node, "summary")
+  if (typeof summary === "string" && summary !== "") return [summary]
+  return graph.in(node.id)
+    .filter((edge) => edge.rel === project.config.vocabulary.relations.anchor)
+    .flatMap((edge) => {
+      const doc = graph.node(edge.from)?.attrs.doc
+      return typeof doc === "string" ? [doc] : []
+    })
+}

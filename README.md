@@ -166,8 +166,9 @@ To serve a workspace to an MCP client:
 This repository specifies itself, and there are no other tests: every check of sdp is a scenario
 in one of its specs. Follow the links rather than a table of contents:
 
-- why sdp exists and what it holds to: [docs/VISION.md](docs/VISION.md)
-- every command, flag and exit code: [REQ-cli](specs/requirements/REQ-cli.md)
-- working in this repository, for agents and people: [AGENTS.md](AGENTS.md)
+- why sdp exists and what it holds to: [specs/VISION.md](specs/VISION.md)
+- what every command promises: [REQ-cli](specs/requirements/REQ-cli.md); what it takes: `--help`
+- working with sdp, for agents and people: [the skill](.claude/skills/sdp/SKILL.md), and
+  [AGENTS.md](AGENTS.md) for what is specific to this repository
 - everything around one node: `node src/cli/main.ts context REQ-graph-query`
 - the plan and where it stands: `node src/cli/main.ts lifecycle`

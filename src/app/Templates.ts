@@ -1,7 +1,8 @@
 /**
- * File templates for `sdp new` and `sdp init`. Templates grow with the requested maturity. Front
- * matter is built as data and written by the YAML library, so a title is always a title, whatever
- * it looks like to YAML; only fixed text — suggestions to uncomment — is written as is.
+ * File templates for `sdp new` and `sdp init`. A template writes only what stays in the file —
+ * what it is, and from `specified` on a scenario to fill in; what the author writes next is said
+ * in the answer of `sdp new`, never in the file. Front matter is built as data and written by the
+ * YAML library, so a title is always a title, whatever it looks like to YAML.
  */
 import { annotate } from "sdp/annotations"
 import { Result } from "effect"
@@ -19,12 +20,12 @@ const directoryFor: Record<string, string> = {
   idea: "specs/requirements",
   nfr: "specs/quality",
   capability: "specs/capabilities",
-  decision: "docs/decisions",
-  element: "docs/architecture",
-  pattern: "docs/architecture/patterns",
-  milestone: "docs/delivery/milestones",
-  plan: "docs/delivery",
-  risk: "docs/risks"
+  decision: "specs/decisions",
+  element: "specs/architecture",
+  pattern: "specs/architecture",
+  milestone: "specs/delivery",
+  plan: "specs/delivery",
+  risk: "specs/risks"
 }
 
 /** What `sdp new` has a template for; any other kind gets the generic one. `idea` is a requirement at maturity idea. */
@@ -72,6 +73,8 @@ export interface NewSpec {
   readonly id: string
   readonly file: string
   readonly content: string
+  /** What the author writes next, one instruction per line: the template leaves none in the file. */
+  readonly next: ReadonlyArray<string>
 }
 
 /**
@@ -107,16 +110,13 @@ export const newSpec = (options: {
       `refusing to write ${file}: it would not read back with id ${JSON.stringify(id)}, kind ${JSON.stringify(kind)} and title ${JSON.stringify(title)}`
     )
   }
-  return Result.succeed({ id, file, content })
+  return Result.succeed({ id, file, content, next: guidance({ kind, id, maturity, config }) })
 }
 
 /** A front matter key, its value, and a comment to write after the value. */
 type Field = readonly [key: string, value: unknown, comment?: string]
 
-/**
- * Front matter: the fields as YAML data, a list of records one record per line, then fixed
- * lines — commented-out keys an author may enable.
- */
+/** Front matter: the fields as YAML data, a list of records one record per line, then fixed lines. */
 const frontMatter = (fields: ReadonlyArray<Field>, fixed: ReadonlyArray<string> = []): string => {
   const doc = new Document(Object.fromEntries(fields.map(([key, value]) => [key, value])))
   for (const [key, , comment] of fields) {
@@ -198,28 +198,9 @@ What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be 
 `
     }
     case "element":
-      return `${
-        frontMatter([["id", id], ["kind", kind], ["title", title]], [
-          "links:",
-          "  # instance-of: PAT-…",
-          "  # decided-by: DEC-…",
-          "  # constrained-by: NFR-…",
-          "  # depends-on: ARCH-…"
-        ])
-      }
-# ${title}
-
-Responsibility in one or two sentences, and why it matters to the architecture. Anchor it in code next to the declaration that is it:
-\`annotate(Thing, { ${vocabulary.relations.anchor}: "${id}" })\` in TypeScript (from \`sdp/annotations\`; run \`sdp types\`
-so the id is typed), or an \`@sdp ${vocabulary.relations.anchor} ${id}\` comment in other languages.
-`
     case "pattern":
-      return `${frontMatter([["id", id], ["kind", kind], ["title", title]], ["links:", "  # decided-by: DEC-…"])}
+      return `${frontMatter([["id", id], ["kind", kind], ["title", title]])}
 # ${title}
-
-The problem this pattern solves and how, in a sentence or two. Elements that apply it link
-\`instance-of: ${id}\`; code that applies it says so with
-\`annotate(Thing, { "instance-of": "${id}" })\`, or an \`@sdp instance-of ${id}\` comment.
 `
     case "milestone":
       return `${
@@ -266,65 +247,73 @@ scenarios are its gate. \`sdp lifecycle\` shows the result.
 `
     }
   }
-  const quality = kind === "nfr"
-  const sections: Array<string> = [
-    `${
-      frontMatter([
-        ["id", id],
-        ["kind", kind],
-        ["title", title],
-        ["maturity", maturity, `${vocabulary.maturity.join(" → ")} (implemented/verified is derived from scenario results)`],
-        ...(quality ? [["quality", "performance", "performance | availability | security | usability | ..."] as const] : [])
-      ], [
-        `# ${plan}: E1         # when this spec is written`,
-        `# ${activity}: { implementation: C1, test: [C1, T1] }   # when other disciplines work on it`,
-        ...(quality ? ["# Elements this constrains link to it, with `constrained-by`."] : []),
-        "links:",
-        "  # refines: CAP-…",
-        ...(quality ? [] : ["  # realized-by: ARCH-…"])
-      ])
-    }
+  const header = `${frontMatter([["id", id], ["kind", kind], ["title", title], ["maturity", maturity]])}
 # ${title}
-
-${level === 0 ? "One sentence capturing the idea." : quality ? "Which quality matters, for whom, and why." : "Who needs what, and why. Describe the problem before the solution."}
 `
-  ]
-  if (level >= 1 && level < 3) sections.push(`## Open questions
+  if (level < 2) return header
+  // From specified on the criteria ask for a scenario that states an outcome: its shape, for the author to fill in.
+  const steps = kind === "nfr"
+    ? [
+      "Scenario: <quality attribute scenario>",
+      "  Given <environment, e.g. normal load of 500 concurrent users>",
+      "  When <stimulus, e.g. a user submits an order>",
+      "  Then <response measure, e.g. confirmation is shown within 300 ms at p95>"
+    ]
+    : ["Scenario: <the main success case>", "  Given <context>", "  When <action>", "  Then <observable outcome>"]
+  return [header, "## Scenarios", "", "```gherkin", ...steps, "```", ""].join("\n")
+}
 
-- [ ] What is still unknown?
-`)
-  // What separates ready from specified: nothing is left open.
-  if (level >= 3) sections.push(`## Open questions
+/** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
+export const relationVocabulary =
+  "requirement `realized-by: ARCH-…` and `refines: CAP-…`; element `decided-by: DEC-…`, `instance-of: PAT-…`, `constrained-by: NFR-…`"
 
-None: a ready spec has no open questions left. That and complete scenarios are all the criteria
-of \`ready\` ask for; whether the design behind it is settled is for the team's own Definition of Ready.
-`)
-  if (level >= 2) {
-    sections.push(
-      quality
-        ? `## Scenarios
-
-Quality attribute scenarios: Given = source, environment, artifact; When = stimulus; Then = response and measure.
-
-\`\`\`gherkin
-Scenario: <quality attribute scenario>
-  Given <environment, e.g. normal load of 500 concurrent users>
-  When <stimulus, e.g. a user submits an order>
-  Then <response measure, e.g. confirmation is shown within 300 ms at p95>
-\`\`\`
-`
-        : `## Scenarios
-
-\`\`\`gherkin
-Scenario: <the main success case>
-  Given <context>
-  When <action>
-  Then <observable outcome>
-\`\`\`
-`
-    )
+/**
+ * What the author of a new spec writes next, in the workspace's own words. It is the answer of
+ * `sdp new` and not text in the file: an instruction left in a spec is read as the spec.
+ */
+const guidance = (options: {
+  readonly kind: string
+  readonly id: string
+  readonly maturity: string
+  readonly config: Config
+}): ReadonlyArray<string> => {
+  const { config, id, kind, maturity } = options
+  const { vocabulary } = config
+  const { anchor } = vocabulary.relations
+  switch (templateOf(kind, vocabulary)) {
+    case "element":
+      return [
+        "say under the title what it is responsible for and why that is architecture",
+        `anchor it next to the declaration that is it: annotate(Thing, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
+        "link what shaped it: links: { decided-by: DEC-…, instance-of: PAT-…, constrained-by: NFR-… }"
+      ]
+    case "pattern":
+      return [
+        "say under the title which problem the pattern solves, and how",
+        `elements that apply it link \`instance-of: ${id}\`; what decided it: links: { decided-by: DEC-… }`
+      ]
+    case "generic": {
+      const level = levels.indexOf(maturity)
+      const quality = kind === "nfr"
+      return [
+        level <= 0
+          ? "write the idea in a sentence under the title"
+          : quality
+          ? `say under the title which quality matters, for whom, and why: ${criteria.draft} asks for that paragraph`
+          : `say under the title who needs what, and why, before any solution: ${criteria.draft} asks for that paragraph`,
+        ...(level === 1 || level === 2 ? [`list what is still unknown as \`- [ ] …\` under \`## Open questions\`: ${criteria.ready} asks for none left`] : []),
+        ...(level >= 2
+          ? [quality
+            ? "fill in the scenario: Given the source and environment, When the stimulus, Then the response and its measure"
+            : "fill in the scenario, and add one for every rule: its name is the rule"]
+          : []),
+        quality ? "link it: links: { refines: CAP-… }; elements it constrains link to it with constrained-by" : "link it: links: { refines: CAP-…, realized-by: ARCH-… }",
+        `plan it: \`${wordFor(vocabulary.relations.plan)}: E1\` says when it is written, \`${vocabulary.attributes.activity}: { implementation: C1, test: [C1, T1] }\` when it is built and tested`
+      ]
+    }
+    default:
+      return []
   }
-  return sections.join("\n")
 }
 
 const yamlList = (values: ReadonlyArray<string>) => `[${values.map((v) => JSON.stringify(v)).join(", ")}]`
@@ -332,7 +321,6 @@ const yamlList = (values: ReadonlyArray<string>) => `[${values.map((v) => JSON.s
 /** The defaults, commented out: an empty configuration behaves exactly like this file. */
 export const configTemplate = [
   "# sdp configuration. Every key is optional; uncomment one to change its default.",
-  "# Keys are described in REQ-configuration (sdp context REQ-configuration).",
   `# specs: ${yamlList(defaults.specs)}          # Markdown with an \`id:\` in front matter becomes a graph node`,
   `# features: ${yamlList(defaults.features)}    # classic Gherkin files (@id:… @kind:… tags)`,
   `# code: ${yamlList(defaults.code)}`,
@@ -350,60 +338,3 @@ export const configTemplate = [
   "#   words: { relations: [] }   # words of your own that nothing uses yet, so a rule can assert there are none: kinds, relations, attributes",
   ""
 ].join("\n")
-
-/** The relations the templates suggest, in one place so templates, help and guides agree. */
-export const relationVocabulary =
-  "requirement `realized-by: ARCH-…` and `refines: CAP-…`; element `decided-by: DEC-…`, `instance-of: PAT-…`, `constrained-by: NFR-…`"
-
-export const agentsTemplate = `---
-id: AGENTS-sdp
-kind: guide
-title: Working with specs (sdp)
----
-
-# Working with specs (sdp)
-
-Specs, decisions, architecture, the delivery plan and guides like this one are Markdown files with
-YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form one graph.
-
-## Find things
-
-- Anything by its id: \`grep -rn "REQ-guest-checkout" .\` — an id is literal wherever it is
-  declared or linked. Two ids are made by sdp: a scenario is \`<spec id>#<slug of its name>\`,
-  annotated code is \`code:<path>#<symbol>\`.
-- Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\` (syntax:
-  \`sdp q --help\`), or \`sdp graph | jq …\` — one record per line.
-- Everything about one node before you change it: \`sdp context REQ-guest-checkout\`
-- The architecture (every element and pattern architects declared): \`sdp arch\`
-- The words sdp interprets, as this workspace configures them: \`sdp vocabulary\`
-- Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
-- Every read command answers as JSON with \`--json\`: \`{ complete, notes, data }\`. Exit code 2
-  and \`complete: false\` mean sdp could not read everything: do not conclude that something is absent
-
-## Change behaviour
-
-Change the spec first: its Gherkin scenarios are the acceptance tests. What a user sees belongs
-to a requirement; how one part of the system does it belongs to that element, and
-\`realized-by\` leads from the one to the other. \`sdp context <id>\` lists the steps that have
-no definition yet, \`sdp run <id> --snippets\` prints a step definition module for them, and
-\`sdp steps <text>\` finds a definition that already says it. Extend that one: a step that two
-definitions match fails.
-
-## Plan work, and mind the gates
-
-Work is planned in its own spec: \`iteration: E1\` says when it is written,
-\`activity: { implementation: C1, test: [C1, T1] }\` when it is built and tested.
-\`sdp lifecycle\` shows the plan, marks the current iteration with \`*\` and shows every
-milestone's gate. \`sdp run\` reports gates and never fails on one, and a later milestone is
-expected to be unmet. A gate of the current phase or a past one is not:
-\`sdp gate <milestone>\` exits 1 on it.
-
-## Link
-
-Relations are free-form: name them for what they mean. The templates use ${relationVocabulary}.
-Code links to the architecture: \`annotate(Orders, { is: "ARCH-orders" })\` from
-\`sdp/annotations\` says which code an element is (after \`sdp types\` the compiler checks the
-id), and an \`@sdp is ARCH-orders\` comment does the same in other languages. A requirement
-names its element with \`realized-by\`. What belongs in the architecture is the architects' call:
-propose an element, a pattern or an \`is\` annotation, do not add or remove one yourself.
-`

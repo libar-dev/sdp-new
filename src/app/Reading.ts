@@ -176,20 +176,30 @@ export interface ArchitectureData {
   readonly architecture: ReadonlyArray<NodeRecord>
   /** The decisions and quality requirements linked to them. */
   readonly drivers: ReadonlyArray<NodeRecord>
+  /** The code anchored to them, each with what its own comment says of it (`attrs.doc`). */
+  readonly anchors: ReadonlyArray<NodeRecord>
   /** The links among all of these; prose mentions are not links. */
   readonly edges: ReadonlyArray<EdgeRecord>
 }
 
-/** `sdp arch`: every element and pattern architects declared, with what shaped them. */
+/** `sdp arch`: every element and pattern architects declared, with what shaped them and the code that is them. */
 export const architecture = Effect.fn("architecture")(function*(root: string) {
   const project = yield* loadProject(root)
+  const { graph } = project
+  const { vocabulary } = project.config
   const view = architectureView(project)
-  const architectural = (kind: string) => hasKind(project.config.vocabulary, "architectural", kind)
+  const architectural = (kind: string) => hasKind(vocabulary, "architectural", kind)
+  const architecture = view.nodes.filter((node) => architectural(node.kind))
+  const anchored = architecture.flatMap((node) =>
+    graph.in(node.id).filter((edge) => edge.rel === vocabulary.relations.anchor && graph.node(edge.from)?.kind === made.kinds.code)
+  )
+  const code = new Set(anchored.map((edge) => edge.from))
   const data: ArchitectureData = {
-    kinds: project.config.vocabulary.kinds.architectural,
-    architecture: view.nodes.filter((node) => architectural(node.kind)).map(nodeRecord),
+    kinds: vocabulary.kinds.architectural,
+    architecture: architecture.map(nodeRecord),
     drivers: view.nodes.filter((node) => !architectural(node.kind)).map(nodeRecord),
-    edges: view.edges.map(edgeRecord)
+    anchors: graph.nodes().filter((node) => code.has(node.id)).map(nodeRecord),
+    edges: [...view.edges, ...anchored].map(edgeRecord)
   }
   return answer(project, data)
 })

@@ -150,8 +150,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
   })
 
-  Then("the check reports nothing but {string}", ({ args: [rule], world }) => {
-    const found = (world.diagnostics ?? []).filter((d) => d.rule !== rule)
+  // One rule, or several separated by commas.
+  Then("the check reports nothing but {string}", ({ args: [rules], world }) => {
+    const found = (world.diagnostics ?? []).filter((d) => !ids(rules).includes(d.rule))
     assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
   })
 
@@ -186,6 +187,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the output contains {string}", ({ args: [text], world }) => {
     const expected = text.replace(/\\t/g, "\t").replace(/\\n/g, "\n")
     assert.ok(world.output.includes(expected), `output does not contain ${JSON.stringify(expected)}:\n${world.output}`)
+  })
+
+  // The lines of the doc string, one after the other; how far each is indented does not count.
+  Then("the output contains:", ({ doc, world }) => {
+    const flush = (text: string) => text.split("\n").map((line) => line.trimStart()).join("\n")
+    assert.ok(flush(world.output).includes(flush(doc ?? "")), `output does not contain the text:\n${world.output}`)
   })
 
   Then("the output contains {string} {int} time(s)", ({ args: [text, count], world }) => {

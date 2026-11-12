@@ -1,27 +1,20 @@
 /**
  * SDPQ — a tiny path-pattern language over the system graph, shaped like
  * Cypher's ASCII art so agents can guess it, but written on one line so it
- * fits a shell argument:
+ * fits a shell argument. Its syntax is `querySyntax` below, which
+ * `sdp q --help` prints; what each part means is pinned by the scenarios of
+ * REQ-graph-query, and the limits by those of ARCH-query-engine.
  *
- *   requirement[maturity=ready] -realized-by-> element
- *   #DEC-0003 <-*- *                      everything pointing at a node
- *   element !-*- decision                 elements with no decision
- *   element -depends-on+-> *              transitive closure
- *
- * Node selector: `kind`, `kind|kind`, `*`, `#ID` / `#ID|ID`, followed by any
- * number of `[cond, cond]` groups. Conditions: `key`, `!key`, `key=a|b`,
- * `key!=a`, `key~regex`, `key!~regex`, `key<v`, `key>=v` (numbers, dates, and
- * the maturity and stage ladders compare in order). A bare `key` asks whether
- * it is set (not missing, null, false or empty); the others compare the value
- * itself. A key reads the node's own attribute and the targets of the node's
- * links of that relation, so `[iteration=E1]` and `-iteration-> #E1` agree.
- *
- * Edge step: `-rel->` (out), `<-rel-` (in), `-rel-` (either), `*` or empty for
- * any relation but a prose mention, `a|b` for alternatives (`*|mentions` adds
- * mentions), a trailing `+` for one-or-more hops (back to the start node too,
- * when a cycle leads there).
- * Prefix `!` keeps nodes WITHOUT such a neighbour, `?` keeps nodes WITH one;
- * both filter without moving.
+ * A query is parsed completely before anything is evaluated. Evaluation keeps
+ * a frontier of paths. It starts with one path per node matching the first
+ * selector; each moving edge extends every path by the routes it opens and
+ * keeps the extensions whose end matches the next selector; a `?` or `!`
+ * filter keeps or drops whole paths without extending them. A path is the
+ * nodes it visits and, between each two of them, the edge that was walked,
+ * kept as it points. A `+` edge walks breadth-first and walks on from each
+ * node once, so it adds one path per node it reaches — a shortest one. The
+ * result is the distinct end nodes in the order they were first reached, and
+ * the paths.
  */
 import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
@@ -39,15 +32,17 @@ import type { Project } from "./Build.ts"
 annotate(import.meta, { is: "ARCH-query-engine" })
 
 /** The syntax in a few lines, for `sdp q --help`, the MCP tool description and query errors. */
-export const querySyntax = `node (edge node)*
-  node  kind | kind|kind | * | #ID | #ID|ID, then [cond, ...]
-  cond  key | !key | key=a|b | key!=a | key~regex | key!~regex | key<v | key>=v
-        key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
-        < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
-        a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
-  edge  -rel-> | <-rel- | -rel-   rel: * or empty for any but mentions, a|b alternatives (*|mentions for all), trailing + for one or more hops
-        + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
-        prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
+export const querySyntax = `query  := node (edge node)* [edge]
+node   := (kind(|kind)* | * | #ID(|ID)*) ([cond(, cond)*])*
+cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v | key<=v | key>v | key>=v
+edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
+notes
+  key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
+  < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
+  a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
+  rel: * or nothing is any relation but mentions (*|mentions for all), a|b either, a trailing + one or more hops
+  + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
+  ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
 examples
   requirement[maturity<ready]
   requirement -realized-by-> element

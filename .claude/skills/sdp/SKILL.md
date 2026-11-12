@@ -20,10 +20,14 @@ architecture and the delivery plan are plain Markdown files with YAML front matt
 - **The architecture is what architects declared.** An element or pattern is in the graph because
   someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
-  or an `is` annotation, and let the architect decide.
+  or an `is` annotation, and let the architect decide. Code links to the architecture, not to
+  requirements: `annotate(Thing, { is: "ARCH-x" })` from `sdp/annotations`, or an `@sdp is ARCH-x`
+  comment, says which code an element is, and a requirement names its element with `realized-by`.
 - **Specs instead of prose.** A claim that can be structured or checked is a link or a scenario,
-  not a paragraph. Prose says why, briefly. When you would write a sentence like "X depends on Y"
-  or "this must never happen", write the link or the scenario.
+  not a paragraph. When you would write "X depends on Y" or "this must never happen", write the
+  link or the scenario. A scenario's name is the rule it pins, so write it as the rule — and when
+  a sentence becomes a scenario, delete the sentence: promote, do not copy. What stays outside the
+  fences is the intent, in a few sentences; a reason goes to the decision the spec links to.
 - **Evidence, not status.** Scenarios are the tests. `stage: verified` is derived from a run and
   goes stale when what it ran against changes; it is an error to write it by hand.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
@@ -35,9 +39,9 @@ The graph already knows which requirement an element realises, which decision co
 which file implements it, each with its `file:line`. Asking it gets you to the right three files
 faster than grepping for a guess.
 
-- **One node, everything around it:** `sdp context <id>` — the spec, its links, scenarios and the
-  steps still undefined, the architecture and decisions in reach, the code. Read this before
-  changing anything the node covers.
+- **One node, everything around it:** `sdp context <id>` — the names of its scenarios with their
+  status and the steps still undefined, then the spec, its links, the architecture and decisions
+  in reach, the code. Read this before changing anything the node covers.
 - **From a requirement to its code:** `sdp q '#REQ-x -realized-by-> element <-is- code' --ids`.
   From an element: `sdp q '#ARCH-x <-is- code'`. A query answers with the last node of the
   pattern; `--paths` shows the route. Syntax and examples: `sdp q --help`.
@@ -53,8 +57,8 @@ faster than grepping for a guess.
   A node is `{type, id, kind, title, file, line, attrs}`; an edge is
   `{type, from, rel, to, attrs, declared: [{file, line}]}`. `sdp graph -q '<pattern>'` exports
   only what a query matches.
-- **Orientation:** `sdp arch` (the architecture with its decisions), `sdp lifecycle` (phases,
-  iterations, which gates are due), `sdp status` (one screen).
+- **Orientation:** `sdp arch` (the architecture with its decisions and the code that is it),
+  `sdp lifecycle` (phases, iterations, milestones), `sdp status` (one screen).
 
 Plain grep is still right for one thing: an id is literal text wherever it is declared or linked,
 so `grep -rn <id> .` finds every mention.
@@ -68,20 +72,30 @@ typed does not exist and which one is closest.
 
 ## Changing behaviour
 
-1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new requirement "…"`.
-   What a user sees belongs to a requirement; how one part does its job belongs to that element.
+1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new requirement "…"`
+   writes the file and says what to write in it next. What a user sees belongs to a requirement;
+   how one part does its job belongs to that element.
 2. Write or adjust the scenario first. It is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for
    steps that have none.
 4. Implement.
-5. Verify: `sdp check` (no errors), `sdp run` (no failing scenario), `sdp gate --due` (the
-   milestone that is due still holds). Gates never fail `sdp run`; `sdp gate` is what enforces them.
+5. Verify: `sdp check` (no errors) and `sdp run` (no failing scenario). Gates never fail
+   `sdp run`; `sdp gate <milestone>` is what enforces one.
 
 A scenario that asserts on delivery state (`stage`, `verification`, a scenario's `status`) must be
 a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
 
+## Planning work
+
+- Work is planned in its own front matter: `iteration: E1` says when a spec is written,
+  `activity: { implementation: C1, test: [C1, T1] }` when it is built and tested.
+- `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
+  iteration in which it will be done, never into one that is over.
+- A milestone's scenarios are its gate; `sdp gate <milestone>` says whether it is met.
+
 ## More
 
-The repository's own agent guide (`AGENTS.md`, or `AGENTS.sdp.md` written by `sdp init`) has its
-conventions; `sdp --help` and `sdp <command> --help` have every flag.
+`sdp --help` and `sdp <command> --help` have every command and flag; `sdp vocabulary` has the
+words sdp interprets and the attributes it derives. What is specific to one repository is in its
+`AGENTS.md`.
