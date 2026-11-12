@@ -20,7 +20,7 @@ import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
-import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
+import { notPassing, type RunResults, type ScenarioResult, type StepStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import { withTag } from "../parse/Gherkin.ts"
@@ -97,7 +97,7 @@ export interface WorkspaceRun {
   readonly stale: Readonly<Record<string, number>>
   /** The scenarios this run ran that are examples of work still to come: whatever they did fails no run. */
   readonly toCome: ReadonlySet<string>
-  /** The live examples this run ran that did not pass, by the results it recorded: they fail the run. */
+  /** The live examples this run ran that did not pass, by the results it recorded, a gate's rows that are no gate included: they fail the run. */
   readonly regressions: ReadonlyArray<string>
   /** Work still to come whose every example passes, some of them in this run: it can be made live. */
   readonly livable: ReadonlyArray<Livable>
@@ -185,13 +185,25 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   // Which examples are live is read from the graph the run ran against; whether one
   // fails the run, from the result this run recorded for it.
   const ranAgainst = before.project.graph
+  // An outline that is partly gates runs with the gates, and each of its rows that is no gate is
+  // judged as an ordinary example all the same.
+  const scenarios = new Map(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => [scenario.id, { spec, scenario }] as const)))
+  const ordinaryRows = gates.executed.filter((result) => {
+    const written = scenarios.get(result.id)
+    if (written === undefined || toCome(ranAgainst, result.id)) return false
+    const { scenario, spec } = written
+    return result.examples.some((example, index) => {
+      const pickle = scenario.pickles[index]
+      return pickle !== undefined && !isGate(scenario, spec, config.vocabulary, [pickle]) && notPassing.has(example.status)
+    })
+  })
   return {
     scenarios: ordinary.executed,
     gates: gates.executed,
     results: gates.results,
     stale: tally(reasons),
     toCome: new Set([...ran].filter((id) => toCome(ranAgainst, id))),
-    regressions: regressions(ranAgainst, ordinary.executed),
+    regressions: [...regressions(ranAgainst, ordinary.executed), ...ordinaryRows.map((result) => result.id)],
     livable: livable(project, ran)
   } satisfies WorkspaceRun
 })
@@ -256,8 +268,12 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     scenarios,
     snippets: input.snippets && suggested.length > 0 ? snippetModule(suggested, steps.files) : undefined
   }
+  const gated = new Set(run.gates.map((result) => result.id))
   const notes = [
     ...steps.empty.map((file) => `${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``),
+    ...(enforce === "gates" ? [] : run.regressions.filter((id) => gated.has(id))).map((id) =>
+      `${id} ran with the gates, and an example of it that is no gate did not pass: it fails the run`
+    ),
     ...run.livable.map(({ delete: written, file, id, keep }) =>
       `${id} is still to come, and every example of it passes: make it live, delete ${
         written.map(({ line, maturity }) => `${maturity} at ${file}:${line}`).join(" and ")

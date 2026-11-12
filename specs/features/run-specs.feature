@@ -128,7 +128,8 @@ Feature: Run specs as tests
 
     Each example is judged by the result this run recorded: neither another run's result written
     meanwhile nor a result gone stale while it ran stands in for it. An example `--tags` left out
-    fails no run, and is no evidence either.
+    fails no run, and is no evidence either. A row of an outline is judged on its own: one that is no
+    gate fails the run though its outline runs with the gates.
 
     Scenario Outline: An example of a live feature that <outcome>
       Given a file "specs/wishlist.feature" containing:
@@ -162,6 +163,37 @@ Feature: Run specs as tests
         | matches two definitions       | Then("the wishlist holds a lamp", () => {}); Then("the wishlist holds a {word}", () => {}) | ambiguous | 1         |
         | has a step with no definition |                                                                                            | undefined | 1         |
         | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    | 0         |
+
+    Scenario Outline: An outline that runs with the gates, its ordinary row <outcome>
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario Outline: Nothing of a kind
+              Then the query "<kind>" returns no results
+
+              Examples:
+                | kind       |
+                | <ordinary> |
+
+              @gate
+              Examples:
+                | kind |
+                | code |
+        """
+      When I run "sdp run"
+      Then the exit code is <exit code>
+      And the output contains "<said>"
+
+      Examples:
+        | outcome | ordinary | exit code | said                                                                                                   |
+        | failing | feature  | 1         | wishlist#nothing-of-a-kind ran with the gates, and an example of it that is no gate did not pass: it fails the run |
+        | passing | decision | 0         | 1 gate scenario(s): 1 passed                                                                           |
 
     Scenario Outline: A spec <declaring>, and an example without a step definition
       Given a file "specs/export-to-csv.feature" containing:
