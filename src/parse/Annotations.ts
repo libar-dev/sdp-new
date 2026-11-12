@@ -8,12 +8,12 @@
  *
  * In TypeScript and JavaScript the file is parsed, never run: a tag annotates the module-level
  * declaration its comment documents, or the file when its comment opens the file, and the rest of
- * that comment describes the code. A tag anywhere else, or one written after code on its line, is
- * not read, and is reported; a string is never a tag. The modules a file anchored to a node imports
- * come from the same parse. Other languages have no parser here: a line that opens with a comment
- * marker and the tag annotates the declaration directly below it, or else the file — best effort,
- * even inside a multi-line string — the comment lines around it describe that code, and their
- * imports are not read.
+ * that comment describes the code. A tag anywhere else, or one written after code or words on its
+ * line, is not read, and is reported; a string is never a tag. The modules a file anchored to a node
+ * imports come from the same parse. Other languages have no parser here: a line that opens with a
+ * comment marker and the tag annotates the declaration directly below it, or else the file — best
+ * effort, even inside a multi-line string — the comment lines around it describe that code, and
+ * their imports are not read.
  *
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
@@ -183,6 +183,9 @@ const retiredTags = (links: Node): ReadonlyArray<string> =>
 /** A comment's line, after the comment's own `/`, `*` and `!`, that opens with the tag. */
 const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 
+/** A tag after words on a comment's line. */
+const afterWords = /\s@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
+
 /** What a tag annotates: a module-level declaration, or the file, with what the comment and the code say of it. */
 type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "returnType" | "exports">
 
@@ -215,6 +218,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
         if (tag && "unread" in tag) unreadable.push({ line, ...tag.unread })
+        if (!match) ignored.push(...wordsBefore(text, line))
         return tag && !("unread" in tag) ? [{ ...tag, line, trailing: index === 0 && afterCode(comment.start) }] : []
       })
     )
@@ -245,6 +249,19 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     }
   }
   return { annotations, ignored, unreadable }
+}
+
+/** A tag that a comment's line has after words, which is not read: well formed, it was meant as one. */
+const wordsBefore = (text: string, line: number): ReadonlyArray<Unread> => {
+  const match = afterWords.exec(text)
+  const tag = match && readTag(match[1]!, match[2]!)
+  return tag && !("unread" in tag)
+    ? [{
+      line,
+      message: `"@sdp ${tag.rel} ${tag.targets.join(", ")}" follows words on its line, so it is not read as an annotation`,
+      hint: "start a comment line of its own with it, below the words that describe the code"
+    }]
+    : []
 }
 
 /** Where a module-level statement starts, its decorators included: `@sealed()` above `export class` is part of the class. */
@@ -342,11 +359,12 @@ const lineCommentDoc = (lines: ReadonlyArray<string>, at: number): string | unde
 const trailing =
   /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*(?:,[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*)*)(?=\s|$|\*\/|-->)/u
 
-/** Languages without a parser: comments after code that look like tags but, not opening their line, are not read. */
+/** Languages without a parser: tags after code or words on their line, which look like tags but, not opening it, are not read. */
 const ignoredLines = (content: string): ReadonlyArray<Unread> =>
   content.split(/\r?\n/).flatMap((text, index) => {
-    // A comment line that mentions a tag is prose; only code followed by a comment counts.
-    if (lineMarker.test(text) || commentOnly.test(text)) return []
+    if (lineMarker.test(text)) return []
+    // A comment line that mentions a tag in its words is prose, unless the tag is one as written.
+    if (commentOnly.test(text)) return wordsBefore(text, index + 1)
     const match = trailing.exec(text)
     return match
       ? [{ line: index + 1, message: `"${match[1]!}" follows code on the same line, so it is not read as an annotation`, hint: trailingHint }]

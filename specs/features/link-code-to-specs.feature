@@ -380,6 +380,24 @@ Feature: Link code to specs
       When I query "code"
       Then the result is "nothing"
 
+    Scenario Outline: A tag after words on its line is not read, and is reported: <language>
+      Given a file "<file>" containing:
+        """
+        <comment>
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule               | at       | message                                           |
+        | annotation-ignored | <file>:1 | "@sdp implements pay" follows words on its line   |
+      When I query "code"
+      Then the result is "nothing"
+
+      Examples:
+        | language   | file       | comment                                                | code                               |
+        | TypeScript | src/pay.ts | /** Charges the card on file. @sdp implements pay */   | export const pay = (): number => 0 |
+        | Python     | src/pay.py | # Charges the card on file. @sdp implements pay        | def pay(): pass                    |
+
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: An id that no node declares is reported by sdp check where the tag names it
 
