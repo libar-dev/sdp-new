@@ -5,7 +5,7 @@
  * stack trace.
  */
 import { annotate } from "sdp/annotations"
-import { Schema } from "effect"
+import { Predicate, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 import type { QueryError } from "../graph/Query.ts"
 import type { InvalidStepExpressions } from "../run/Runner.ts"
@@ -77,6 +77,27 @@ export type AppError =
   | UnknownNode
   | Refused
   | PlatformError
+
+/** The tag of every `AppError`: one that is missing here does not compile. */
+const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
+  ConfigError: true,
+  WorkspaceNotFound: true,
+  StepLoadError: true,
+  SourcesChanged: true,
+  InvalidStepExpressions: true,
+  InvalidTags: true,
+  ResultsLocked: true,
+  UnknownTargets: true,
+  UnreadableSpecs: true,
+  QueryError: true,
+  UnknownNode: true,
+  Refused: true,
+  PlatformError: true
+}
+
+/** Whether a failure is the user's input or files at fault, to be told in one line by `describe`. */
+export const isAppError = (error: unknown): error is AppError =>
+  Predicate.hasProperty(error, "_tag") && Predicate.isString(error._tag) && Object.hasOwn(appErrorTags, error._tag)
 
 /** Any of them as one line for the person or agent who caused it. */
 export const describe = (error: AppError): string => {

@@ -3,6 +3,7 @@
  * code statically — annotations, the modules it imports and step definitions —
  * it reads from this one parse, with the line of everything it finds.
  */
+import { Predicate } from "effect"
 import { parseSync } from "oxc-parser"
 
 export interface Comment {
@@ -43,8 +44,7 @@ const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
   return ext.includes("t") ? (ext.endsWith("x") ? "tsx" : "ts") : "jsx"
 }
 
-export const isNode = (value: unknown): value is Node =>
-  typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string"
+export const isNode = (value: unknown): value is Node => Predicate.hasProperty(value, "type") && Predicate.isString(value.type)
 
 /** The nodes directly inside `node`. */
 export const children = (node: Node): ReadonlyArray<Node> =>

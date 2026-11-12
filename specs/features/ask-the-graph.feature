@@ -356,6 +356,8 @@ Feature: Ask the graph
   Rule: The same question gets the same answer on the command line, over MCP and from a program
 
     One answer serves them all, so they cannot differ in what they accept, their bounds or their notes.
+    A program gets it as a Promise from `sdp`, so asking a question needs no Effect; a program written
+    with Effect gets the same use case as an Effect from `sdp/effect`, on a file system of its choosing.
 
     Scenario: Which specs depend on billing, three ways
       When I run "sdp q '#ARCH-billing <-depends-on- *'"
@@ -367,6 +369,13 @@ Feature: Ask the graph
         """
       Then the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
       When a program asks the API for "#ARCH-billing <-depends-on- *"
+      Then the JSON output has:
+        | complete        | true                      |
+        | data.nodes      | ARCH-orders               |
+        | data.nodes.file | specs/ARCH-orders.feature |
+
+    Scenario: A program written with Effect asks on a file system of its own
+      When a program written with Effect asks the API for "#ARCH-billing <-depends-on- *" on files in memory
       Then the JSON output has:
         | complete        | true                      |
         | data.nodes      | ARCH-orders               |

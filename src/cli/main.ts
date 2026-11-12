@@ -12,7 +12,7 @@ import { Console, Effect, FileSystem, Option, Path } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
 import type { Answer } from "../app/Answer.ts"
 import * as Authoring from "../app/Authoring.ts"
-import { describe, Refused } from "../app/Errors.ts"
+import { describe, isAppError, Refused } from "../app/Errors.ts"
 import * as Reading from "../app/Reading.ts"
 import * as Running from "../app/Running.ts"
 import { templateKinds } from "../app/Templates.ts"
@@ -20,7 +20,7 @@ import * as Text from "../app/Text.ts"
 import { jsonLines } from "../graph/Export.ts"
 import { querySyntax } from "../graph/Query.ts"
 import type { ScenarioResult } from "../model/Results.ts"
-import { findWorkspaceRoot } from "../workspace/Workspace.ts"
+import { findWorkspaceRoot, sdpVersion } from "../workspace/Workspace.ts"
 
 annotate(import.meta, { is: "ARCH-cli" })
 
@@ -393,7 +393,7 @@ const mcpCommand = Command.make(
   Effect.fn(function*() {
     // Loaded on demand: only `sdp mcp` needs the MCP stack.
     const { serveMcp } = yield* Effect.promise(() => import("../mcp/Server.ts"))
-    yield* serveMcp(yield* workspaceRoot)
+    yield* serveMcp(yield* workspaceRoot, sdpVersion)
   })
 ).pipe(Command.withDescription("Serve the graph to AI agents over MCP (stdio)"))
 
@@ -416,23 +416,9 @@ sdp.pipe(
     typesCommand,
     mcpCommand
   ]),
-  Command.run({ version: "0.1.0" }),
+  Command.run({ version: sdpVersion }),
   // A problem with the user's files or input is one line that names it, not a stack trace.
-  Effect.catchTags({
-    ConfigError: (e) => fail(describe(e)),
-    StepLoadError: (e) => fail(describe(e)),
-    SourcesChanged: (e) => fail(describe(e)),
-    InvalidStepExpressions: (e) => fail(describe(e)),
-    InvalidTags: (e) => fail(describe(e)),
-    ResultsLocked: (e) => fail(describe(e)),
-    UnknownTargets: (e) => fail(describe(e)),
-    UnreadableSpecs: (e) => fail(describe(e)),
-    WorkspaceNotFound: (e) => fail(describe(e)),
-    QueryError: (e) => fail(describe(e)),
-    UnknownNode: (e) => fail(describe(e)),
-    Refused: (e) => fail(describe(e)),
-    PlatformError: (e) => fail(describe(e))
-  }),
+  Effect.catchIf(isAppError, (e) => fail(describe(e))),
   Effect.provide(NodeServices.layer),
   NodeRuntime.runMain
 )

@@ -124,7 +124,8 @@ const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<s
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */
 const lockfileNames = ["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock"]
 
-const sdpVersion = (createRequire(import.meta.url)("../../package.json") as { readonly version: string }).version
+/** The version of this sdp, as its package.json says: what `--version`, the MCP server and evidence report. */
+export const sdpVersion = (createRequire(import.meta.url)("../../package.json") as { readonly version: string }).version
 
 /** What runs the scenarios besides the workspace's own files: this sdp, this Node, the packages the lockfile pins. */
 const toolchain = (lockfiles: ReadonlyArray<SourceFile>): string =>
@@ -216,6 +217,7 @@ annotate(loadProject, { is: "ARCH-workspace" })
 /** sdp's package exports (see package.json), as the files of the running sdp. */
 const sdpExports = new Map([
   ["sdp", new URL("../index.ts", import.meta.url).href],
+  ["sdp/effect", new URL("../effect.ts", import.meta.url).href],
   ["sdp/steps", new URL("../steps.ts", import.meta.url).href],
   ["sdp/annotations", new URL("../annotations.ts", import.meta.url).href]
 ])

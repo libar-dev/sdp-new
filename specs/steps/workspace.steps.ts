@@ -7,7 +7,8 @@ import { Effect, FileSystem, Path, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { cp, mkdir, symlink } from "node:fs/promises"
 import { basename, join } from "node:path"
-import * as Api from "../../src/index.ts"
+import * as Api from "sdp"
+import * as EffectApi from "sdp/effect"
 import * as Reading from "../../src/app/Reading.ts"
 import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
@@ -23,7 +24,7 @@ import { newId, newSpec } from "../../src/app/Templates.ts"
 import { findFiles, loadProject } from "../../src/workspace/Workspace.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
 import { assertRows, attrsText, ids, load, newWorld, node, produce, reload, reportRow, setFile, type World } from "./world.ts"
-import { directoryOf, repository } from "./process.ts"
+import { directoryOf, repository, workspace } from "./process.ts"
 
 const reported = (world: World) => {
   assert.ok(world.reported, "nothing was parsed, loaded, checked or scanned yet")
@@ -286,9 +287,14 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       produce(world, jsonLines(graphRecords(project.graph)))
     }))
 
-  // The programmatic API as a program calls it: `query` from the package's entry point, on these files.
-  When("a program asks the API for {string}", ({ args: [expression], world }) =>
-    Effect.map(Api.query(memoryRoot, { expression }), (answer) => {
+  // The programmatic API as a program calls it: `query` from the package's entry point, on these files on disk.
+  When("a program asks the API for {string}", async ({ args: [expression], world }) => {
+    produce(world, JSON.stringify(await Api.query(await workspace(world), { expression }), null, 2))
+  })
+
+  // A program written with Effect: the same use case from "sdp/effect", on a file system it provides.
+  When("a program written with Effect asks the API for {string} on files in memory", ({ args: [expression], world }) =>
+    Effect.map(EffectApi.query(memoryRoot, { expression }), (answer) => {
       produce(world, JSON.stringify(answer, null, 2))
     }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
 

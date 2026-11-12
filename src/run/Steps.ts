@@ -21,7 +21,7 @@
  *   export default defineSteps(newWorld, ({ Given }) => { ... })
  */
 import { annotate } from "sdp/annotations"
-import { Data, Effect } from "effect"
+import { Data, Effect, Predicate } from "effect"
 import { fileURLToPath } from "node:url"
 import type { Project } from "../graph/Build.ts"
 
@@ -108,8 +108,7 @@ export const defineSteps = <W>(world: () => W, register: (registrar: StepRegistr
 }
 annotate(defineSteps, { is: "ARCH-runner" })
 
-export const isStepModule = (value: unknown): value is StepModule =>
-  typeof value === "object" && value !== null && (value as { _tag?: unknown })._tag === "StepModule"
+export const isStepModule = (value: unknown): value is StepModule => Predicate.isTagged(value, "StepModule")
 
 /** Signals that a step is recognised but not implemented yet. Return it or `throw` it. */
 export class Pending extends Data.TaggedError("StepPending")<{ readonly reason?: string | undefined }> {}

@@ -182,11 +182,12 @@ export const instructions = [
   "An id names what it is: one with no prefix is a feature's, a change or a decision says its kind with `@kind=`, and elements, patterns, milestones, phases and iterations keep their prefix, as in `ARCH-orders` or `IT-beta`."
 ].join(" ")
 
-export const serveMcp = (root: string) =>
+/** Serves the workspace at `root` over stdio, as `version` of sdp. */
+export const serveMcp = (root: string, version: string) =>
   Layer.launch(
     McpServer.layerStdio({
       name: "sdp",
-      version: "0.1.0",
+      version,
       instructions,
       protocols: [McpProtocol.v2025_11_25, McpProtocol.v2025_06_18, McpProtocol.v2025_03_26],
       registrations: registrations(root)

@@ -7,7 +7,7 @@ Feature: Install sdp from npm
 
   Rule: `npm install --save-dev sdp` installs a command that `npx sdp` runs
 
-  Rule: Step modules and code import `sdp/steps` and `sdp/annotations` from the installed package, typed
+  Rule: Programs import `sdp` or `sdp/effect`, step modules `sdp/steps` and code `sdp/annotations` from the installed package, typed
 
   @constrained-by:GUIDE#the-sources-run-as-they-are-with-no-build-step
   Rule: The package is JavaScript and declarations, built only when packing; the repository runs from its sources

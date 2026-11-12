@@ -9,6 +9,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./effect": "./src/effect.ts",
     "./steps": "./src/steps.ts",
     "./annotations": "./src/annotations.ts"
   },
