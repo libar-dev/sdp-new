@@ -487,11 +487,37 @@ Feature: Link code to specs
   @replaces:link-code-to-specs#sdp-types-declares-every-id-with-its-kind-for-annotate-to-accept
   Rule: An id that no node declares is reported by sdp check where the tag names it
 
-  @maturity=draft
+  @maturity=ready
   Rule: Annotated code carries its shape: a declaration's signature, members or type, and a file's exports
 
     So the graph explains the code the architect annotated without the code being read. The shape
     is read as written: a type the compiler would infer is not.
+
+    Scenario: An interface and a function, each tagged in the comment that describes it
+      Given a file "src/pricing.ts" containing:
+        """
+        /**
+         * A cart line's price, in integer cents.
+         *
+         * @sdp is ARCH-pricing
+         */
+        export interface Priced {
+          readonly net: number
+          readonly vat: number
+        }
+
+        /**
+         * Totals a cart, rounding once.
+         *
+         * @sdp is ARCH-pricing
+         */
+        export const total = (lines: ReadonlyArray<Priced>): number => lines.reduce((sum, line) => sum + line.net + line.vat, 0)
+        """
+      When "src/pricing.ts" is scanned for annotations
+      Then the annotations are:
+        | relation | targets      | binds to | described as                           | shape                                                          |
+        | is       | ARCH-pricing | Priced   | A cart line's price, in integer cents. | interface Priced { readonly net: number; readonly vat: number } |
+        | is       | ARCH-pricing | total    | Totals a cart, rounding once.          | total(lines: ReadonlyArray<Priced>): number                    |
 
   @maturity=draft
   Rule: sdp check asks an annotated function to state its return type
