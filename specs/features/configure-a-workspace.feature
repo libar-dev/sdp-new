@@ -140,25 +140,25 @@ Feature: Configure a workspace
         vocabulary: { kinds: { architectural: [component], decision: [adr], driver: [adr, nfr, risk] } }
         """
       And these specs:
-        | tags                                                                              | Feature                 |
-        | @id=CMP-orders @kind=component @decided-by:ADR-use-postgres @threatened-by:outage | Orders                  |
-        | @id=ARCH-legacy                                                                   | Legacy                  |
-        | @id=outage @kind=risk                                                             | Payment provider outage |
-      And a file "specs/ADR-use-postgres.feature" containing:
+        | tags                                                                      | Feature                 |
+        | @id=orders @kind=component @decided-by:use-postgres @threatened-by:outage | Orders                  |
+        | @id=ARCH-legacy                                                           | Legacy                  |
+        | @id=outage @kind=risk                                                     | Payment provider outage |
+      And a file "specs/use-postgres.feature" containing:
         """
-        @id=ADR-use-postgres @kind=adr
+        @id=use-postgres @kind=adr
         Feature: Use Postgres
 
           Rule: Every table has a primary key
         """
       When I ask for the architecture view
-      Then the output contains "CMP-orders -decided-by-> ADR-use-postgres"
-      And the output contains "CMP-orders -threatened-by-> outage"
+      Then the output contains "orders -decided-by-> use-postgres"
+      And the output contains "orders -threatened-by-> outage"
       And the output does not contain "ARCH-legacy"
       When the workspace is checked
       Then sdp reports at least:
-        | rule           | node             |
-        | decision-shape | ADR-use-postgres |
+        | rule           | node         |
+        | decision-shape | use-postgres |
 
     Scenario: A sprint plans work, part-of puts it in its phase, and a runbook is work of operations
       Given a file "sdp.config.yaml" containing:
@@ -166,18 +166,18 @@ Feature: Configure a workspace
         vocabulary: { relations: { plan: [sprint], phase: [part-of] }, disciplines: { operations: [runbook] } }
         """
       And these specs:
-        | tags                                     | Feature             |
-        | @id=PH-build                             | Build               |
-        | @id=S1 @kind=iteration @part-of:PH-build | S1                  |
-        | @id=S2 @kind=iteration @phase:PH-build   | S2                  |
-        | @id=search @maturity=idea @sprint:S1     | Search              |
-        | @id=filters @maturity=idea @iteration:S1 | Filters             |
-        | @id=RB-restore @kind=runbook @sprint:S1  | Restore from backup |
+        | tags                                             | Feature             |
+        | @id=PH-build                                     | Build               |
+        | @id=S1 @kind=iteration @part-of:PH-build         | S1                  |
+        | @id=S2 @kind=iteration @phase:PH-build           | S2                  |
+        | @id=search @maturity=idea @sprint:S1             | Search              |
+        | @id=filters @maturity=idea @iteration:S1         | Filters             |
+        | @id=restore-from-backup @kind=runbook @sprint:S1 | Restore from backup |
       When the lifecycle is computed
       Then the iterations are:
-        | id | phase    | plans              |
-        | S1 | PH-build | RB-restore, search |
-        | S2 |          |                    |
+        | id | phase    | plans                       |
+        | S1 | PH-build | restore-from-backup, search |
+        | S2 |          |                             |
       And the planned activity is:
         | discipline   | S1 |
         | requirements | 1  |

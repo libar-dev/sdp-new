@@ -26,9 +26,9 @@ Feature: Architecture
       Then the exit code is 1
 
     Scenario: A workspace in memory reads as one on disk
-      Given a file "notes/NOTE-outside.feature" containing:
+      Given a file "notes/outside.feature" containing:
         """
-        @id=NOTE-outside
+        @id=outside
         Feature: Outside the workspace
         """
       And a file "shop/specs/cart.feature" containing:

@@ -582,9 +582,9 @@ Feature: Plan delivery
     placeholder paragraph with a token scenario meets every criterion.
 
     Scenario Outline: A ready feature, its review and what it depends on
-      Given a file "specs/POL-definition-of-ready.feature" containing:
+      Given a file "specs/definition-of-ready.feature" containing:
         """
-        @id=POL-definition-of-ready @kind=policy
+        @id=definition-of-ready @kind=policy
         Feature: Definition of Ready
 
           Rule: A ready feature is reviewed, and what it depends on is ready too
@@ -621,7 +621,7 @@ Feature: Plan delivery
         """
       When I run "sdp check"
       Then the exit code is 0
-      When I run "sdp gate POL-definition-of-ready"
+      When I run "sdp gate definition-of-ready"
       Then the exit code is <exit code>
 
       Examples:
