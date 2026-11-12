@@ -952,6 +952,22 @@ Feature: Know what is verified
       Then node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
       And node "cart#add-an-item" has attribute status = "passed"
 
+    Scenario: A run keeps the result another run recorded of a scenario added after it started
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that waits until it is released
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a step definition "a wishlist" that passes
+      When the workspace is run for "cart", and while "I add a lamp" runs, a file "specs/wishlist.feature" is added and run:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given a wishlist
+        """
+      Then node "wishlist#keep-a-lamp-for-later" has attribute status = "passed"
+      And node "cart#add-an-item" has attribute status = "passed"
+
     Scenario: One plain record per scenario in the results file
       Given a file "specs/steps/cart.steps.ts" containing:
         """

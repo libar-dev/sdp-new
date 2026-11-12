@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
+import type { RunResults } from "../model/Results.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults } from "../run/Store.ts"
@@ -147,6 +148,11 @@ export interface Workspace {
   readonly now: Snapshot
   /** The files `now.sources` covers: files a run imports later join them (`readFiles`, `fingerprint`). */
   readonly sources: ReadonlyArray<SourceFile>
+  /**
+   * The results stored when it was read, read before the specs: one of a scenario that is not among
+   * them was recorded before that scenario was gone.
+   */
+  readonly stored: RunResults | undefined
 }
 
 /** Reads `files` (relative to the root) that exist; an import recorded by an earlier run may be gone. */
@@ -169,6 +175,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const path = yield* Path.Path
   const configFile = yield* readConfigFile(root)
   const config = yield* parseConfig(configFile)
+  const stored = yield* readResults(root, config)
   const [featurePaths, codePaths, stepPaths, inputPaths] = yield* Effect.all([
     findFiles(root, config.features, config.exclude),
     findFiles(root, config.code, config.exclude),
@@ -182,7 +189,6 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const markdownFiles = yield* findFiles(root, [...beside, ...under], config.exclude)
   const codeFiles = yield* readAll(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
-  const stored = yield* readResults(root, config)
   const recorded = Object.entries(stored?.imports ?? {})
   const imports = options.imports ?? []
   const imported = new Map(
@@ -206,7 +212,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
   const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
   const results = view ? view(project.specs).ordinary : ""
-  return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
+  return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources, stored } satisfies Workspace
 })
 
 /** Reading a workspace: what it can fail with, and the services it needs. */

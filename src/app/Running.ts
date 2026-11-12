@@ -152,8 +152,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const partlyGates = new Set(before.project.specs.flatMap((spec) =>
     spec.scenarios.flatMap((scenario) => select(false)(scenario, spec) && select(true)(scenario, spec) ? [scenario.id] : [])
   ))
-  const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))
   const scenarios = new Map(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => [scenario.id, { spec, scenario }] as const)))
+  const gone = Object.values(before.stored?.scenarios ?? {}).filter((result) => !scenarios.has(result.id))
   const toCome = (graph: Project["graph"], id: string) => graph.node(id)?.attrs.toCome === true
   const { onScenario } = options
   /**
@@ -171,7 +171,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     yield* asLoaded(files)
     const sources = late.length === 0 ? ranAgainst.now.sources : fingerprint(files)
     const executed = batch.map((result) => complete({ ...result, evidence: { ...result.evidence, sources } }))
-    return { sources, executed, results: yield* commitResults(root, config, { executed, live, imports: imports() }) }
+    return { sources, executed, results: yield* commitResults(root, config, { executed, gone, imports: imports() }) }
   })
   const run = (workspace: Workspace, gates: boolean, complete: (result: ScenarioResult) => ScenarioResult | undefined) =>
     runScenarios({
