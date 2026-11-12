@@ -1,13 +1,14 @@
 ---
 name: sdp
-description: How to work in a repository that uses sdp (it has an `sdp.config.yaml`) — requirements, decisions, architecture and the delivery plan kept as one graph of Gherkin specs whose tags say what each is and what it links to. Use this whenever you are about to read, navigate or change such a repository - finding the code behind a requirement or an architecture element, changing behaviour, writing or editing a spec, a decision, a rule, a scenario or a step definition, checking what is verified, or planning work — even if the user only says "fix this" or "where is X handled". Reach for the graph before grep.
+description: How to work in a repository that uses sdp (it has an `sdp.config.yaml`) — requirements, decisions, architecture and the delivery plan kept as one graph of Gherkin specs whose tags say what each is and what it links to. Use this whenever you are about to read, navigate or change such a repository - finding the code behind a feature or an architecture element, changing behaviour, writing or editing a spec, a decision, a rule, a scenario or a step definition, checking what is verified, or planning work — even if the user only says "fix this" or "where is X handled". Reach for the graph before grep.
 ---
 
 # Working with sdp
 
-sdp is architecture-focused software delivery. Requirements, quality requirements, decisions, the
-architecture and the delivery plan are Gherkin files. Together they form one graph, and code is
-anchored to it with `annotate()` calls or `@sdp` comments.
+sdp is architecture-focused software delivery. Features — each with its requirements, quality ones
+included, as rules with examples — decisions and the delivery plan are Gherkin files. Together they
+form one graph, and code is anchored to it with `annotate()` calls or `@sdp` comments, which is
+where the elements of the architecture are declared.
 
 `sdp` below is the CLI. Where it is not installed, run it from its source:
 `node <path-to-sdp>/src/cli/main.ts …` (inside the sdp repository itself, `node src/cli/main.ts …`).
@@ -19,14 +20,14 @@ Read by the official Gherkin parser as it is; sdp adds no syntax of its own. Mar
 nothing.
 
 ```gherkin
-@id=REQ-guest-checkout @maturity=specified @checkout   # what it is: = is a value; a bare tag is a tag
-@refines:EPIC-checkout @realized-by:ARCH-orders       # what it links to: one tag, one link
+@id=guest-checkout @maturity=specified @checkout       # what it is: = is a value; a bare tag is a tag
+@depends-on:cart-totals @realized-by:ARCH-orders       # what it links to: one tag, one link
 @iteration:IT-payments                                 # the iteration it is planned into
 Feature: Guest checkout
 
   Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form.
 
-  @decided-by:DEC-no-sign-up-at-checkout
+  @decided-by:accounts-are-optional
   Rule: A guest pays without creating an account
 
     Scenario: By card
@@ -61,7 +62,7 @@ Feature: Guest checkout
   waits on someone is written this way, on the spec it concerns, never kept in a chat or an
   agent's memory: `sdp q 'rule[tags~open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
-  what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `DEC-0007` or `E2` — so that
+  what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
   whoever reads a message citing it needs no lookup. A feature, a change and a decision need no
   prefix; the other kinds keep theirs.
 
@@ -80,7 +81,7 @@ The sharp edges of the format, each what the official parser does:
   parse error): it is a sentence, and belongs in a description.
 - A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a bare tag `@b.c`.
 - Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
-  kept, so `@verifies:REQ-a#slug` links to a rule.
+  kept, so `@verifies:guest-checkout#slug` links to a rule.
 - A Background cannot be tagged. After the first Rule every scenario belongs to the rule above
   it, whatever its indentation; one before it belongs to none, which `sdp check` reports and
   `sdp run` refuses to run.
@@ -101,7 +102,7 @@ The sharp edges of the format, each what the official parser does:
   decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
-  requirements, and a requirement names its element with `@realized-by:`.
+  features, and a feature names its element with `@realized-by:`.
 - **Specs instead of prose.** A claim that can be structured or checked is a link or a rule with
   examples, not a paragraph. When you would write "X depends on Y" or "this must never happen",
   write the link or the rule (between elements, the code's imports already say it). A description says what the examples cannot — never a "verified by"
@@ -123,7 +124,7 @@ The sharp edges of the format, each what the official parser does:
 
 ## Go through the graph first
 
-The graph already knows which requirement an element realises, which decision constrains it and
+The graph already knows which feature an element realises, which decision constrains it and
 which file implements it, each with its `file:line`. Asking it gets you to the right three files
 faster than grepping for a guess.
 
@@ -131,7 +132,7 @@ faster than grepping for a guess.
   the names of its scenarios with their status and the steps still undefined, then the spec, its
   links, what rests on it, the architecture and decisions in reach, the code. Read this before
   changing anything the node covers.
-- **From a requirement to its code:** `sdp q '#REQ-x -realized-by-> element <-is- code' --ids`.
+- **From a feature to its code:** `sdp q '#guest-checkout -realized-by-> element <-is- code' --ids`.
   From an element: `sdp q '#ARCH-x <-is- code'`. A query answers with the last node of the
   pattern; `--paths` shows the route. Syntax and examples: `sdp q --help`.
 - **The graph as data:** `sdp graph` prints one JSON record per line, so anything a query cannot

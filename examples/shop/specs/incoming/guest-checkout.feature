@@ -1,5 +1,5 @@
-@id=REQ-guest-checkout @maturity=specified
-@depends-on:REQ-cart-totals
+@id=guest-checkout @maturity=specified
+@depends-on:cart-totals
 Feature: Guest checkout
 
   Shoppers without an account can pay.

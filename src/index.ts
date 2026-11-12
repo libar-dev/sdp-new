@@ -5,7 +5,7 @@
  * `@effect/platform-node`):
  *
  *   import { query } from "sdp"
- *   const found = await Effect.runPromise(query(".", { expression: "requirement[maturity<ready]" }).pipe(Effect.provide(NodeServices.layer)))
+ *   const found = await Effect.runPromise(query(".", { expression: "feature[maturity<ready]" }).pipe(Effect.provide(NodeServices.layer)))
  *   found.complete    // false when the answer may miss something; found.notes say why
  *   found.data.nodes  // the records `sdp graph` prints
  *

@@ -1,5 +1,5 @@
 /**
- * A spec is a Gherkin file whose Feature's tags say what it is: `@id=REQ-x`, its kind, its
+ * A spec is a Gherkin file whose Feature's tags say what it is: `@id=guest-checkout`, its kind, its
  * attributes and its links. The same format covers an idea written in one line and a fully
  * designed, executable specification: maturity is a property of the content, not of the format.
  */
@@ -144,7 +144,7 @@ export const writtenKind = (
   return undefined
 }
 
-/** `REQ-foo` → `requirement` when the config maps that prefix; otherwise, as `guest-checkout`, a feature. */
+/** `ARCH-orders` → `element` when the config maps that prefix; otherwise, as `guest-checkout`, a feature. */
 export const inferKind = (id: string, config: Config): string => {
   const prefix = /^([A-Za-z]+)[-_]/.exec(id)?.[1]
   if (prefix) {

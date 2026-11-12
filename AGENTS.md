@@ -48,7 +48,7 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   can observe, with its reason under it; its scenarios are the acceptance examples. It names a
   technology only where users see one: a command, an output, a bound an answer reports.
 - An id names what it is, so that a reader of a message that cites it needs no lookup:
-  `files-are-the-source-of-truth`, not `DEC-0003`; `IT-packaging`, not `E2`. A feature, a change
+  `files-are-the-source-of-truth`, not `ADR-0003`; `IT-packaging`, not `E2`. A feature, a change
   and a decision have no prefix: a feature is what an id without one names, and a change and a
   decision say their kind with `@kind=`. Elements, milestones and iterations keep a prefix.
 - A decision that changes is rewritten or deleted: its history is git's.
