@@ -404,6 +404,22 @@ Scenario: q answers a path pattern
   Then the output is valid JSON
   And the output contains '"id": "ARCH-index"'
 
+Scenario: q lists a decision by its status and a spec by its stage
+  Given a file "docs/DEC-0002.md" containing:
+    """
+    ---
+    id: DEC-0002
+    kind: decision
+    status: proposed
+    maturity: idea
+    ---
+    # Shard the index
+    """
+  When I run "sdp q decision"
+  Then the output contains "DEC-0002  decision  proposed"
+  When I run "sdp q requirement"
+  Then the output contains "REQ-search  requirement  specified"
+
 Scenario: An invalid query is an error
   When I run "sdp q 'requirement[maturity<'"
   Then the exit code is 1

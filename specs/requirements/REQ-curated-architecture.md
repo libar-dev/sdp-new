@@ -81,8 +81,11 @@ Scenario: The view shows every declared element and pattern with what shaped it
   And the output does not contain "REQ-receipts"
 
 Scenario: A mention pulls nothing into the view
-  When I ask for the architecture view
-  Then the output does not contain "DEC-2"
+  When an agent calls the MCP tool "sdp_architecture" with:
+    """
+    {}
+    """
+  Then the output field "nodes" holds "ARCH-billing, ARCH-mailer, ARCH-orders, DEC-1, NFR-latency, PAT-outbox"
 
 Scenario: An element anchored in code is part of the architecture
   Given a file "src/quiet.ts" containing:

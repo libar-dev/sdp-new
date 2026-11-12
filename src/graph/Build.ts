@@ -291,15 +291,16 @@ export const buildProject = (input: ProjectInput): Project => {
       }
     }
   }
-  const keys = linkKeys(vocabulary)
-  for (const [id, at] of writtenAt) {
-    const node = nodes.get(id)!
-    const linked: Array<readonly [string, unknown]> = keys.flatMap((key) => Object.hasOwn(node.attrs, key) ? [[key, node.attrs[key]] as const] : [])
+  /** The link keys a node writes with their values; each discipline of `activity` under its path. */
+  const writtenLinks = (node: GraphNode): ReadonlyArray<readonly [string, unknown]> => {
+    const keys = linkKeys(vocabulary).filter((key) => Object.hasOwn(node.attrs, key))
+    const linked = keys.map((key) => [key, node.attrs[key]] as const)
     const activity = attribute(node, vocabulary.attributes.activity)
-    if (Predicate.isObject(activity) && !Array.isArray(activity)) {
-      for (const [discipline, value] of Object.entries(activity)) linked.push([activityRelation(vocabulary, discipline), value])
-    }
-    for (const [rel, value] of linked) {
+    if (!Predicate.isObject(activity) || Array.isArray(activity)) return linked
+    return [...linked, ...Object.entries(activity).map(([discipline, value]) => [activityRelation(vocabulary, discipline), value] as const)]
+  }
+  for (const [id, at] of writtenAt) {
+    for (const [rel, value] of writtenLinks(nodes.get(id)!)) {
       const source = at(rel.split(".")[0]!)
       const links = normalizeLinks({ [rel]: value }, { file: source.file, owner: id, line: source.line, lineOf: () => source.line }, diagnostics)
       for (const link of links) edges.push({ from: id, rel: link.rel, to: link.to, attrs: link.attrs, source })

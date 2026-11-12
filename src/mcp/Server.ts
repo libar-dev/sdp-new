@@ -100,7 +100,7 @@ const SdpLifecycle = readOnly(Tool.make("sdp_lifecycle", {
 
 const SdpStatus = readOnly(Tool.make("sdp_status", {
   description:
-    "Summary counts: node kinds, relations in use, spec stages, decision statuses, scenario and gate results, architectural nodes, diagnostics.",
+    "Summary counts: node kinds, relations in use, stages, decision statuses, scenario and gate results, architectural nodes, diagnostics.",
   ...text
 }))
 
