@@ -12,9 +12,9 @@ Feature: Write step definitions
   executes or what its results mean for a spec.
 
   Background:
-    Given a file "specs/REQ-cart.feature" containing:
+    Given a file "specs/cart.feature" containing:
       """
-      @id=REQ-cart @maturity=ready
+      @id=cart @maturity=ready
       Feature: Cart
 
         Shoppers collect items before paying.
@@ -103,7 +103,7 @@ Feature: Write step definitions
     Scenario Outline: Every scenario gets a fresh world, shared by the modules on one world factory
       Given a file "specs/shop.feature" containing:
         """
-        @id=REQ-shop
+        @id=shop
         Feature: Shop
           Rule: The cart counts each lamp added
             Scenario: One lamp
@@ -120,8 +120,8 @@ Feature: Write step definitions
         | cart     | shop       | I add a lamp                 | adds an item to its world     |
         | checkout | <checkout> | the cart holds {int} item(s) | checks the items in its world |
       When the workspace is run
-      Then node "REQ-shop#one-lamp" has attribute status = "<status>"
-      And node "REQ-shop#two-lamps" has attribute status = "<status>"
+      Then node "shop#one-lamp" has attribute status = "<status>"
+      And node "shop#two-lamps" has attribute status = "<status>"
 
       Examples:
         | checkout | status |
@@ -182,9 +182,9 @@ Feature: Write step definitions
       And a step definition "an {word} cart" that passes
       When the workspace is run
       Then the step "an empty cart" has status "ambiguous"
-      And node "REQ-cart#add-an-item" has attribute status = "ambiguous"
+      And node "cart#add-an-item" has attribute status = "ambiguous"
       And the step "an empty cart" reports "matches 2 definitions"
-      And node "REQ-cart" has attribute verification = "failing"
+      And node "cart" has attribute verification = "failing"
 
     Scenario Outline: After a step that does not pass the rest are skipped but still matched, and the scenario takes the worst status
       Given a step definition "an empty cart" that <first step>
@@ -193,7 +193,7 @@ Feature: Write step definitions
       Then the step "an empty cart" has status "<status>"
       And the step "I add a lamp" has status "skipped"
       And the step "the cart holds 1 item" has status "undefined"
-      And node "REQ-cart#add-an-item" has attribute status = "<scenario>"
+      And node "cart#add-an-item" has attribute status = "<scenario>"
 
       Examples: Worst first: failed, ambiguous, undefined, pending, skipped, passed
         | first step | status  | scenario  |
@@ -201,9 +201,9 @@ Feature: Write step definitions
         | pends      | pending | undefined |
 
     Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
-      Given a file "specs/REQ-wishlist.feature" containing:
+      Given a file "specs/wishlist.feature" containing:
         """
-        @id=REQ-wishlist
+        @id=wishlist
         Feature: Wishlist
           Rule: A wishlist keeps what a shopper wants for later
             Scenario: Keep a lamp for later
@@ -279,12 +279,12 @@ Feature: Write step definitions
 
     Background:
       Given these specs:
-        | tags                                                  | Feature      |
-        | @id=REQ-search @maturity=idea @realized-by:ARCH-index | Search       |
-        | @id=ARCH-index                                        | Search index |
-      And a file "specs/DEC-inverted-index.feature" containing:
+        | tags                                              | Feature      |
+        | @id=search @maturity=idea @realized-by:ARCH-index | Search       |
+        | @id=ARCH-index                                    | Search index |
+      And a file "specs/inverted-index.feature" containing:
         """
-        @id=DEC-inverted-index
+        @id=inverted-index @kind=decision
         Feature: Use an inverted index
 
           Rule: The index is rebuilt every night
@@ -301,16 +301,16 @@ Feature: Write step definitions
       Then the step '<step>' has status "passed"
 
       Examples:
-        | step                                                                                    |
-        | the query "requirement" returns 2 results                                               |
-        | the query "requirement[maturity=draft]" returns no results                              |
-        | the query "requirement\|element" returns at least 2 results                             |
-        | the query "element" returns at most 1 result                                            |
-        | every node matching "requirement[maturity=idea]" also matches "* ?-realized-by-> element" |
-        | there are no error diagnostics                                                          |
-        | there are no diagnostics for rule "dangling-link"                                       |
-        | the node "REQ-search" has maturity "idea"                                               |
-        | the node "ARCH-index" has kind "element"                                                |
+        | step                                                                                  |
+        | the query "feature" returns 2 results                                                 |
+        | the query "feature[maturity=draft]" returns no results                                |
+        | the query "feature\|element" returns at least 2 results                               |
+        | the query "element" returns at most 1 result                                          |
+        | every node matching "feature[maturity=idea]" also matches "* ?-realized-by-> element" |
+        | there are no error diagnostics                                                        |
+        | there are no diagnostics for rule "dangling-link"                                     |
+        | the node "search" has maturity "idea"                                                 |
+        | the node "ARCH-index" has kind "element"                                              |
 
     Scenario Outline: Each step, where the graph differs
       Given a file "specs/guard.feature" containing:
@@ -324,36 +324,36 @@ Feature: Write step definitions
       And the step '<step>' reports '<reason>'
 
       Examples:
-        | step                                                      | reason                                                             |
-        | the query "requirement" returns 3 results                 | returned 2 result(s), expected 3                                   |
-        | the query "requirement" returns no results                | REQ-search (requirement) specs/REQ-search.feature:1                |
-        | the query "element" returns at least 2 results            | returned 1 result(s), expected at least 2                          |
-        | the query "requirement\|element" returns at most 1 result | returned 3 result(s), expected at most 1                           |
-        | every node matching "element" also matches "*[maturity]"  | ARCH-index (element) specs/ARCH-index.feature:1                    |
-        | there are no warning diagnostics                          | [decision-shape] DEC-inverted-index                                |
-        | there are no diagnostics for rule "decision-shape"        | DEC-inverted-index has a rule ("The index is rebuilt every night") |
-        | the node "REQ-search" has maturity "ready"                | REQ-search.maturity is "idea", expected "ready"                    |
+        | step                                                     | reason                                                         |
+        | the query "feature" returns 3 results                    | returned 2 result(s), expected 3                               |
+        | the query "feature" returns no results                   | search (feature) specs/search.feature:1                        |
+        | the query "element" returns at least 2 results           | returned 1 result(s), expected at least 2                      |
+        | the query "feature\|element" returns at most 1 result    | returned 3 result(s), expected at most 1                       |
+        | every node matching "element" also matches "*[maturity]" | ARCH-index (element) specs/ARCH-index.feature:1                |
+        | there are no warning diagnostics                         | [decision-shape] inverted-index                                |
+        | there are no diagnostics for rule "decision-shape"       | inverted-index has a rule ("The index is rebuilt every night") |
+        | the node "search" has maturity "ready"                   | search.maturity is "idea", expected "ready"                    |
 
     Scenario: A query result is compared with a table of ids, in any order, with or without a header
       Given a file "specs/guard.feature" containing:
         """
         Feature: Guard
           Scenario: Exactly these
-            Then the query "requirement|element" returns:
+            Then the query "feature|element" returns:
               | id         |
-              | REQ-search |
+              | search     |
               | ARCH-index |
-              | REQ-cart   |
+              | cart       |
 
           Scenario: Not these
-            Then the query "requirement" returns:
-              | REQ-search |
+            Then the query "feature" returns:
+              | search     |
               | ARCH-index |
         """
       When the workspace is run
-      Then the step 'the query "requirement|element" returns:' has status "passed"
-      And the step 'the query "requirement" returns:' has status "failed"
-      And the step 'the query "requirement" returns:' reports "returned [REQ-cart, REQ-search], expected [ARCH-index, REQ-search]"
+      Then the step 'the query "feature|element" returns:' has status "passed"
+      And the step 'the query "feature" returns:' has status "failed"
+      And the step 'the query "feature" returns:' reports "returned [cart, search], expected [ARCH-index, search]"
 
   Rule: A built-in step fails when its answer cannot be trusted
 
@@ -362,9 +362,9 @@ Feature: Write step definitions
 
     Background:
       Given these specs:
-        | tags                                                  | Feature      |
-        | @id=REQ-search @maturity=idea @realized-by:ARCH-index | Search       |
-        | @id=ARCH-index                                        | Search index |
+        | tags                                              | Feature      |
+        | @id=search @maturity=idea @realized-by:ARCH-index | Search       |
+        | @id=ARCH-index                                    | Search index |
 
     Scenario Outline: A query that does not parse, or names what nothing in the workspace has, fails with the closest known word
       Given a file "specs/guard.feature" containing:
@@ -378,25 +378,26 @@ Feature: Write step definitions
       And the step '<step>' reports '<reason>'
 
       Examples:
-        | step                                                                         | reason                                                  |
-        | the query "requirement[" returns no results                                  | invalid query                                           |
-        | the query "requirment" returns no results                                    | no kind requirment; closest: requirement                |
-        | the query "* -realised-by-> *" returns no results                            | no relation realised-by; closest: realized-by           |
-        | the query "#REQ-serach[maturity=ready]" returns no results                   | no node has the id REQ-serach; closest: REQ-search      |
-        | the query "requirement[maturty=ready]" returns no results                    | requirement has no attribute maturty; closest: maturity |
-        | the query "#REQ-search -realized-by-> *[ownr]" returns no results            | * has no attribute ownr                                 |
-        | every node matching "#REQ-serach" also matches "requirement[maturity=ready]" | no node has the id REQ-serach                           |
-        | the node "REQ-lost" has maturity "ready"                                     | no node REQ-lost                                        |
-        | the node "REQ-search" has maturty "undefined"                                | REQ-search has no attribute maturty; closest: maturity  |
-        | there are no eror diagnostics                                                | unknown severity "eror"                                 |
-        | there are no constructor diagnostics                                         | unknown severity "constructor"                          |
-        | there are no diagnostics for rule "decision-stats"                           | unknown rule "decision-stats"                           |
+        | step                                                                 | reason                                              |
+        | the query "feature[" returns no results                              | invalid query                                       |
+        | the query "feture" returns no results                                | no kind feture; closest: feature                    |
+        | the query "* -realised-by-> *" returns no results                    | no relation realised-by; closest: realized-by       |
+        | the query "#serach[maturity=ready]" returns no results               | no node has the id serach; closest: search          |
+        | the query "feature[maturty=ready]" returns no results                | feature has no attribute maturty; closest: maturity |
+        | the query "#search -realized-by-> *[ownr]" returns no results        | * has no attribute ownr                             |
+        | every node matching "#serach" also matches "feature[maturity=ready]" | no node has the id serach                           |
+        | the node "lost" has maturity "ready"                                 | no node lost                                        |
+        | the node "search" has maturty "undefined"                            | search has no attribute maturty; closest: maturity  |
+        | there are no eror diagnostics                                        | unknown severity "eror"                             |
+        | there are no constructor diagnostics                                 | unknown severity "constructor"                      |
+        | there are no diagnostics for rule "decision-stats"                   | unknown rule "decision-stats"                       |
 
     Scenario Outline: A word the vocabulary declares, or a kind an id prefix names, can be asserted absent
       Given a file "sdp.config.yaml" containing:
         """
         vocabulary:
           words: { kinds: [incident], relations: [leaks-to], attributes: [exposure] }
+        ids: { risk: RISK }
         """
       And a file "specs/guard.feature" containing:
         """
@@ -408,13 +409,13 @@ Feature: Write step definitions
       Then the step '<step>' has status "<status>"
 
       Examples:
-        | step                                                      | status |
-        | the query "* -leaks-to-> *" returns no results            | passed |
-        | the query "incident[!owner]" returns no results           | failed |
-        | the query "incident" returns no results                   | passed |
-        | the query "requirement[exposure=high]" returns no results | passed |
-        | the query "risk[status=open]" returns no results          | passed |
-        | the query "* -leaks-into-> *" returns no results          | failed |
+        | step                                                  | status |
+        | the query "* -leaks-to-> *" returns no results        | passed |
+        | the query "incident[!owner]" returns no results       | failed |
+        | the query "incident" returns no results               | passed |
+        | the query "feature[exposure=high]" returns no results | passed |
+        | the query "risk[status=open]" returns no results      | passed |
+        | the query "* -leaks-into-> *" returns no results      | failed |
 
     Scenario: A graph that could not be fully read proves nothing, so a query step fails
       Given a file "src/search.ts" containing:
@@ -422,18 +423,18 @@ Feature: Write step definitions
         import { annotate } from "sdp/annotations"
 
         export const search = () => []
-        const requirement = "REQ-search"
-        annotate(search, { implements: requirement })
+        const feature = "search"
+        annotate(search, { implements: feature })
         """
       And a file "specs/guard.feature" containing:
         """
         Feature: Guard
           Scenario: Guard
-            Then the query "code -implements-> #REQ-search" returns no results
+            Then the query "code -implements-> #search" returns no results
         """
       When the workspace is run
-      Then the step 'the query "code -implements-> #REQ-search" returns no results' has status "failed"
-      And the step 'the query "code -implements-> #REQ-search" returns no results' reports "src/search.ts:5 [annotation-unreadable]"
+      Then the step 'the query "code -implements-> #search" returns no results' has status "failed"
+      And the step 'the query "code -implements-> #search" returns no results' reports "src/search.ts:5 [annotation-unreadable]"
 
     Scenario Outline: A query cut short by a limit proves nothing, so the step fails
       Given a chain of 14 nodes linked by "next"
@@ -477,12 +478,12 @@ Feature: Write step definitions
       And the file "executed.txt" <is there or not>
 
       Examples:
-        | command              | is there or not               |
-        | sdp context REQ-cart | does not exist                |
-        | sdp steps            | does not exist                |
-        | sdp check            | does not exist                |
-        | sdp status           | does not exist                |
-        | sdp run              | contains "this step file ran" |
+        | command          | is there or not               |
+        | sdp context cart | does not exist                |
+        | sdp steps        | does not exist                |
+        | sdp check        | does not exist                |
+        | sdp status       | does not exist                |
+        | sdp run          | contains "this step file ran" |
 
     Scenario: A step definition is read whether its registrar is destructured, renamed or taken whole, and it matches by text, whatever keyword registered it
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -602,7 +603,7 @@ Feature: Write step definitions
       Then the exit code is 1
       And the output contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}": Undefined parameter type'
       And the output does not contain "    at "
-      When I run "sdp context REQ-cart"
+      When I run "sdp context cart"
       Then the exit code is 2
       And the output contains "incomplete: this answer may miss something"
       And the output section "Contract" contains "undefined: Given an empty cart"
@@ -635,7 +636,7 @@ Feature: Write step definitions
         import { annotate } from "sdp/annotations"
 
         export const lamp = () => 1
-        annotate(lamp, { implements: "REQ-cart" })
+        annotate(lamp, { implements: "cart" })
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """

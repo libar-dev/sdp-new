@@ -10,9 +10,9 @@ Feature: Know what is verified
   only what it did when it last ran, in the checkout where it ran.
 
   Background:
-    Given a file "specs/REQ-cart.feature" containing:
+    Given a file "specs/cart.feature" containing:
       """
-      @id=REQ-cart @maturity=ready
+      @id=cart @maturity=ready
       Feature: Cart
 
         Shoppers collect items before paying.
@@ -32,48 +32,48 @@ Feature: Know what is verified
 
     Scenario: Until its scenarios run, a spec's stage is its declared maturity
       Given these specs:
-        | tags                            | Feature  |
-        | @id=REQ-wishlist @maturity=idea | Wishlist |
+        | tags                        | Feature  |
+        | @id=wishlist @maturity=idea | Wishlist |
       When the workspace is loaded
-      Then node "REQ-cart#add-an-item" has attribute status = "unrun"
-      And node "REQ-cart" has attribute verification = "unrun"
-      And node "REQ-cart" has attribute stage = "ready"
-      And node "REQ-wishlist" has attribute verification = "none"
-      And node "REQ-wishlist" has attribute stage = "idea"
+      Then node "cart#add-an-item" has attribute status = "unrun"
+      And node "cart" has attribute verification = "unrun"
+      And node "cart" has attribute stage = "ready"
+      And node "wishlist" has attribute verification = "none"
+      And node "wishlist" has attribute stage = "idea"
 
     Scenario: Without step definitions a scenario is undefined, not failed, and its spec keeps the declared maturity
       When the workspace is run
-      Then node "REQ-cart#add-an-item" has attribute status = "undefined"
-      And node "REQ-cart" has attribute verification = "undefined"
-      And node "REQ-cart" has attribute stage = "ready"
+      Then node "cart#add-an-item" has attribute status = "undefined"
+      And node "cart" has attribute verification = "undefined"
+      And node "cart" has attribute stage = "ready"
 
     Scenario: A scenario without steps is undefined: it automates nothing
-      Given a file "specs/REQ-later.feature" containing:
+      Given a file "specs/later.feature" containing:
         """
-        @id=REQ-later @maturity=idea
+        @id=later @maturity=idea
         Feature: Later
           Rule: An idea is written down first
             Scenario: To be written
         """
       When the workspace is run
-      Then node "REQ-later#to-be-written" has attribute status = "undefined"
-      And node "REQ-later" has attribute stage = "idea"
+      Then node "later#to-be-written" has attribute status = "undefined"
+      And node "later" has attribute stage = "idea"
 
     Scenario: A scenario stays undefined until every step has a definition
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       When the workspace is run
-      Then node "REQ-cart#add-an-item" has attribute status = "undefined"
-      And node "REQ-cart" has attribute stage = "ready"
+      Then node "cart#add-an-item" has attribute status = "undefined"
+      And node "cart" has attribute stage = "ready"
 
     Scenario Outline: All passed is verified, a failure is failing, and anything between is in-progress
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that <adding>
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      Then node "REQ-cart#add-an-item" has attribute status = "<scenario>"
-      And node "REQ-cart" has attribute verification = "<verification>"
-      And node "REQ-cart" has attribute stage = "<stage>"
+      Then node "cart#add-an-item" has attribute status = "<scenario>"
+      And node "cart" has attribute verification = "<verification>"
+      And node "cart" has attribute stage = "<stage>"
 
       Examples:
         | adding | scenario | verification | stage       |
@@ -82,9 +82,9 @@ Feature: Know what is verified
         | fails  | failed   | failing      | failing     |
 
     Scenario: A spec is verified only when every one of its scenarios passed
-      Given a file "specs/REQ-wishlist.feature" containing:
+      Given a file "specs/wishlist.feature" containing:
         """
-        @id=REQ-wishlist
+        @id=wishlist
         Feature: Wishlist
           Rule: A wishlist keeps what a shopper wants for later
             Scenario: Keep a lamp
@@ -95,15 +95,15 @@ Feature: Know what is verified
         """
       And a step definition "an empty cart" that passes
       When the workspace is run
-      Then node "REQ-wishlist#keep-a-lamp" has attribute status = "passed"
-      And node "REQ-wishlist#share-the-list" has attribute status = "undefined"
-      And node "REQ-wishlist" has attribute verification = "partial"
-      And node "REQ-wishlist" has attribute stage = "in-progress"
+      Then node "wishlist#keep-a-lamp" has attribute status = "passed"
+      And node "wishlist#share-the-list" has attribute status = "undefined"
+      And node "wishlist" has attribute verification = "partial"
+      And node "wishlist" has attribute stage = "in-progress"
 
     Scenario Outline: A spec without a maturity, or with a stage written as one, has no stage until its scenarios say more
-      Given a file "specs/REQ-csv.feature" containing:
+      Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=REQ-csv <maturity>
+        @id=export-to-csv <maturity>
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -116,7 +116,7 @@ Feature: Know what is verified
         """
       And a step definition "I export the report" that passes
       When the workspace is run
-      Then node "REQ-csv" has attribute stage = "undefined"
+      Then node "export-to-csv" has attribute stage = "undefined"
 
       Examples:
         | maturity           |
@@ -125,16 +125,16 @@ Feature: Know what is verified
 
     Scenario: Verification orders from none to passing, so a query can ask for everything short of it
       Given these specs:
-        | tags                            | Feature  |
-        | @id=REQ-wishlist @maturity=idea | Wishlist |
+        | tags                        | Feature  |
+        | @id=wishlist @maturity=idea | Wishlist |
       And a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      And I query "requirement[verification<passing]"
-      Then the result is "REQ-wishlist"
-      When I query "requirement[verification>=passing]"
-      Then the result is "REQ-cart"
+      And I query "feature[verification<passing]"
+      Then the result is "wishlist"
+      When I query "feature[verification>=passing]"
+      Then the result is "cart"
 
   Rule: Every report counts stages the same way, and failing ranks with in-progress
 
@@ -144,13 +144,13 @@ Feature: Know what is verified
 
     Scenario: An idea, a failing and a verified spec in one iteration
       Given these specs:
-        | tags                                        | Feature |
-        | @id=IT-beta                                 | Beta    |
-        | @id=REQ-b @maturity=idea @iteration:IT-beta | B       |
-      And a file "specs/REQ-a.feature" containing:
+        | tags                                           | Feature  |
+        | @id=IT-beta                                    | Beta     |
+        | @id=wishlist @maturity=idea @iteration:IT-beta | Wishlist |
+      And a file "specs/export.feature" containing:
         """
-        @id=REQ-a @maturity=specified @iteration:IT-beta
-        Feature: A
+        @id=export @maturity=specified @iteration:IT-beta
+        Feature: Export
 
           Something to export.
 
@@ -159,9 +159,9 @@ Feature: Know what is verified
             Scenario: Export
               Then a file is saved
         """
-      And a file "specs/NFR-fast.feature" containing:
+      And a file "specs/fast-exports.feature" containing:
         """
-        @id=NFR-fast @iteration:IT-beta
+        @id=fast-exports @kind=nfr @iteration:IT-beta
         Feature: Exports are fast
 
           Rule: A report exports within a second
@@ -178,13 +178,13 @@ Feature: Know what is verified
         | id      | stages                      |
         | IT-beta | failing:1 idea:1 verified:1 |
       When I query "*[stage>ready]"
-      Then the result is "NFR-fast, REQ-a"
+      Then the result is "export, fast-exports"
       When I query "*[stage<verified]"
-      Then the result is "REQ-a, REQ-b, REQ-cart"
+      Then the result is "cart, export, wishlist"
       When I query "*[stage=in-progress]"
       Then the result is "nothing"
       When I query "*[stage>=in-progress, stage<=failing]"
-      Then the result is "REQ-a"
+      Then the result is "export"
 
   Rule: A result counts only while what it ran against is unchanged
 
@@ -198,9 +198,9 @@ Feature: Know what is verified
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      And a file "specs/REQ-cart.feature" containing:
+      And a file "specs/cart.feature" containing:
         """
-        @id=REQ-cart @maturity=ready
+        @id=cart @maturity=ready
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -212,19 +212,19 @@ Feature: Know what is verified
               When I add two lamps
               Then the cart holds 2 items
         """
-      Then node "REQ-cart#add-an-item" has attribute status = "stale"
-      And node "REQ-cart#add-an-item" has attribute staleBecause = "scenario-changed"
-      And node "REQ-cart" has attribute verification = "unrun"
-      And node "REQ-cart" has attribute stage = "ready"
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
+      And node "cart" has attribute verification = "unrun"
+      And node "cart" has attribute stage = "ready"
 
     Scenario Outline: A tag is part of the scenario, wherever it is inherited from
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      And a file "specs/REQ-cart.feature" containing:
+      And a file "specs/cart.feature" containing:
         """
-        @id=REQ-cart @maturity=ready <on the feature>
+        @id=cart @maturity=ready <on the feature>
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -238,8 +238,8 @@ Feature: Know what is verified
               When I add a lamp
               Then the cart holds 1 item
         """
-      Then node "REQ-cart#add-an-item" has attribute status = "stale"
-      And node "REQ-cart#add-an-item" has attribute staleBecause = "scenario-changed"
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
 
       Examples:
         | on the feature | on the rule | on the scenario |
@@ -261,9 +261,9 @@ Feature: Know what is verified
         """
         <content>
         """
-      Then node "REQ-cart#add-an-item" has attribute status = "stale"
-      And node "REQ-cart#add-an-item" has attribute staleBecause = "<reason>"
-      And node "REQ-cart" has attribute stage = "ready"
+      Then node "cart#add-an-item" has attribute status = "stale"
+      And node "cart#add-an-item" has attribute staleBecause = "<reason>"
+      And node "cart" has attribute stage = "ready"
 
       Examples:
         | file                      | content                    | reason            |
@@ -283,19 +283,19 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       And a file "specs/catalogue.feature" containing:
         """
-        @id=REQ-catalogue
+        @id=catalogue
         Feature: Catalogue
           Rule: The catalogue knows the cart
             Scenario: The cart is specified
-              Then the query "#REQ-cart" returns 1 result
+              Then the query "#cart" returns 1 result
         """
       When the workspace is run
       And these specs:
-        | tags             | Feature  |
-        | @id=REQ-wishlist | Wishlist |
-      Then node "REQ-catalogue#the-cart-is-specified" has attribute status = "stale"
-      And node "REQ-catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
-      And node "REQ-cart#add-an-item" has attribute status = "passed"
+        | tags         | Feature  |
+        | @id=wishlist | Wishlist |
+      Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
+      And node "catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
+      And node "cart#add-an-item" has attribute status = "passed"
 
     Scenario: Changing what step definitions import leaves their results stale, and a gate on them unmet
       Given a file "specs/MS-beta.feature" containing:
@@ -304,7 +304,7 @@ Feature: Know what is verified
         Feature: Beta
           Rule: The cart is verified before the beta
             Scenario: The cart works
-              Then the node "REQ-cart" has stage "verified"
+              Then the node "cart" has stage "verified"
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
@@ -337,7 +337,7 @@ Feature: Know what is verified
         | data.stale.code-changed | 2 |
       When I run "sdp gate MS-beta"
       Then the exit code is 1
-      And the output contains 'REQ-cart.stage is "ready", expected "verified"'
+      And the output contains 'cart.stage is "ready", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
     Scenario: A file a handler imports only while it runs is part of what the result ran against
@@ -418,9 +418,9 @@ Feature: Know what is verified
         | data.stale | {} |
 
     Scenario: Each result is compared with the files its own run imported
-      Given a file "specs/REQ-wishlist.feature" containing:
+      Given a file "specs/wishlist.feature" containing:
         """
-        @id=REQ-wishlist
+        @id=wishlist
         Feature: Wishlist
           Rule: A wishlist keeps what a shopper wants for later
             Scenario: Keep a lamp
@@ -443,10 +443,10 @@ Feature: Know what is verified
         """
         export const lamps = 1
         """
-      When I run "sdp run REQ-cart --json"
+      When I run "sdp run cart --json"
       Then the JSON output has:
         | data.summary.passed | 1 |
-      When I run "sdp run REQ-wishlist --json"
+      When I run "sdp run wishlist --json"
       Then the JSON output has:
         | data.summary.passed | 1  |
         | data.stale          | {} |
@@ -455,7 +455,7 @@ Feature: Know what is verified
         export const lamps = 2
         """
       When I run "sdp q scenario[status=stale] --ids"
-      Then the output lines are "REQ-wishlist#keep-a-lamp"
+      Then the output lines are "wishlist#keep-a-lamp"
 
     Scenario: A process that imported the step modules refuses to record a run once they changed
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -485,7 +485,7 @@ Feature: Know what is verified
       Then the output contains "specs/steps/lamps.ts changed after this process imported it"
       And the output contains "Run again in a new process"
       When I run "sdp q scenario[status=stale] --ids"
-      Then the output lines are "REQ-cart#add-an-item"
+      Then the output lines are "cart#add-an-item"
       When I run "sdp run"
       Then the exit code is 1
       And the output contains "the cart holds 2"
@@ -514,7 +514,7 @@ Feature: Know what is verified
       Then the exit code is 0
       When this process runs the workspace through the API
       Then the output contains "specs/steps/lamps.ts changed after this process imported it"
-      When I run "sdp q requirement[stage=verified] --ids"
+      When I run "sdp q feature[stage=verified] --ids"
       Then the output lines are ""
 
     Scenario: A declared environment variable is part of the evidence, and only its digest is stored
@@ -551,14 +551,14 @@ Feature: Know what is verified
     decision a rule rests on or rewording a reason leaves it valid.
 
     Scenario Outline: Which edits change a scenario's hash
-      Given a file "specs/REQ-pay.feature" containing:
+      Given a file "specs/pay.feature" containing:
         """
-        @id=REQ-pay @maturity=draft @iteration:IT-payments
+        @id=pay @maturity=draft @iteration:IT-payments
         Feature: Pay
 
           Shoppers pay.
 
-          @decided-by:DEC-pay-before-shipping
+          @decided-by:pay-before-shipping
           Rule: An order needs a payment
 
             No goods leave without one.
@@ -570,22 +570,22 @@ Feature: Know what is verified
                 | card | 4242 |
               Then an order is created
         """
-      When "specs/REQ-pay.feature" is parsed
-      And "specs/REQ-pay.feature" is parsed again after replacing "<text>" with "<replacement>"
-      Then the hash of "REQ-pay#card-payment" <hash>
+      When "specs/pay.feature" is parsed
+      And "specs/pay.feature" is parsed again after replacing "<text>" with "<replacement>"
+      Then the hash of "pay#card-payment" <hash>
 
       Examples:
-        | text                                | replacement                  | hash           |
-        | 2 items                             | 3 items                      | changes        |
-        | 4242                                | 4000                         | changes        |
-        | @slow                               | @fast                        | changes        |
-        | @id=REQ-pay                         | @id=REQ-pay @kind=story      | changes        |
-        | @maturity=draft                     | @maturity=ready              | stays the same |
-        | @iteration:IT-payments              | @iteration:IT-checkout       | stays the same |
-        | @decided-by:DEC-pay-before-shipping | @decided-by:DEC-pay-up-front | stays the same |
-        | Feature: Pay                        | Feature: Payment             | stays the same |
-        | Shoppers pay.                       | Shoppers pay by card.        | stays the same |
-        | No goods leave without one.         | Nothing ships unpaid.        | stays the same |
+        | text                            | replacement              | hash           |
+        | 2 items                         | 3 items                  | changes        |
+        | 4242                            | 4000                     | changes        |
+        | @slow                           | @fast                    | changes        |
+        | @id=pay                         | @id=pay @kind=story      | changes        |
+        | @maturity=draft                 | @maturity=ready          | stays the same |
+        | @iteration:IT-payments          | @iteration:IT-checkout   | stays the same |
+        | @decided-by:pay-before-shipping | @decided-by:pay-up-front | stays the same |
+        | Feature: Pay                    | Feature: Payment         | stays the same |
+        | Shoppers pay.                   | Shoppers pay by card.    | stays the same |
+        | No goods leave without one.     | Nothing ships unpaid.    | stays the same |
 
   Rule: No scenario reads the layer of evidence it belongs to
 
@@ -600,7 +600,7 @@ Feature: Know what is verified
         Feature: Beta
           Rule: The cart is verified before the beta
             Scenario: The cart works
-              Then the node "REQ-cart" has stage "verified"
+              Then the node "cart" has stage "verified"
         """
 
     Scenario: A gate sees the results of the scenarios that ran before it
@@ -620,8 +620,8 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
       And a step definition "I add a lamp" that fails
-      And the workspace is run with "REQ-cart"
-      Then node "REQ-cart#add-an-item" has attribute status = "failed"
+      And the workspace is run with "cart"
+      Then node "cart#add-an-item" has attribute status = "failed"
       And node "MS-beta#the-cart-works" has attribute status = "stale"
       And node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
 
@@ -631,11 +631,11 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       And a file "specs/release.feature" containing:
         """
-        @id=REQ-release
+        @id=release
         Feature: Release
           Rule: The cart is released once it is verified
             Scenario Outline: The cart is <state>
-              Then the node "REQ-cart" has <attribute> "<state>"
+              Then the node "cart" has <attribute> "<state>"
 
               Examples: As authored
                 | attribute | state |
@@ -647,8 +647,8 @@ Feature: Know what is verified
                 | stage     | verified |
         """
       When the workspace is run with "--tags 'not @gate'"
-      Then the step 'the node "REQ-cart" has maturity "ready"' has status "passed"
-      And node "REQ-release#the-cart-is-state" has attribute status = "skipped"
+      Then the step 'the node "cart" has maturity "ready"' has status "passed"
+      And node "release#the-cart-is-state" has attribute status = "skipped"
 
     Scenario: An ordinary scenario sees the graph without results, whatever ran before
       Given a step definition "an empty cart" that passes
@@ -656,7 +656,7 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       And a file "specs/audit.feature" containing:
         """
-        @id=REQ-audit
+        @id=audit
         Feature: Audit
           Rule: An audit sees the graph as it is written
             Scenario: Look at the graph
@@ -665,13 +665,13 @@ Feature: Know what is verified
       And a step definition "the graph shows no results" that finds every scenario unrun
       When the workspace is run
       And the workspace is run
-      Then node "REQ-cart#add-an-item" has attribute status = "passed"
-      And node "REQ-audit#look-at-the-graph" has attribute status = "passed"
+      Then node "cart#add-an-item" has attribute status = "passed"
+      And node "audit#look-at-the-graph" has attribute status = "passed"
 
     Scenario Outline: An ordinary scenario that asserts on results is told to become a gate
       Given a file "specs/progress.feature" containing:
         """
-        @id=REQ-progress
+        @id=progress
         Feature: Progress
           Rule: Progress is delivery state
             Scenario: Delivery state
@@ -682,12 +682,12 @@ Feature: Know what is verified
       And the step '<step>' reports "a scenario that asserts on delivery state is a gate: tag it @gate or put it in a milestone"
 
       Examples:
-        | step                                                       |
-        | the query "requirement[stage=verified]" returns no results |
-        | the query "scenario[status=failed]" returns no results     |
-        | the query "*[status=failed]" returns no results            |
-        | the node "REQ-cart" has verification "passing"             |
-        | the node "REQ-cart#add-an-item" has status "unrun"         |
+        | step                                                   |
+        | the query "feature[stage=verified]" returns no results |
+        | the query "scenario[status=failed]" returns no results |
+        | the query "*[status=failed]" returns no results        |
+        | the node "cart" has verification "passing"             |
+        | the node "cart#add-an-item" has status "unrun"         |
 
     Scenario: A gate sees what the ordinary results say, not when or how they ran
       Given a step definition "an empty cart" that passes
@@ -706,7 +706,7 @@ Feature: Know what is verified
         """
       And a step definition "the graph shows what the results say and no more" that finds statuses without run details
       When the workspace is run
-      And the workspace is run with "REQ-cart"
+      And the workspace is run with "cart"
       Then node "MS-audit#look-at-the-results" has attribute status = "passed"
       And the step 'the query "scenario[lastRun]" returns at least 1 result' reports "which no scenario sees"
 
@@ -734,30 +734,30 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       And a file "specs/wishlist.feature" containing:
         """
-        @id=REQ-wishlist
+        @id=wishlist
         Feature: Wishlist
           Rule: A wishlist keeps what a shopper wants for later
             Scenario: Keep a lamp for later
-              Then the query "#REQ-cart" returns 1 result
+              Then the query "#cart" returns 1 result
         """
       When the workspace is run
       And a file "specs/wishlist.feature" containing:
         """
-        @id=REQ-wishlist
+        @id=wishlist
         Feature: Wishlist
           Rule: A wishlist keeps what a shopper wants for later
             Scenario: Remember a lamp
-              Then the query "#REQ-cart" returns 1 result
+              Then the query "#cart" returns 1 result
         """
-      And the workspace is run with "REQ-wishlist"
-      Then node "REQ-wishlist#remember-a-lamp" has attribute status = "passed"
-      And node "REQ-cart#add-an-item" has attribute status = "passed"
-      And the file ".sdp/results.json" does not contain "REQ-wishlist#keep-a-lamp-for-later"
+      And the workspace is run with "wishlist"
+      Then node "wishlist#remember-a-lamp" has attribute status = "passed"
+      And node "cart#add-an-item" has attribute status = "passed"
+      And the file ".sdp/results.json" does not contain "wishlist#keep-a-lamp-for-later"
 
     Scenario: Two runs at once each record what they executed, and neither restores what the other replaced
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=REQ-wishlist
+        @id=wishlist
         Feature: Wishlist
           Rule: A wishlist keeps what a shopper wants for later
             Scenario: Keep a lamp for later
@@ -769,9 +769,9 @@ Feature: Know what is verified
       And a step definition "a wishlist" that passes
       When the workspace is run
       And a step definition "a wishlist" that fails
-      And the workspace is run for "REQ-cart" and for "REQ-wishlist" at the same time
-      Then node "REQ-wishlist#keep-a-lamp-for-later" has attribute status = "failed"
-      And node "REQ-cart#add-an-item" has attribute status = "passed"
+      And the workspace is run for "cart" and for "wishlist" at the same time
+      Then node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
+      And node "cart#add-an-item" has attribute status = "passed"
 
     Scenario: One plain record per scenario in the results file
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -784,7 +784,7 @@ Feature: Know what is verified
         })
         """
       When I run "sdp run"
-      Then the file ".sdp/results.json" contains '"REQ-cart#add-an-item": {'
+      Then the file ".sdp/results.json" contains '"cart#add-an-item": {'
       And the file ".sdp/results.json" contains '"status": "undefined"'
       And the file ".sdp/results.json" contains '"hash": "'
       And the file ".sdp/results.json" contains '"imports": {'

@@ -9,9 +9,9 @@ Feature: Run specs as tests
   for a spec, and how long they count, is not decided here.
 
   Background:
-    Given a file "specs/REQ-search.feature" containing:
+    Given a file "specs/search.feature" containing:
       """
-      @id=REQ-search
+      @id=search
       Feature: Search the catalogue
 
         Shoppers find products by name.
@@ -27,16 +27,16 @@ Feature: Run specs as tests
   Rule: run executes what its targets name: a spec id, a scenario id, or a file or directory relative to the current directory
 
     Scenario: A file, from a subdirectory
-      When I run "sdp run REQ-search.feature --json" in "specs"
+      When I run "sdp run search.feature --json" in "specs"
       Then the JSON output has:
-        | data.scenarios         | REQ-search#find-a-product-by-name |
-        | data.passed            | true                              |
-        | data.summary.undefined | 1                                 |
+        | data.scenarios         | search#find-a-product-by-name |
+        | data.passed            | true                          |
+        | data.summary.undefined | 1                             |
 
     Scenario Outline: A spec, a scenario, a file and a directory
-      Given a file "specs/sort/REQ-sort.feature" containing:
+      Given a file "specs/sort/sort.feature" containing:
         """
-        @id=REQ-sort
+        @id=sort
         Feature: Sort
 
           Rule: A shopper sorts by name or by price
@@ -53,11 +53,11 @@ Feature: Run specs as tests
         | data.scenarios | <scenarios> |
 
       Examples:
-        | target                   | scenarios                                     |
-        | REQ-sort                 | REQ-sort#sort-by-name, REQ-sort#sort-by-price |
-        | REQ-sort#sort-by-price   | REQ-sort#sort-by-price                        |
-        | specs/REQ-search.feature | REQ-search#find-a-product-by-name             |
-        | specs/sort               | REQ-sort#sort-by-name, REQ-sort#sort-by-price |
+        | target               | scenarios                             |
+        | sort                 | sort#sort-by-name, sort#sort-by-price |
+        | sort#sort-by-price   | sort#sort-by-price                    |
+        | specs/search.feature | search#find-a-product-by-name         |
+        | specs/sort           | sort#sort-by-name, sort#sort-by-price |
 
   Rule: A run executes the examples it was asked for, one at a time unless asked otherwise, and reports each once and in order
 
@@ -67,7 +67,7 @@ Feature: Run specs as tests
     Scenario Outline: Whatever finishes first, and however slow the reporter
       Given a file "specs/timing.feature" containing:
         """
-        @id=REQ-timing
+        @id=timing
         Feature: Timing
           Rule: Every step finishes
             Scenario: One
@@ -81,7 +81,7 @@ Feature: Run specs as tests
         """
       And a step definition "a step" that passes
       And a step definition "a first step" that <first step>
-      When the workspace is run for "REQ-timing" with concurrency 3 and a reporter that takes a moment
+      When the workspace is run for "timing" with concurrency 3 and a reporter that takes a moment
       Then the reporter saw "start One, end One, start Two, end Two, start Three, end Three"
 
       Examples:
@@ -92,7 +92,7 @@ Feature: Run specs as tests
     Scenario: Without --concurrency, one scenario at a time
       Given a file "specs/timing.feature" containing:
         """
-        @id=REQ-timing
+        @id=timing
         Feature: Timing
           Rule: Every step finishes
             Scenario: One
@@ -108,7 +108,7 @@ Feature: Run specs as tests
     Scenario: Scenarios run concurrently when asked to, except those tagged @serial
       Given a file "specs/timing.feature" containing:
         """
-        @id=REQ-timing
+        @id=timing
         Feature: Timing
           Rule: Every step finishes
             Scenario: One
@@ -125,12 +125,12 @@ Feature: Run specs as tests
       When the workspace is run with "--concurrency 4"
       Then the scenarios "One" and "Two" overlapped
       And the scenario "Alone" ran alone
-      And node "REQ-timing#alone" has attribute status = "passed"
+      And node "timing#alone" has attribute status = "passed"
 
     Scenario: --tags selects examples, and a scenario passes only when all its examples ran
       Given a file "specs/payment.feature" containing:
         """
-        @id=REQ-payment
+        @id=payment
         Feature: Payment
           Rule: A payment is made by card or by invoice
             Scenario Outline: Pay by <method>
@@ -151,13 +151,13 @@ Feature: Run specs as tests
       When the workspace is run with "--tags '@fast'"
       Then the step "a payment by card" has status "passed"
       And the step "a payment by invoice" did not run
-      And node "REQ-payment#pay-by-method" has attribute status = "skipped"
-      And node "REQ-payment" has attribute stage = "in-progress"
+      And node "payment#pay-by-method" has attribute status = "skipped"
+      And node "payment" has attribute stage = "in-progress"
 
     Scenario: Whether a scenario runs alone depends on the examples a run selects
       Given a file "specs/timing.feature" containing:
         """
-        @id=REQ-timing
+        @id=timing
         Feature: Timing
           Rule: Every step finishes
             Scenario: One
@@ -194,19 +194,19 @@ Feature: Run specs as tests
           })
         })
         """
-      When I run "sdp run REQ-search"
+      When I run "sdp run search"
       Then the exit code is 1
       And the output line with "Then the desk lamp is found" contains "defined at specs/steps/search.steps.ts:6"
       And the output contains "no results"
       And the output does not contain "Given a catalogue with a desk lamp"
-      When I run "sdp run REQ-search --verbose"
+      When I run "sdp run search --verbose"
       Then the exit code is 1
       And the output contains "Given a catalogue with a desk lamp"
 
     Scenario: Examples that --tags left out
-      Given a file "specs/REQ-sort.feature" containing:
+      Given a file "specs/sort.feature" containing:
         """
-        @id=REQ-sort
+        @id=sort
         Feature: Sort
 
           Rule: A shopper sorts by any order
@@ -224,7 +224,7 @@ Feature: Run specs as tests
                 | order      |
                 | popularity |
         """
-      When I run "sdp run REQ-sort --tags @fast"
+      When I run "sdp run sort --tags @fast"
       Then the exit code is 0
       And the output line with "example Sort by popularity" contains "not selected"
       And the output contains "1 example(s) not selected are skipped"
@@ -249,10 +249,10 @@ Feature: Run specs as tests
         @id=MS-beta
         Feature: Beta
 
-          Rule: Every requirement is ready
+          Rule: Every feature is ready
 
             Scenario: None is below ready
-              Then the query "requirement[maturity<ready]" returns no results
+              Then the query "feature[maturity<ready]" returns no results
         """
       And a file "<file>" containing:
         """
@@ -264,8 +264,8 @@ Feature: Run specs as tests
       And the file ".sdp/results.json" does not exist
 
       Examples:
-        | command          | file                      | content                                                                                     | line | rule                  |
-        | sdp run          | specs/broken.feature      | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed | 6    | gherkin-syntax        |
-        | sdp gate MS-beta | specs/search-copy.feature | @id=REQ-search\nFeature: Search again                                                       | 1    | duplicate-id          |
-        | sdp run          | specs/REQ-b.feature       | @id=REQ-b @iteration=IT-beta\nFeature: B                                                    | 1    | link-syntax           |
-        | sdp run          | specs/REQ-b.feature       | @id=REQ-b\nFeature: B\n  Scenario: Outside\n    Then there are no error diagnostics         | 3    | scenario-outside-rule |
+        | command          | file                      | content                                                                                       | line | rule                  |
+        | sdp run          | specs/broken.feature      | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed   | 6    | gherkin-syntax        |
+        | sdp gate MS-beta | specs/shop/search.feature | @id=search\nFeature: Search again                                                             | 1    | duplicate-id          |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist @iteration=IT-beta\nFeature: Wishlist                                            | 1    | link-syntax           |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Scenario: Outside\n    Then there are no error diagnostics | 3    | scenario-outside-rule |
