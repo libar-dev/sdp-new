@@ -2,4 +2,5 @@
 Feature: Effect 4 for IO, errors and services
 
   Not plain `async`/`await`: timeouts, interruption, typed errors and a file system that scenarios
-  swap for one in memory would each be written by hand.
+  swap for one in memory would each be written by hand. The price is a library few contributors
+  know, whose version 4 an agent must look up in `node_modules/effect`, not recall from 2 or 3.
