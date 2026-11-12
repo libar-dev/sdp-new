@@ -404,6 +404,16 @@ Feature: Command line
       When I run "sdp -C shop new requirement 'Gift cards' --dir $PWD/elsewhere"
       Then the output contains "/elsewhere/REQ-gift-cards.feature is outside the workspace"
 
+    Scenario: A file the configured features do not match is not part of the graph, and the answer says so
+      Given a file "shop/sdp.config.yaml" containing:
+        """
+        features: ["requirements/**/*.feature"]
+        """
+      When I run "sdp -C shop new requirement 'Gift cards'"
+      Then the output contains "specs/requirements/REQ-gift-cards.feature is matched by no features glob (requirements/**/*.feature)"
+      When I run "sdp -C shop new requirement 'Gift cards' --dir requirements"
+      Then the output does not contain "note:"
+
   Rule: new never overwrites, and never writes a spec that would not read back as written
 
     Scenario: An id or a file that exists

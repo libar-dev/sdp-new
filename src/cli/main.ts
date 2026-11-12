@@ -346,9 +346,7 @@ const newCommand = Command.make(
     })
     yield* Console.log(`${created.id}\t${created.file}`)
     for (const line of created.next) yield* Console.error(Text.c.dim(`next: ${line}`))
-    if (!created.inside) {
-      yield* Console.error(Text.c.yellow(`note: ${created.file} is outside the workspace ${root}, so it is not part of its graph`))
-    }
+    if (created.unread !== undefined) yield* Console.error(Text.c.yellow(`note: ${created.unread}`))
   })
 ).pipe(
   Command.withDescription(

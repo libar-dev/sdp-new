@@ -1,6 +1,7 @@
 /**
  * Authoring: the use cases that write files — `sdp init`, `sdp new` and
- * `sdp types`. Each says what it wrote; none overwrites what is there.
+ * `sdp types`. Each says what it wrote; only `sdp types` rewrites a file it
+ * wrote before, the one it derives.
  */
 import { annotate } from "sdp/annotations"
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
@@ -8,7 +9,7 @@ import { fileURLToPath } from "node:url"
 import { idsDeclaration } from "../graph/Types.ts"
 import { formatSource } from "../model/Graph.ts"
 import { made } from "../model/Vocabulary.ts"
-import { loadProject } from "../workspace/Workspace.ts"
+import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
 
@@ -91,8 +92,15 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
   const file = inside ? relative : target
   if (yield* fs.exists(target)) return yield* new Refused({ reason: `${file} already exists` })
   yield* fs.writeFileString(target, created.content)
-  /** `inside` is false for a file outside the workspace, which is therefore not part of its graph; `next` is what to write in it. */
-  return { id: created.id, file, inside, next: created.next }
+  // Found again the way every command finds specs: what the features globs do not match is in no graph.
+  const { exclude, features } = project.config
+  const unread = !inside
+    ? `${file} is outside the workspace ${root}, so it is not part of its graph`
+    : !(yield* findFiles(root, features, exclude)).includes(file)
+    ? `${file} is matched by no features glob (${features.join(", ")}), so it is not part of the graph: write it where they look with --dir, or add its directory to features`
+    : undefined
+  /** `next` is what to write in it; `unread` why no command will read it, when none will. */
+  return { id: created.id, file, next: created.next, unread }
 })
 
 /** `sdp types`: the id declarations that type `annotate()`, written to the configured path. */
