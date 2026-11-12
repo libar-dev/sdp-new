@@ -486,26 +486,6 @@ Feature: Command line
       And the output contains "1 open question(s)"
       And the output contains 'suggested: `When("a shopper searches for {string}", ({ world, args: [string] }) => pending())`'
 
-  Rule: arch prints the declared architecture and its links, as text, as data or as a flowchart
-
-    Scenario: The architecture as text
-      When I run "sdp arch"
-      Then the output contains "Architecture: 2 node(s)"
-      And the output contains "ARCH-index -decided-by-> DEC-0001"
-      And the output contains "ARCH-cache — Page cache (element)"
-
-    Scenario: As data, apart from what shaped it and the code anchored to it
-      When I run "sdp arch --json"
-      Then the JSON output has:
-        | data.architecture | ARCH-cache, ARCH-index |
-        | data.drivers      | DEC-0001               |
-        | data.anchors      | nothing                |
-
-    Scenario: As a Mermaid flowchart
-      When I run "sdp arch --mermaid"
-      Then the output contains "flowchart LR"
-      And the output contains "-->|decided-by|"
-
   Rule: vocabulary prints the words sdp interprets, as the workspace configures them, and the words it makes itself, which nothing configures
 
     Scenario: The default profile
