@@ -1,9 +1,9 @@
-@id=REQ-npm-package @maturity=draft
+@id=install-from-npm @kind=feature @maturity=draft
 @iteration:IT-packaging
 Feature: Install sdp from npm
 
-  Teams install sdp the way they install any tool. Today the package is private and runs only from
-  a clone of this repository.
+  Teams that adopt sdp install it the way they install any tool, as a development dependency of
+  their repository. Today the package is private and runs only from a clone of this repository.
 
   Rule: `npm install --save-dev sdp` installs a command that `npx sdp` runs
 

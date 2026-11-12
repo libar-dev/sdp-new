@@ -1,9 +1,10 @@
-@id=REQ-editor-support @maturity=draft
-Feature: Editor support
+@id=write-specs-in-an-editor @kind=feature @maturity=draft
+Feature: Write specs in an editor
 
-  Authors write specs in their editor, and today the editor knows nothing about them: an id typed
-  wrong or a relation spelled differently shows up only when `sdp check` runs, and finding the spec
-  behind an id means a search. A language server would give every editor the same help.
+  Authors write specs in their editor, and want it to know what sdp knows of them. Today it knows
+  nothing: an id typed wrong or a relation spelled differently shows up only when `sdp check` runs,
+  and finding the spec behind an id means a search. A language server gives every editor the same
+  help.
 
   Rule: An id in a tag is completed from the ids the graph declares
 
