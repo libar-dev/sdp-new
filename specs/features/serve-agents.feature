@@ -1,4 +1,4 @@
-@id=serve-agents @maturity=ready
+@id=serve-agents @maturity=implemented
 @realized-by:ARCH-reports @realized-by:ARCH-mcp
 Feature: Serve AI agents
 
@@ -71,14 +71,14 @@ Feature: Serve AI agents
         3 rule(s), 1 scenario(s), 1 open
 
         ### A cart holds each item once
-        [unrun] — specs/cart.feature:7 · decided-by one-line-per-item
+        [still to come at draft, unrun] — specs/cart.feature:7 · decided-by one-line-per-item
 
         Two lines for one item would be charged twice.
 
         - [unrun] Adding an item twice raises its quantity — specs/cart.feature:11
 
         ### An empty cart cannot be paid
-        [no example] — specs/cart.feature:16
+        [still to come at draft, no example] — specs/cart.feature:16
 
         ### Does a cart expire?
         [open] — specs/cart.feature:19
@@ -135,7 +135,7 @@ Feature: Serve AI agents
         })
         """
       When I run "sdp run"
-      Then the exit code is 1
+      Then the exit code is 0
       When I run "sdp context cart"
       Then the output section "Contract" contains "- [failed] Adding an item twice raises its quantity — specs/cart.feature:11"
       And the output section "Contract" contains "failed: Given an empty cart — the cart service is down (defined at specs/steps/cart.steps.ts:4)"

@@ -1,4 +1,4 @@
-@id=write-a-spec @maturity=ready
+@id=write-a-spec @maturity=implemented
 @realized-by:ARCH-spec-parser @realized-by:ARCH-graph-builder
 Feature: Write a spec
 
@@ -129,6 +129,92 @@ Feature: Write a spec
       Then node "dark-mode" has attribute kind = "feature"
       And node "dark-mode" has attribute title = "Dark mode"
       And node "dark-mode" has attribute stage = "idea"
+
+  @decided-by:still-to-come-is-marked-where-it-is-written
+  Rule: A Feature or a Rule declares its maturity, and implemented says it is built
+
+    Below implemented is work still to come, `toCome` in the graph. A change to a built feature is
+    rules of it at the maturity they have reached, so nothing moves when it is built.
+
+    Scenario: A built feature with a rule still to come
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @maturity=draft
+          Rule: A cart is kept for a week
+
+            Shoppers come back to finish what they started.
+        """
+      When the workspace is loaded
+      And I query "*[toCome]"
+      Then the result is "cart#a-cart-is-kept-for-a-week"
+      And node "cart" has attribute rulesToCome = "1"
+      And node "cart#a-cart-is-kept-for-a-week" has attribute stage = "draft"
+      And node "cart#a-cart-holds-what-was-added" has attribute stage = "implemented"
+
+  Rule: A Rule without a maturity of its own has its Feature's
+
+    So one rule can be built in a feature still to come, and one still to come in a built feature.
+    On a Scenario or Examples a maturity would switch single examples off, so it is an error.
+
+    Scenario Outline: A rule's own maturity, else its Feature's
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart <feature>
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          <rule>
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When the workspace is loaded
+      Then node "cart#a-cart-holds-what-was-added" has attribute toCome = "<rule still to come>"
+      And node "cart#add-an-item" has attribute toCome = "<rule still to come>"
+      And node "cart" has attribute toCome = "<feature still to come>"
+
+      Examples:
+        | feature               | rule                  | rule still to come | feature still to come |
+        | @maturity=implemented |                       | undefined          | undefined             |
+        | @maturity=implemented | @maturity=ready       | true               | undefined             |
+        | @maturity=draft       |                       | true               | true                  |
+        | @maturity=draft       | @maturity=implemented | undefined          | true                  |
+
+    Scenario: A maturity on a Scenario or on Examples is an error, and the example stays its rule's
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay @maturity=implemented
+        Feature: Pay
+
+          Rule: An order needs a payment
+
+            @maturity=draft
+            Scenario Outline: Card
+              Then an order is created
+
+              @maturity=idea
+              Examples:
+                | n |
+                | 1 |
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule       | severity | line | message                                                       |
+        | annotation | error    | 6    | @maturity=draft: only a Feature or a Rule declares a maturity |
+        | annotation | error    | 10   | @maturity=idea: only a Feature or a Rule declares a maturity  |
+      And node "pay#card" has attribute toCome = "undefined"
 
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag

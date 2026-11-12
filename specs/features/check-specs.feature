@@ -1,4 +1,4 @@
-@id=check-specs @maturity=ready
+@id=check-specs @maturity=implemented
 @realized-by:ARCH-checker @realized-by:ARCH-reports
 Feature: Check specs
 
@@ -201,7 +201,7 @@ Feature: Check specs
     Scenario: approved, between draft and specified
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { maturity: [idea, draft, approved, specified, ready] }
+        vocabulary: { maturity: [idea, draft, approved, specified, ready, implemented] }
         """
       And these specs:
         | tags                                 | Feature       |

@@ -4,10 +4,10 @@ Feature: sdp, shown by running it
   What README.md promises a reader and AGENTS.md asks of an agent in this repository, as scenarios
   that run. sdp reads neither file, so what they say counts only where a scenario here pins it.
 
-  Rule: A spec is a file that runs, and nobody writes that it is done
+  Rule: A spec says how far it has come, and its run whether it works
 
-    While the behaviour is not built its steps are undefined, which is not a failure; verified is
-    derived from the run.
+    While a feature is still to come, its examples run and fail no run; once it is declared
+    implemented they must pass, and verified is derived from the run, never written.
 
     Scenario: A feature goes from specified to verified without leaving its file
       Given a file "specs/guest-checkout.feature" containing:
@@ -26,7 +26,7 @@ Feature: sdp, shown by running it
         """
       When I run "sdp run"
       Then the exit code is 0
-      And the output contains "1 scenario(s): 1 undefined"
+      And the output contains "1 scenario(s) of work still to come, none of which fails the run: 1 undefined"
       Given a file "specs/steps/checkout.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
@@ -44,7 +44,21 @@ Feature: sdp, shown by running it
         })
         """
       When I run "sdp run"
-      Then the output contains "1 scenario(s): 1 passed"
+      Then the output contains "guest-checkout is still to come, and every example of it passes: declare it implemented"
+      Given a file "specs/guest-checkout.feature" containing:
+        """
+        @id=guest-checkout @maturity=implemented
+        Feature: Guest checkout
+
+          Shoppers without an account can buy.
+
+          Rule: A guest pays without creating an account
+
+            Scenario: Guest pays by card
+              Given a cart with 2 items
+              When the guest pays with a valid card
+              Then an order is created
+        """
       When I run "sdp q 'feature[stage=verified]' --ids"
       Then the output lines are "guest-checkout"
 
@@ -52,14 +66,15 @@ Feature: sdp, shown by running it
       Given the workspace is a copy of "examples/shop"
       When I run "sdp run"
       Then the exit code is 0
-      And the output contains "4 scenario(s): 3 passed, 1 undefined"
+      And the output contains "3 scenario(s): 3 passed"
+      And the output contains "1 scenario(s) of work still to come, none of which fails the run: 1 undefined"
 
   Rule: A milestone is met by what ran, not by a status or a date
 
     Scenario: A gate that passes once the feature's steps are written
       Given a file "specs/search.feature" containing:
         """
-        @id=search @maturity=specified
+        @id=search @maturity=implemented
         Feature: Search
 
           Rule: A product is found by its name
@@ -177,7 +192,7 @@ Feature: sdp, shown by running it
     and is deleted once its rules have joined that feature.
 
     Scenario: Where each spec of this repository is
-      Then the query "feature[file~^specs/features/][maturity!=ready]" returns no results
+      Then the query "feature[file~^specs/features/][maturity!=implemented]" returns no results
       And the query "feature|change[file!~^specs/(features|incoming)/]" returns no results
       And the query "change[file!~^specs/incoming/]" returns no results
       And the query "change !-changes-> *[file~^specs/features/]" returns no results

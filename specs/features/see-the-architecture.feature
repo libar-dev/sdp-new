@@ -1,4 +1,4 @@
-@id=see-the-architecture @maturity=ready
+@id=see-the-architecture @maturity=implemented
 @realized-by:ARCH-architecture-view @realized-by:ARCH-reports @realized-by:ARCH-graph-builder @realized-by:ARCH-code-annotations
 Feature: See the architecture
 

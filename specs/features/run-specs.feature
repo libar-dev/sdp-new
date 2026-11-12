@@ -1,4 +1,4 @@
-@id=run-specs @maturity=ready
+@id=run-specs @maturity=implemented
 @realized-by:ARCH-runner @realized-by:ARCH-reports
 Feature: Run specs as tests
 
@@ -11,7 +11,7 @@ Feature: Run specs as tests
   Background:
     Given a file "specs/search.feature" containing:
       """
-      @id=search
+      @id=search @maturity=specified
       Feature: Search the catalogue
 
         Shoppers find products by name.
@@ -29,14 +29,14 @@ Feature: Run specs as tests
     Scenario: A file, from a subdirectory
       When I run "sdp run search.feature --json" in "specs"
       Then the JSON output has:
-        | data.scenarios         | search#find-a-product-by-name |
-        | data.passed            | true                          |
-        | data.summary.undefined | 1                             |
+        | data.scenarios        | search#find-a-product-by-name |
+        | data.passed           | true                          |
+        | data.toCome.undefined | 1                             |
 
     Scenario Outline: A spec, a scenario, a file and a directory
       Given a file "specs/sort/sort.feature" containing:
         """
-        @id=sort
+        @id=sort @maturity=idea
         Feature: Sort
 
           Rule: A shopper sorts by name or by price
@@ -58,6 +58,242 @@ Feature: Run specs as tests
         | sort#sort-by-price   | sort#sort-by-price                    |
         | specs/search.feature | search#find-a-product-by-name         |
         | specs/sort           | sort#sort-by-name, sort#sort-by-price |
+
+  Rule: An example of work still to come runs, and fails no run
+
+    It is the acceptance test of what is not built yet, written before its code and kept on the main
+    line. Its stage stays the maturity it declares; its verification is what its examples did.
+
+    Scenario Outline: An example of a feature at specified that <outcome>
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=specified
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      And a file "specs/steps/wishlist.steps.ts" containing:
+        """
+        import { defineSteps, pending } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          <definitions>
+        })
+        """
+      When I run "sdp run wishlist"
+      Then the exit code is 0
+      And the output line with "wishlist#keep-a-lamp" contains "<status>"
+      And the output line with "wishlist#keep-a-lamp" contains "still to come"
+      And the output contains "1 scenario(s) of work still to come, none of which fails the run: 1 <status>"
+      When I run "sdp q '#wishlist[stage=specified]' --ids"
+      Then the output lines are "wishlist"
+
+      Examples:
+        | outcome                       | definitions                                                                                | status    |
+        | fails                         | Then("the wishlist holds a lamp", () => { throw new Error("empty") })                      | failed    |
+        | is pending                    | Then("the wishlist holds a lamp", () => pending())                                         | pending   |
+        | matches two definitions       | Then("the wishlist holds a lamp", () => {}); Then("the wishlist holds a {word}", () => {}) | ambiguous |
+        | has a step with no definition |                                                                                            | undefined |
+        | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    |
+
+  @decided-by:files-are-the-source-of-truth
+  Rule: A run fails when an example of implemented work it ran does not pass
+
+    The verdict is asked of the graph after the run, `scenario[!toCome][status=failed|ambiguous|pending|undefined]`,
+    so the run, a query and `sdp status` agree. An example `--tags` left out fails no run, and is
+    no evidence either.
+
+    Scenario Outline: An example of an implemented feature that <outcome>
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=implemented
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      And a file "specs/steps/wishlist.steps.ts" containing:
+        """
+        import { defineSteps, pending } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          <definitions>
+        })
+        """
+      When I run "sdp run wishlist"
+      Then the exit code is <exit code>
+      And the output contains "1 scenario(s): 1 <status>"
+
+      Examples:
+        | outcome                       | definitions                                                                                | status    | exit code |
+        | fails                         | Then("the wishlist holds a lamp", () => { throw new Error("empty") })                      | failed    | 1         |
+        | is pending                    | Then("the wishlist holds a lamp", () => pending())                                         | pending   | 1         |
+        | matches two definitions       | Then("the wishlist holds a lamp", () => {}); Then("the wishlist holds a {word}", () => {}) | ambiguous | 1         |
+        | has a step with no definition |                                                                                            | undefined | 1         |
+        | passes                        | Then("the wishlist holds a lamp", () => {})                                                | passed    | 0         |
+
+    Scenario: The run, a query and sdp status tell a regression from work still to come
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=ready
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item", () => {
+            throw new Error("the cart is empty")
+          })
+          Then("the wishlist holds a lamp", () => {
+            throw new Error("the wishlist is empty")
+          })
+        })
+        """
+      When I run "sdp run cart wishlist"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 failed"
+      And the output contains "1 scenario(s) of work still to come, none of which fails the run: 1 failed"
+      When I run "sdp q 'scenario[!toCome][status=failed|ambiguous|pending|undefined]' --ids"
+      Then the output lines are "cart#add-an-item"
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.scenarios.failed | 1 |
+        | data.toCome.failed    | 1 |
+
+    Scenario: An example that --tags left out fails no run
+      Given a file "specs/payment.feature" containing:
+        """
+        @id=payment @maturity=implemented
+        Feature: Payment
+
+          Shoppers pay by card or by invoice.
+
+          Rule: A payment is made by card or by invoice
+
+            Scenario Outline: Pay by <method>
+              Then a payment by <method> is made
+
+              @fast
+              Examples:
+                | method |
+                | card   |
+
+              @slow
+              Examples:
+                | method  |
+                | invoice |
+        """
+      And a file "specs/steps/payment.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("a payment by {word} is made", ({ args: [method] }) => {
+            if (method === "invoice") throw new Error("no invoices yet")
+          })
+        })
+        """
+      When I run "sdp run payment --tags @fast"
+      Then the exit code is 0
+      And the output contains "1 scenario(s): 1 skipped"
+      When I run "sdp run payment"
+      Then the exit code is 1
+
+  Rule: A run points out work still to come whose every example passes
+
+    Only on complete, current evidence: every example of the rule or feature ran in this run or
+    still counts, at least one of them in this run, and none of its rules is open or without an
+    example. It is a note of the run, not of `sdp check`, since the evidence is one checkout's.
+
+    Background:
+      Given a file "specs/steps/wishlist.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the wishlist holds a {word}", () => {})
+        })
+        """
+
+    Scenario: A feature whose every example passes, once the last of them has run
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=ready
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+            Scenario: Keep a desk
+              Then the wishlist holds a desk
+        """
+      When I run "sdp run wishlist#keep-a-lamp"
+      Then the exit code is 0
+      And the output does not contain "note:"
+      When I run "sdp run wishlist#keep-a-desk"
+      Then the exit code is 0
+      And the output contains "note: wishlist is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:1"
+
+    Scenario: A rule whose examples pass, in a feature that has a rule still without one, and a question
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=implemented
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          @maturity=ready
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+          @maturity=draft
+          Rule: A wishlist is shared with a friend
+
+            Friends buy presents from it.
+
+          @open
+          Rule: Does a wishlist expire?
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "note: wishlist#a-wishlist-keeps-what-a-shopper-wants-for-later is still to come, and every example of it passes: declare it implemented, @maturity=implemented at specs/wishlist.feature:6"
+      And the output contains "note:" 1 time
 
   Rule: A run executes the examples it was asked for, one at a time unless asked otherwise, and reports each once and in order
 
@@ -195,18 +431,18 @@ Feature: Run specs as tests
         })
         """
       When I run "sdp run search"
-      Then the exit code is 1
+      Then the exit code is 0
       And the output line with "Then the desk lamp is found" contains "defined at specs/steps/search.steps.ts:6"
       And the output contains "no results"
       And the output does not contain "Given a catalogue with a desk lamp"
       When I run "sdp run search --verbose"
-      Then the exit code is 1
+      Then the exit code is 0
       And the output contains "Given a catalogue with a desk lamp"
 
     Scenario: Examples that --tags left out
       Given a file "specs/sort.feature" containing:
         """
-        @id=sort
+        @id=sort @maturity=idea
         Feature: Sort
 
           Rule: A shopper sorts by any order

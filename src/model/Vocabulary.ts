@@ -48,6 +48,8 @@ export interface Vocabulary {
     readonly scenario: string
     /** The code annotation that anchors a node in code and may declare it. */
     readonly anchor: string
+    /** From a rule still to come to the implemented rule it replaces, which stays enforced until then. */
+    readonly replaces: Words
   }
   readonly attributes: {
     /** Disciplines mapped to the iterations their work on the node is planned into. */
@@ -64,6 +66,11 @@ export interface Vocabulary {
   readonly qualities: Words
   /** The authoring maturity ladder, lowest first. */
   readonly maturity: Words
+  /**
+   * The rung of the ladder that says built: a Feature or a Rule at it or above it promises that its
+   * examples pass, and one below it is work still to come.
+   */
+  readonly implemented: string
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
   readonly disciplines: ReadonlyMap<string, Words>
   /**
@@ -91,7 +98,8 @@ export const defaultVocabulary: Vocabulary = {
     phase: ["phase"],
     closes: ["closes"],
     scenario: "verifies",
-    anchor: "is"
+    anchor: "is",
+    replaces: ["replaces"]
   },
   attributes: {
     activity: "activity",
@@ -101,7 +109,8 @@ export const defaultVocabulary: Vocabulary = {
     quality: "type"
   },
   qualities: ["quality", "non-functional", "nfr", "constraint"],
-  maturity: ["idea", "draft", "specified", "ready"],
+  maturity: ["idea", "draft", "specified", "ready", "implemented"],
+  implemented: "implemented",
   disciplines: new Map<string, Words>([
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
     ["requirements", ["requirement", "nfr", "feature", "story", "use-case", "epic"]],
@@ -139,12 +148,15 @@ export const made = {
   },
   /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
-  /** Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error. */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions"],
+  /**
+   * Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error.
+   * `toCome` marks work still to come, and `rulesToCome` counts a spec's rules still to come.
+   */
+  attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "toCome", "rulesToCome"],
   /** Facts sdp computes on scenario nodes. */
-  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */
-  ruleAttributes: ["spec", "description", "tags", "scenarios", "verification"],
+  ruleAttributes: ["spec", "description", "tags", "scenarios", "verification", "stage", "toCome"],
   /** What sdp records on a code node: where the annotated declaration is and what its own comment says of it. */
   codeAttributes: ["file", "symbol", "doc"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
@@ -162,14 +174,34 @@ export const made = {
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
-/** The maturity levels whose criteria are built in; levels a workspace adds have none. */
+/**
+ * The maturity levels whose criteria are built in; levels a workspace adds have none, except the
+ * rungs from the implemented one up, which are held to what ready asks.
+ */
 export const criteria = { idea: "idea", draft: "draft", specified: "specified", ready: "ready" } as const
+
+/**
+ * Whether a maturity is work still to come: a rung of the ladder below the one that says built.
+ * Anything else — none, a rung at or above it, a word not on the ladder — is implemented, so an
+ * example nobody marked is enforced.
+ */
+export const isToCome = (vocabulary: Vocabulary, maturity: unknown): boolean => {
+  const rung = typeof maturity === "string" ? vocabulary.maturity.indexOf(maturity) : -1
+  return rung >= 0 && rung < vocabulary.maturity.indexOf(vocabulary.implemented)
+}
+
+/** The level whose built-in criteria a rung of the ladder is held to, if any: from the implemented rung up, those of ready. */
+export const criteriaOf = (vocabulary: Vocabulary, level: string): string | undefined => {
+  const rung = vocabulary.maturity.indexOf(level)
+  if (rung >= 0 && rung >= vocabulary.maturity.indexOf(vocabulary.implemented)) return criteria.ready
+  return Object.values<string>(criteria).includes(level) ? level : undefined
+}
 
 /** The word a role is written with — its first; a valid profile gives every role one. */
 export const wordFor = (words: Words): string => words[0]!
 
 export type KindRole = Exclude<keyof Vocabulary["kinds"], "anchored">
-export type RelationRole = "plan" | "phase" | "closes"
+export type RelationRole = "plan" | "phase" | "closes" | "replaces"
 
 /** Whether `kind` plays `role`, e.g. `hasKind(v, "decision", node.kind)`. */
 export const hasKind = (vocabulary: Vocabulary, role: KindRole, kind: string): boolean => vocabulary.kinds[role].includes(kind)
@@ -196,9 +228,9 @@ export const isDriver = (vocabulary: Vocabulary, node: { readonly kind: string; 
 export const linkKeys = (vocabulary: Vocabulary): Words =>
   [...new Set([...vocabulary.relations.plan, ...vocabulary.relations.phase, ...vocabulary.relations.closes])]
 
-/** Whether a key only links: a relation of the plan, or a discipline under `activity` (`activity.test`). */
+/** Whether a key only links: a relation of the plan, a replacement, or a discipline under `activity` (`activity.test`). */
 export const isLinkKey = (vocabulary: Vocabulary, key: string): boolean =>
-  linkKeys(vocabulary).includes(key) || key.startsWith(`${vocabulary.attributes.activity}.`)
+  linkKeys(vocabulary).includes(key) || vocabulary.relations.replaces.includes(key) || key.startsWith(`${vocabulary.attributes.activity}.`)
 
 /** Whether a value is a day of the calendar written YYYY-MM-DD: `2026-02-30` is not one. */
 const isDay = (value: unknown): value is string => {
@@ -231,8 +263,8 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
   kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat(), ...vocabulary.words.kinds])],
   relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary), ...vocabulary.words.relations])],
   attributes: [...new Set([...Object.values(vocabulary.attributes), ...vocabulary.words.attributes])],
-  /** Attribute values the profile names: the qualities. Maturity levels compare only along the ladder. */
-  values: vocabulary.qualities,
+  /** Attribute values the profile names: the qualities and the rung that says built. Other maturity levels compare only along the ladder. */
+  values: [...vocabulary.qualities, vocabulary.implemented],
   disciplines: [...vocabulary.disciplines.keys()]
 })
 

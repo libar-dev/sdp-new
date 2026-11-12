@@ -78,6 +78,7 @@ export const status = (summary: StatusSummary): string => {
     counts("stages", summary.stages),
     counts("rules", summary.rules),
     counts("scenarios", summary.scenarios),
+    ...(Object.keys(summary.toCome).length > 0 ? [`${counts("still to come", summary.toCome)}  ${c.dim("(examples of work still to come: no regression)")}`] : []),
     counts("gates", summary.gates),
     counts("milestones", summary.milestones),
     ...(Object.keys(summary.stale).length > 0 ? [`${counts("stale", summary.stale)}  ${c.dim("(sdp run refreshes them)")}`] : []),
@@ -155,9 +156,12 @@ const statusIcon: Record<StepStatus, string> = {
   skipped: c.dim("-")
 }
 
-/** A scenario's result line, then each step that did not pass (all with `verbose`) and where a failing one is defined. */
-export const scenario = (r: ScenarioResult, options: { readonly verbose: boolean }): string => {
-  const lines = [`${statusIcon[r.status]} ${pad(r.status, 9)} ${r.id} ${c.dim(`${r.file}:${r.line}`)}`]
+/**
+ * A scenario's result line, then each step that did not pass (all with `verbose`) and where a failing
+ * one is defined. An example of work still to come says so: what it did fails no run.
+ */
+export const scenario = (r: ScenarioResult, options: { readonly verbose: boolean; readonly toCome?: boolean | undefined }): string => {
+  const lines = [`${statusIcon[r.status]} ${pad(r.status, 9)} ${r.id} ${c.dim(`${r.file}:${r.line}${options.toCome ? "  still to come" : ""}`)}`]
   if (r.status === "passed" && !options.verbose) return lines.join("\n")
   for (const pickle of r.examples) {
     // An example without step results is one the run did not select.
@@ -190,9 +194,11 @@ export const runSummary = (report: RunReport | GateReport): string => {
   const unselected = report.scenarios.flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
   const stale = total(report.stale)
   const undefinedSteps = report.scenarios.some((r) => r.examples.some((p) => p.steps.some((s) => s.snippet !== undefined)))
+  const toCome = total(report.toCome)
   return [
     "",
-    ...(scenarios > 0 || (gates === 0 && !gated) ? [`${scenarios} scenario(s): ${tallied(report.summary)}`] : []),
+    ...(scenarios > 0 || (gates === 0 && !gated && toCome === 0) ? [`${scenarios} scenario(s): ${tallied(report.summary)}`] : []),
+    ...(toCome > 0 ? [`${toCome} scenario(s) of work still to come, none of which fails the run: ${tallied(report.toCome)}`] : []),
     ...(gates > 0 || (gated && report.met === undefined) ? [`${gates} gate scenario(s)${of}: ${tallied(report.gates)}`] : []),
     ...(gated && report.met !== undefined
       ? [gates > 0 ? `${report.milestone} is recorded as met: ${report.met}` : `${report.milestone} was met on ${report.met}: it is closed, and its gate does not run again`]
@@ -203,6 +209,8 @@ export const runSummary = (report: RunReport | GateReport): string => {
     ...(stale > 0 ? [c.yellow(`stale: ${stale} earlier result(s) no longer count (${tallied(report.stale)}); run them again`)] : []),
     ...(report.snippets !== undefined
       ? [`\nStep definitions for the undefined steps:\n\n${report.snippets}`]
+      : report.summary.undefined > 0
+      ? [c.red("a step of implemented work has no definition: it was renamed or removed, or the work is still to come and its maturity says otherwise; --snippets prints a step definition module")]
       : undefinedSteps
       ? [c.dim("undefined steps describe behaviour not automated yet; --snippets prints a step definition module for them")]
       : [])

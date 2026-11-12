@@ -1,4 +1,4 @@
-@id=plan-delivery @maturity=ready
+@id=plan-delivery @maturity=implemented
 @realized-by:ARCH-lifecycle @realized-by:ARCH-reports @realized-by:ARCH-runner @realized-by:ARCH-checker
 Feature: Plan delivery
 
@@ -319,7 +319,7 @@ Feature: Plan delivery
     Scenario: A feature that is built, with no plan, before its scenarios have run and after
       Given a file "specs/done.feature" containing:
         """
-        @id=done @maturity=ready
+        @id=done @maturity=implemented
         Feature: Done
 
           Something already built.
@@ -382,7 +382,7 @@ Feature: Plan delivery
     Scenario: A feature verified in IT-baseline
       Given a file "specs/beta.feature" containing:
         """
-        @id=beta @maturity=ready @iteration:IT-baseline
+        @id=beta @maturity=implemented @iteration:IT-baseline
         Feature: Beta
 
           Something worth testing.

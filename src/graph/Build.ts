@@ -10,11 +10,23 @@ import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { type Attrs, formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
-import { type RunResults, type StepStatus, type Verification, verificationOf } from "../model/Results.ts"
-import { activityRelation, hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Vocabulary, type Words } from "../model/Vocabulary.ts"
+import { notPassing, type RunResults, type StepStatus, verificationOf } from "../model/Results.ts"
+import {
+  activityRelation,
+  attribute,
+  hasKind,
+  hasRelation,
+  isDerived,
+  isToCome,
+  linkKeys,
+  made,
+  reservedRelations,
+  type Vocabulary,
+  type Words
+} from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Import } from "../parse/Script.ts"
-import type { Scenario } from "../parse/Gherkin.ts"
+import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { parseFeatureSpec, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
@@ -181,16 +193,20 @@ export const buildProject = (input: ProjectInput): Project => {
     // Not assigned one by one: `__proto__` is a key like any other.
     return Object.fromEntries(kept)
   }
-  /** What the scenarios of each spec say; a node without a spec of its own has none. */
-  const verifications = new Map<string, Verification>()
+  /** What the examples that verify each spec did; a node without a spec of its own has none. */
+  const verifications = new Map<string, ReadonlyArray<StepStatus | undefined>>()
   /**
-   * A node's attributes with its stage, which its maturity and its scenarios decide. A milestone
-   * has none: its scenarios are a gate, and a gate that is not met yet is no failing work.
+   * A node's attributes with its stage, which its maturity and its scenarios decide, and whether it
+   * is work still to come. A milestone has no stage: its scenarios are a gate, and a gate that is
+   * not met yet is no failing work.
    */
-  const staged = (id: string, kind: string, attrs: Attrs) =>
-    hasKind(vocabulary, "milestone", kind)
-      ? attrs
-      : compact({ ...attrs, stage: stageOf(attrs.maturity, verifications.get(id) ?? "none", vocabulary.maturity) })
+  const staged = (id: string, kind: string, attrs: Attrs) => {
+    const toCome = isToCome(vocabulary, attrs.maturity)
+    const marked = compact({ ...attrs, toCome: toCome || undefined })
+    return hasKind(vocabulary, "milestone", kind)
+      ? marked
+      : compact({ ...marked, stage: stageOf(attrs.maturity, verifications.get(id) ?? [], toCome, vocabulary.maturity) })
+  }
 
   const evidence = input.evidence?.(specs)
   const unrun: Settled = { status: undefined, stale: undefined, lastRun: undefined }
@@ -199,6 +215,7 @@ export const buildProject = (input: ProjectInput): Project => {
   for (const spec of specs) {
     if (!specById.has(spec.id)) specById.set(spec.id, spec)
     const statuses = new Map<string, StepStatus | undefined>()
+    const work = workOf(spec, vocabulary)
     for (const scenario of spec.scenarios) {
       const { lastRun, stale, status } = evidence?.settle(scenario) ?? unrun
       statuses.set(scenario.id, status)
@@ -219,7 +236,8 @@ export const buildProject = (input: ProjectInput): Project => {
           status: status ?? (stale ? "stale" : "unrun"),
           staleBecause: stale,
           lastRun,
-          hash: scenario.hash
+          hash: scenario.hash,
+          toCome: work.example(scenario) || undefined
         }),
         source: { file: spec.file, line: scenario.line }
       })
@@ -231,6 +249,8 @@ export const buildProject = (input: ProjectInput): Project => {
     // A rule is a node from the day it is written: what must hold, why, and what its examples show so far.
     for (const rule of spec.rules) {
       const examples = spec.scenarios.filter((scenario) => scenario.rule === rule.id)
+      const done = examples.map((scenario) => statuses.get(scenario.id))
+      const { maturity, toCome } = work.rule(rule)
       const at = (key: string): SourceRef => ({ file: spec.file, line: rule.attrLines[key] ?? rule.line })
       declare({
         id: rule.id,
@@ -242,14 +262,19 @@ export const buildProject = (input: ProjectInput): Project => {
           description: rule.description,
           tags: rule.tags.length > 0 ? rule.tags : undefined,
           scenarios: examples.length,
-          verification: verificationOf(examples.map((scenario) => statuses.get(scenario.id)))
+          verification: verificationOf(done),
+          stage: stageOf(maturity, done, toCome, vocabulary.maturity),
+          toCome: toCome || undefined
         }),
         source: { file: spec.file, line: rule.line }
       })
       edges.push({ from: rule.id, rel: made.relations.rule, to: spec.id, source: { file: spec.file, line: rule.line } })
     }
-    const verification: Verification = verificationOf([...statuses.values()])
-    if (!nodes.has(spec.id)) verifications.set(spec.id, verification)
+    // Work still to come is verified by all its examples; implemented work by those of its
+    // implemented rules, so that a rule still to come neither fails it nor makes it verified.
+    const counted = spec.scenarios.filter((scenario) => work.spec || !work.example(scenario)).map((scenario) => statuses.get(scenario.id))
+    if (!nodes.has(spec.id)) verifications.set(spec.id, counted)
+    const rulesToCome = spec.rules.filter((rule) => work.rule(rule).toCome).length
     const openQuestions = spec.openQuestions.length
     const at = (key: string): SourceRef => ({ file: spec.file, line: spec.attrLines[key] ?? 1 })
     const attrs = authored(spec.id, spec.kind, spec.attrs, at)
@@ -262,8 +287,9 @@ export const buildProject = (input: ProjectInput): Project => {
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,
-        verification,
-        openQuestions: openQuestions > 0 ? openQuestions : undefined
+        verification: verificationOf(counted),
+        openQuestions: openQuestions > 0 ? openQuestions : undefined,
+        rulesToCome: rulesToCome > 0 ? rulesToCome : undefined
       })),
       source: { file: spec.file, line: 1 }
     })
@@ -479,22 +505,44 @@ const resolveModule = (file: string, specifier: string, files: ReadonlySet<strin
 }
 
 /**
- * Where a node is in delivery: `verified` once all its scenarios pass, `failing` while any fails (a
- * regression is not work in progress), `in-progress` while automation is partial — otherwise its
- * declared maturity, while that is a level of the ladder. Implemented and unimplemented specs share
- * one format; evidence, not a status field, says which is which. A node with neither scenarios nor a
- * maturity has no stage.
+ * Which of a spec's rules and examples are work still to come. A Rule without a maturity of its own
+ * has its Feature's, and one tagged `@open` is a question, still to come whatever it would inherit;
+ * an example is its rule's, and one under no rule its spec's. The maturity a rule is at is the one
+ * it declares or inherits — an open rule's only while that is a rung still to come.
  */
-export const stageOf = (maturity: unknown, verification: Verification, ladder: Words): string | undefined =>
-  verification === "passing"
-    ? made.stages.verified
-    : verification === "failing"
-    ? made.stages.failing
-    : verification === "partial"
-    ? made.stages.inProgress
-    : Predicate.isString(maturity) && ladder.includes(maturity)
-    ? maturity
-    : undefined
+const workOf = (spec: Spec, vocabulary: Vocabulary) => {
+  const declared = attribute(spec, "maturity")
+  const toCome = isToCome(vocabulary, declared)
+  const rule = (written: Rule) => {
+    const own = attribute(written, "maturity")
+    const maturity = own === undefined ? declared : own
+    const open = written.tags.includes(made.tags.open)
+    return { maturity: open && !isToCome(vocabulary, maturity) ? undefined : maturity, toCome: open || isToCome(vocabulary, maturity) }
+  }
+  const rules = new Map(spec.rules.map((written) => [written.id, rule(written)]))
+  return {
+    /** Whether the spec itself is still to come. */
+    spec: toCome,
+    rule: (written: Rule) => rules.get(written.id) ?? rule(written),
+    example: (scenario: Scenario) => scenario.rule === undefined ? toCome : rules.get(scenario.rule)?.toCome ?? toCome
+  }
+}
+
+/**
+ * Where a node is in delivery. Work still to come stays at the maturity it declares, whatever its
+ * examples did: they are expected not to pass until it is built. Implemented work is `failing` while
+ * an example of it does not pass — failed, ambiguous, pending or without a step definition, as the
+ * run that ran it fails — `verified` once all of them pass and `in-progress` while only some have
+ * run; until then its stage is its maturity. Evidence, not a status field, says whether built work
+ * works. A node with neither examples nor a maturity on the ladder has no stage.
+ */
+export const stageOf = (maturity: unknown, statuses: ReadonlyArray<StepStatus | undefined>, toCome: boolean, ladder: Words): string | undefined => {
+  const declared = Predicate.isString(maturity) && ladder.includes(maturity) ? maturity : undefined
+  if (toCome) return declared
+  if (statuses.some((status) => status !== undefined && notPassing.has(status))) return made.stages.failing
+  const verification = verificationOf(statuses)
+  return verification === "passing" ? made.stages.verified : verification === "partial" ? made.stages.inProgress : declared
+}
 
 /**
  * What a code annotation declares a node with, split into values and links: the keys the vocabulary

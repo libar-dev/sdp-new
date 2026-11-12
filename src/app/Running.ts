@@ -13,6 +13,7 @@ import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
 import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
 import type { Project } from "../graph/Build.ts"
+import { type Implementable, implementable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { problemLine } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
@@ -86,6 +87,12 @@ export interface WorkspaceRun {
   readonly results: RunResults
   /** Stored results that no longer count, by what changed since they ran (scenarios the run did not select). */
   readonly stale: Readonly<Record<string, number>>
+  /** The scenarios this run ran that are examples of work still to come: whatever they did fails no run. */
+  readonly toCome: ReadonlySet<string>
+  /** The examples of implemented work this run ran that do not pass, as the graph after it shows them: they fail the run. */
+  readonly regressions: ReadonlyArray<string>
+  /** Work still to come whose every example passes, some of them in this run: it can be declared implemented. */
+  readonly implementable: ReadonlyArray<Implementable>
 }
 
 /**
@@ -106,7 +113,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   readonly timeout?: Duration.Input | undefined
   /** Scenarios run at once; `@serial` scenarios always run alone. */
   readonly concurrency?: number | undefined
-  readonly onScenario?: ((result: ScenarioResult) => Effect.Effect<void>) | undefined
+  /** Called with each result as it is known, and whether the scenario is an example of work still to come. */
+  readonly onScenario?: ((result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) | undefined
 }) {
   const selected = yield* selects(options.selection ?? {})
   const imports = options.loaded?.imports ?? (() => [])
@@ -128,6 +136,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     return chosen && isGate(scenario, spec, config.vocabulary, chosen) === gates ? chosen : undefined
   }
   const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))
+  const toCome = (graph: Project["graph"], id: string) => graph.node(id)?.attrs.toCome === true
+  const { onScenario } = options
   /**
    * Commits one batch as evidence about the sources it ran against: those read before it started
    * and every file a handler imported while it ran — all of them still as this process loaded them.
@@ -150,19 +160,30 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       gates,
       timeout: options.timeout,
       concurrency: options.concurrency,
-      onScenario: options.onScenario
+      onScenario: onScenario && ((result) => onScenario(result, toCome(workspace.project.graph, result.id)))
     })
 
   const ordinary = yield* commit(yield* run(before, false), before)
   // Gates see what the ordinary results say, the fresh ones included, and never the results of gates.
   const after = yield* loadWorkspace(root, { results: "ordinary", imports: imports() })
   const gates = yield* commit(yield* run(after, true), after)
-  const { graph } = (yield* loadWorkspace(root)).project
+  // What the run amounts to is asked of the graph after it, as any report asks it.
+  const { project } = yield* loadWorkspace(root)
+  const { graph } = project
   const reasons = graph.ofKind([made.kinds.scenario]).flatMap((node) => {
     const reason = attribute(node, "staleBecause")
     return typeof reason === "string" ? [reason] : []
   })
-  return { scenarios: ordinary.executed, gates: gates.executed, results: gates.results, stale: tally(reasons) } satisfies WorkspaceRun
+  const ran = new Set(ordinary.executed.map((result) => result.id))
+  return {
+    scenarios: ordinary.executed,
+    gates: gates.executed,
+    results: gates.results,
+    stale: tally(reasons),
+    toCome: new Set([...ran].filter((id) => toCome(graph, id))),
+    regressions: regressions(graph, ran).map((node) => node.id),
+    implementable: implementable(project, ran)
+  } satisfies WorkspaceRun
 })
 
 export interface RunInput {
@@ -172,18 +193,21 @@ export interface RunInput {
   /** Also suggest one step definition module for the undefined steps. */
   readonly snippets?: boolean | undefined
   readonly concurrency?: number | undefined
-  /** Called with each scenario's result as it is known, in order. */
-  readonly onScenario?: ((result: ScenarioResult) => Effect.Effect<void>) | undefined
+  /** Called with each scenario's result as it is known, in order, and whether it is an example of work still to come. */
+  readonly onScenario?: ((result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) | undefined
 }
 
 export interface RunReport {
   /**
-   * What the command exits by. `sdp run`: no ordinary scenario failed or is ambiguous — an unmet
-   * gate is information. `sdp gate`: there are gate scenarios and every one of them passed.
+   * What the command exits by. `sdp run`: no ordinary example of implemented work that it ran fails,
+   * is ambiguous, is pending or has a step without a definition — work still to come fails no run,
+   * and an unmet gate is information. `sdp gate`: there are gate scenarios and every one of them passed.
    */
   readonly passed: boolean
-  /** The ordinary scenarios by status. */
+  /** The ordinary scenarios of implemented work by status. */
   readonly summary: Readonly<Record<StepStatus, number>>
+  /** The ordinary scenarios of work still to come by status: none of them fails the run. */
+  readonly toCome: Readonly<Record<StepStatus, number>>
   /** The gate scenarios by status. */
   readonly gates: Readonly<Record<StepStatus, number>>
   /** Stored results of scenarios this run did not select that no longer count, by what changed. */
@@ -209,19 +233,26 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     concurrency: input.concurrency,
     onScenario: input.onScenario
   })
-  const summary = summarize(run.scenarios)
+  const summary = summarize(run.scenarios.filter((result) => !run.toCome.has(result.id)))
   const gates = summarize(run.gates)
   const scenarios = [...run.scenarios, ...run.gates]
   const suggested = scenarios.flatMap((result) => result.examples.flatMap((example) => example.steps.flatMap((step) => step.snippet ? [step.snippet] : [])))
   const report: RunReport = {
-    passed: enforce === "gates" ? run.gates.length > 0 && gates.passed === run.gates.length : summary.failed + summary.ambiguous === 0,
+    passed: enforce === "gates" ? run.gates.length > 0 && gates.passed === run.gates.length : run.regressions.length === 0,
     summary,
+    toCome: summarize(run.scenarios.filter((result) => run.toCome.has(result.id))),
     gates,
     stale: run.stale,
     scenarios,
     snippets: input.snippets && suggested.length > 0 ? snippetModule(suggested, steps.files) : undefined
   }
-  const notes = steps.empty.map((file) => `${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``)
+  const { implemented } = config.vocabulary
+  const notes = [
+    ...steps.empty.map((file) => `${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``),
+    ...run.implementable.map(({ file, id, line }) =>
+      `${id} is still to come, and every example of it passes: declare it ${implemented}, @maturity=${implemented} at ${file}:${line}`
+    )
+  ]
   // Nothing runs on a workspace that cannot be fully read, so what ran is the whole answer.
   return { complete: true, notes, data: report } satisfies Answer<RunReport>
 })
@@ -306,7 +337,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const spec = project.specById.get(milestone)
   // Closed first: the closing commit may move its last criterion to the spec that owns the rule.
   if (spec && isClosed(spec, vocabulary)) {
-    const nothing = { passed: true, summary: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
+    const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
     const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
     return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
   }

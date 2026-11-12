@@ -31,7 +31,7 @@ cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v
 edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
 notes
   key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
-  < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
+  < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < implemented < failing = in-progress < verified
   a key also holds the targets of the node's links of that relation: [iteration=IT-beta] agrees with -iteration-> #IT-beta
   rel: * or nothing is any relation, a|b either, a trailing + one or more hops
   + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
@@ -42,7 +42,7 @@ examples
   rule !<-verifies- scenario
   milestone[!met]
   #use-postgres <-*- *
-  scenario[status=failed] -verifies-> *`
+  scenario[!toCome][status=failed] -verifies-> *`
 
 export class QueryError extends Data.TaggedError("QueryError")<{
   readonly message: string

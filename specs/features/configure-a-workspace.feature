@@ -1,4 +1,4 @@
-@id=configure-a-workspace @maturity=ready
+@id=configure-a-workspace @maturity=implemented
 @realized-by:ARCH-workspace @realized-by:ARCH-vocabulary
 Feature: Configure a workspace
 
@@ -49,16 +49,16 @@ Feature: Configure a workspace
       Then the result is "<result>"
 
       Examples:
-        | key             | file            | config                                                              | query                       | result                                   |
-        | none            | sdp.config.yaml |                                                                     | feature\|code               | login, scratch, code:src/orders.ts#order |
-        | features        | sdp.config.yaml | features: ["specs/**/*.feature"]                                    | feature                     | login                                    |
-        | code            | sdp.config.yaml | code: ["tools/**/*.ts"]                                             | code                        | code:tools/report.ts#report              |
-        | exclude         | sdp.config.yaml | exclude: ["notes/**"]                                               | feature                     | login                                    |
-        | ids             | sdp.config.yaml | ids: { nfr: QR }                                                    | feature                     | login, scratch                           |
-        | vocabulary      | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | feature[maturity<approved]  | scratch                                  |
-        | vocabulary role | sdp.config.yaml | vocabulary: { kinds: { decision: [adr] } }                          | feature[maturity<specified] | scratch                                  |
-        | json            | sdp.config.json | { "exclude": ["notes/**"] }                                         | feature                     | login                                    |
-        | yml             | sdp.config.yml  | exclude: ["notes/**"]                                               | feature                     | login                                    |
+        | key             | file            | config                                                                                | query                       | result                                   |
+        | none            | sdp.config.yaml |                                                                                       | feature\|code               | login, scratch, code:src/orders.ts#order |
+        | features        | sdp.config.yaml | features: ["specs/**/*.feature"]                                                      | feature                     | login                                    |
+        | code            | sdp.config.yaml | code: ["tools/**/*.ts"]                                                               | code                        | code:tools/report.ts#report              |
+        | exclude         | sdp.config.yaml | exclude: ["notes/**"]                                                                 | feature                     | login                                    |
+        | ids             | sdp.config.yaml | ids: { nfr: QR }                                                                      | feature                     | login, scratch                           |
+        | vocabulary      | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, done], implemented: done } | feature[maturity<approved]  | scratch                                  |
+        | vocabulary role | sdp.config.yaml | vocabulary: { kinds: { decision: [adr] } }                                            | feature[maturity<specified] | scratch                                  |
+        | json            | sdp.config.json | { "exclude": ["notes/**"] }                                                           | feature                     | login                                    |
+        | yml             | sdp.config.yml  | exclude: ["notes/**"]                                                                 | feature                     | login                                    |
 
     Scenario: Step modules only where steps says, and results where results says
       Given a file "sdp.config.yaml" containing:
@@ -235,6 +235,40 @@ Feature: Configure a workspace
       And the JSON output has:
         | data.rule | template-placeholder |
 
+  @decided-by:free-vocabulary
+  Rule: The vocabulary names the rung of the ladder that says built
+
+    A team that keeps a ladder of its own names which of its rungs is built, and sdp reads no other:
+    below it, work is still to come and its examples fail no run; at it or above, they must pass.
+
+    Scenario: A ladder of the team's own, whose rung done says built
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { maturity: [sketch, agreed, done], implemented: done }
+        """
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=done
+        Feature: Cart
+          Rule: A cart holds what was added
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=agreed
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output line with "cart#add-an-item" does not contain "still to come"
+      And the output line with "wishlist#keep-a-lamp" contains "still to come"
+      When I run "sdp vocabulary"
+      Then the output line with "implemented" contains "done"
+
   Rule: sdp vocabulary prints the words sdp interprets as a configuration that reads back, and the words it makes itself, which nothing configures
 
     A team sees which of its words sdp reads meaning into, and starts its own profile from the one
@@ -247,17 +281,18 @@ Feature: Configure a workspace
         """
       When I run "sdp vocabulary --json"
       Then the JSON output has:
-        | data.vocabulary.kinds.decision | adr                                                                                          |
-        | data.vocabulary.maturity       | idea, draft, specified, ready                                                                |
-        | data.made.kinds                | scenario, rule, code, missing                                                                |
-        | data.made.relations            | rule-of, imports                                                                             |
-        | data.made.tags                 | @gate, @serial, @open                                                                        |
-        | data.made.stages               | failing, in-progress, verified                                                               |
-        | data.made.attributes           | stage, verification, scenarios, summary, file, openQuestions                                 |
-        | data.made.scenarioAttributes   | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash |
-        | data.made.ruleAttributes       | spec, description, tags, scenarios, verification                                             |
-        | data.made.codeAttributes       | file, symbol, doc                                                                            |
-        | data.made.reservedRelations    | stage, verification, scenarios, summary, file, openQuestions, maturity, status               |
+        | data.vocabulary.kinds.decision | adr                                                                                                  |
+        | data.vocabulary.maturity       | idea, draft, specified, ready, implemented                                                           |
+        | data.vocabulary.implemented    | implemented                                                                                          |
+        | data.made.kinds                | scenario, rule, code, missing                                                                        |
+        | data.made.relations            | rule-of, imports                                                                                     |
+        | data.made.tags                 | @gate, @serial, @open                                                                                |
+        | data.made.stages               | failing, in-progress, verified                                                                       |
+        | data.made.attributes           | stage, verification, scenarios, summary, file, openQuestions, toCome, rulesToCome                    |
+        | data.made.scenarioAttributes   | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome |
+        | data.made.ruleAttributes       | spec, description, tags, scenarios, verification, stage, toCome                                      |
+        | data.made.codeAttributes       | file, symbol, doc                                                                                    |
+        | data.made.reservedRelations    | stage, verification, scenarios, summary, file, openQuestions, toCome, rulesToCome, maturity, status  |
       When I run "sdp vocabulary"
       Then the output line with "decision" contains "adr"
       And the output line with "stages" contains "failing, in-progress, verified"
@@ -294,6 +329,8 @@ Feature: Configure a workspace
         | vocabulary: { maturity: [idea, ready, idea] }    | idea repeats                                       | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, verified] }       | verified is a stage sdp derives                    | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                             | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, ready] }          | the ladder has no rung implemented                 | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { implemented: done }                | the ladder has no rung done                        | at ["vocabulary"]["implemented"]            |
         | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                             | at ["vocabulary"]["relations"]["anchor"]    |
         | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                     | at ["vocabulary"]["kinds"]["decision"]      |
         | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                | at ["vocabulary"]["kinds"]["milestone"]     |

@@ -256,10 +256,10 @@ const fromHere = Effect.fnUntraced(function*(root: string, targets: ReadonlyArra
 
 /** Prints a run: each scenario as its result is known, then the summary; a run that did not pass exits with 1. */
 const printRun = Effect.fnUntraced(function*<R extends Running.RunReport, E, S>(
-  run: (onScenario: (result: ScenarioResult) => Effect.Effect<void>) => Effect.Effect<Answer<R>, E, S>,
+  run: (onScenario: (result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) => Effect.Effect<Answer<R>, E, S>,
   options: { readonly json: boolean; readonly verbose: boolean }
 ) {
-  const ran = yield* run((result) => options.json ? Effect.void : Console.log(Text.scenario(result, options)))
+  const ran = yield* run((result, toCome) => options.json ? Effect.void : Console.log(Text.scenario(result, { ...options, toCome })))
   if (!ran.data.passed) process.exitCode = failed
   yield* print(ran, options.json, Text.runSummary)
 })

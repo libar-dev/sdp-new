@@ -199,7 +199,13 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
       problem(tag, "this key names nothing: a key is a letter, then letters, digits, _ or -, in parts joined by single dots", "write @key=value or @rel:ID; a tag without = and : is a Cucumber tag")
       continue
     }
-    if (level === "Examples") {
+    if ((level === "Scenario" || level === "Examples") && key === "maturity") {
+      problem(
+        tag,
+        "only a Feature or a Rule declares a maturity: on an example it would switch that example off alone",
+        "declare it on the Rule the example is under, or on its Feature; a rule without one has its Feature's"
+      )
+    } else if (level === "Examples") {
       problem(tag, "an annotation on Examples is about no node", "put it on the Scenario or the Rule above; a plain tag such as @slow selects the table's rows")
     } else if (value === "") {
       problem(tag, `${key} has no value`, `write @${key}${separator}${separator === ":" ? "<ID>" : "<value>"}, or @${key} alone for a plain tag`)

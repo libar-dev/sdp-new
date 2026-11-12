@@ -65,11 +65,14 @@ export const steps = onDisk(Api.steps)
 export const types = onDisk(Api.types)
 export const vocabulary = onDisk(Api.vocabulary)
 
-/** Called with each scenario's result as it is known, in order; the run waits for what it returns. */
-export type OnScenario = (result: Api.ScenarioResult) => void | PromiseLike<void>
+/**
+ * Called with each scenario's result as it is known, in order, and whether the scenario is an
+ * example of work still to come; the run waits for what it returns.
+ */
+export type OnScenario = (result: Api.ScenarioResult, toCome: boolean) => void | PromiseLike<void>
 
 const reporting = (onScenario: OnScenario | undefined) =>
-  onScenario && ((result: Api.ScenarioResult) => Effect.promise(async () => onScenario(result)))
+  onScenario && ((result: Api.ScenarioResult, toCome: boolean) => Effect.promise(async () => onScenario(result, toCome)))
 
 export interface RunInput extends Omit<Api.RunInput, "onScenario"> {
   readonly onScenario?: OnScenario | undefined

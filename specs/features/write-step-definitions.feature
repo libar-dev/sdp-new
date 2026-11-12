@@ -1,4 +1,4 @@
-@id=write-step-definitions @maturity=ready
+@id=write-step-definitions @maturity=implemented
 @realized-by:ARCH-runner @realized-by:ARCH-spec-parser
 Feature: Write step definitions
 
@@ -14,7 +14,7 @@ Feature: Write step definitions
   Background:
     Given a file "specs/cart.feature" containing:
       """
-      @id=cart @maturity=ready
+      @id=cart @maturity=implemented
       Feature: Cart
 
         Shoppers collect items before paying.
@@ -228,7 +228,8 @@ Feature: Write step definitions
         })
         """
       When I run "sdp run --snippets"
-      Then the output contains 'import { defineSteps, pending } from "sdp/steps"'
+      Then the exit code is 1
+      And the output contains 'import { defineSteps, pending } from "sdp/steps"'
       And the output contains "export default defineSteps(newWorld, ({ When, Then }) => {"
       And the output contains '  When("I add a lamp", ({ world }) => pending())' 1 time
       And the output contains '  When("I keep it for later", ({ world }) => pending())'
@@ -480,16 +481,16 @@ Feature: Write step definitions
         })
         """
       When I run "<command>"
-      Then the exit code is 0
+      Then the exit code is <exit>
       And the file "executed.txt" <is there or not>
 
       Examples:
-        | command          | is there or not               |
-        | sdp context cart | does not exist                |
-        | sdp steps        | does not exist                |
-        | sdp check        | does not exist                |
-        | sdp status       | does not exist                |
-        | sdp run          | contains "this step file ran" |
+        | command          | exit | is there or not               |
+        | sdp context cart | 0    | does not exist                |
+        | sdp steps        | 0    | does not exist                |
+        | sdp check        | 0    | does not exist                |
+        | sdp status       | 0    | does not exist                |
+        | sdp run          | 1    | contains "this step file ran" |
 
     Scenario: A step definition is read whether its registrar is destructured, renamed or taken whole, and it matches by text, whatever keyword registered it
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -593,7 +594,8 @@ Feature: Write step definitions
       And the output contains "not read: specs/steps/count.steps.ts:6: defineSteps is renamed or passed on here"
       And the output contains "not read: specs/steps/made.steps.ts:7: this export is what a call returns"
       When I run "sdp run --json"
-      Then the JSON output has:
+      Then the exit code is 1
+      And the JSON output has:
         | data.summary.undefined | 1 |
 
     Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete

@@ -1,4 +1,4 @@
-@id=use-the-command-line @maturity=ready
+@id=use-the-command-line @maturity=implemented
 @realized-by:ARCH-cli @realized-by:ARCH-reports @realized-by:ARCH-workspace
 Feature: Use the command line
 
@@ -145,7 +145,7 @@ Feature: Use the command line
         # every key at its default
         """
       When I run "sdp run" in "specs"
-      Then the output contains "1 scenario(s): 1 undefined"
+      Then the output contains "1 scenario(s) of work still to come, none of which fails the run: 1 undefined"
       And the output contains "1 gate scenario(s): 1 failed"
       And the file "specs/.sdp/results.json" does not exist
 
@@ -198,7 +198,8 @@ Feature: Use the command line
 
   Rule: status counts the graph on one screen: kinds, relations, stages, rules, scenarios, gates and milestones, each by where it stands
 
-    Gates are counted apart from the other scenarios: a gate may be unmet with nothing broken.
+    Gates are counted apart from the other scenarios: a gate may be unmet with nothing broken. So
+    are the examples of work still to come: what they do is no regression.
 
     Scenario: On one screen, and as data
       Given a file "specs/cart.feature" containing:
@@ -214,8 +215,9 @@ Feature: Use the command line
           Rule: An empty cart cannot be paid
         """
       When I run "sdp status"
-      Then the output contains "rules         unrun 3 · no example 1 · open 1"
-      And the output contains "scenarios     unrun 2"
+      Then the output contains "rules         unrun 2 · no example 1 · still to come 1 · open 1"
+      And the output contains "scenarios     unrun 1"
+      And the output contains "still to come unrun 1"
       And the output contains "gates         unrun 1"
       And the output contains "milestones    open 1"
       And the output contains "check         no diagnostics"
@@ -224,7 +226,9 @@ Feature: Use the command line
         | data.kinds.feature         | 2 |
         | data.relations.realized-by | 1 |
         | data.stages.specified      | 1 |
-        | data.scenarios.unrun       | 2 |
-        | data.rules.unrun           | 3 |
+        | data.scenarios.unrun       | 1 |
+        | data.toCome.unrun          | 1 |
+        | data.rules.unrun           | 2 |
         | data.rules.no example      | 1 |
+        | data.rules.still to come   | 1 |
         | data.rules.open            | 1 |

@@ -1,4 +1,4 @@
-@id=know-what-is-verified @maturity=ready
+@id=know-what-is-verified @maturity=implemented
 @realized-by:ARCH-runner @realized-by:ARCH-graph-builder @realized-by:ARCH-spec-parser
 Feature: Know what is verified
 
@@ -12,7 +12,7 @@ Feature: Know what is verified
   Background:
     Given a file "specs/cart.feature" containing:
       """
-      @id=cart @maturity=ready
+      @id=cart @maturity=implemented
       Feature: Cart
 
         Shoppers collect items before paying.
@@ -26,9 +26,11 @@ Feature: Know what is verified
       """
 
   @decided-by:declared-maturity-derived-stage
-  Rule: A spec's stage is its declared maturity until its scenarios say more, then what they did when they last ran
+  Rule: Work still to come stays at its maturity; implemented work, at what its examples did
 
-    Undefined is not failed: a scenario nobody has automated is a specification, not a regression.
+    Before it is built, an example is the specification of work still to come. Implemented promises
+    that its examples pass, so one that does not makes it failing: a regression is not work in
+    progress.
 
     Scenario: Until its scenarios run, a spec's stage is its declared maturity
       Given these specs:
@@ -37,15 +39,41 @@ Feature: Know what is verified
       When the workspace is loaded
       Then node "cart#add-an-item" has attribute status = "unrun"
       And node "cart" has attribute verification = "unrun"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "implemented"
       And node "wishlist" has attribute verification = "none"
       And node "wishlist" has attribute stage = "idea"
 
-    Scenario: Without step definitions a scenario is undefined, not failed, and its spec keeps the declared maturity
+    Scenario Outline: Work still to come stays at its maturity, whatever its examples did
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=specified
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps a lamp
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      And a step definition "the wishlist holds a lamp" that <holding>
+      When the workspace is run
+      Then node "wishlist#keep-a-lamp" has attribute status = "<status>"
+      And node "wishlist" has attribute verification = "<verification>"
+      And node "wishlist" has attribute stage = "specified"
+      And node "wishlist" has attribute toCome = "true"
+
+      Examples:
+        | holding | status  | verification |
+        | passes  | passed  | passing      |
+        | fails   | failed  | failing      |
+        | pends   | pending | partial      |
+
+    Scenario: Without step definitions a scenario is undefined, and implemented work with one is failing
       When the workspace is run
       Then node "cart#add-an-item" has attribute status = "undefined"
       And node "cart" has attribute verification = "undefined"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "failing"
 
     Scenario: A scenario without steps is undefined: it automates nothing
       Given a file "specs/later.feature" containing:
@@ -64,9 +92,9 @@ Feature: Know what is verified
       And a step definition "I add a lamp" that passes
       When the workspace is run
       Then node "cart#add-an-item" has attribute status = "undefined"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "failing"
 
-    Scenario Outline: All passed is verified, a failure is failing, and anything between is in-progress
+    Scenario Outline: All passed is verified, and an example that fails or is pending is failing
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that <adding>
       And a step definition "the cart holds {int} item(s)" that passes
@@ -76,31 +104,35 @@ Feature: Know what is verified
       And node "cart" has attribute stage = "<stage>"
 
       Examples:
-        | adding | scenario | verification | stage       |
-        | passes | passed   | passing      | verified    |
-        | pends  | pending  | partial      | in-progress |
-        | fails  | failed   | failing      | failing     |
+        | adding | scenario | verification | stage    |
+        | passes | passed   | passing      | verified |
+        | pends  | pending  | partial      | failing  |
+        | fails  | failed   | failing      | failing  |
 
-    Scenario: A spec is verified only when every one of its scenarios passed
+    Scenario: A spec is verified only when every one of its scenarios passed, and in-progress while some have not run
       Given a file "specs/wishlist.feature" containing:
         """
-        @id=wishlist
+        @id=wishlist @maturity=implemented
         Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
           Rule: A wishlist keeps what a shopper wants for later
+
             Scenario: Keep a lamp
-              Given an empty cart
+              Then the wishlist holds a lamp
 
             Scenario: Share the list
-              Given a friend to share with
+              Then a friend sees the list
         """
-      And a step definition "an empty cart" that passes
-      When the workspace is run
+      And a step definition "the wishlist holds a lamp" that passes
+      When the workspace is run with "wishlist#keep-a-lamp"
       Then node "wishlist#keep-a-lamp" has attribute status = "passed"
-      And node "wishlist#share-the-list" has attribute status = "undefined"
+      And node "wishlist#share-the-list" has attribute status = "unrun"
       And node "wishlist" has attribute verification = "partial"
       And node "wishlist" has attribute stage = "in-progress"
 
-    Scenario Outline: A spec without a maturity, or with a stage written as one, has no stage until its scenarios say more
+    Scenario Outline: A spec without a maturity, or with a stage written as one, is implemented: it has no stage until its scenarios say more
       Given a file "specs/export-to-csv.feature" containing:
         """
         @id=export-to-csv <maturity>
@@ -115,8 +147,11 @@ Feature: Know what is verified
               Then I get a CSV file
         """
       And a step definition "I export the report" that passes
-      When the workspace is run
+      When the workspace is loaded
       Then node "export-to-csv" has attribute stage = "undefined"
+      When the workspace is run
+      Then node "export-to-csv" has attribute stage = "failing"
+      And node "export-to-csv" has attribute toCome = "undefined"
 
       Examples:
         | maturity           |
@@ -136,6 +171,51 @@ Feature: Know what is verified
       When I query "feature[verification>=passing]"
       Then the result is "cart"
 
+  Rule: An implemented feature is verified when its implemented rules pass
+
+    A rule still to come neither fails it nor makes it verified, and `rulesToCome` counts them; each
+    rule has a stage of its own.
+
+    Scenario Outline: A cart that holds what was added, with a rule still to come that <later> and a question
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Given an empty cart
+              When I add a lamp
+              Then the cart holds 1 item
+
+          @maturity=ready
+          Rule: A cart is kept for a week
+
+            Scenario: Come back to the cart
+              Then the cart is kept
+
+          @open
+          Rule: Does a cart expire?
+        """
+      And a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that <adding>
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a step definition "the cart is kept" that <later>
+      When the workspace is run
+      Then node "cart" has attribute stage = "<stage>"
+      And node "cart" has attribute rulesToCome = "2"
+      And node "cart#a-cart-holds-what-was-added" has attribute stage = "<stage>"
+      And node "cart#a-cart-is-kept-for-a-week" has attribute stage = "ready"
+      And node "cart#a-cart-is-kept-for-a-week" has attribute verification = "<verification>"
+
+      Examples:
+        | adding | later  | stage    | verification |
+        | passes | fails  | verified | failing      |
+        | fails  | passes | failing  | passing      |
+
   Rule: Every report counts stages the same way, and failing ranks with in-progress
 
     So status, the lifecycle and a query agree. A failing spec is no further along than one being
@@ -149,7 +229,7 @@ Feature: Know what is verified
         | @id=wishlist @maturity=idea @iteration:IT-beta | Wishlist |
       And a file "specs/export.feature" containing:
         """
-        @id=export @maturity=specified @iteration:IT-beta
+        @id=export @maturity=implemented @iteration:IT-beta
         Feature: Export
 
           Something to export.
@@ -161,7 +241,7 @@ Feature: Know what is verified
         """
       And a file "specs/fast-exports.feature" containing:
         """
-        @id=fast-exports @kind=nfr @iteration:IT-beta
+        @id=fast-exports @kind=nfr @maturity=implemented @iteration:IT-beta
         Feature: Exports are fast
 
           Rule: A report exports within a second
@@ -171,19 +251,19 @@ Feature: Know what is verified
         """
       And a step definition "a file is saved" that fails
       And a step definition "the guard holds" that passes
-      When the workspace is run
-      Then sdp status counts the stages "failing:1 idea:1 ready:1 verified:1"
+      When the workspace is run with "export fast-exports"
+      Then sdp status counts the stages "failing:1 idea:1 implemented:1 verified:1"
       When the lifecycle is computed
       Then the iterations are:
         | id      | stages                      |
         | IT-beta | failing:1 idea:1 verified:1 |
-      When I query "*[stage>ready]"
-      Then the result is "export, fast-exports"
-      When I query "*[stage<verified]"
+      When I query "feature|nfr[stage>ready]"
+      Then the result is "cart, export, fast-exports"
+      When I query "feature|nfr[stage<verified]"
       Then the result is "cart, export, wishlist"
-      When I query "*[stage=in-progress]"
+      When I query "feature|nfr[stage=in-progress]"
       Then the result is "nothing"
-      When I query "*[stage>=in-progress, stage<=failing]"
+      When I query "feature|nfr[stage>=in-progress, stage<=failing]"
       Then the result is "export"
 
   Rule: A result counts only while what it ran against is unchanged
@@ -230,7 +310,7 @@ Feature: Know what is verified
         | data.stale.code-changed | 2 |
       When I run "sdp gate MS-beta"
       Then the exit code is 1
-      And the output contains 'cart.stage is "ready", expected "verified"'
+      And the output contains 'cart.stage is "implemented", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
   Rule: Editing a scenario, a tag it inherits included, makes its result stale; planning or rewording its spec does not
@@ -246,7 +326,7 @@ Feature: Know what is verified
       When the workspace is run
       And a file "specs/cart.feature" containing:
         """
-        @id=cart @maturity=ready <on the feature>
+        @id=cart @maturity=implemented <on the feature>
         Feature: Cart
 
           Shoppers collect items before paying.
@@ -263,7 +343,7 @@ Feature: Know what is verified
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
       And node "cart" has attribute verification = "unrun"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "implemented"
 
       Examples:
         | added     | held    | on the feature | on the rule | on the scenario |
@@ -302,13 +382,62 @@ Feature: Know what is verified
         | 4242                            | 4000                     | changes        |
         | @slow                           | @fast                    | changes        |
         | @id=pay                         | @id=pay @kind=story      | changes        |
-        | @maturity=draft                 | @maturity=ready          | stays the same |
+        | @maturity=draft                 | @maturity=implemented    | stays the same |
         | @iteration:IT-payments          | @iteration:IT-checkout   | stays the same |
         | @decided-by:pay-before-shipping | @decided-by:pay-up-front | stays the same |
         | Feature: Pay                    | Feature: Payment         | stays the same |
         | Shoppers pay.                   | Shoppers pay by card.    | stays the same |
         | No goods leave without one.     | Nothing ships unpaid.    | stays the same |
 
+
+  Rule: Declaring work implemented keeps the results of its examples
+
+    Maturity is no part of an example's hash, so a failure it was allowed fails the next run, and a
+    result that reads the graph goes stale as on any change to a spec.
+
+    Scenario: A wishlist still to come is declared implemented while its example fails
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=ready
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      And a file "specs/steps/wishlist.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the wishlist holds a lamp", () => {
+            throw new Error("the wishlist is empty")
+          })
+        })
+        """
+      When I run "sdp run wishlist"
+      Then the exit code is 0
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=implemented
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+        """
+      When I run "sdp q 'scenario[!toCome][status=failed]' --ids"
+      Then the output lines are "wishlist#keep-a-lamp"
+      When I run "sdp q '#wishlist[stage=failing]' --ids"
+      Then the output lines are "wishlist"
+      When I run "sdp run wishlist"
+      Then the exit code is 1
 
   Rule: Any change to the code, the step definitions or the configuration makes every result stale
 
@@ -326,7 +455,7 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "code-changed"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "implemented"
 
       Examples:
         | file                      | content                    |
@@ -525,7 +654,7 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "toolchain-changed"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "implemented"
 
       Examples:
         | file                | content                  |
@@ -560,11 +689,12 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "inputs-changed"
-      And node "cart" has attribute stage = "ready"
+      And node "cart" has attribute stage = "implemented"
 
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
-      Then the output contains "1 scenario(s): 1 undefined"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
       And the file ".sdp/results.json" does not contain "atlantis"
       When I run "SHOP_REGION=atlantis sdp status --json"
       Then the JSON output has:
@@ -648,8 +778,8 @@ Feature: Know what is verified
               Then the node "cart" has <attribute> "<state>"
 
               Examples: As authored
-                | attribute | state |
-                | maturity  | ready |
+                | attribute | state       |
+                | maturity  | implemented |
 
               @gate
               Examples: After the ordinary scenarios
@@ -657,7 +787,7 @@ Feature: Know what is verified
                 | stage     | verified |
         """
       When the workspace is run with "--tags 'not @gate'"
-      Then the step 'the node "cart" has maturity "ready"' has status "passed"
+      Then the step 'the node "cart" has maturity "implemented"' has status "passed"
       And node "release#the-cart-is-state" has attribute status = "skipped"
 
     Scenario: An ordinary scenario sees the graph without results, whatever ran before
@@ -794,7 +924,8 @@ Feature: Know what is verified
         })
         """
       When I run "sdp run"
-      Then the file ".sdp/results.json" contains '"cart#add-an-item": {'
+      Then the exit code is 1
+      And the file ".sdp/results.json" contains '"cart#add-an-item": {'
       And the file ".sdp/results.json" contains '"status": "undefined"'
       And the file ".sdp/results.json" contains '"hash": "'
       And the file ".sdp/results.json" contains '"imports": {'

@@ -109,3 +109,9 @@ export const verificationOf = (statuses: ReadonlyArray<StepStatus | undefined>):
   if (statuses.every((s) => s === undefined || s === "undefined")) return "undefined"
   return "partial"
 }
+
+/**
+ * What an example did when it does not pass: it failed, is ambiguous, is pending or has a step
+ * without a definition. An example of implemented work that ends so fails the run that ran it.
+ */
+export const notPassing: ReadonlySet<StepStatus> = new Set(["failed", "ambiguous", "pending", "undefined"])

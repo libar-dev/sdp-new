@@ -1,4 +1,4 @@
-@id=link-specs @maturity=ready
+@id=link-specs @maturity=implemented
 @realized-by:ARCH-graph-builder @realized-by:ARCH-graph @realized-by:ARCH-code-annotations @realized-by:ARCH-vocabulary
 @decided-by:files-are-the-source-of-truth
 Feature: Link specs into one graph
@@ -94,7 +94,7 @@ Feature: Link specs into one graph
     Scenario: constructor, toString and __proto__ are words like any other
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { maturity: [constructor, toString] }
+        vocabulary: { maturity: [constructor, toString], implemented: toString }
         """
       And these specs:
         | tags                                                                                    | Feature |

@@ -18,7 +18,7 @@ import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
 import type { Project } from "./Build.ts"
-import { ruleState } from "./Status.ts"
+import { ruleLabel } from "./Status.ts"
 
 /** The step definitions of the workspace, so the bundle can show what is not automated yet before any run. */
 export interface ContextSteps {
@@ -90,7 +90,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
       }
       const rests = graph.out(element.id).filter((e) => e.rel !== made.relations.rule).map((e) => ` · ${e.rel} ${e.to}`).join("")
       if (out.at(-1) !== "") out.push("")
-      out.push(`### ${element.name}`, `[${ruleState(graph.node(element.id)!)}] — ${spec.file}:${element.line}${rests}`, "")
+      out.push(`### ${element.name}`, `[${ruleLabel(graph.node(element.id)!)}] — ${spec.file}:${element.line}${rests}`, "")
       if (element.description) out.push(element.description, "")
       spec.scenarios.filter((s) => s.rule === element.id).forEach(scenarioLines)
     }
