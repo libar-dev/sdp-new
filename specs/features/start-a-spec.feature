@@ -99,6 +99,7 @@ Feature: Start a spec
         """
         next: say under the title who needs what, and why, before any solution; then what it is not
         next: write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples
+        next: a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         """
       And the output contains "next: once its scenarios pass it is built: move it to specs/features/"
@@ -132,7 +133,7 @@ Feature: Start a spec
 
     Scenario: A kind without a template
       When I run "sdp new --help"
-      Then the output contains "feature, idea, change, decision, requirement, nfr, element, pattern, milestone, plan, phase, iteration, risk"
+      Then the output contains "feature, idea, change, decision, element, pattern, milestone, plan, phase, iteration, risk"
       And the output contains "idea (default), draft, specified or ready"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
@@ -210,20 +211,19 @@ Feature: Start a spec
         | template-placeholder | use-postgres | 4    |
 
     Scenario: From specified on, the file has a rule with a scenario to fill in
-      When I run "sdp new nfr 'Checkout latency' --maturity specified"
-      Then the file "specs/quality/checkout-latency.feature" is:
+      When I run "sdp new feature 'Saved carts' --maturity specified"
+      Then the file "specs/incoming/saved-carts.feature" is:
         """
-        @id=checkout-latency @kind=nfr @maturity=specified
-        Feature: Checkout latency
+        @id=saved-carts @maturity=specified
+        Feature: Saved carts
 
           Rule: <the rule, in one sentence>
 
-            Scenario: <quality attribute scenario>
-              Given <environment, e.g. normal load of 500 concurrent users>
-              When <stimulus, e.g. a user submits an order>
-              Then <response measure, e.g. confirmation is shown within 300 ms at p95>
+            Scenario: <the main success case>
+              Given <context>
+              When <action>
+              Then <observable outcome>
         """
-      And the output contains "next: fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
 
   Rule: Text a template wrote is flagged until it is filled in, once per spec, at the first
 

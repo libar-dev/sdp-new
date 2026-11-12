@@ -118,8 +118,10 @@ The sharp edges of the format, each what the official parser does:
   sentence where it applies.
 - **One feature, one file.** A feature's spec is its requirements document and its test suite at
   once: who needs what and why, what it is not, a rule per requirement with its reason, and the
-  scenarios that prove each one. It is not split into requirement, quality requirement and
-  element files; it names a technology only where its users see one.
+  scenarios that prove each one. A quality requirement is a rule of the feature it constrains, and
+  its example is measured: the environment, the stimulus, the response and its measure. A feature
+  is not split into requirement, quality requirement and element files; it names a technology only
+  where its users see one.
 - **Evidence, not status.** Scenarios are the tests. The stage `verified` is derived from a run
   and goes stale when what it ran against changes; `@stage=` written by hand is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the

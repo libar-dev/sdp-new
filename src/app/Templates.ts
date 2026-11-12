@@ -19,9 +19,6 @@ annotate(import.meta, { is: "ARCH-reports" })
 const directoryFor: Record<string, string> = {
   feature: "specs/incoming",
   change: "specs/incoming",
-  requirement: "specs/requirements",
-  nfr: "specs/quality",
-  capability: "specs/capabilities",
   decision: "specs/decisions",
   pattern: "specs/architecture",
   milestone: "specs/delivery",
@@ -34,8 +31,11 @@ const directoryFor: Record<string, string> = {
 /** Where a feature is once its scenarios pass. */
 const builtFeatures = "specs/features"
 
-/** What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at maturity idea. */
-export const templateKinds = ["feature", "idea", "change", "decision", "requirement", "nfr", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
+/**
+ * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
+ * maturity idea, and an element is no file: its code declares it.
+ */
+export const templateKinds = ["feature", "idea", "change", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
 
 type Template = "feature" | "change" | "decision" | "element" | "pattern" | "milestone" | "plan" | "phase" | "iteration" | "risk" | "generic"
 
@@ -227,17 +227,7 @@ const specTemplate = (options: {
   // From specified on the criteria ask for a scenario that states an outcome: a rule and its first example, to fill in.
   return feature(
     tags,
-    ...rule(
-      "<the rule, in one sentence>",
-      kind === "nfr"
-        ? [
-          "Scenario: <quality attribute scenario>",
-          "  Given <environment, e.g. normal load of 500 concurrent users>",
-          "  When <stimulus, e.g. a user submits an order>",
-          "  Then <response measure, e.g. confirmation is shown within 300 ms at p95>"
-        ]
-        : ["Scenario: <the main success case>", "  Given <context>", "  When <action>", "  Then <observable outcome>"]
-    )
+    ...rule("<the rule, in one sentence>", ["Scenario: <the main success case>", "  Given <context>", "  When <action>", "  Then <observable outcome>"])
   )
 }
 
@@ -273,6 +263,7 @@ const guidance = (options: {
       return [
         "say under the title who needs what, and why, before any solution; then what it is not",
         "write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples",
+        "a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users",
         "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         `plan it: ${plan}`,
         `once its scenarios pass it is built: move it to ${builtFeatures}/`
@@ -330,22 +321,17 @@ const guidance = (options: {
       ]
     case "generic": {
       const level = levels.indexOf(maturity)
-      const quality = kind === "nfr"
       return [
         level <= 0
           ? "write the idea in a sentence under the title"
-          : quality
-          ? `say under the title which quality matters, for whom, and why: ${criteria.draft} asks for that paragraph`
           : `say under the title who needs what, and why, before any solution: ${criteria.draft} asks for that paragraph`,
         ...(level === 1 || level === 2
           ? [`write what is still unknown as a \`Rule:\` tagged \`@open\`, its name the question: ${criteria.ready} asks for none left`]
           : []),
         ...(level >= 2
-          ? [quality
-            ? "fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
-            : "fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
+          ? ["fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
           : []),
-        quality ? `elements it constrains link to it with @constrained-by:${id}` : "link it: @realized-by:ARCH-…",
+        "link it: @realized-by:ARCH-…",
         `plan it: ${plan}`
       ]
     }
