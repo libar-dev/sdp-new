@@ -151,8 +151,6 @@ Feature: sdp, shown by running it
 
       Examples:
         | prefix | kind        |
-        | REQ    | requirement |
-        | NFR    | nfr         |
         | ARCH   | element     |
         | PAT    | pattern     |
         | MS     | milestone   |
@@ -173,8 +171,8 @@ Feature: sdp, shown by running it
     and is deleted once its rules have joined that feature.
 
     Scenario: Where each spec of this repository is
-      Then the query "requirement|nfr|feature[file~^specs/features/][maturity!=ready]" returns no results
-      And the query "requirement|nfr|feature|change[file!~^specs/(features|incoming)/]" returns no results
+      Then the query "feature[file~^specs/features/][maturity!=ready]" returns no results
+      And the query "feature|change[file!~^specs/(features|incoming)/]" returns no results
       And the query "change[file!~^specs/incoming/]" returns no results
       And the query "change !-changes-> *[file~^specs/features/]" returns no results
       And the query "element|pattern[file!~^specs/architecture/]" returns no results

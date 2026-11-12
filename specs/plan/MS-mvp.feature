@@ -3,18 +3,26 @@
 Feature: Minimum viable product
 
   What sdp must be before anyone outside this repository is asked to use it: what is built so far,
-  decided and verified, with the runner settled and the package installable.
+  decided and verified, with existing Cucumber suites running, questions interactive on large
+  repositories, and the package installable. Its obligations are named here, by the ids they keep
+  once built, so that no plan tag decides what MVP is.
 
   Rule: Everything built is verified
 
     Scenario: The features
-      Then the query "requirement|nfr|feature[file~^specs/features/][stage!=verified]" returns no results
+      Then the query "feature[file~^specs/features/][stage!=verified]" returns no results
 
-  Rule: The work planned for it is built
+  Rule: The features it needs are built
 
-    Scenario: The work planned into its iterations
-      Then the query "requirement|nfr|feature|change ?-iteration-> #IT-scale-and-compatibility|IT-packaging" returns at least 1 result
-      And the query "requirement|nfr|feature|change[stage!=verified] ?-iteration-> #IT-scale-and-compatibility|IT-packaging" returns no results
+    Scenario: Running existing Cucumber suites, and installing from npm
+      Then the query "#run-existing-cucumber-suites|install-from-npm[file~^specs/features/][stage=verified]" returns 2 results
+
+  Rule: The changes it needs have joined the features they change
+
+    A change is deleted once its rules are in its feature, so it is gone when it is built.
+
+    Scenario: Questions stay interactive on large repositories on disk
+      Then the query "change[id=questions-stay-interactive-on-disk]" returns no results
 
   Rule: Nothing built is still undecided
 

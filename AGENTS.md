@@ -38,8 +38,7 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
     concerns one feature is written under the rule it explains.
   - `architecture/` — the elements code is anchored to, and the rules between them.
   - `plan/` — the order of incoming work: iterations and the milestone they lead to, MVP first.
-  - `VISION` and `GUIDE` are about the whole. Specs not yet rewritten as features keep their
-    `REQ-`/`NFR-` ids until they are; `ask-the-graph` is the example to follow.
+  - `VISION` and `GUIDE` are about the whole; `ask-the-graph` is the example to follow.
 - A feature is written as a requirements document would be: under its name, who needs what and
   why, then what it is not; a `Rule:` per requirement, quality ones included, stated as what a user
   can observe, with its reason under it; its scenarios are the acceptance examples. It names a
