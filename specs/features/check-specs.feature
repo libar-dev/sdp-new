@@ -625,6 +625,21 @@ Feature: Check specs
         | a features glob out of the repository      | sdp.config.yaml     | features: ["specs/**/*.feature", "../*.feature"] | sdp check --json        | 1         | false    | cart#add-an-item |
         | a features glob in another case than git's | sdp.config.yaml     | features: ["Specs/**/*.feature"]                 | sdp check --json        | 2         | false    | nothing          |
 
+    Scenario: A spec deleted, from a workspace whose directory's name starts with a space
+      Given a file " app/sdp.config.yaml" containing:
+        """
+        features: ["../specs/**/*.feature"]
+        """
+      And the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/cart.feature && sdp -C " app" check --json
+        """
+      Then the exit code is 1
+      And the JSON output has:
+        | complete  | true             |
+        | data.node | cart#add-an-item |
+
     Scenario: A spec whose file name holds a line break, deleted
       When I run the pipeline:
         """

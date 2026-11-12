@@ -102,6 +102,9 @@ export const gitRevisions = Layer.effect(
       })).pipe(Effect.orElseSucceed(() => undefined))
     const text = (result: { readonly code: number; readonly out: Buffer } | undefined) =>
       result?.code === 0 ? result.out.toString("utf8").trim() : undefined
+    /** A path git wrote on a line of its own, untrimmed: a name may start or end with a space. */
+    const pathOf = (result: { readonly code: number; readonly out: Buffer } | undefined) =>
+      result?.code === 0 ? result.out.toString("utf8").replace(/\n$/, "") : undefined
 
     const base = Effect.fn("Revisions.base")(function*(root: string, named: string | undefined) {
       const missing = (reason: string): Effect.Effect<BaseRead, BaseNotFound> =>
@@ -123,7 +126,7 @@ export const gitRevisions = Layer.effect(
 
       // Every file of the commit, from the top of the repository, each with its blob: read by blob, a
       // file is read whatever bytes its name holds. The workspace is the directory `prefix` names.
-      const prefix = text(yield* inWorkspace(["rev-parse", "--show-prefix"]))
+      const prefix = pathOf(yield* inWorkspace(["rev-parse", "--show-prefix"]))
       const tree = yield* inWorkspace(["ls-tree", "-r", "-z", "--full-tree", commit])
       if (prefix === undefined || tree?.code !== 0) return yield* missing(`git ls-tree could not list the files of ${at}`)
       const entries = new Map(tree.out.toString("utf8").split("\0").flatMap((entry) => {
