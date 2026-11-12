@@ -3,7 +3,11 @@ id: REQ-review-bot
 kind: requirement
 title: Spec-aware pull request review
 maturity: draft
-iteration: C2
+iteration: E2
+activity:
+  analysis-design: C1
+  implementation: C2
+  test: [C2, T1]
 links:
   refines: CAP-living-specs
 ---

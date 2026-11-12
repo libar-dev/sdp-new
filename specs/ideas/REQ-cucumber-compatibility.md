@@ -4,6 +4,10 @@ kind: requirement
 title: Hooks and parameter types for existing Cucumber suites
 maturity: draft
 iteration: E1
+activity:
+  analysis-design: E1
+  implementation: [E1, E2]
+  test: E2
 links:
   refines: CAP-living-specs
 ---

@@ -14,9 +14,11 @@
  */
 import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
+import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
+import { declaredActivity } from "../lifecycle/Lifecycle.ts"
 import type { Spec } from "../parse/Spec.ts"
 
 const builtinLevels = ["idea", "draft", "specified", "ready"] as const
@@ -96,8 +98,14 @@ export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text:
   return found.sort((a, b) => a.line - b.line)
 }
 
-/** Attributes whose values name lifecycle nodes; a value that names no node is a typo or a missing plan entry. */
-const planKeys = ["iteration", "phase"]
+/**
+ * Attributes whose values name lifecycle nodes, with the kind they must name: the configured plan
+ * relations name iterations, the phase relations phases. Anything else is a typo or a missing plan entry.
+ */
+const planKeys = (config: Config): ReadonlyArray<readonly [string, string]> => [
+  ...config.planRelations.map((key) => [key, "iteration"] as const),
+  ...config.phaseRelations.map((key) => [key, "phase"] as const)
+]
 
 /** Every rule check over a built project, as diagnostics with `file:line` and a hint; significance is never checked. */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
@@ -214,20 +222,49 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       ...spec.inlineNodes.map((inline) => ({ id: inline.id, attrs: inline.attrs, line: () => inline.line }))
     ]
     for (const owner of owners) {
-      for (const key of planKeys) {
+      const planReference = (key: string, value: unknown, kind: string) => {
+        const known = graph.ofKind(kind).map((n) => n.id)
+        out.push({
+          rule: "plan-reference",
+          severity: "warning",
+          message: `${owner.id}: ${key} "${String(value)}" names no ${kind}`,
+          node: owner.id,
+          source: at(spec, owner.line(key.split(".")[0]!)),
+          hint: known.length > 0
+            ? `use one of the declared ${kind} ids: ${known.join(", ")}`
+            : `declare the ${kind} in a plan (sdp new plan) or remove \`${key}: ${String(value)}\``
+        })
+      }
+      for (const [key, kind] of planKeys(config)) {
         const values = [owner.attrs[key]].flat().filter(Predicate.isString)
-        for (const value of values.filter((v) => !graph.node(v) || graph.node(v)!.kind === "missing")) {
-          const known = graph.ofKind(key).map((n) => n.id)
+        for (const value of values.filter((v) => graph.node(v)?.kind !== kind)) planReference(key, value, kind)
+      }
+      if (owner.attrs.activity === undefined) continue
+      const activity = declaredActivity(owner.attrs)
+      if (activity === undefined) {
+        out.push({
+          rule: "plan-reference",
+          severity: "warning",
+          message: `${owner.id}: activity should map disciplines to iterations`,
+          node: owner.id,
+          source: at(spec, owner.line("activity")),
+          hint: "write `activity: { implementation: C1, test: [C1, T1] }`"
+        })
+        continue
+      }
+      for (const [discipline, values] of activity) {
+        if (!Object.hasOwn(config.disciplines, discipline)) {
           out.push({
             rule: "plan-reference",
             severity: "warning",
-            message: `${owner.id}: ${key} "${value}" names no node`,
+            message: `${owner.id}: activity names "${discipline}", which is not a discipline`,
             node: owner.id,
-            source: at(spec, owner.line(key)),
-            hint: known.length > 0
-              ? `use the id of a ${key}: ${known.join(", ")}`
-              : `declare the ${key} in a plan (sdp new plan) or remove \`${key}: ${value}\``
+            source: at(spec, owner.line("activity")),
+            hint: `use one of: ${Object.keys(config.disciplines).join(", ")}, or add it under lifecycle.disciplines in the configuration`
           })
+        }
+        for (const value of values.filter((v) => !Predicate.isString(v) || graph.node(v)?.kind !== "iteration")) {
+          planReference(`activity.${discipline}`, value, "iteration")
         }
       }
     }

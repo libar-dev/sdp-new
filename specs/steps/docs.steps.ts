@@ -48,6 +48,23 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(!line.includes(text), `${JSON.stringify(line)} contains ${JSON.stringify(text)}`)
   })
 
+  // A section runs from the line that starts with its heading to the next blank line.
+  Then("the output line with {string} under {string} contains {string}", ({ args: [anchor, heading, text], world }) => {
+    const lines = world.output.split("\n")
+    const start = lines.findIndex((l) => l.startsWith(heading))
+    assert.ok(start >= 0, `no output line starts with ${JSON.stringify(heading)}:\n${world.output}`)
+    const end = lines.findIndex((l, i) => i > start && l.trim() === "")
+    const line = outputLine(lines.slice(start + 1, end < 0 ? undefined : end).join("\n"), anchor)
+    assert.ok(line.includes(text), `${JSON.stringify(line)} does not contain ${JSON.stringify(text)}`)
+  })
+
+  Then("iteration {string} plans {string}", ({ args: [iteration, list], world }) => {
+    assert.ok(world.lifecycle, "compute the lifecycle first")
+    const report = world.lifecycle.work.find((i) => i.node.id === iteration)
+    assert.ok(report, `no iteration ${iteration}`)
+    assert.deepEqual(report.items.map((n) => n.id).sort(), ids(list))
+  })
+
   // --- configuration --------------------------------------------------------
 
   Then("loading the workspace fails with {string}", ({ args: [text], world }) =>

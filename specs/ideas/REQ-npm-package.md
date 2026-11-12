@@ -3,7 +3,12 @@ id: REQ-npm-package
 kind: requirement
 title: Install sdp from npm
 maturity: draft
-iteration: E2
+iteration: E1
+activity:
+  analysis-design: E2
+  implementation: E2
+  test: [E2, T1]
+  deployment: [T1, T2]
 links:
   refines: CAP-living-specs
   decided-by: DEC-0004

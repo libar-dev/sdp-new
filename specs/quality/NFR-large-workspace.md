@@ -5,6 +5,10 @@ title: Interactive commands on large repositories
 maturity: draft
 quality: performance
 iteration: E1
+activity:
+  analysis-design: E1
+  implementation: E2
+  test: [E2, T1]
 links:
   refines: CAP-agent-collaboration
   decided-by: DEC-0003

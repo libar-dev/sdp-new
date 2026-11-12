@@ -21,6 +21,8 @@ understood. Plans and milestone gates built on maturity then mislead.
 - Implementation is never declared: stage comes from scenario results ([[DEC-0005]]), so a weak
   `ready` spec shows up as a spec nothing verifies.
 - `sdp check` reports content ahead of its label as promotable.
+- `ready` is documented as structural only; a team that needs more writes its Definition of
+  Ready as a gate ([[REQ-maturity-gates]]).
 - Maturity changes are visible in pull requests; a spec-aware review ([[REQ-review-bot]]) would
   make every transition explicit.
 

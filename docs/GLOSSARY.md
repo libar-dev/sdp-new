@@ -25,8 +25,9 @@ nodes:
     title: Relation
     definition: >-
       The name of an edge, chosen by its author (`refines`, `realized-by`, `decided-by`). sdp
-      creates `verifies` and `mentions` edges itself, and reads only `is` in code annotations and
-      `supersedes` between decisions; every other relation means what its authors say.
+      creates `verifies` and `mentions` edges itself, and reads only `is` in code annotations,
+      `supersedes` between decisions, and the plan and phase relations the lifecycle is
+      configured with (`iteration`, `phase`); every other relation means what its authors say.
     links: { specified-by: REQ-flexible-graph }
   - id: TERM-inline-node
     kind: term
@@ -94,7 +95,16 @@ nodes:
     title: Maturity gate
     definition: >-
       What the content of a spec must have to claim a maturity level, such as a scenario with an
-      outcome for `specified`.
+      outcome for `specified`. The gates are structural: they check the shape of the content,
+      not its quality, so `ready` means nothing is left open, not that the design is settled.
+    links: { specified-by: REQ-maturity-gates }
+  - id: TERM-definition-of-ready
+    kind: term
+    title: Definition of Ready
+    definition: >-
+      What a team requires, beyond the structural `ready` gate, before work on a spec starts —
+      accepted decisions, measurable quality requirements, a review. sdp has none built in; a team
+      writes its own as a gate whose built-in steps query the graph.
     links: { specified-by: REQ-maturity-gates }
   - id: TERM-open-question
     kind: term
@@ -250,14 +260,14 @@ nodes:
     title: Iteration
     definition: >-
       A time box within a phase, with `start` and `end` dates. Work is planned into it by setting
-      `iteration:` on a spec, decision or element.
+      `iteration:` on a spec, decision or element, or by naming it in the node's `activity:`.
     links: { specified-by: REQ-lifecycle-view }
   - id: TERM-milestone
     kind: term
     title: Milestone
     definition: >-
       The end of a phase (LCO, LCA, IOC, PR): a spec of kind `milestone` whose scenarios are its
-      gate.
+      gate. It is met when the gate passes, never because the calendar has moved past its phase.
     links: { specified-by: REQ-lifecycle-view }
   - id: TERM-diagnostic
     kind: term
@@ -271,16 +281,18 @@ nodes:
     title: Gate
     definition: >-
       The scenarios that run after all others, against their fresh results: a milestone's, which
-      decide whether it is met, and any tagged `@gate`. An unmet gate does not fail `sdp run`;
-      `sdp gate <milestone>` exits with 1 while that milestone's is unmet.
+      decide whether it is met, and any tagged `@gate`. No gate fails `sdp run`, whatever its
+      phase or the date; `sdp gate <id>` exits with 1 while that milestone's or spec's gate is
+      unmet.
     links: { specified-by: REQ-executable-specs }
   - id: TERM-discipline
     kind: term
     title: Discipline
     definition: >-
       A kind of delivery work (business modeling, requirements, analysis and design,
-      implementation, test, deployment), represented by node kinds. Its activity per iteration is
-      computed from the plan.
+      implementation, test, deployment). Its activity per iteration is planned: a node's
+      `iteration:` plans the work of the discipline its kind belongs to, and `activity:` plans
+      any discipline into iterations of its own.
     links: { specified-by: REQ-lifecycle-view }
   # Vision
   - id: TERM-capability
@@ -324,7 +336,8 @@ valid and simply carried along.
 | --- | --- | --- |
 | `maturity` | specs | authoring maturity: idea, draft, specified, ready |
 | `tags` | any node | free labels; also the tags of the spec's scenarios |
-| `iteration` | planned work | the iteration the node is planned into |
+| `iteration` | planned work | the iteration the node is planned into, for the work of its kind's discipline |
+| `activity` | planned work | disciplines and the iterations their work on the node is planned into: `{ implementation: C1, test: [C1, T1] }` |
 | `phase` | iterations, milestones | the phase they belong to |
 | `order` | phases | position in the lifecycle |
 | `start`, `end` | iterations | ISO dates |

@@ -11,4 +11,5 @@ links:
 
 # Pricing
 
-VAT rates and rounding. Anchored in code by `@sdp is ARCH-pricing` in `src/pricing.ts`.
+VAT rates and rounding. Anchored in code by `annotate(import.meta, { is: "ARCH-pricing" })` in
+`src/pricing.ts`: the module is the element.

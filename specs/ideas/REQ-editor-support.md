@@ -3,7 +3,11 @@ id: REQ-editor-support
 kind: requirement
 title: Editor support
 maturity: draft
-iteration: C1
+iteration: E2
+activity:
+  analysis-design: [E2, C1]
+  implementation: C1
+  test: [C1, C2]
 links:
   refines: CAP-living-specs
 ---
