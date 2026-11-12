@@ -43,7 +43,7 @@ Requires Node.js ≥ 24 (TypeScript runs directly, no build step).
 
 ```sh
 npm install
-npm run verify                  # typecheck, sdp check, and sdp's own executable specifications
+npm run verify                  # typecheck, sdp check, sdp's own executable specifications, the gates that are due
 node src/cli/main.ts status     # or ./bin/sdp.js status, or `npm link` once for a global `sdp`
 ```
 

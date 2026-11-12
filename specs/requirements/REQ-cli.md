@@ -1116,6 +1116,10 @@ Scenario: Before any phase with a milestone has begun, nothing is due
   When I run "sdp gate --due"
   Then the exit code is 0
   And the output contains "note: no milestone is due"
+
+Scenario: The build of sdp itself enforces the milestones that are due
+  When I run "grep verify package.json" in the repository
+  Then the output contains "&& node src/cli/main.ts gate --due"
 ~~~
 
 ## Agents

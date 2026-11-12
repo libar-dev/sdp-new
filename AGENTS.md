@@ -39,8 +39,9 @@ that its instructions work.
    match a text, with `file:line` — because a step that matches two definitions is ambiguous and fails.
 3. Implement in `src/`.
 4. `npm run verify` must pass: typecheck, `sdp check` (no errors), `sdp run` (no failing
-   scenario). Gates — milestones and `@gate` scenarios — never fail `sdp run`, so the later
-   milestones it reports unmet are expected; `sdp gate <id>` is what enforces one.
+   scenario), `sdp gate --due` (the milestones the calendar says are due are met). Gates —
+   milestones and `@gate` scenarios — never fail `sdp run`, so the later milestones it reports
+   unmet are expected; `sdp gate <id>` is what enforces one.
 
 ## Conventions
 
