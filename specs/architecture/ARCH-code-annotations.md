@@ -83,7 +83,7 @@ Scenario: The target is a declaration at the top of the module, a property of on
     | 5    | is         | ARCH-graph   | Graph.prototype |
     | 6    | is         | ARCH-builder | build           |
     | 7    | implements | REQ-graph    | the file        |
-  And the scan reports nothing
+  And sdp reports nothing
 
 Scenario Outline: What cannot be read without running the code is reported, not guessed
   Given a file "src/pay.ts" containing:
@@ -96,7 +96,9 @@ Scenario Outline: What cannot be read without running the code is reported, not 
     """
   When "src/pay.ts" is scanned for annotations
   Then no annotations are found
-  And the scan reports at line 5: "<problem>"
+  And sdp reports:
+    | line | message   |
+    | 5    | <problem> |
 
   Examples:
     | call                                       | problem                                   |
@@ -115,7 +117,9 @@ Scenario Outline: A target that is not declared at the top of the module is repo
     """
   When "src/items.ts" is scanned for annotations
   Then no annotations are found
-  And the scan reports at line 5: "the annotation target must be a module-level declaration or import.meta: <name> is not one"
+  And sdp reports:
+    | line | message                                                                                    |
+    | 5    | the annotation target must be a module-level declaration or import.meta: <name> is not one |
   When I query "code"
   Then the result is "nothing"
 
@@ -211,9 +215,13 @@ Scenario Outline: A file that annotates but does not parse is reported, so none 
     """
   When "src/pay.ts" is scanned for annotations
   Then no annotations are found
-  And the scan reports at line 3: "the file does not parse, so its annotations cannot be read: Unexpected token"
+  And sdp reports:
+    | line | message                                                                      |
+    | 3    | the file does not parse, so its annotations cannot be read: Unexpected token |
   When the workspace is checked
-  Then the check reports "annotation-unreadable"
+  Then sdp reports at least:
+    | rule                  |
+    | annotation-unreadable |
 
   Examples:
     | annotates                                  |
@@ -229,7 +237,7 @@ Scenario: A file that does not parse and does not annotate is none of sdp's busi
     """
   When "src/pay.ts" is scanned for annotations
   Then no annotations are found
-  And the scan reports nothing
+  And sdp reports nothing
 
 Scenario: as const and satisfies change only types, so the objects inside are read
   Given a file "src/cache.ts" containing:
@@ -245,7 +253,7 @@ Scenario: as const and satisfies change only types, so the objects inside are re
     | line | relation | targets    | binds to | attributes                        |
     | 4    | is       | ARCH-cache | cache    | kind="element" title="Page cache" |
     | 5    | uses     | ARCH-store | cache    |                                   |
-  And the scan reports nothing
+  And sdp reports nothing
 
 Scenario: In the graph, typed annotations become code nodes at the declaration
   Given a file "specs/REQ-pay.md" containing:
@@ -339,7 +347,9 @@ Scenario: Mentioning the marker is not an annotation, and one that follows code 
   When "src/help.ts" is scanned for annotations
   Then no annotations are found
   When the workspace is checked
-  Then the "annotation-ignored" diagnostic points at "src/help.ts:4"
+  Then sdp reports at least:
+    | rule               | at            |
+    | annotation-ignored | src/help.ts:4 |
 
 Scenario: In TypeScript and JavaScript a string is never an annotation
   Given a file "src/example.ts" containing:

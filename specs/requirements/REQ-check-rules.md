@@ -36,9 +36,9 @@ Scenario Outline: Each rule reports its problem with its severity, at the line t
     <body>
     """
   When the workspace is checked
-  Then the check reports "<rule>"
-  And the "<rule>" diagnostic has severity "<severity>"
-  And the "<rule>" diagnostic points at "<file>:<line>"
+  Then sdp reports at least:
+    | rule   | severity   | at            |
+    | <rule> | <severity> | <file>:<line> |
 
   Examples:
     | rule                | severity | file             | line | front matter                                         | body                                                                                  |
@@ -81,18 +81,20 @@ Scenario Outline: A plan names declared iterations, phases and disciplines, and 
     # Example
     """
   When the workspace is checked
-  Then the check reports "plan-reference" for '<message>'
+  Then sdp reports:
+    | rule           | severity | node  | at                    | message   |
+    | plan-reference | warning  | REQ-a | specs/REQ-a.md:<line> | <problem> |
 
   Examples:
-    | front matter                                    | message                                                  |
-    | iteration: elaboration                          | iteration "elaboration" names no iteration               |
-    | phase: E1                                       | phase "E1" names no phase                                |
-    | closes: PLAN                                    | closes "PLAN" names no phase or iteration                |
-    | activity: { implementation: PLAN }              | activity.implementation "PLAN" names no iteration        |
-    | activity: { implementation: [E1, elaboration] } | activity.implementation "elaboration" names no iteration |
-    | activity: { testing: E1 }                       | activity names "testing", which is not a discipline      |
-    | activity: E1                                    | activity should map disciplines to iterations            |
-    | kind: risk\niteration: E1                        | kind risk belongs to no discipline                       |
+    | front matter                                    | line | problem                              |
+    | iteration: elaboration                          | 3    | "elaboration" names no iteration     |
+    | phase: E1                                       | 3    | "E1" names no phase                  |
+    | closes: PLAN                                    | 3    | "PLAN" names no phase or iteration   |
+    | activity: { implementation: PLAN }              | 3    | "PLAN" names no iteration            |
+    | activity: { implementation: [E1, elaboration] } | 3    | "elaboration" names no iteration     |
+    | activity: { testing: E1 }                       | 3    | "testing", which is not a discipline |
+    | activity: E1                                    | 3    | map disciplines to iterations        |
+    | kind: risk\niteration: E1                       | 4    | belongs to no discipline             |
 
 Scenario: A plan that names what it declares is clean
   Given a file "specs/PLAN.md" containing:
@@ -116,7 +118,7 @@ Scenario: A plan that names what it declares is clean
     # Example
     """
   When the workspace is checked
-  Then the check does not report "plan-reference"
+  Then sdp does not report "plan-reference"
 
 Scenario Outline: A scenario or step a template wrote as <…> is flagged until it is filled in, once per spec, at the first
   Given a file "specs/REQ-a.md" containing:
@@ -132,8 +134,9 @@ Scenario Outline: A scenario or step a template wrote as <…> is flagged until 
     <text>
     """
   When the workspace is checked
-  Then the check reports "template-placeholder" for "REQ-a"
-  And the "template-placeholder" diagnostic points at "specs/REQ-a.md:<line>"
+  Then sdp reports at least:
+    | rule                 | node  | at                    |
+    | template-placeholder | REQ-a | specs/REQ-a.md:<line> |
 
   Examples:
     | text                                                               | line |
@@ -146,7 +149,7 @@ Scenario Outline: Words that only mention template text or annotations are not f
     <text>
     """
   When the workspace is checked
-  Then the check does not report "<rule>"
+  Then sdp does not report "<rule>"
 
   Examples:
     | file           | rule                 | text                                                                |
@@ -164,9 +167,9 @@ Scenario: A typed annotation sdp cannot read statically is reported
     annotate(total, { implements: requirement })
     """
   When the workspace is checked
-  Then the check reports "annotation-unreadable"
-  And the "annotation-unreadable" diagnostic has severity "warning"
-  And the "annotation-unreadable" diagnostic points at "src/cart.ts:5"
+  Then sdp reports at least:
+    | rule                  | severity | at            |
+    | annotation-unreadable | warning  | src/cart.ts:5 |
 
 Scenario Outline: A step definition sdp cannot read is a warning; one that can match nothing is an error
   Given a file "specs/steps/cart.steps.ts" containing:
@@ -179,9 +182,9 @@ Scenario Outline: A step definition sdp cannot read is a warning; one that can m
     })
     """
   When the workspace is checked
-  Then the check reports "<rule>"
-  And the "<rule>" diagnostic has severity "<severity>"
-  And the "<rule>" diagnostic points at "specs/steps/cart.steps.ts:5"
+  Then sdp reports at least:
+    | rule   | severity   | at                          |
+    | <rule> | <severity> | specs/steps/cart.steps.ts:5 |
 
   Examples:
     | expression          | rule            | severity |
@@ -207,8 +210,9 @@ Scenario: Id declarations that no longer match the graph are reported, so annota
     export {}
     """
   When the workspace is checked
-  Then the check reports "types-stale"
-  And the "types-stale" diagnostic points at ".sdp/ids.d.ts:1"
+  Then sdp reports at least:
+    | rule        | at              |
+    | types-stale | .sdp/ids.d.ts:1 |
 
 Scenario: Every rule sdp reports has an example here
   Then every rule sdp reports has an example in this spec

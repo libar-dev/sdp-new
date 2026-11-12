@@ -24,7 +24,7 @@ import { defineSteps } from "sdp/steps"
 import { defaultVocabulary, hasKind } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import type { Project } from "../../src/graph/Build.ts"
-import { ids, load, newWorld, node, output, produce, reload, setFile } from "./world.ts"
+import { assertRows, ids, load, newWorld, node, output, produce, reload, reportRow, setFile, type World } from "./world.ts"
 
 /**
  * `A -rel-> B` for every value import from a module anchored to element A to a module anchored to
@@ -55,12 +55,20 @@ const importsBetweenElements = async (project: Project, rel: string): Promise<Re
   return [...links].sort()
 }
 
+const reported = (world: World) => {
+  assert.ok(world.reported, "nothing was parsed, loaded, checked or scanned yet")
+  return world.reported
+}
+
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- workspace ------------------------------------------------------------
 
   Given("a file {string} containing:", ({ args: [path], doc, world }) => setFile(world, path, doc ?? ""))
 
-  When("the workspace is loaded", ({ world }) => Effect.asVoid(reload(world)))
+  When("the workspace is loaded", ({ world }) =>
+    Effect.map(reload(world), (project) => {
+      world.reported = project.diagnostics.map(reportRow)
+    }))
 
   Then("the workspace graph has node {string} of kind {string}", ({ args: [id, kind], world }) =>
     Effect.map(load(world), (project) => assert.equal(node(project, id).kind, kind)))
@@ -113,46 +121,27 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.match(world.queryError, new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))
   })
 
-  // --- check ----------------------------------------------------------------
+  // --- what sdp reports -----------------------------------------------------
+  // The diagnostics of the last step that parsed a file, loaded or checked the workspace, or
+  // scanned code. A table names the columns it checks: rule, severity, node, at (file:line), line,
+  // message and hint, the last two matched by what they contain.
 
   When("the workspace is checked", ({ world }) =>
     Effect.map(reload(world), (project) => {
-      world.diagnostics = check(project)
+      world.reported = check(project).map(reportRow)
     }))
 
-  Then("the check reports {string} for {string}", ({ args: [rule, id], world }) => {
-    assert.ok(world.diagnostics, "run `When the workspace is checked` first")
-    assert.ok(
-      world.diagnostics.some((d) => d.rule === rule && (d.node === id || d.message.includes(id))),
-      `no ${rule} for ${id}; got: ${world.diagnostics.map((d) => `${d.rule}(${d.node ?? ""})`).join(", ") || "nothing"}`
-    )
-  })
+  Then("sdp reports nothing", ({ world }) => assertRows("diagnostics", reported(world), [["rule", "at", "message"]], "exactly"))
 
-  Then("the check reports {string}", ({ args: [rule], world }) => {
-    assert.ok(world.diagnostics?.some((d) => d.rule === rule), `no ${rule} diagnostic`)
-  })
+  // The rules of the diagnostics, each as often as it is reported; "nothing" for none.
+  Then("sdp reports {string}", ({ args: [rules], world }) => assert.deepEqual(reported(world).map((row) => row.rule).sort(), ids(rules)))
 
-  Then("the check does not report {string}", ({ args: [rule], world }) => {
-    const found = world.diagnostics?.filter((d) => d.rule === rule) ?? []
-    assert.equal(found.length, 0, found.map((d) => d.message).join("\n"))
-  })
+  Then("sdp reports:", ({ table, world }) => assertRows("diagnostics", reported(world), table, "exactly"))
 
-  Then("the {string} diagnostic has severity {string}", ({ args: [rule, severity], world }) => {
-    const found = world.diagnostics?.find((d) => d.rule === rule)
-    assert.ok(found, `no ${rule} diagnostic`)
-    assert.equal(found.severity, severity)
-  })
+  Then("sdp reports at least:", ({ table, world }) => assertRows("diagnostics", reported(world), table, "including"))
 
-  Then("the check reports nothing", ({ world }) => {
-    const found = world.diagnostics ?? []
-    assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
-  })
-
-  // One rule, or several separated by commas.
-  Then("the check reports nothing but {string}", ({ args: [rules], world }) => {
-    const found = (world.diagnostics ?? []).filter((d) => !ids(rules).includes(d.rule))
-    assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
-  })
+  Then("sdp does not report {string}", ({ args: [rule], world }) =>
+    assertRows("diagnostics", reported(world).filter((row) => row.rule === rule), [["rule", "at", "message"]], "exactly"))
 
   // --- architecture ---------------------------------------------------------
 

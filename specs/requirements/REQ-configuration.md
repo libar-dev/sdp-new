@@ -218,7 +218,9 @@ Scenario: kinds.decision gives a team's own word for decisions the shape of one
     ## Options
     """
   When the workspace is checked
-  Then the check reports "decision-shape" for "ADR-1"
+  Then sdp reports at least:
+    | rule           | node  |
+    | decision-shape | ADR-1 |
 
 Scenario: disciplines adds or redefines disciplines
   Given a file "sdp.config.yaml" containing:
@@ -325,7 +327,7 @@ Scenario: links names keys of the workspace's own that link
     """
   When the workspace is loaded
   Then the edges from "REQ-catalogue" are "REQ-catalogue -owner-> ARCH-index"
-  And building the graph reports "nothing"
+  And sdp reports "nothing"
 
 Scenario: sdp vocabulary prints the profile in force
   Given a file "sdp.config.yaml" containing:

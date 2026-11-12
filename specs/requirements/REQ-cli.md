@@ -346,7 +346,7 @@ Scenario: What the templates write at the first maturity level passes the check
     | element     | Orders        |          |
     | pattern     | Outbox        |          |
   When the workspace is checked
-  Then the check reports nothing
+  Then sdp reports nothing
 
 Scenario: Above the first level a new spec claims what its author has yet to write, and the check says so
   Given specs created from the sdp new templates:
@@ -355,11 +355,13 @@ Scenario: Above the first level a new spec claims what its author has yet to wri
     | requirement | Returns      | specified |
     | nfr         | Availability | ready     |
   When the workspace is checked
-  Then the check reports nothing but "maturity-criteria, template-placeholder"
-  And the check reports "maturity-criteria" for "REQ-gift-cards"
-  And the check reports "maturity-criteria" for "REQ-returns"
-  And the check reports "template-placeholder" for "REQ-returns"
-  And the check reports "template-placeholder" for "NFR-availability"
+  Then sdp reports:
+    | rule                 | node             |
+    | maturity-criteria    | NFR-availability |
+    | maturity-criteria    | REQ-gift-cards   |
+    | maturity-criteria    | REQ-returns      |
+    | template-placeholder | REQ-returns      |
+    | template-placeholder | NFR-availability |
 
 Scenario: A decision starts as the sentence it must become, and the check flags it until it is written
   When I run "sdp new decision 'Use Postgres'"
@@ -401,8 +403,9 @@ Scenario: What the decision, milestone and risk templates write passes the check
     | milestone   | Launch           |           |
     | risk        | Outage           |           |
   When the workspace is checked
-  Then the check reports nothing but "template-placeholder"
-  And the check reports "template-placeholder" for "DEC-0002"
+  Then sdp reports:
+    | rule                 | node     |
+    | template-placeholder | DEC-0002 |
 
 Scenario: new never overwrites: an id or a file that exists is refused
   When I run "sdp new requirement Search --id REQ-search"
@@ -421,7 +424,7 @@ Scenario Outline: A title reads back as written, whatever it looks like to YAML
     | kind        | title   |
     | requirement | <title> |
   When the workspace is checked
-  Then the check reports nothing but "template-placeholder"
+  Then sdp reports nothing
   And node "<id>" has attribute title = "<title>"
 
   Examples:

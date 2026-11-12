@@ -115,5 +115,5 @@ Scenario: However much code there is, the architecture is what an architect decl
 
 Scenario: What belongs in the architecture is never checked
   When the workspace is checked
-  Then the check reports nothing
+  Then sdp reports nothing
 ~~~

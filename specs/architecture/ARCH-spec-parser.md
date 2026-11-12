@@ -57,7 +57,7 @@ Scenario: Identity, attributes and the summary are read from the file; an alias 
     | estimate | 3                     |
     | owner    | {"team":"payments"}   |
     | reviewer | {"team":"payments"}   |
-  And parsing reports nothing
+  And sdp reports nothing
 
 Scenario Outline: The title falls back to the first top-level heading, then the id
   Given a file "specs/REQ-basket.md" containing:
@@ -88,7 +88,7 @@ Scenario Outline: Markdown without a usable id is not a spec, and no problem
     """
   When "specs/notes.md" is parsed
   Then the file is not a spec
-  And parsing reports nothing
+  And sdp reports nothing
 
   Examples:
     | front matter     |
@@ -106,7 +106,7 @@ Scenario: Front matter with a kind but no id is plainly meant as a spec, and is 
     """
   When "specs/DEC-cache.md" is parsed
   Then the file is not a spec
-  And parsing reports:
+  And sdp reports:
     | rule       | severity | line | message                            |
     | missing-id | error    | 1    | declares kind "decision" but no id |
 
@@ -121,7 +121,7 @@ Scenario Outline: Front matter that cannot be read is reported at its line, and 
     """
   When "specs/REQ-basket.md" is parsed
   Then the file is not a spec
-  And parsing reports:
+  And sdp reports:
     | rule         | severity | line   | message   |
     | front-matter | error    | <line> | <message> |
 
@@ -142,7 +142,7 @@ Scenario Outline: Front matter holds JSON data: an alias inside itself or to no 
     """
   When "specs/REQ-basket.md" is parsed
   Then the file is not a spec
-  And parsing reports:
+  And sdp reports:
     | rule         | severity | line | message   |
     | front-matter | error    | 3    | <message> |
 
@@ -185,7 +185,7 @@ Scenario: A link is one id, a comma-separated or YAML list, or a map with to and
     | constrained-by | NFR-latency     | 8    | note="p95" |
     | guarded-by     | DEC-0001        | 10   |            |
     | guarded-by     | DEC-0002        | 11   | since=2026 |
-  And parsing reports nothing
+  And sdp reports nothing
 
 Scenario: Every key, map entry and link target is at the line it is written on
   Given a file "specs/REQ-cart.md" containing:
@@ -246,7 +246,7 @@ Scenario Outline: links or nodes of the wrong shape is an error at its line, and
     # Cart
     """
   When "specs/REQ-cart.md" is parsed
-  Then parsing reports:
+  Then sdp reports:
     | rule   | severity | line | message   |
     | <rule> | error    | 4    | <message> |
 
@@ -285,7 +285,7 @@ Scenario: Inline nodes are declared under nodes, each at the line of its id, whi
     | E10        | iteration | E10        | 6    |                     |                    |            |
     | E1         | iteration | E1         | 7    | phase="elaboration" | -phase-> elaboration | 7        |
     | ARCH-cache | element   | Page cache | 8    |                     | -serves-> ARCH-api | 10         |
-  And parsing reports:
+  And sdp reports:
     | rule        | severity | line | message                          |
     | inline-node | error    | 11   | an entry under nodes needs an id |
 
@@ -414,7 +414,9 @@ Scenario: Code, comments and an empty fence are not a description, so they give 
   When "specs/REQ-csv.md" is parsed
   Then the parsed spec has summary ""
   When the workspace is checked
-  Then the check reports "maturity-criteria" for "REQ-csv"
+  Then sdp reports at least:
+    | rule              | node    |
+    | maturity-criteria | REQ-csv |
 
 Scenario: Open questions are the list items under their heading, nested ones included, up to the next heading of its level; a checked or struck one is resolved
   Given a file "specs/REQ-checkout.md" containing:
@@ -567,7 +569,7 @@ Rule: The fences of a file are one feature
       ```
       """
     When "specs/REQ-search.md" is parsed
-    Then parsing reports nothing
+    Then sdp reports nothing
     And the parsed spec has scenarios:
       | id                 | line |
       | REQ-search#by-name | 11   |
@@ -590,7 +592,7 @@ Rule: The fences of a file are one feature
       ````
       """
     When "specs/REQ-docs.md" is parsed
-    Then parsing reports nothing
+    Then sdp reports nothing
     And the executable steps of "REQ-docs#describe-a-feature" are:
       | keyword | text                       | doc string      |
       | Given   | a feature file containing: | Feature: Search |
@@ -616,7 +618,7 @@ Rule: The fences of a file are one feature
       """
     When "specs/REQ-pay.md" is parsed
     Then the parsed spec has no scenarios
-    And parsing reports:
+    And sdp reports:
       | rule           | severity | line |
       | gherkin-syntax | error    | 14   |
 ~~~
@@ -716,7 +718,7 @@ Rule: A Rule ends with its fence
       """
     When "specs/REQ-pay.md" is parsed
     Then the parsed spec has no scenarios
-    And parsing reports:
+    And sdp reports:
       | rule           | severity | line | message                                                         |
       | gherkin-syntax | error    | 12   | a Background outside a Rule holds for the whole file |
 ~~~

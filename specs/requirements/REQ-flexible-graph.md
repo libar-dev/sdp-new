@@ -154,7 +154,7 @@ Scenario: Any word is just a word: constructor is a kind, a relation and an attr
     # A
     """
   When the workspace is checked
-  Then the check reports nothing
+  Then sdp reports nothing
   And sdp status counts the stages "toString:1"
   When I query "constructor[maturity>constructor]"
   Then the result is "REQ-a"

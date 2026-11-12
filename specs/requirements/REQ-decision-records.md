@@ -31,7 +31,7 @@ Scenario: A decision is a title and a sentence
     Not a wrapper around it, because every new caller would keep it alive.
     """
   When the workspace is checked
-  Then the check reports nothing
+  Then sdp reports nothing
   And the workspace graph has node "DEC-0001" of kind "decision"
 
 Scenario Outline: A decision that grows a section or a scenario is reported
@@ -47,8 +47,9 @@ Scenario Outline: A decision that grows a section or a scenario is reported
     <more>
     """
   When the workspace is checked
-  Then the check reports "decision-shape" for "DEC-0001"
-  And the "decision-shape" diagnostic points at "specs/DEC-0001.md:<line>"
+  Then sdp reports at least:
+    | rule           | node     | at                       |
+    | decision-shape | DEC-0001 | specs/DEC-0001.md:<line> |
 
   Examples:
     | more                                                                              | line |
@@ -85,7 +86,7 @@ Scenario: The rule a decision leads to is a scenario of what it constrains, whic
     export function invoice() {}
     """
   When the workspace is checked
-  Then the check reports nothing
+  Then sdp reports nothing
   When the scenarios are run
   Then scenario "ARCH-legacy-billing#nothing-new-calls-legacy-billing" has status "failed"
 

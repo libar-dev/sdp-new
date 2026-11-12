@@ -147,13 +147,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     record(world, command, await exec(command, join(directory, subdirectory)))
   })
 
-  // Suggested links are commented out in the templates: `  # realized-by: ARCH-…`.
-  When("the suggested links are uncommented", ({ world }) => {
-    for (const [file, content] of world.files) {
-      setFile(world, file, content.replace(/^(\s+)# ([a-z][\w-]*: \S.*)$/gm, "$1$2"))
-    }
-  })
-
   When("an MCP client of {string} calls {string} with:", async ({ args: [command, tool], doc, world }) => {
     const messages = [
       {

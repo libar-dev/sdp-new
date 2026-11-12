@@ -12,7 +12,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Effect, FileSystem, Path, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
-import type { Diagnostic } from "../../src/model/Diagnostic.ts"
 import { type Attrs, formatSource, type Graph } from "../../src/model/Graph.ts"
 import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
@@ -21,10 +20,7 @@ import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from 
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { loadConfig, loadProject } from "../../src/workspace/Workspace.ts"
-import { ids, load, newWorld, setFile, type World } from "./world.ts"
-
-type Row = Readonly<Record<string, string>>
-type Table = ReadonlyArray<ReadonlyArray<string>>
+import { assertRows, ids, load, newWorld, reportRow, type Row, setFile, type World } from "./world.ts"
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- spec parser ----------------------------------------------------------
@@ -147,12 +143,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(after, before, `the hash of ${id} changed`)
   })
 
-  Then("parsing reports nothing", ({ world }) =>
-    assertRows("parser diagnostics", parsed(world).diagnostics.map(parserRow), [["rule", "line", "message"]], "exactly"))
-
-  Then("parsing reports:", ({ table, world }) =>
-    assertRows("parser diagnostics", parsed(world).diagnostics.map(parserRow), table, "exactly"))
-
   // --- code annotations -----------------------------------------------------
 
   When("{string} is scanned for annotations", ({ args: [path], world }) => {
@@ -160,7 +150,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(content !== undefined, `no file ${path}`)
     const scan = scanCode(path, content, defaultVocabulary.relations.anchor)
     world.scratch.annotations = scan.annotations
-    world.scratch.annotationProblems = scan.unreadable
+    world.reported = scan.unreadable.map((problem) => ({ line: String(problem.line), message: problem.message }))
   })
 
   Then("the annotated {string} is declared at line {int} and described as {string}", ({ args: [target, line, doc], world }) => {
@@ -169,17 +159,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.symbolLine, line, `${target} is declared at line ${found.symbolLine}`)
     assert.equal(found.doc, doc)
   })
-
-  Then("the scan reports at line {int}: {string}", ({ args: [line, message], world }) => {
-    const problems = (world.scratch.annotationProblems ?? []) as ReadonlyArray<{ line: number; message: string }>
-    assert.ok(
-      problems.some((p) => p.line === line && p.message.includes(message)),
-      `problems: ${JSON.stringify(problems)}`
-    )
-  })
-
-  Then("the scan reports nothing", ({ world }) =>
-    assert.deepEqual(world.scratch.annotationProblems ?? [], [], "the scan reported problems"))
 
   Then("the annotations are:", ({ table, world }) =>
     assertRows("annotations", annotations(world).map(annotationRow), table, "in order"))
@@ -223,15 +202,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the edges from {string} are {string}", ({ args: [from, expected], world }) =>
     Effect.map(load(world), (project) =>
       assert.deepEqual(project.graph.out(from).map((e) => `${e.from} -${e.rel}-> ${e.to}`).sort(), ids(expected))))
-
-  Then("building the graph reports nothing", ({ world }) =>
-    Effect.map(load(world), (project) => assertRows("graph diagnostics", project.diagnostics.map(builderRow), [["rule", "at", "message"]], "exactly")))
-
-  Then("building the graph reports {string}", ({ args: [expected], world }) =>
-    Effect.map(load(world), (project) => assert.deepEqual(project.diagnostics.map((d) => d.rule).sort(), ids(expected))))
-
-  Then("building the graph reports:", ({ table, world }) =>
-    Effect.map(load(world), (project) => assertRows("graph diagnostics", project.diagnostics.map(builderRow), table, "exactly")))
 
   // --- memory and disk ------------------------------------------------------
 
@@ -303,7 +273,9 @@ const parse = (world: World, path: string) =>
   Effect.map(loadConfig(memoryRoot).pipe(Effect.provide(layerMemoryWorkspace(world.files))), (config) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
-    world.scratch.parsed = path.endsWith(".feature") ? parseFeatureSpec(path, content, config) : parseMarkdownSpec(path, content, config)
+    const result = path.endsWith(".feature") ? parseFeatureSpec(path, content, config) : parseMarkdownSpec(path, content, config)
+    world.scratch.parsed = result
+    world.reported = result.diagnostics.map(reportRow)
   })
 
 const parsed = (world: World): ParsedFile => {
@@ -349,10 +321,6 @@ const queried = (world: World) => {
   return world.result
 }
 
-const parserRow = (d: Diagnostic): Row => ({ rule: d.rule, severity: d.severity, line: String(d.source?.line ?? ""), message: d.message })
-
-const builderRow = (d: Diagnostic): Row => ({ rule: d.rule, severity: d.severity, at: formatSource(d.source), message: d.message })
-
 /** Strings as written, lists comma-separated, anything else as JSON. */
 const show = (value: unknown): string =>
   value === undefined ? "" : typeof value === "string" ? value : Array.isArray(value) ? value.map(show).join(", ") : JSON.stringify(value)
@@ -360,34 +328,3 @@ const show = (value: unknown): string =>
 /** `key=value` pairs in the annotation syntax, values as JSON so types stay visible: `via="events" tier=1`. */
 const attrsText = (attrs: Attrs | undefined): string =>
   Object.entries(attrs ?? {}).map(([key, value]) => `${key}=${JSON.stringify(value)}`).join(" ")
-
-/**
- * Compares rows with a table whose header names the columns to check. A `message` cell
- * matches when the actual message contains it; every other cell must be equal.
- */
-const assertRows = (
-  what: string,
-  actual: ReadonlyArray<Row>,
-  table: Table | undefined,
-  mode: "exactly" | "in order" | "including"
-) => {
-  assert.ok(table && table.length > 0, `expected a table of ${what}`)
-  const columns = table[0]!.map((cell) => cell.trim())
-  const expected = table.slice(1).map((cells): Row => Object.fromEntries(columns.map((column, i) => [column, cells[i] ?? ""])))
-  const matches = (row: Row, want: Row) =>
-    columns.every((column) => column === "message" ? (row[column] ?? "").includes(want[column]!) : (row[column] ?? "") === want[column])
-  const render = (rows: ReadonlyArray<Row>) =>
-    rows.length === 0 ? "  (none)" : rows.map((row) => `  | ${columns.map((column) => row[column] ?? "").join(" | ")} |`).join("\n")
-  const fail = () => assert.fail(`${what} differ\nexpected (${mode}):\n${render(expected)}\nactual:\n${render(actual)}`)
-  if (mode === "in order") {
-    if (actual.length !== expected.length || !expected.every((want, i) => matches(actual[i]!, want))) fail()
-    return
-  }
-  const remaining = [...actual]
-  for (const want of expected) {
-    const index = remaining.findIndex((row) => matches(row, want))
-    if (index < 0) fail()
-    remaining.splice(index, 1)
-  }
-  if (mode === "exactly" && remaining.length > 0) fail()
-}

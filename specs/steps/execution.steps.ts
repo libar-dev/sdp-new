@@ -396,21 +396,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(!section(output(world), heading).includes(text), `section "${heading}" contains ${JSON.stringify(text)}:\n${output(world)}`)
   })
 
-  // --- check ----------------------------------------------------------------
-
-  Then("the {string} diagnostic points at {string}", ({ args: [rule, location], world }) => {
-    const found = world.diagnostics?.filter((d) => d.rule === rule) ?? []
-    assert.ok(found.length > 0, `no ${rule} diagnostic`)
-    const at = found.map((d) => `${d.source?.file}:${d.source?.line}`)
-    assert.ok(at.includes(location), `${rule} points at ${at.join(", ")}`)
-  })
-
   // --- this repository ------------------------------------------------------
 
   Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
     const spec = project.specById.get(scenario.specId)
-    const steps = (spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.map((step) => step.text))).join("\n")
-    const missing = Object.keys(rules).filter((rule) => !steps.includes(`"${rule}"`))
+    const cells = new Set((spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.flatMap((step) => step.dataTable?.flat() ?? []))))
+    const missing = Object.keys(rules).filter((rule) => !cells.has(rule))
     assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
   })
 })

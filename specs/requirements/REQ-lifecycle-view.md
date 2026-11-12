@@ -252,8 +252,9 @@ Scenario: A milestone written as met before one dated earlier is reported
     # Lifecycle architecture
     """
   When the workspace is checked
-  Then the check reports "milestone-met" for "MS-LCA"
-  And the "milestone-met" diagnostic points at "MS-LCA.md:4"
+  Then sdp reports at least:
+    | rule          | node   | at          |
+    | milestone-met | MS-LCA | MS-LCA.md:4 |
 
 ~~~
 

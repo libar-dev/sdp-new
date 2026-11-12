@@ -113,7 +113,7 @@ Scenario Outline: A link key always links and any other key never does, whatever
     """
   When the workspace is loaded
   Then the edges from "REQ-pay" are "<edges>"
-  And building the graph reports "<reported>"
+  And sdp reports "<reported>"
 
   Examples:
     | attribute                                                 | edges                                                                                                   | reported      |
@@ -151,7 +151,7 @@ Scenario: A link stated more than once is one edge that keeps every declaration;
   Then the workspace graph has edges:
     | from  | rel       | to | sources                                              | attributes                 |
     | REQ-a | iteration | E1 | specs/REQ-a.md:4, specs/REQ-a.md:5, specs/REQ-a.md:9 | why="planned" since=2026 |
-  And building the graph reports:
+  And sdp reports:
     | rule          | at               | message                                            |
     | link-conflict | specs/REQ-a.md:5 | why is "promised" here but "planned" at specs/REQ-a.md:4 |
 
@@ -187,7 +187,7 @@ Scenario Outline: What sdp derives cannot be written, wherever a node is declare
     <content>
     """
   When the workspace is loaded
-  Then building the graph reports:
+  Then sdp reports:
     | rule              | at   | message                                         |
     | derived-attribute | <at> | stage is derived by sdp, so the value written here is ignored |
   When I query "*[stage=verified]"
@@ -215,7 +215,7 @@ Scenario Outline: A link cannot take the name of an attribute, wherever it is de
     <content>
     """
   When the workspace is loaded
-  Then building the graph reports:
+  Then sdp reports:
     | rule        | severity | at   | message   |
     | link-syntax | error    | <at> | <message> |
   And the workspace graph has no "<name>" edges
@@ -248,15 +248,15 @@ Scenario: A kind sdp makes itself cannot be written; the node has the kind its i
     def pay(): pass
     """
   When the workspace is checked
-  Then building the graph reports:
-    | rule              | at               | message                                    |
-    | derived-attribute | specs/REQ-a.md:3 | sdp makes the nodes of kind missing itself  |
-    | derived-attribute | specs/REQ-a.md:6 | sdp makes the nodes of kind scenario itself |
-    | derived-attribute | src/pay.py:1     | sdp makes the nodes of kind code itself     |
+  Then sdp reports:
+    | rule              | node    | at               | message                                     |
+    | derived-attribute | REQ-a   | specs/REQ-a.md:3 | sdp makes the nodes of kind missing itself  |
+    | derived-attribute | REQ-b   | specs/REQ-a.md:6 | sdp makes the nodes of kind scenario itself |
+    | derived-attribute | REQ-pay | src/pay.py:1     | sdp makes the nodes of kind code itself     |
+    | maturity-criteria | REQ-a   | specs/REQ-a.md:1 |                                             |
   And the workspace graph has node "REQ-a" of kind "requirement"
   And the workspace graph has node "REQ-b" of kind "requirement"
   And the workspace graph has node "REQ-pay" of kind "element"
-  And the check reports "maturity-criteria" for "REQ-a"
 
 Scenario: A maturity given in code decides the stage like one written in the spec
   Given a file "specs/REQ-pay.md" containing:
@@ -350,7 +350,7 @@ Scenario: An id declared twice is an error; the first declaration is kept
     """
   When the workspace is loaded
   Then node "REQ-pay" has attribute title = "Pay by card"
-  And building the graph reports:
+  And sdp reports:
     | rule         | severity | at              | message                          |
     | duplicate-id | error    | specs/b.md:1    | already declared at specs/a.md:1 |
     | duplicate-id | error    | specs/plan.md:4 | already declared at specs/a.md:1 |
@@ -385,7 +385,7 @@ Scenario: Unknown ids become missing nodes, with an error at every reference
     export function sync() {}
     """
   When the workspace is loaded
-  Then building the graph reports:
+  Then sdp reports:
     | rule          | severity | at                    | message                                      |
     | dangling-link | error    | specs/REQ-backup.md:4 | REQ-backup -depends-on-> ARCH-queue          |
     | dangling-link | error    | specs/REQ-sync.md:4  | REQ-sync -depends-on-> ARCH-queue            |

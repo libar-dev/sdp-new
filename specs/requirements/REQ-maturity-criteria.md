@@ -39,28 +39,28 @@ Scenario Outline: Each level asks for more of the content, and a claim the conte
     <content>
     """
   When the workspace is checked
-  Then the check <verdict>
+  Then sdp reports "<reported>"
 
   Examples: idea asks for a title
-    | claimed   | content                      | verdict                                   |
-    | idea      |                              | does not report "maturity-criteria"       |
+    | claimed   | content                      | reported          |
+    | idea      |                              | nothing           |
 
   Examples: draft, for a description of the problem or intent
-    | claimed   | content                      | verdict                                   |
-    | draft     |                              | reports "maturity-criteria" for "REQ-csv" |
-    | draft     | Analysts want data in Excel. | does not report "maturity-criteria"       |
+    | claimed   | content                      | reported          |
+    | draft     |                              | maturity-criteria |
+    | draft     | Analysts want data in Excel. | nothing           |
 
   Examples: specified, for a scenario that states an outcome
-    | claimed   | content                                                                                                               | verdict                                   |
-    | specified | Analysts want data in Excel.                                                                                          | reports "maturity-criteria" for "REQ-csv" |
-    | specified | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  When I export the report\n```                         | reports "maturity-criteria" for "REQ-csv" |
-    | specified | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  When I export the report\n  Then I get a file\n```    | does not report "maturity-criteria"       |
+    | claimed   | content                                                                                                               | reported          |
+    | specified | Analysts want data in Excel.                                                                                          | maturity-criteria |
+    | specified | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  When I export the report\n```                         | maturity-criteria |
+    | specified | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  When I export the report\n  Then I get a file\n```    | maturity-promotable |
 
   Examples: ready, for no open question left and an outcome in every scenario
-    | claimed   | content                                                                                                                                                         | verdict                                   |
-    | ready     | Analysts want data in Excel.\n\n## Open questions\n- [ ] Archived rows too?\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                            | reports "maturity-criteria" for "REQ-csv" |
-    | ready     | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  Then I get a file\n\nScenario: Import\n  When I import a file\n```                            | reports "maturity-criteria" for "REQ-csv" |
-    | ready     | Analysts want data in Excel.\n\n## Open questions\n- [x] Which delimiter? Comma.\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                       | does not report "maturity-criteria"       |
+    | claimed   | content                                                                                                                                                         | reported          |
+    | ready     | Analysts want data in Excel.\n\n## Open questions\n- [ ] Archived rows too?\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                            | maturity-criteria |
+    | ready     | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  Then I get a file\n\nScenario: Import\n  When I import a file\n```                            | maturity-criteria |
+    | ready     | Analysts want data in Excel.\n\n## Open questions\n- [x] Which delimiter? Comma.\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                       | nothing           |
 
 Scenario Outline: A node declared inline or in code has only a title, so it can claim no more than the first level
   Given a file "<file>" containing:
@@ -68,7 +68,9 @@ Scenario Outline: A node declared inline or in code has only a title, so it can 
     <content>
     """
   When the workspace is checked
-  Then the check reports "maturity-criteria" for "<id>"
+  Then sdp reports at least:
+    | rule              | node |
+    | maturity-criteria | <id> |
 
   Examples:
     | file            | content                                                                                     | id         |
@@ -93,8 +95,9 @@ Scenario: Content ahead of its label is not wrong, only worth knowing: an info s
     ```
     """
   When the workspace is checked
-  Then the check reports "maturity-promotable" for "REQ-csv"
-  And the "maturity-promotable" diagnostic has severity "info"
+  Then sdp reports at least:
+    | rule                | severity | node    |
+    | maturity-promotable | info     | REQ-csv |
 
 Scenario Outline: A team's Definition of Ready is a gate of its own
   Given a file "specs/POL-definition-of-ready.md" containing:
@@ -173,8 +176,8 @@ Scenario: A level a team adds has no built-in criteria, and takes its place in t
     # Export to CSV
     """
   When the workspace is checked
-  Then the check does not report "maturity-criteria"
-  And the check does not report "maturity-value"
+  Then sdp does not report "maturity-criteria"
+  And sdp does not report "maturity-value"
   When I query "requirement[maturity>draft, maturity<specified]"
   Then the result is "REQ-csv"
 

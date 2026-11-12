@@ -13,7 +13,7 @@ import type { Project } from "../../src/graph/Build.ts"
 import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import type { Graph, GraphNode } from "../../src/model/Graph.ts"
+import { formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
 import type { RunResults } from "../../src/model/Results.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
 
@@ -24,7 +24,8 @@ export interface World {
   project: Project | undefined
   result: QueryResult | undefined
   queryError: string | undefined
-  diagnostics: ReadonlyArray<Diagnostic> | undefined
+  /** What the last parse, load, check or scan reported, as rows for `sdp reports:`. */
+  reported: ReadonlyArray<Row> | undefined
   definitions: Array<{ expression: string; behaviour: string }>
   run: RunResults | undefined
   /** What the last step that produced something left to assert on: read it with `output`, `stdout` and `exitCode`. */
@@ -43,7 +44,7 @@ export const newWorld = (): World => ({
   project: undefined,
   result: undefined,
   queryError: undefined,
-  diagnostics: undefined,
+  reported: undefined,
   definitions: [],
   run: undefined,
   outcome: undefined,
@@ -63,7 +64,7 @@ export const load = (world: World) =>
 
 export const reload = (world: World) => {
   world.project = undefined
-  world.diagnostics = undefined
+  world.reported = undefined
   return load(world)
 }
 
@@ -137,4 +138,54 @@ export const node = (project: Project, id: string): GraphNode => {
   const found = project.graph.node(id)
   assert.ok(found, `no node ${id}; nodes are: ${project.graph.nodes().map((n) => n.id).join(", ")}`)
   return found
+}
+
+export type Row = Readonly<Record<string, string>>
+export type Table = ReadonlyArray<ReadonlyArray<string>>
+
+/** A diagnostic as a row: its rule, severity and node, where it points (`at`, and the `line` alone), what it says and hints. */
+export const reportRow = (d: Diagnostic): Row => ({
+  rule: d.rule,
+  severity: d.severity,
+  node: d.node ?? "",
+  at: formatSource(d.source),
+  line: String(d.source?.line ?? ""),
+  message: d.message,
+  hint: d.hint ?? ""
+})
+
+/** Cells that hold prose match when the actual text contains them; every other cell must be equal. */
+const prose: ReadonlySet<string> = new Set(["message", "hint"])
+
+/**
+ * Compares rows with a table whose header names the columns to check, so a scenario states only
+ * what it is about. A table of its header alone expects no rows.
+ */
+export const assertRows = (
+  what: string,
+  actual: ReadonlyArray<Row>,
+  table: Table | undefined,
+  mode: "exactly" | "in order" | "including"
+) => {
+  assert.ok(table && table.length > 0, `expected a table of ${what}`)
+  const columns = table[0]!.map((cell) => cell.trim())
+  const unknown = actual.length > 0 ? columns.filter((column) => !actual.some((row) => column in row)) : []
+  assert.deepEqual(unknown, [], `${what} have no such column; there are: ${Object.keys(actual[0] ?? {}).join(", ")}`)
+  const expected = table.slice(1).map((cells): Row => Object.fromEntries(columns.map((column, i) => [column, cells[i] ?? ""])))
+  const matches = (row: Row, want: Row) =>
+    columns.every((column) => prose.has(column) ? (row[column] ?? "").includes(want[column]!) : (row[column] ?? "") === want[column])
+  const render = (rows: ReadonlyArray<Row>) =>
+    rows.length === 0 ? "  (none)" : rows.map((row) => `  | ${columns.map((column) => row[column] ?? "").join(" | ")} |`).join("\n")
+  const fail = () => assert.fail(`${what} differ\nexpected (${mode}):\n${render(expected)}\nactual:\n${render(actual)}`)
+  if (mode === "in order") {
+    if (actual.length !== expected.length || !expected.every((want, i) => matches(actual[i]!, want))) fail()
+    return
+  }
+  const remaining = [...actual]
+  for (const want of expected) {
+    const index = remaining.findIndex((row) => matches(row, want))
+    if (index < 0) fail()
+    remaining.splice(index, 1)
+  }
+  if (mode === "exactly" && remaining.length > 0) fail()
 }
