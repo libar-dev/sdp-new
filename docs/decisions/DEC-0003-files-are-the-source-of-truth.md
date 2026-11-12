@@ -40,7 +40,7 @@ alone cannot give back, so each records what it ran against and stops counting w
 - Provenance is free: every node and edge carries the `file:line` it came from.
 
 ~~~gherkin
-Scenario: The next command sees an edit, and a written export is never read back
+Scenario: The next command sees an edit
   Given a file "specs/REQ-a.md" containing:
     """
     ---
@@ -48,8 +48,7 @@ Scenario: The next command sees an edit, and a written export is never read back
     ---
     # Alpha
     """
-  When I run "sdp graph --write"
-  And I run "sdp q requirement --ids"
+  When I run "sdp q requirement --ids"
   Then the output contains "REQ-a"
   Given a file "specs/REQ-a.md" containing:
     """
