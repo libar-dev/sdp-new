@@ -240,7 +240,7 @@ Scenario: After a run, each scenario has its status and only the steps still und
     ```
     """
   And a step definition "an empty cart" that passes
-  When the scenarios are run
+  When the workspace is run
   And I ask for the context of "REQ-cart"
   Then the output section "Scenarios" contains "[undefined] Add an item — specs/REQ-cart.md:10"
   And the output section "Scenarios" contains "undefined: When I add a lamp"

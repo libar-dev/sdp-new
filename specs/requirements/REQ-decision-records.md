@@ -87,9 +87,8 @@ Scenario: The rule a decision leads to is a scenario of what it constrains, whic
     """
   When the workspace is checked
   Then sdp reports nothing
-  When the scenarios are run
-  Then scenario "ARCH-legacy-billing#nothing-new-calls-legacy-billing" has status "failed"
-
+  When the workspace is run
+  Then node "ARCH-legacy-billing#nothing-new-calls-legacy-billing" has attribute status = "failed"
 Scenario: A new decision asks what was chosen over what, and why
   When I run "sdp new decision 'Use Postgres for orders' --dir specs"
   Then the file "specs/DEC-0001-use-postgres-for-orders.md" contains "Not <what a reasonable person would have chosen>, because <why>."

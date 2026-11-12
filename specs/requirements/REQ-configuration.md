@@ -158,8 +158,8 @@ Scenario: results says where scenario results are kept
     ```
     """
   And a step definition "the cart is empty" that passes
-  When the scenarios are run
-  Then the results are stored in "out/results.json"
+  When the workspace is run
+  Then the file "out/results.json" contains '"REQ-cart#a-new-cart-is-empty"'
   And node "REQ-cart" has attribute verification = "passing"
 
 Scenario: kinds.architectural says which kinds are the architecture

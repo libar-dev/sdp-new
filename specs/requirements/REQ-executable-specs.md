@@ -75,8 +75,8 @@ Scenario: Until its scenarios run, a spec's stage is its declared maturity
   And node "REQ-wishlist" has attribute stage = "idea"
 
 Scenario: Without step definitions a scenario is undefined, not failed, and its spec keeps the declared maturity
-  When the scenarios are run
-  Then scenario "REQ-cart#add-an-item" has status "undefined"
+  When the workspace is run
+  Then node "REQ-cart#add-an-item" has attribute status = "undefined"
   And node "REQ-cart" has attribute verification = "undefined"
   And node "REQ-cart" has attribute stage = "ready"
 
@@ -95,23 +95,23 @@ Scenario: A scenario without steps is undefined: it automates nothing
     Scenario: To be written
     ```
     """
-  When the scenarios are run
-  Then scenario "REQ-later#to-be-written" has status "undefined"
+  When the workspace is run
+  Then node "REQ-later#to-be-written" has attribute status = "undefined"
   And node "REQ-later" has attribute stage = "draft"
 
 Scenario: A scenario stays undefined until every step has a definition
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes
-  When the scenarios are run
-  Then scenario "REQ-cart#add-an-item" has status "undefined"
+  When the workspace is run
+  Then node "REQ-cart#add-an-item" has attribute status = "undefined"
   And node "REQ-cart" has attribute stage = "ready"
 
 Scenario Outline: All passed is verified, a failure is failing, and anything between is in-progress
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that <adding>
   And a step definition "the cart holds {int} item(s)" that passes
-  When the scenarios are run
-  Then scenario "REQ-cart#add-an-item" has status "<scenario>"
+  When the workspace is run
+  Then node "REQ-cart#add-an-item" has attribute status = "<scenario>"
   And node "REQ-cart" has attribute verification = "<verification>"
   And node "REQ-cart" has attribute stage = "<stage>"
 
@@ -141,9 +141,9 @@ Scenario: A spec is verified only when every one of its scenarios passed
     ```
     """
   And a step definition "an empty cart" that passes
-  When the scenarios are run
-  Then scenario "REQ-wishlist#keep-a-lamp" has status "passed"
-  And scenario "REQ-wishlist#share-the-list" has status "undefined"
+  When the workspace is run
+  Then node "REQ-wishlist#keep-a-lamp" has attribute status = "passed"
+  And node "REQ-wishlist#share-the-list" has attribute status = "undefined"
   And node "REQ-wishlist" has attribute verification = "partial"
   And node "REQ-wishlist" has attribute stage = "in-progress"
 
@@ -159,7 +159,7 @@ Scenario: Verification orders from none to passing, so a query can ask for every
   And a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes
   And a step definition "the cart holds {int} item(s)" that passes
-  When the scenarios are run
+  When the workspace is run
   And I query "requirement[verification<passing]"
   Then the result is "REQ-wishlist"
   When I query "requirement[verification>=passing]"
@@ -169,7 +169,7 @@ Scenario: Editing a scenario makes its last result stale
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes
   And a step definition "the cart holds {int} item(s)" that passes
-  When the scenarios are run
+  When the workspace is run
   And a file "specs/REQ-cart.md" containing:
     """
     ---
@@ -196,7 +196,7 @@ Scenario Outline: A tag is part of the scenario, wherever it is inherited from
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes
   And a step definition "the cart holds {int} item(s)" that passes
-  When the scenarios are run
+  When the workspace is run
   And a file "specs/REQ-cart.md" containing:
     """
     ---
@@ -233,7 +233,7 @@ Scenario Outline: A result counts only while the code, the configuration, the st
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes
   And a step definition "the cart holds {int} item(s)" that passes
-  When the scenarios are run
+  When the workspace is run
   And a file "<file>" containing:
     """
     <content>
@@ -265,7 +265,7 @@ Scenario: A scenario that reads the graph also goes stale when a spec changes
       Scenario: The cart is specified
         Then the query "#REQ-cart" returns 1 result
     """
-  When the scenarios are run
+  When the workspace is run
   And a file "specs/REQ-wishlist.md" containing:
     """
     ---
@@ -506,7 +506,7 @@ step that hangs is an idea ([[REQ-step-isolation]]).
 ~~~gherkin
 Scenario Outline: A handler returns nothing, a Promise or an Effect; a failure fails the step, and pending() marks it recognised but not built
   Given a step definition "an empty cart" that <handler>
-  When the scenarios are run
+  When the workspace is run
   Then the step "an empty cart" has status "<status>"
 
   Examples:
@@ -522,7 +522,7 @@ Scenario Outline: A handler returns nothing, a Promise or an Effect; a failure f
 
 Scenario Outline: A failing step reports the author's message
   Given a step definition "an empty cart" that <handler>
-  When the scenarios are run
+  When the workspace is run
   Then the step "an empty cart" reports 'deliberate failure in "an empty cart"'
 
   Examples:
@@ -540,7 +540,7 @@ Scenario Outline: Parameters are typed by the expression, and a regular expressi
         Given <step>
     """
   And a step definition "<expression>" that records its arguments
-  When the scenarios are run
+  When the workspace is run
   Then the handler received the arguments <arguments>
 
   Examples:
@@ -565,7 +565,7 @@ Scenario: Doc strings and data tables reach the handler
     """
   And a step definition "the note:" that records its arguments
   And a step definition "the list:" that records its arguments
-  When the scenarios are run
+  When the workspace is run
   Then the handler received the doc string "Buy milk"
   And the handler received the table:
     | milk  | 1 |
@@ -589,10 +589,9 @@ Scenario Outline: Every scenario gets a fresh world, shared by the modules on on
     | module   | world      | expression                   | behaviour                     |
     | cart     | shop       | I add a lamp                 | adds an item to its world     |
     | checkout | <checkout> | the cart holds {int} item(s) | checks the items in its world |
-  When the scenarios are run
-  Then scenario "REQ-shop#one-lamp" has status "<status>"
-  And scenario "REQ-shop#two-lamps" has status "<status>"
-
+  When the workspace is run
+  Then node "REQ-shop#one-lamp" has attribute status = "<status>"
+  And node "REQ-shop#two-lamps" has attribute status = "<status>"
   Examples:
     | checkout | status |
     | shop     | passed |
@@ -600,32 +599,34 @@ Scenario Outline: Every scenario gets a fresh world, shared by the modules on on
 
 Scenario: A step that outlasts its timeout fails
   Given a step definition "an empty cart" that takes a second
-  When the scenarios are run with a step timeout of 50 ms
+  When the workspace is run with a step timeout of 50 ms
   Then the step "an empty cart" has status "failed"
   And the step "an empty cart" reports "step timed out"
 
 Scenario: A step that never yields cannot be stopped, and fails once it returns late
   Given a step definition "an empty cart" that keeps the thread busy for 200 ms
-  When the scenarios are run with a step timeout of 50 ms
+  When the workspace is run with a step timeout of 50 ms
   Then the step "an empty cart" has status "failed"
   And the step "an empty cart" reports "step timed out"
 
 Scenario: A step that times out is told to stop through its signal
   Given a step definition "an empty cart" that waits for its signal
-  When the scenarios are run with a step timeout of 50 ms
+  When the workspace is run with a step timeout of 50 ms
   Then the step "an empty cart" has status "failed"
   And the step "an empty cart" reports "step timed out"
   And the handler of "an empty cart" saw its signal abort
 
 Scenario: Interrupting a run tells the running step to stop
   Given a step definition "an empty cart" that waits for its signal
-  When the scenarios are run and interrupted while "an empty cart" runs
+  When the workspace is run and interrupted while "an empty cart" runs
   Then the handler of "an empty cart" saw its signal abort
 
 Scenario: A world factory that throws fails the step that needs the world
-  Given a step definition "an empty cart" whose world factory throws
-  And a step definition "I add a lamp" that passes
-  When the scenarios are run
+  Given the step definitions:
+    | module | world    | expression    | behaviour |
+    | cart   | throwing | an empty cart | passes    |
+    | steps  | steps    | I add a lamp  | passes    |
+  When the workspace is run
   Then the step "an empty cart" has status "failed"
   And the step "an empty cart" reports "could not create the world of"
   And the step "an empty cart" reports "execution.steps.ts: deliberate failure in the world factory"
@@ -639,7 +640,7 @@ ambiguous.
 
 ~~~gherkin
 Scenario Outline: Every undefined step comes with a suggested definition
-  When the scenarios are run
+  When the workspace is run
   Then the step "<step>" has status "undefined"
   And the step "<step>" suggests the definition '<suggestion>'
 
@@ -652,21 +653,20 @@ Scenario Outline: Every undefined step comes with a suggested definition
 Scenario: A step that matches more than one definition is ambiguous, which fails its spec
   Given a step definition "an empty cart" that passes
   And a step definition "an {word} cart" that passes
-  When the scenarios are run
+  When the workspace is run
   Then the step "an empty cart" has status "ambiguous"
-  And scenario "REQ-cart#add-an-item" has status "ambiguous"
+  And node "REQ-cart#add-an-item" has attribute status = "ambiguous"
   And the step "an empty cart" reports "matches 2 definitions"
   And node "REQ-cart" has attribute verification = "failing"
 
 Scenario Outline: After a step that does not pass the rest are skipped but still matched, and the scenario takes the worst status
   Given a step definition "an empty cart" that <first step>
   And a step definition "I add a lamp" that passes
-  When the scenarios are run
+  When the workspace is run
   Then the step "an empty cart" has status "<status>"
   And the step "I add a lamp" has status "skipped"
   And the step "the cart holds 1 item" has status "undefined"
-  And scenario "REQ-cart#add-an-item" has status "<scenario>"
-
+  And node "REQ-cart#add-an-item" has attribute status = "<scenario>"
   Examples: Worst first: failed, ambiguous, undefined, pending, skipped, passed
     | first step | status  | scenario  |
     | fails      | failed  | failed    |
@@ -883,10 +883,10 @@ Scenario: A partial run keeps the results of everything else
       Scenario: Remember a lamp
         Then the query "#REQ-cart" returns 1 result
     """
-  And the workspace is run for "REQ-wishlist"
-  Then scenario "REQ-wishlist#remember-a-lamp" has status "passed"
-  And scenario "REQ-cart#add-an-item" has status "passed"
-  And scenario "REQ-wishlist#keep-a-lamp-for-later" has no result
+  And the workspace is run with "REQ-wishlist"
+  Then node "REQ-wishlist#remember-a-lamp" has attribute status = "passed"
+  And node "REQ-cart#add-an-item" has attribute status = "passed"
+  And the file ".sdp/results.json" does not contain "REQ-wishlist#keep-a-lamp-for-later"
 
 Scenario: Two runs at once each record what they executed, and neither restores what the other replaced
   Given a file "specs/wishlist.feature" containing:
@@ -901,11 +901,10 @@ Scenario: Two runs at once each record what they executed, and neither restores 
   And a step definition "the cart holds {int} item(s)" that passes
   And a step definition "a wishlist" that passes
   When the workspace is run
-  And the step definition "a wishlist" now fails
+  And a step definition "a wishlist" that fails
   And the workspace is run for "REQ-cart" and for "REQ-wishlist" at the same time
-  Then scenario "REQ-wishlist#keep-a-lamp-for-later" has status "failed"
-  And scenario "REQ-cart#add-an-item" has status "passed"
-
+  Then node "REQ-wishlist#keep-a-lamp-for-later" has attribute status = "failed"
+  And node "REQ-cart#add-an-item" has attribute status = "passed"
 Scenario: The results file holds one plain record per scenario, with what it ran against
   Given a file "specs/steps/cart.steps.ts" containing:
     """
@@ -977,11 +976,10 @@ Scenario: Scenarios run concurrently when asked to, except those tagged @serial
         Given a slow step
     """
   And a step definition "a slow step" that takes a moment
-  When the workspace is run with concurrency 4
+  When the workspace is run with "--concurrency 4"
   Then the scenarios "One" and "Two" overlapped
   And the scenario "Alone" ran alone
-  And scenario "REQ-timing#alone" has status "passed"
-
+  And node "REQ-timing#alone" has attribute status = "passed"
 Scenario: --tags selects examples, and a scenario passes only when all its examples ran
   Given a file "specs/payment.feature" containing:
     """
@@ -1002,10 +1000,10 @@ Scenario: --tags selects examples, and a scenario passes only when all its examp
     """
   And a step definition "a payment by card" that passes
   And a step definition "a payment by invoice" that fails
-  When the workspace is run with tags "@fast"
+  When the workspace is run with "--tags '@fast'"
   Then the step "a payment by card" has status "passed"
   And the step "a payment by invoice" did not run
-  And scenario "REQ-payment#pay-by-method" has status "skipped"
+  And node "REQ-payment#pay-by-method" has attribute status = "skipped"
   And node "REQ-payment" has attribute stage = "in-progress"
 
 Scenario: Whether a scenario runs alone depends on the examples a run selects
@@ -1029,7 +1027,7 @@ Scenario: Whether a scenario runs alone depends on the examples a run selects
           | alone |
     """
   And a step definition "a slow step" that takes a moment
-  When the workspace is run with concurrency 4 and tags "not @serial"
+  When the workspace is run with "--concurrency 4 --tags 'not @serial'"
   Then the scenarios "One" and "Two together" overlapped
 ~~~
 
@@ -1061,20 +1059,18 @@ Rule: Gates run last
     And a step definition "I add a lamp" that passes
     And a step definition "the cart holds {int} item(s)" that passes
     When the workspace is run
-    Then scenario "MS-beta#the-cart-works" has status "passed"
-
+    Then node "MS-beta#the-cart-works" has attribute status = "passed"
   Scenario: An unmet gate is reported like any other scenario
     When the workspace is run
-    Then scenario "MS-beta#the-cart-works" has status "failed"
-
+    Then node "MS-beta#the-cart-works" has attribute status = "failed"
   Scenario: A gate's result goes stale when the results it read change
     Given a step definition "an empty cart" that passes
     And a step definition "I add a lamp" that passes
     And a step definition "the cart holds {int} item(s)" that passes
     When the workspace is run
-    And the step definition "I add a lamp" now fails
-    And the workspace is run for "REQ-cart"
-    Then scenario "REQ-cart#add-an-item" has status "failed"
+    And a step definition "I add a lamp" that fails
+    And the workspace is run with "REQ-cart"
+    Then node "REQ-cart#add-an-item" has attribute status = "failed"
     And node "MS-beta#the-cart-works" has attribute status = "stale"
     And node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
 
@@ -1098,10 +1094,9 @@ Rule: Gates run last
             | attribute | state    |
             | stage     | verified |
       """
-    When the workspace is run with tags "not @gate"
+    When the workspace is run with "--tags 'not @gate'"
     Then the step 'the node "REQ-cart" has maturity "ready"' has status "passed"
-    And scenario "REQ-release#the-cart-is-state" has status "skipped"
-
+    And node "REQ-release#the-cart-is-state" has attribute status = "skipped"
   Scenario: An ordinary scenario sees the graph without results, whatever ran before
     Given a step definition "an empty cart" that passes
     And a step definition "I add a lamp" that passes
@@ -1116,9 +1111,8 @@ Rule: Gates run last
     And a step definition "the graph shows no results" that finds every scenario unrun
     When the workspace is run
     And the workspace is run
-    Then scenario "REQ-cart#add-an-item" has status "passed"
-    And scenario "REQ-audit#look-at-the-graph" has status "passed"
-
+    Then node "REQ-cart#add-an-item" has attribute status = "passed"
+    And node "REQ-audit#look-at-the-graph" has attribute status = "passed"
   Scenario Outline: An ordinary scenario that asserts on results is told to become a gate
     Given a file "specs/progress.feature" containing:
       """
@@ -1161,8 +1155,8 @@ Rule: Gates run last
       """
     And a step definition "the graph shows what the results say and no more" that finds statuses without run details
     When the workspace is run
-    And the workspace is run for "REQ-cart"
-    Then scenario "MS-audit#look-at-the-results" has status "passed"
+    And the workspace is run with "REQ-cart"
+    Then node "MS-audit#look-at-the-results" has attribute status = "passed"
     And node "MS-audit#look-at-the-results" has attribute status = "passed"
     And the step 'the query "scenario[lastRun]" returns at least 1 result' reports "which no scenario sees"
 
@@ -1182,7 +1176,7 @@ Rule: Gates run last
       """
     When the workspace is run
     And the workspace is run
-    Then scenario "MS-beta#the-cart-works" has status "failed"
-    And scenario "MS-alpha#nothing-fails" has status "passed"
+    Then node "MS-beta#the-cart-works" has attribute status = "failed"
+    And node "MS-alpha#nothing-fails" has attribute status = "passed"
     And node "MS-alpha#nothing-fails" has attribute status = "passed"
 ~~~

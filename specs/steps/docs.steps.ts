@@ -86,12 +86,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       assert.deepEqual(files, ids(expected))
     }))
 
-  Then("the results are stored in {string}", ({ args: [path], world }) => {
-    const stored = world.files.get(path)
-    assert.ok(stored !== undefined, `no file ${path}; files are: ${[...world.files.keys()].join(", ")}`)
-    assert.ok(JSON.parse(stored).scenarios, `${path} holds no scenario results`)
-  })
-
   Then("a new {word} titled {string} gets the id {string}", ({ args: [kind, title, expected], world }) =>
     Effect.map(load(world), (project) =>
       assert.equal(newId(kind, title, project.config, project.graph.nodes().map((n) => n.id)), expected)))

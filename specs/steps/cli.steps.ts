@@ -12,7 +12,7 @@ import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { execFile } from "node:child_process"
 import { rmSync } from "node:fs"
-import { access, cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -83,6 +83,22 @@ const exec = (command: string, cwd: string, input = "") =>
     })
     child.stdin?.end(input)
   })
+
+/**
+ * A file of the scenario's workspace: on disk once a command has run there, else in memory. A
+ * command run for what it leaves behind is asserted on by reading that.
+ */
+const fileOf = async (world: World, file: string): Promise<string | undefined> => {
+  settled(world)
+  if (world.directory === undefined) return world.files.get(file)
+  return readFile(join(world.directory, file), "utf8").catch(() => undefined)
+}
+
+const existingFile = async (world: World, file: string): Promise<string> => {
+  const content = await fileOf(world, file)
+  assert.ok(content !== undefined, `no file ${file}`)
+  return content
+}
 
 const record = (world: World, line: string, result: { code: number; stdout: string; stderr: string }) =>
   produce(world, result.stdout + result.stderr, { line, code: result.code, stdout: result.stdout })
@@ -216,25 +232,20 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   Then("the file {string} does not exist", async ({ args: [file], world }) => {
-    settled(world)
-    const exists = await access(join(await directoryOf(world), file)).then(() => true, () => false)
-    assert.ok(!exists, `${file} exists`)
+    assert.equal(await fileOf(world, file), undefined, `${file} exists`)
   })
 
   Then("the file {string} is:", async ({ args: [file], doc, world }) => {
-    settled(world)
-    assert.equal((await readFile(join(await directoryOf(world), file), "utf8")).trimEnd(), doc)
+    assert.equal((await existingFile(world, file)).trimEnd(), doc)
   })
 
   Then("the file {string} contains {string}", async ({ args: [file, text], world }) => {
-    settled(world)
-    const content = await readFile(join(await directoryOf(world), file), "utf8")
+    const content = await existingFile(world, file)
     assert.ok(content.includes(text.replace(/\\t/g, "\t")), `${file} does not contain ${JSON.stringify(text)}:\n${content}`)
   })
 
   Then("the file {string} does not contain {string}", async ({ args: [file, text], world }) => {
-    settled(world)
-    const content = await readFile(join(await directoryOf(world), file), "utf8")
+    const content = await existingFile(world, file)
     assert.ok(!content.includes(text), `${file} contains ${JSON.stringify(text)}:\n${content}`)
   })
 })

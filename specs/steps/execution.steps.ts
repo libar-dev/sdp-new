@@ -153,13 +153,16 @@ const execution = (world: World): Execution =>
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))
 
+/** Adds a scripted definition; one with an expression already there takes its place, as an edit of the step file would. */
 const define = (world: World, definition: Scripted) => {
   assert.ok(
     behaviours[definition.behaviour],
     `unknown behaviour "${definition.behaviour}"; use one of: ${Object.keys(behaviours).join(", ")}`
   )
-  world.definitions.push({ expression: definition.expression, behaviour: definition.behaviour })
-  execution(world).placements[world.definitions.length - 1] = { module: definition.module, world: definition.world }
+  const existing = world.definitions.findIndex((d) => d.expression === definition.expression)
+  const index = existing < 0 ? world.definitions.length : existing
+  world.definitions[index] = { expression: definition.expression, behaviour: definition.behaviour }
+  execution(world).placements[index] = { module: definition.module, world: definition.world }
 }
 
 interface RunInMemory {
@@ -208,16 +211,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("a step definition {string} that {}", ({ args: [expression, behaviour], world }) =>
     define(world, { expression, behaviour, module: "steps", world: "steps" }))
 
-  Given("a step definition {string} whose world factory throws", ({ args: [expression], world }) =>
-    define(world, { expression, behaviour: "passes", module: "cart", world: throwingWorld }))
-
-  Given("the step definition {string} now {}", ({ args: [expression, behaviour], world }) => {
-    const index = world.definitions.findIndex((d) => d.expression === expression)
-    assert.ok(index >= 0, `no step definition "${expression}" yet`)
-    assert.ok(behaviours[behaviour], `unknown behaviour "${behaviour}"; use one of: ${Object.keys(behaviours).join(", ")}`)
-    world.definitions[index] = { expression, behaviour }
-  })
-
+  // One row per definition: the module it is in, the world that module asks for ("throwing" for a
+  // factory that throws), its expression and how it behaves.
   Given("the step definitions:", ({ table, world }) => {
     const [header, ...rows] = table ?? []
     const column = (name: string) => {
@@ -229,20 +224,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     for (const row of rows) define(world, { module: row[module]!, world: row[factory]!, expression: row[expression]!, behaviour: row[behaviour]! })
   })
 
-  When("the scenarios are run", ({ world }) => runInMemory(world))
-
   When("the workspace is run", ({ world }) => runInMemory(world))
 
-  When("the workspace is run for {string}", ({ args: [targets], world }) => runInMemory(world, { targets: targets.split(/\s+/) }))
-
-  When("the workspace is run with concurrency {int}", ({ args: [concurrency], world }) => runInMemory(world, { concurrency }))
-
-  When("the workspace is run with tags {string}", ({ args: [tags], world }) => runInMemory(world, { tags }))
-
-  When(
-    "the workspace is run with concurrency {int} and tags {string}",
-    ({ args: [concurrency, tags], world }) => runInMemory(world, { concurrency, tags })
-  )
+  // With what `sdp run` takes: targets, `--tags '<expression>'` and `--concurrency <n>`.
+  When("the workspace is run with {string}", ({ args: [line], world }) => {
+    const words = [...line.matchAll(/'([^']*)'|(\S+)/g)].map((m) => m[1] ?? m[2]!)
+    const value = (flag: string) => words.includes(flag) ? words.splice(words.indexOf(flag), 2)[1] : undefined
+    const tags = value("--tags")
+    const concurrency = value("--concurrency")
+    return runInMemory(world, { targets: words, ...(tags ? { tags } : {}), ...(concurrency ? { concurrency: Number(concurrency) } : {}) })
+  })
 
   // Two runs over the same workspace in one process, as two agents or shells would start them.
   When("the workspace is run for {string} and for {string} at the same time", ({ args: [first, second], world }) =>
@@ -281,10 +272,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(overlapping.length, 0, `"${name}" overlapped ${overlapping.map((t) => `"${t.scenario}"`).join(", ")}`)
   })
 
-  When("the scenarios are run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, { timeout: Duration.millis(ms) }))
+  When("the workspace is run with a step timeout of {int} ms", ({ args: [ms], world }) => runInMemory(world, { timeout: Duration.millis(ms) }))
 
   // The run is interrupted once the handler is waiting, however long it took to get there.
-  When("the scenarios are run and interrupted while {string} runs", ({ args: [expression], world }) =>
+  When("the workspace is run and interrupted while {string} runs", ({ args: [expression], world }) =>
     Effect.raceFirst(
       runInMemory(world),
       Effect.gen(function*() {
@@ -294,16 +285,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the handler of {string} saw its signal abort", ({ args: [expression], world }) => {
     assert.ok(execution(world).aborted.includes(expression), `the signal of "${expression}" did not abort`)
-  })
-
-  Then("scenario {string} has status {string}", ({ args: [id, status], world }) => {
-    assert.ok(world.run, "run the scenarios first")
-    assert.equal(world.run.scenarios[id]?.status, status, `status of ${id}`)
-  })
-
-  Then("scenario {string} has no result", ({ args: [id], world }) => {
-    assert.ok(world.run, "run the scenarios first")
-    assert.equal(world.run.scenarios[id], undefined, `${id} should not have run`)
   })
 
   Then("the step {string} has status {string}", ({ args: [text, status], world }) => {

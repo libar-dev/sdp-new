@@ -200,7 +200,7 @@ Scenario Outline: Stage is the declared maturity until scenarios say more, and o
     """
   And a step definition "I export the report" that passes
   And a step definition "<defined>" that <outcome>
-  When the scenarios are run
+  When the workspace is run
   Then node "REQ-csv" has attribute stage = "<stage>"
 
   Examples:
@@ -264,7 +264,7 @@ Scenario: Every report counts stages the same way, and failing ranks with in-pro
     """
   And a step definition "a file is saved" that fails
   And a step definition "the guard holds" that passes
-  When the scenarios are run
+  When the workspace is run
   Then sdp status counts the stages "draft:1 failing:1 verified:1"
   And the lifecycle evidence of "I1" counts the stages "draft:1 failing:1 verified:1"
   When I query "*[stage>ready]"

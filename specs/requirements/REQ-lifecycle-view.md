@@ -181,7 +181,7 @@ Scenario: The gate of a milestone that is met does not run again
     ```
     """
   When the workspace is run
-  Then scenario "MS-LCO#there-is-a-plan" has no result
+  Then node "MS-LCO#there-is-a-plan" has attribute status = "unrun"
 
 Scenario: A milestone has no stage, so a gate that is not met yet is no failing work
   Given a file "specs/REQ-b.md" containing:
@@ -193,7 +193,7 @@ Scenario: A milestone has no stage, so a gate that is not met yet is no failing 
     # Beta
     """
   When the workspace is run
-  Then scenario "MS-LCO#the-work-is-planned" has status "failed"
+  Then node "MS-LCO#the-work-is-planned" has attribute status = "failed"
   And sdp status counts the stages "idea:1 ready:1"
 
 Scenario: A timeline needs no phases, and a milestone nothing but what it closes
@@ -411,7 +411,7 @@ Scenario: Evidence is shown apart from the planned activity
     ```
     """
   And a step definition "it works" that passes
-  When the scenarios are run
+  When the workspace is run
   And the lifecycle is computed on "2026-02-20"
   Then "implementation" activity in iteration "E2" is 0
   And "test" activity in iteration "E2" is 0

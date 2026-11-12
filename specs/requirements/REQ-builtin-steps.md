@@ -68,7 +68,7 @@ Scenario Outline: A built-in step passes when the graph agrees, and knows a kind
       Scenario: Guard
         Then <step>
     """
-  When the scenarios are run
+  When the workspace is run
   Then the step '<step>' has status "passed"
 
   Examples:
@@ -91,7 +91,7 @@ Scenario Outline: A built-in step that fails says why: what it expected and wher
       Scenario: Guard
         Then <step>
     """
-  When the scenarios are run
+  When the workspace is run
   Then the step '<step>' has status "failed"
   And the step '<step>' reports '<reason>'
 
@@ -130,7 +130,7 @@ Scenario Outline: A word the vocabulary declares can be asserted absent
       Scenario: Guard
         Then <step>
     """
-  When the scenarios are run
+  When the workspace is run
   Then the step '<step>' has status "<status>"
 
   Examples:
@@ -156,7 +156,7 @@ Scenario: A graph that could not be fully read proves nothing, so a query step f
       Scenario: Guard
         Then the query "code -implements-> #REQ-search" returns no results
     """
-  When the scenarios are run
+  When the workspace is run
   Then the step 'the query "code -implements-> #REQ-search" returns no results' has status "failed"
   And the step 'the query "code -implements-> #REQ-search" returns no results' reports "src/search.ts:5 [annotation-unreadable]"
 
@@ -169,7 +169,7 @@ Scenario Outline: A query cut short by a limit proves nothing, so the step fails
       Scenario: Guard
         Then <step>
     """
-  When the scenarios are run
+  When the workspace is run
   Then the step '<step>' has status "failed"
   And the step '<step>' reports 'was cut short (<limit>), so its result is incomplete'
 
@@ -196,7 +196,7 @@ Scenario: A query result is compared with a table of ids, in any order, with or 
           | REQ-search |
           | ARCH-index |
     """
-  When the scenarios are run
+  When the workspace is run
   Then the step 'the query "requirement|element" returns:' has status "passed"
   And the step 'the query "requirement" returns:' has status "failed"
   And the step 'the query "requirement" returns:' reports "returned [REQ-search], expected [ARCH-index, REQ-search]"

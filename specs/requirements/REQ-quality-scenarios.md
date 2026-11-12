@@ -68,7 +68,7 @@ Scenario: An automated quality attribute scenario verifies its requirement
   And a step definition "{int} concurrent shoppers on the production topology" that passes
   And a step definition "a shopper submits an order" that passes
   And a step definition "the confirmation is shown within {int} ms at p95" that passes
-  When the scenarios are run
+  When the workspace is run
   Then node "NFR-checkout-latency" has attribute kind = "nfr"
   And node "NFR-checkout-latency" has attribute stage = "verified"
 ~~~
