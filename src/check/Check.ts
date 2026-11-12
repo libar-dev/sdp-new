@@ -249,6 +249,33 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
+  // A rule still to come names the implemented rule it replaces, which stays enforced until the edit
+  // that builds the replacement deletes it with the link. So no two rules can replace each other.
+  for (const edge of graph.edges().filter((candidate) => hasRelation(vocabulary, "replaces", candidate.rel))) {
+    const from = graph.node(edge.from)
+    const to = graph.node(edge.to)
+    // A target that does not exist is a dangling link.
+    if (!from || !to || to.kind === made.kinds.missing) continue
+    const problem = from.kind !== made.kinds.rule
+      ? `${edge.from} is a ${from.kind}: only a rule replaces another`
+      : to.kind !== made.kinds.rule
+      ? `${edge.to} is a ${to.kind}, not a rule`
+      : edge.from === edge.to
+      ? `${edge.from} cannot replace itself`
+      : from.attrs.toCome !== true
+      ? `${edge.from} is ${vocabulary.implemented}, so what it replaced is gone: the edit that builds a replacement deletes the rule it replaces and this link`
+      : to.attrs.toCome === true
+      ? `${edge.to} is still to come, so nothing built is replaced`
+      : undefined
+    if (problem === undefined) continue
+    out.push(diagnostic("replacement", {
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${problem}`,
+      node: edge.from,
+      source: edge.source,
+      hint: `a rule still to come names the ${vocabulary.implemented} rule it replaces: @${edge.rel}:<feature>#<rule>`
+    }))
+  }
+
   // A decision says what was chosen over what, why, and the cost accepted with it. Anything more has a place of its own.
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
     const spec = project.specById.get(node.id)
