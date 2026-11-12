@@ -57,6 +57,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assertRows("iterations", rows, table, "in order")
   })
 
+  // The ids of the work still to come that nothing plans, in order, or "nothing".
+  Then("the unplanned work is {string}", ({ args: [expected], world }) => {
+    const ids = computed(world).unplanned.map((node) => node.id).sort()
+    assert.deepEqual(ids, expected === "nothing" ? [] : expected.split(",").map((id) => id.trim()))
+  })
+
   // The chart as numbers: a row per discipline, a column per iteration.
   Then("the planned activity is:", ({ table, world }) => {
     const report = computed(world)

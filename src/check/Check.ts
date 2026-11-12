@@ -38,7 +38,7 @@ import {
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
-import { lifecycle, plannedDisciplines, unmetBefore } from "../lifecycle/Lifecycle.ts"
+import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { type OpenQuestion, type Spec, suiteId } from "../parse/Spec.ts"
 
@@ -377,17 +377,18 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         planReference(edge.rel, edge.to, ["iteration"], edge.source)
       }
     }
-    // An `iteration:` plans the work of the node's kind's discipline; a kind in no discipline has none.
+    // An `iteration:` plans the work of the node's kind's discipline — a rule's, its spec's; a kind in no discipline has none.
     const planned = graph.out(node.id).find((edge) =>
       hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
     )
-    const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(node.kind))
+    const kind = workKind(project, node)
+    const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
     if (planned && !disciplined && !isPlanKind(vocabulary, node.kind)) {
       out.push(diagnostic("plan-reference", {
-        message: `${node.id}: kind ${node.kind} belongs to no discipline, so its iteration plans no discipline's work`,
+        message: `${node.id}: kind ${kind} belongs to no discipline, so its iteration plans no discipline's work`,
         node: node.id,
         source: planned.source,
-        hint: `plan the work with \`@${activityKey}.<discipline>:<iteration>\`, or add ${node.kind} to a discipline under vocabulary.disciplines`
+        hint: `plan the work with \`@${activityKey}.<discipline>:<iteration>\`, or add ${kind} to a discipline under vocabulary.disciplines`
       }))
     }
     for (const [discipline, edge] of plannedDisciplines(project, node)) {

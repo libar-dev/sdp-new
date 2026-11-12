@@ -14,7 +14,8 @@
  *   work       nodes linked to an iteration (`@iteration:IT-beta`): its kind's
  *              discipline is planned there, and a link named for a
  *              discipline plans that one into iterations of its own
- *              (`@activity.implementation:IT-beta @activity.test:IT-release`)
+ *              (`@activity.implementation:IT-beta @activity.test:IT-release`);
+ *              a rule is work of its spec's kind
  *
  * Plan facts are read as edges, and no other edge counts: a node is counted
  * once however many edges lead to the same iteration. The
@@ -72,7 +73,10 @@ export interface LifecycleReport {
   readonly unclosed: ReadonlyArray<GraphNode>
   /** The phases, in the order of their first iteration. */
   readonly phases: ReadonlyArray<PhaseReport>
-  /** Nodes still to be specified, a maturity below the last of the ladder, that are planned into no iteration. */
+  /**
+   * Work still to come, at any maturity, that nothing plans: a spec or a node declared in code, and
+   * a rule still to come whose spec is planned into no iteration either and is not listed itself.
+   */
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
   readonly disciplines: ReadonlyArray<{ readonly discipline: string; readonly activity: ReadonlyArray<number> }>
@@ -94,9 +98,13 @@ interface PlannedActivity {
   readonly iteration: string
 }
 
-/** The plan's own nodes and the nodes sdp makes are not planned work. */
+/** The plan's own nodes and the nodes sdp makes are not planned work, except a rule, which is built on its own. */
 const isStructural = (vocabulary: Vocabulary, node: GraphNode) =>
-  isPlanKind(vocabulary, node.kind) || Object.values(made.kinds).some((kind) => kind === node.kind)
+  isPlanKind(vocabulary, node.kind) || (node.kind !== made.kinds.rule && Object.values(made.kinds).some((kind) => kind === node.kind))
+
+/** The kind whose discipline plans the work on a node: its own, or for a rule its spec's. */
+export const workKind = (project: Project, node: GraphNode): string =>
+  node.kind === made.kinds.rule ? project.graph.node(String(node.attrs.spec))?.kind ?? node.kind : node.kind
 
 /** Scenario statuses that mean it has not been executed (since its last change). */
 const notExecuted = new Set(["unrun", "stale"])
@@ -133,10 +141,11 @@ const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<Plann
   const vocabulary = project.config.vocabulary
   const declared = plannedDisciplines(project, node)
   const home = planIterations(project, node)
+  const kind = workKind(project, node)
   return [...vocabulary.disciplines].flatMap(([discipline, kinds]) => {
     const iterations = declared.has(discipline)
       ? iterationsBy(project, node, (rel) => rel === activityRelation(vocabulary, discipline))
-      : kinds.includes(node.kind)
+      : kinds.includes(kind)
       ? home
       : []
     return iterations.map((iteration) => ({ discipline, iteration }))
@@ -186,17 +195,20 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     }
   }
 
-  /** The scenarios of a node, in the order they are written, with the status of their last run. */
-  const scenariosOf = (node: GraphNode) =>
+  /** The scenario nodes of a node, in the order they are written. */
+  const examplesOf = (node: GraphNode) =>
     graph.in(node.id)
       .flatMap((edge) => edge.rel === vocabulary.relations.scenario ? [graph.node(edge.from)] : [])
       .filter((scenario): scenario is GraphNode => scenario?.kind === made.kinds.scenario)
       .sort((a, b) => (a.source?.line ?? 0) - (b.source?.line ?? 0))
-      .map((scenario) => ({ name: scenario.title, status: String(scenario.attrs.status) }))
+
+  /** The scenarios of a node, in the order they are written, with the status of their last run. */
+  const scenariosOf = (node: GraphNode) => examplesOf(node).map((scenario) => ({ name: scenario.title, status: String(scenario.attrs.status) }))
 
   const iterationReport = (iteration: GraphNode): IterationReport => {
     const items = [...itemsOf.get(iteration.id)!]
-    const statuses = items.flatMap(scenariosOf).map((scenario) => scenario.status).filter((status) => !notExecuted.has(status))
+    // A scenario of a spec and of its rule, both planned, is counted once.
+    const statuses = unique(items.flatMap(examplesOf)).map((scenario) => String(scenario.attrs.status)).filter((status) => !notExecuted.has(status))
     return {
       node: iteration,
       items,
@@ -250,13 +262,12 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     discipline,
     activity: iterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))
-  // Only work still to be specified can be unplanned: what has a maturity below the last of the
-  // ladder. Read from the files, as the plan is: whether a spec is built is evidence, which goes stale.
-  const specified = vocabulary.maturity.at(-1)
-  const unplanned = graph.nodes().filter((n) =>
-    Predicate.isString(n.attrs.maturity) && n.attrs.maturity !== specified && !planned.has(n.id) &&
-    !isStructural(vocabulary, n)
-  )
+  // Only work still to come can be unplanned, at any maturity: what is built needs no plan. A rule
+  // still to come is planned with its spec, and listed with it when neither is planned.
+  const unplanned = graph.nodes().filter((n) => n.attrs.toCome === true && !planned.has(n.id) && !isStructural(vocabulary, n))
+  const listed = new Set(unplanned.map((n) => n.id))
+  const withSpec = (n: GraphNode) => n.kind === made.kinds.rule && (planned.has(String(n.attrs.spec)) || listed.has(String(n.attrs.spec)))
+  const alone = unplanned.filter((n) => !withSpec(n))
   const current = iterations.find((it) => {
     const first = day(it, start)
     const last = day(it, end)
@@ -267,7 +278,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     next: milestones.find((milestone) => milestone.met === undefined),
     unclosed: iterations.slice(covered + 1),
     phases,
-    unplanned,
+    unplanned: alone,
     disciplines,
     iterations,
     work,

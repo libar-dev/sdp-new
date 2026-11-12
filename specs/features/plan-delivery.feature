@@ -300,12 +300,73 @@ Feature: Plan delivery
         | IT-prototype | ARCH-x, alpha |
         | IT-baseline  |               |
 
-  Rule: Only work still to be specified can be unplanned: what has a maturity below the last of the ladder
+  Rule: A rule is planned on its own, as work of its spec's kind
 
-    How far a spec is specified is read from the files, as the plan is: the last level, ready by
-    default, is held to an example for every rule and no open question. Whether it is built is
-    evidence, which any edit can make stale; read into the plan, it would show built work as
-    unplanned until the next run.
+    A change to a built feature is planned rule by rule. Planning a spec plans its rules, and a rule
+    that plans itself is one more item of its iteration.
+
+    Scenario: A rule still to come of a built feature, planned into IT-baseline
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=implemented
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @maturity=draft @iteration:IT-baseline
+          Rule: A cart is kept for a week
+
+            Shoppers come back to finish what they started.
+        """
+      When the workspace is checked
+      Then sdp reports nothing
+      When the lifecycle is computed
+      Then the iterations are:
+        | id           | plans                          | stages  |
+        | IT-scope     |                                |         |
+        | IT-prototype | ARCH-x, alpha                  | idea:1  |
+        | IT-baseline  | cart#a-cart-is-kept-for-a-week | draft:1 |
+      And the planned activity is:
+        | discipline   | IT-prototype | IT-baseline |
+        | requirements | 1            | 1           |
+
+  Rule: Work still to come, at every maturity, is unplanned until it is planned
+
+    What is built needs no plan, and whether it is built is read from the files, as the plan is. A
+    rule still to come is planned with its spec, and listed with it while neither is planned.
+
+    Scenario Outline: A feature <case>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=<maturity> <plan>
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @maturity=draft <rule plan>
+          Rule: A cart is kept for a week
+
+            Shoppers come back to finish what they started.
+        """
+      When the lifecycle is computed
+      Then the unplanned work is "<unplanned>"
+
+      Examples:
+        | case                                    | maturity    | plan                   | rule plan              | unplanned                      |
+        | that is built, with a rule to come      | implemented |                        |                        | cart#a-cart-is-kept-for-a-week |
+        | that is built, its rule to come planned | implemented |                        | @iteration:IT-baseline | nothing                        |
+        | at the top of the ladder below built    | ready       |                        |                        | cart                           |
+        | that is ready and planned               | ready       | @iteration:IT-baseline |                        | nothing                        |
 
     Scenario: An unplanned feature and an unplanned element
       Given these specs:
