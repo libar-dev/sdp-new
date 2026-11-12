@@ -14,7 +14,8 @@
  * from the same parse. Other languages have no parser here: a line that opens with a comment marker
  * and the tag annotates the declaration directly below it, past its decorators, or else the file —
  * best effort, even inside a multi-line string — the comment lines around it describe that code,
- * and their imports are not read.
+ * and their imports are not read. A tag in a Python docstring annotates the module, the class or the
+ * function the docstring opens, and the docstring describes it.
  *
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
@@ -392,6 +393,7 @@ const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
 const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" | "unreadable"> => {
   const lines = content.split(/\r?\n/)
   const unreadable: Array<Unread> = []
+  const docstrings = /\.pyi?$/.test(file) ? pythonDocstrings(content, lines) : []
   const annotations = lines.flatMap((text, index) => {
     const match = lineMarker.exec(text)
     const tag = match && readTag(match[1]!, match[2]!)
@@ -400,10 +402,77 @@ const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" 
       unreadable.push({ line: index + 1, ...tag.unread })
       return []
     }
+    const docstring = docstrings.find(({ first, last }) => first <= index && index <= last)
+    if (docstring) return [{ file, line: index + 1, ...tag, symbol: docstring.of?.name, symbolLine: docstring.of?.line ?? 1, doc: docstring.doc }]
     const below = nextSymbol(lines, index)
     return [{ file, line: index + 1, ...tag, symbol: below?.name, symbolLine: below?.line ?? 1, doc: lineCommentDoc(lines, index) }]
   })
   return { annotations, unreadable }
+}
+
+/** A Python docstring: the lines it spans, what it says, and the class or function it documents — none for the module's. */
+interface Docstring {
+  readonly first: number
+  readonly last: number
+  readonly doc: string | undefined
+  readonly of: { readonly name: string; readonly line: number } | undefined
+}
+
+/** A line of Python that opens a class or a function. */
+const pythonDeclaration = /^\s*(?:async\s+def|def|class)\s+([A-Za-z_]\w*)/
+
+/**
+ * The docstrings of Python source, its doc comments (PEP 257): a string in triple quotes that is
+ * the first statement of the module, or of the class or function whose header ends on the line above.
+ */
+const pythonDocstrings = (content: string, lines: ReadonlyArray<string>): ReadonlyArray<Docstring> => {
+  const breaks = [...content.matchAll(/\n/g)].map((match) => match.index)
+  const lineOf = (offset: number) => breaks.filter((at) => at < offset).length
+  const significant = (line: string) => line.trim() !== "" && !line.trimStart().startsWith("#")
+  return tripleQuoted(content).flatMap(({ end, start }): ReadonlyArray<Docstring> => {
+    const [first, last] = [lineOf(start), lineOf(end)]
+    if (!/^\s*[rRuU]?$/.test(content.slice(content.lastIndexOf("\n", start - 1) + 1, start))) return []
+    if (!/^\s*(?:#.*)?$/.test(lines[last]!.slice(end - (content.lastIndexOf("\n", end - 1) + 1)))) return []
+    const doc = description([content.slice(start + 3, end - 3)])
+    let header = first - 1
+    while (header >= 0 && !significant(lines[header]!)) header--
+    if (header < 0) return [{ first, last, doc, of: undefined }]
+    if (!/:\s*(?:#.*)?$/.test(lines[header]!)) return []
+    let opens = header
+    while (opens >= 0 && !pythonDeclaration.test(lines[opens]!)) opens--
+    if (opens < 0) return []
+    // A header of several lines opens brackets on its first line that only its last closes.
+    let open = 0
+    for (let at = opens; at < header; at++) {
+      open += brackets(lines[at]!)
+      if (open <= 0) return []
+    }
+    if (open + brackets(lines[header]!) !== 0) return []
+    return [{ first, last, doc, of: { name: pythonDeclaration.exec(lines[opens]!)![1]!, line: opens + 1 } }]
+  })
+}
+
+/** Where the strings in triple quotes of Python source start and end, past its comments and its other strings. */
+const tripleQuoted = (content: string): ReadonlyArray<{ readonly start: number; readonly end: number }> => {
+  const strings: Array<{ readonly start: number; readonly end: number }> = []
+  let at = 0
+  while (at < content.length) {
+    const char = content[at]!
+    if (char === "#") {
+      const next = content.indexOf("\n", at)
+      at = next < 0 ? content.length : next
+    } else if (char === "\"" || char === "'") {
+      const quote = content.startsWith(char.repeat(3), at) ? char.repeat(3) : char
+      let end = at + quote.length
+      while (end < content.length && !content.startsWith(quote, end) && (quote.length === 3 || content[end] !== "\n")) {
+        end += content[end] === "\\" ? 2 : 1
+      }
+      end = Math.min(content.length, end + quote.length)
+      if (quote.length === 3) strings.push({ start: at, end })
+      at = end
+    } else at++
+  }
+  return strings
 }
 
 /** A line comment's text, without the marker that opens it or the one that closes a block. */

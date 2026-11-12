@@ -257,6 +257,27 @@ Feature: Link code to specs
         | Ruby     | src/pay.rb | # @sdp implements pay\n# Charges the card on file.\ndef pay                   | code:src/pay.rb#pay |
         | Python, with a linter's directive | src/pay.py | # Charges the card on file.\n# @sdp implements pay\n# pylint: disable=invalid-name\ndef pay(): pass | code:src/pay.py#pay |
 
+    Scenario Outline: In Python, a docstring is the doc comment of the module, the class or the function it opens: <opens>
+      Given a file "src/pay.py" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id     | source            | doc                       |
+        | <node> | src/pay.py:<line> | Charges the card on file. |
+      And the workspace graph has edges:
+        | from   | rel        | to  |
+        | <node> | implements | pay |
+      And sdp reports nothing
+
+      Examples:
+        | opens                          | code                                                                                                                  | node                    | line |
+        | the module                     | """Charges the card on file.\n\n@sdp implements pay\n"""\nimport os                                                   | code:src/pay.py         | 1    |
+        | a class                        | import os\n\n\nclass Payment:\n    """\n    Charges the card on file.\n\n    @sdp implements pay\n    """\n\n    def charge(self):\n        pass | code:src/pay.py#Payment | 4    |
+        | a function                     | def pay(order):\n    '''Charges the card on file.\n\n    @sdp implements pay'''\n    return order                     | code:src/pay.py#pay     | 1    |
+        | a function of several lines    | def pay(\n    order,\n) -> None:\n    """Charges the card on file.\n\n    @sdp implements pay\n    """                | code:src/pay.py#pay     | 1    |
+
     Scenario Outline: A decorated declaration, <placed>
       Given a file "src/pay.ts" containing:
         """
