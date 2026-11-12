@@ -61,8 +61,8 @@ per element:
 | Module | Responsibility | Element |
 | --- | --- | --- |
 | `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, imports step modules with `import "sdp"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
-| `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts` | Markdown scanner, Gherkin through the official parser with every line mapped back, spec assembly | ARCH-spec-parser |
-| `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in other languages | ARCH-code-annotations |
+| `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts` | CommonMark and YAML parsing, Gherkin through the official parser with every line mapped back, spec assembly | ARCH-spec-parser |
+| `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in any language | ARCH-code-annotations |
 | `src/graph/Build.ts` | Pure graph construction, implicit links, results merge, stage derivation | ARCH-graph-builder |
 | `src/model/Graph.ts` | Immutable graph with adjacency indexes | ARCH-graph |
 | `src/graph/Query.ts` | SDPQ parser and evaluator | ARCH-query-engine |
@@ -80,3 +80,25 @@ pipeline runs against memory in executable specs; `Schema` for the config file a
 `McpServer`. The pure core — parsing, graph, query, checks — is plain functions over immutable data.
 
 Where the specifications of sdp itself live: [[VISION]], *Finding your way*.
+
+## Scenarios
+
+~~~gherkin
+Scenario: The pipeline reads a workspace in memory as it reads one on disk
+  Given a file "notes/NOTE-outside.md" containing:
+    """
+    ---
+    id: NOTE-outside
+    ---
+    # Outside the workspace
+    """
+  And a file "shop/specs/REQ-cart.md" containing:
+    """
+    ---
+    id: REQ-cart
+    ---
+    # Cart
+    """
+  When the workspace "shop" is loaded from memory and from disk
+  Then both graphs have exactly the nodes "REQ-cart"
+~~~

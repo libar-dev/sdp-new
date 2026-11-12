@@ -1,24 +1,25 @@
 /**
  * Step definitions for component contracts: the spec parser, the code
  * annotation scanner, the graph builder and the query engine
- * (docs/architecture/ARCH-*.md), and query paths (REQ-graph-query). Parser
+ * (docs/architecture/ARCH-*.md), query paths (REQ-graph-query), and the
+ * in-memory file system the pipeline runs on (ARCH-overview). Parser
  * and scanner steps call the component on one file of the in-memory
  * workspace; graph and query steps run the whole pipeline. Expectations are
  * data tables whose header names the columns checked, so a scenario states
  * only what it is about.
  */
-import { Effect, Result } from "effect"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import { Effect, FileSystem, Path, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { type Attrs, formatSource } from "../../src/model/Graph.ts"
-import { type Annotation, scanAnnotations } from "../../src/parse/Annotations.ts"
-import { scanTypedAnnotations } from "../../src/parse/TypedAnnotations.ts"
+import { type Attrs, formatSource, type Graph } from "../../src/model/Graph.ts"
+import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
 import type { Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { loadConfig } from "../../src/workspace/Workspace.ts"
+import { loadConfig, loadProject } from "../../src/workspace/Workspace.ts"
 import { ids, load, newWorld, setFile, type World } from "./world.ts"
 
 type Row = Readonly<Record<string, string>>
@@ -28,6 +29,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- spec parser ----------------------------------------------------------
 
   When("{string} is parsed", ({ args: [path], world }) => parse(world, path))
+
+  When("{string} is parsed with CRLF line endings and → as a tab", ({ args: [path], world }) => {
+    const content = world.files.get(path)
+    assert.ok(content !== undefined, `no file ${path}`)
+    setFile(world, path, content.replaceAll("→", "\t").replaceAll("\n", "\r\n"))
+    return parse(world, path)
+  })
 
   When("{string} is parsed again after replacing {string} with {string}", ({ args: [path, text, replacement], world }) => {
     const content = world.files.get(path) ?? ""
@@ -47,6 +55,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the parsed spec has exactly these attributes:", ({ table, world }) =>
     assertRows("attributes", Object.entries(spec(world).attrs).map(([key, value]) => ({ key, value: show(value) })), table, "exactly"))
+
+  Then("the parsed spec has attribute lines:", ({ table, world }) =>
+    assertRows("attribute lines", Object.entries(spec(world).attrLines).map(([key, line]) => ({ key, line: String(line) })), table, "exactly"))
 
   Then("the parsed spec has links:", ({ table, world }) =>
     assertRows(
@@ -81,7 +92,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
         title: n.title,
         line: String(n.line),
         attributes: attrsText(n.attrs),
-        links: n.links.map((l) => `-${l.rel}-> ${l.to}`).join(", ")
+        links: n.links.map((l) => `-${l.rel}-> ${l.to}`).join(", "),
+        "link lines": n.links.map((l) => l.line).join(", ")
       })),
       table,
       "in order"
@@ -94,6 +106,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       table,
       "in order"
     ))
+
+  Then("the parsed spec has no open questions", ({ world }) =>
+    assert.deepEqual(spec(world).openQuestions.map((q) => q.text), [], "the parsed spec has open questions"))
 
   Then("the parsed spec has no scenarios", ({ world }) =>
     assert.deepEqual(spec(world).scenarios.map((s) => s.id), [], "the parsed spec has scenarios"))
@@ -135,15 +150,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("{string} is scanned for annotations", ({ args: [path], world }) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
-    world.scratch.annotations = scanAnnotations(path, content)
-  })
-
-  When("{string} is scanned for typed annotations", ({ args: [path], world }) => {
-    const content = world.files.get(path)
-    assert.ok(content !== undefined, `no file ${path}`)
-    const scan = scanTypedAnnotations(path, content)
+    const scan = scanCode(path, content)
     world.scratch.annotations = scan.annotations
-    world.scratch.annotationProblems = scan.problems
+    world.scratch.annotationProblems = scan.unreadable
   })
 
   Then("the annotated {string} is declared at line {int} and described as {string}", ({ args: [target, line, doc], world }) => {
@@ -214,6 +223,32 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("building the graph reports:", ({ table, world }) =>
     Effect.map(load(world), (project) => assertRows("graph diagnostics", project.diagnostics.map(builderRow), table, "exactly")))
+
+  // --- memory and disk ------------------------------------------------------
+
+  When("the workspace {string} is loaded from memory and from disk", ({ args: [directory], world }) =>
+    Effect.gen(function*() {
+      const fromMemory = yield* loadProject(`${memoryRoot}/${directory}`).pipe(Effect.provide(layerMemoryWorkspace(world.files)))
+      const fromDisk = yield* Effect.scoped(Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+        const root = yield* fs.makeTempDirectoryScoped()
+        for (const [file, content] of world.files) {
+          yield* fs.makeDirectory(path.dirname(path.join(root, file)), { recursive: true })
+          yield* fs.writeFileString(path.join(root, file), content)
+        }
+        return yield* loadProject(path.join(root, directory))
+      })).pipe(Effect.provide(NodeServices.layer))
+      world.scratch.graphs = [fromMemory.graph, fromDisk.graph]
+    }))
+
+  Then("both graphs have exactly the nodes {string}", ({ args: [expected], world }) => {
+    const graphs = world.scratch.graphs as ReadonlyArray<Graph> | undefined
+    assert.ok(graphs, "load the workspace from memory and from disk first")
+    const [memory, disk] = graphs.map((graph) => [...graph.nodes.keys()].sort())
+    assert.deepEqual(memory, ids(expected), "the nodes read from memory")
+    assert.deepEqual(disk, ids(expected), "the nodes read from disk")
+  })
 
   // --- query engine ---------------------------------------------------------
 

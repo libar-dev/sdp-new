@@ -1,17 +1,22 @@
 /**
- * Language-agnostic code annotations. Any comment line of the form
+ * Code annotations, in any language. A comment line of the form
  *
  *     @sdp <relation> <ID>[,<ID>...] [key=value ...]
  *
- * (the marker opens the comment's text; a string or prose that mentions it is not an annotation)
  * links the code (the declaration directly below, or the whole file when a blank line follows) to graph
  * nodes. The relation is free text (`implements`, `is`, `instance-of`, ...).
  * `is` anchors a node in code and declares it if no spec defines it.
  * `grep -rn "@sdp" src/` lists every annotation. One written after code on the
- * same line (`total() // @sdp implements X`) is not read; `ignoredAnnotations`
- * finds those so `sdp check` can say so.
+ * same line (`total() // @sdp implements X`) is not read, and is reported.
+ *
+ * A TypeScript or JavaScript file is parsed once: its comment annotations come
+ * from the parser's comments, so a string is never one, and its typed
+ * `annotate()` calls from the same parse (TypedAnnotations.ts). Other languages
+ * have no parser here: a line whose text opens with a comment marker and `@sdp`
+ * is an annotation, even inside a multi-line string — best effort.
  */
 import { annotate } from "sdp/annotations"
+import { parseScript, readTypedAnnotations, type Script, type TypedAnnotationProblem } from "./TypedAnnotations.ts"
 
 annotate(import.meta, { is: "ARCH-code-annotations" })
 
@@ -29,46 +34,106 @@ export interface Annotation {
   readonly doc?: string | undefined
 }
 
-const marker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
+export interface CodeScan {
+  readonly annotations: ReadonlyArray<Annotation>
+  /** Annotations sdp cannot read without running the code, and files that do not parse. */
+  readonly unreadable: ReadonlyArray<TypedAnnotationProblem>
+  /** Comment annotations after code on the same line, which are not read. */
+  readonly ignored: ReadonlyArray<{ readonly line: number; readonly text: string }>
+}
+
+const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [] }
+
+/** One of the annotation modules named in a string literal: a file that means to annotate, even when it does not parse. */
+const mentionsAnnotationModule = /["'`]sdp(\/annotations)?["'`]/
+
+/** Every annotation of one code file, typed and in comments, and what could not be read. */
+export const scanCode = (file: string, content: string): CodeScan => {
+  if (!content.includes("@sdp") && !content.includes("annotate")) return nothing
+  const script = parseScript(file, content)
+  if (script === undefined) {
+    return { annotations: scanLines(file, content), unreadable: [], ignored: ignoredLines(content) }
+  }
+  if (script.error) {
+    // Unread annotations would silently drop out of the graph: say so, for files that annotate.
+    if (!mentionsAnnotationModule.test(content) && !content.includes("@sdp")) return nothing
+    return {
+      annotations: [],
+      unreadable: [{
+        line: script.error.line,
+        message: `the file does not parse, so its annotations cannot be read: ${script.error.message}`,
+        hint: "fix the syntax error; until then none of the file's annotations are in the graph"
+      }],
+      ignored: []
+    }
+  }
+  const comments = readComments(file, content, script)
+  const typed = readTypedAnnotations(file, content, script)
+  return { annotations: [...comments.annotations, ...typed.annotations], unreadable: typed.problems, ignored: comments.ignored }
+}
+annotate(scanCode, { is: "ARCH-code-annotations" })
+
+/** A comment's text, after the comment's own `/`, `*` and `!`, that opens with the marker. */
+const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
+
+const readComments = (file: string, content: string, script: Script): Pick<CodeScan, "annotations" | "ignored"> => {
+  const lines = content.split(/\r?\n/)
+  const annotations: Array<Annotation> = []
+  const ignored: Array<{ line: number; text: string }> = []
+  for (const comment of script.comments) {
+    const first = script.lineOf(comment.start)
+    const afterCode = content.slice(content.lastIndexOf("\n", comment.start - 1) + 1, comment.start).trim() !== ""
+    comment.value.split(/\r?\n/).forEach((text, index) => {
+      const match = commentMarker.exec(text)
+      const line = first + index
+      const annotation = match && readAnnotation(file, line, match[1]!, match[2]!, nextSymbol(lines, line - 1))
+      if (!annotation) return
+      if (index === 0 && afterCode) ignored.push({ line, text: `@sdp ${annotation.rel} ${annotation.targets.join(",")}` })
+      else annotations.push(annotation)
+    })
+  }
+  return { annotations, ignored }
+}
+
+const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 const idToken = /^[A-Za-z][\w.:#/-]*$/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
 
-export const scanAnnotations = (file: string, content: string): ReadonlyArray<Annotation> => {
-  if (!content.includes("@sdp")) return []
+/** Languages without a parser: comment lines that open with the marker, line by line. */
+const scanLines = (file: string, content: string): ReadonlyArray<Annotation> => {
   const lines = content.split(/\r?\n/)
-  const found: Array<Annotation> = []
-  lines.forEach((text, index) => {
-    const match = marker.exec(text)
-    if (!match) return
-    const tokens = tokenize(match[2]!.replace(/\s*(\*\/|-->|"""|''').*$/, ""))
-    const targets: Array<string> = []
-    const attrs: Record<string, unknown> = {}
-    for (const token of tokens) {
-      const eq = token.indexOf("=")
-      if (eq > 0) attrs[token.slice(0, eq)] = coerce(unquote(token.slice(eq + 1)))
-      else targets.push(...token.split(",").map((t) => t.trim()).filter(Boolean))
-    }
-    if (targets.length === 0 || !targets.every((t) => idToken.test(t))) return
-    found.push({ file, line: index + 1, rel: match[1]!, targets, attrs, symbol: nextSymbol(lines, index) })
+  return lines.flatMap((text, index) => {
+    const match = lineMarker.exec(text)
+    const annotation = match && readAnnotation(file, index + 1, match[1]!, match[2]!, nextSymbol(lines, index))
+    return annotation ? [annotation] : []
   })
-  return found
 }
 
 const trailing = /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[A-Za-z][\w.:#/-]*(?:,[A-Za-z][\w.:#/-]*)*)(?=\s|$|\*\/|-->)/
 
-/** Comments after code that look like annotations but, not opening their comment line, are not read as one. */
-export const ignoredAnnotations = (content: string): ReadonlyArray<{ readonly line: number; readonly text: string }> => {
-  if (!content.includes("@sdp")) return []
-  const found: Array<{ line: number; text: string }> = []
-  content.split(/\r?\n/).forEach((text, index) => {
+/** Languages without a parser: comments after code that look like annotations but, not opening their line, are not read. */
+const ignoredLines = (content: string): CodeScan["ignored"] =>
+  content.split(/\r?\n/).flatMap((text, index) => {
     // A comment line that mentions an annotation is prose; only code followed by a comment counts.
-    if (marker.test(text) || commentOnly.test(text)) return
+    if (lineMarker.test(text) || commentOnly.test(text)) return []
     const match = trailing.exec(text)
-    if (match) found.push({ line: index + 1, text: match[1]! })
+    return match ? [{ line: index + 1, text: match[1]! }] : []
   })
-  return found
+
+/** The annotation `@sdp <rel> <rest>` says, or undefined when its targets are not ids. */
+const readAnnotation = (file: string, line: number, rel: string, rest: string, symbol: string | undefined): Annotation | undefined => {
+  const tokens = tokenize(rest.replace(/\s*(\*\/|-->|"""|''').*$/, ""))
+  const targets: Array<string> = []
+  const attrs: Array<readonly [string, unknown]> = []
+  for (const token of tokens) {
+    const eq = token.indexOf("=")
+    if (eq > 0) attrs.push([token.slice(0, eq), coerce(unquote(token.slice(eq + 1)))])
+    else targets.push(...token.split(",").map((t) => t.trim()).filter(Boolean))
+  }
+  if (targets.length === 0 || !targets.every((t) => idToken.test(t))) return undefined
+  return { file, line, rel, targets, attrs: Object.fromEntries(attrs), symbol }
 }
 
 /** An annotation directly above a declaration binds to it; one followed by a blank line binds to the file. */

@@ -82,7 +82,7 @@ Scenario: Specs, scenarios and inline nodes become nodes at their lines
   And the workspace graph has edges:
     | from                 | rel       | to      | source              | attributes    |
     | REQ-pay#card-payment | verifies  | REQ-pay | specs/REQ-pay.md:15 |               |
-    | ARCH-cache           | speeds-up | REQ-pay | docs/plan.md:6      |               |
+    | ARCH-cache           | speeds-up | REQ-pay | docs/plan.md:7      |               |
     | REQ-pay              | iteration | E1      | specs/REQ-pay.md:4  | implicit=true |
   And node "REQ-pay" has attribute file = "specs/REQ-pay.md"
   And node "REQ-pay" has attribute summary = "Shoppers pay by card."

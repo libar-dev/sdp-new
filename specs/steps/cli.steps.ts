@@ -6,7 +6,7 @@
  * directory, as in a shell. Shares its world with every other module (world.ts).
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Effect } from "effect"
+import { Effect, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { execFile } from "node:child_process"
@@ -88,7 +88,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const existing = [...project.graph.nodes.keys()]
       for (const row of rows) {
         const cell = (name: string) => row[header.indexOf(name)] ?? ""
-        const spec = newSpec({
+        const created = newSpec({
           kind: cell("kind"),
           title: cell("title"),
           maturity: cell("maturity") || undefined,
@@ -96,6 +96,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
           config: project.config,
           existing
         })
+        if (Result.isFailure(created)) assert.fail(created.failure)
+        const spec = created.success
         existing.push(spec.id)
         setFile(world, spec.file, spec.content)
       }

@@ -1,6 +1,13 @@
-/** File templates for `sdp new` and `sdp init`. Templates grow with the requested maturity. */
+/**
+ * File templates for `sdp new` and `sdp init`. Templates grow with the requested maturity. Front
+ * matter is built as data and written by the YAML library, so a title is always a title, whatever
+ * it looks like to YAML; only fixed text — suggestions to uncomment — is written as is.
+ */
+import { Result } from "effect"
+import { Document, isMap, isNode, isSeq } from "yaml"
 import { type Config, defaults } from "../model/Config.ts"
 import { slugify } from "../parse/Gherkin.ts"
+import { parseMarkdownSpec } from "../parse/Spec.ts"
 
 export const directoryFor: Record<string, string> = {
   requirement: "specs/requirements",
@@ -32,9 +39,16 @@ export const newId = (kind: string, title: string, config: Config, existing: Rea
 export const fileNameFor = (kind: string, id: string, title: string) =>
   /^\w+-\d+$/.test(id) && (kind === "decision" || kind === "risk") && slugify(title) !== "" ? `${id}-${slugify(title)}.md` : `${id}.md`
 
+export interface NewSpec {
+  readonly id: string
+  readonly file: string
+  readonly content: string
+}
+
 /**
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
  * workspace root unless `dir` is absolute. `sdp new idea` writes a requirement at maturity idea.
+ * Fails, with the reason, when the content would not read back with its id, kind and title.
  */
 export const newSpec = (options: {
   readonly kind: string
@@ -46,18 +60,39 @@ export const newSpec = (options: {
   readonly existing: ReadonlyArray<string>
   readonly id?: string | undefined
   readonly dir?: string | undefined
-}) => {
+}): Result.Result<NewSpec, string> => {
   const { config, dir, existing, title } = options
   const idea = options.kind === "idea"
   const kind = idea ? "requirement" : options.kind
   const maturity = options.maturity ?? (idea ? "idea" : config.maturity[0] ?? "idea")
   const id = options.id ?? newId(kind, title, config, existing)
   const directory = (dir ?? directoryFor[options.kind] ?? `specs/${kind}`).replace(/(.)\/+$/, "$1")
-  return {
-    id,
-    file: `${directory}/${fileNameFor(kind, id, title)}`,
-    content: specTemplate({ kind, id, title, maturity, today: options.today, ladder: config.maturity })
+  const file = `${directory}/${fileNameFor(kind, id, title)}`
+  const content = specTemplate({ kind, id, title, maturity, today: options.today, ladder: config.maturity })
+  const back = parseMarkdownSpec(file, content, config).spec
+  if (back?.id !== id || back.kind !== kind || back.title !== title) {
+    return Result.fail(
+      `refusing to write ${file}: it would not read back with id ${JSON.stringify(id)}, kind ${JSON.stringify(kind)} and title ${JSON.stringify(title)}`
+    )
   }
+  return Result.succeed({ id, file, content })
+}
+
+/** A front matter key, its value, and a comment to write after the value. */
+type Field = readonly [key: string, value: unknown, comment?: string]
+
+/**
+ * Front matter: the fields as YAML data, a list of records one record per line, then fixed
+ * lines — commented-out keys an author may enable.
+ */
+const frontMatter = (fields: ReadonlyArray<Field>, fixed: ReadonlyArray<string> = []): string => {
+  const doc = new Document(Object.fromEntries(fields.map(([key, value]) => [key, value])))
+  for (const [key, , comment] of fields) {
+    const node = doc.get(key, true)
+    if (comment !== undefined && isNode(node)) node.comment = ` ${comment}`
+    if (isSeq(node)) for (const item of node.items) if (isMap(item)) item.flow = true
+  }
+  return ["---", doc.toString({ lineWidth: 0 }).trimEnd(), ...fixed, "---", ""].join("\n")
 }
 
 const levels = ["idea", "draft", "specified", "ready"]
@@ -81,19 +116,21 @@ export const specTemplate = (options: {
   const level = Math.max(0, levels.indexOf(maturity))
   switch (kind) {
     case "decision":
-      return `---
-id: ${id}
-kind: decision
-title: ${title}
-status: proposed        # proposed | accepted | rejected | deprecated | superseded
-category: architecture  # architecture | product | process | technology | organization | ...
-date: ${today}
-deciders: []
-# What this decision shapes links to it: \`decided-by: ${id}\` on the requirement or element.
-links:
-  # supersedes: DEC-…
----
-
+      return `${
+        frontMatter([
+          ["id", id],
+          ["kind", "decision"],
+          ["title", title],
+          ["status", "proposed", "proposed | accepted | rejected | deprecated | superseded"],
+          ["category", "architecture", "architecture | product | process | technology | organization | ..."],
+          ["date", today],
+          ["deciders", []]
+        ], [
+          "# What this decision shapes links to it, with `decided-by` on the requirement or element.",
+          "links:",
+          "  # supersedes: DEC-…"
+        ])
+      }
 # ${title}
 
 ## Context
@@ -114,19 +151,15 @@ We will …
 What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be guarded automatically.
 `
     case "element":
-      return `---
-id: ${id}
-kind: element
-title: ${title}
-significant: false      # the architects' call
-# rationale: which quality attributes, risks or costs of change make this significant?
-links:
-  # instance-of: PAT-…
-  # decided-by: DEC-…
-  # constrained-by: NFR-…
-  # depends-on: ARCH-…
----
-
+      return `${
+        frontMatter([["id", id], ["kind", "element"], ["title", title]], [
+          "links:",
+          "  # instance-of: PAT-…",
+          "  # decided-by: DEC-…",
+          "  # constrained-by: NFR-…",
+          "  # depends-on: ARCH-…"
+        ])
+      }
 # ${title}
 
 Responsibility in one or two sentences. Anchor it in code next to the declaration that is it:
@@ -134,16 +167,7 @@ Responsibility in one or two sentences. Anchor it in code next to the declaratio
 so the id is typed), or an \`@sdp is ${id}\` comment in other languages.
 `
     case "pattern":
-      return `---
-id: ${id}
-kind: pattern
-title: ${title}
-significant: false      # the architects' call
-# rationale: why applying this pattern consistently matters to the architecture
-links:
-  # decided-by: DEC-…
----
-
+      return `${frontMatter([["id", id], ["kind", "pattern"], ["title", title]], ["links:", "  # decided-by: DEC-…"])}
 # ${title}
 
 The problem this pattern solves and how, in a sentence or two. Elements that apply it link
@@ -151,13 +175,14 @@ The problem this pattern solves and how, in a sentence or two. Elements that app
 \`annotate(Thing, { "instance-of": "${id}" })\`, or an \`@sdp instance-of ${id}\` comment.
 `
     case "milestone":
-      return `---
-id: ${id}
-kind: milestone
-title: ${title}
-phase: elaboration      # the phase this milestone closes: inception | elaboration | construction | transition (sdp new plan)
----
-
+      return `${
+        frontMatter([
+          ["id", id],
+          ["kind", "milestone"],
+          ["title", title],
+          ["phase", "elaboration", "the phase this milestone closes: inception | elaboration | construction | transition (sdp new plan)"]
+        ])
+      }
 # ${title}
 
 What must be true to pass this milestone. The scenarios below are the gate.
@@ -168,23 +193,21 @@ Scenario: No errors in the specification graph
 \`\`\`
 `
     case "plan": {
-      // Back-to-back two-week iterations, one per phase, starting today.
-      const iteration = (index: number) => `start: "${addDays(today, 14 * index)}", end: "${addDays(today, 14 * index + 13)}"`
-      return `---
-id: ${id}
-kind: plan
-title: ${title}
-nodes:
-  - { id: inception,    kind: phase, title: Inception,    order: 1 }
-  - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
-  - { id: construction, kind: phase, title: Construction, order: 3 }
-  - { id: transition,   kind: phase, title: Transition,   order: 4 }
-  - { id: I1, kind: iteration, title: Vision and scope,      phase: inception,    ${iteration(0)} }
-  - { id: E1, kind: iteration, title: Architecture baseline, phase: elaboration,  ${iteration(1)} }
-  - { id: C1, kind: iteration, title: First increment,       phase: construction, ${iteration(2)} }
-  - { id: T1, kind: iteration, title: Beta,                  phase: transition,   ${iteration(3)} }
----
-
+      // One phase each, and back-to-back two-week iterations, one per phase, starting today.
+      const phases = ["Inception", "Elaboration", "Construction", "Transition"]
+      const iterations = [["I1", "Vision and scope"], ["E1", "Architecture baseline"], ["C1", "First increment"], ["T1", "Beta"]]
+      const nodes = [
+        ...phases.map((name, index) => ({ id: name.toLowerCase(), kind: "phase", title: name, order: index + 1 })),
+        ...iterations.map(([iteration, name], index) => ({
+          id: iteration,
+          kind: "iteration",
+          title: name,
+          phase: phases[index]!.toLowerCase(),
+          start: addDays(today, 14 * index),
+          end: addDays(today, 14 * index + 13)
+        }))
+      ]
+      return `${frontMatter([["id", id], ["kind", "plan"], ["title", title], ["nodes", nodes]])}
 # ${title}
 
 Four phases with one example iteration each; add, rename and re-date iterations as the plan firms
@@ -199,17 +222,22 @@ gate. \`sdp lifecycle\` shows the result.
   const quality = kind === "nfr"
   const ladder = (options.ladder ?? levels).join(" → ")
   const sections: Array<string> = [
-    `---
-id: ${id}
-kind: ${kind}
-title: ${title}
-maturity: ${maturity}   # ${ladder} (implemented/verified is derived from scenario results)
-${quality ? "quality: performance  # performance | availability | security | usability | ...\n" : ""}# iteration: E1         # when this spec is written
-# activity: { implementation: C1, test: [C1, T1] }   # when other disciplines work on it
-${quality ? `# Elements this constrains link to it: \`constrained-by: ${id}\`.\n` : ""}links:
-  # refines: CAP-…
-${quality ? "" : "  # realized-by: ARCH-…\n"}---
-
+    `${
+      frontMatter([
+        ["id", id],
+        ["kind", kind],
+        ["title", title],
+        ["maturity", maturity, `${ladder} (implemented/verified is derived from scenario results)`],
+        ...(quality ? [["quality", "performance", "performance | availability | security | usability | ..."] as const] : [])
+      ], [
+        "# iteration: E1         # when this spec is written",
+        "# activity: { implementation: C1, test: [C1, T1] }   # when other disciplines work on it",
+        ...(quality ? ["# Elements this constrains link to it, with `constrained-by`."] : []),
+        "links:",
+        "  # refines: CAP-…",
+        ...(quality ? [] : ["  # realized-by: ARCH-…"])
+      ])
+    }
 # ${title}
 
 ${level === 0 ? "One sentence capturing the idea." : quality ? "Which quality matters, for whom, and why." : "Who needs what, and why. Describe the problem before the solution."}
