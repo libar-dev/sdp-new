@@ -30,8 +30,8 @@ Feature: Honest maturity
         | draft   | Analysts want data in Excel. | nothing           |
 
       Examples: specified, for a scenario that states an outcome
-        | claimed   | content                                                                                       | reported          |
-        | specified | Analysts want data in Excel.                                                                  | maturity-criteria |
+        | claimed   | content                                                                                         | reported          |
+        | specified | Analysts want data in Excel.                                                                    | maturity-criteria |
         | specified | Analysts want data in Excel.\n\nRule: Every row is exported\nScenario: Export\nWhen I export it | maturity-criteria |
 
     Scenario: A requirement declared in code can claim no more than a name
@@ -68,13 +68,13 @@ Feature: Honest maturity
       Then sdp reports "<reported>"
 
       Examples:
-        | claimed   | second                                                                  | reported          |
-        | specified | Rule: Archived rows too                                                 | nothing           |
-        | ready     | Rule: Archived rows too                                                 | maturity-criteria |
+        | claimed   | second                                                                   | reported          |
+        | specified | Rule: Archived rows too                                                  | nothing           |
+        | ready     | Rule: Archived rows too                                                  | maturity-criteria |
         | ready     | Rule: Archived rows too\n  Scenario: Archive\n    Then they are exported | nothing           |
-        | ready     | Scenario: Import\n  When I import a file                                | maturity-criteria |
-        | ready     | @open\nRule: Archived rows too?                                         | maturity-criteria |
-        | ready     | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?     | maturity-criteria |
+        | ready     | Scenario: Import\n  When I import a file                                 | maturity-criteria |
+        | ready     | @open\nRule: Archived rows too?                                          | maturity-criteria |
+        | ready     | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?      | maturity-criteria |
 
     Scenario: What keeps a spec from ready names the first open question and the first rule without an example
       Given a file "specs/REQ-csv.feature" containing:
@@ -91,7 +91,7 @@ Feature: Honest maturity
         """
       When the workspace is checked
       Then sdp reports:
-        | rule              | line | message                                                                                                      |
+        | rule              | line | message                                                                                                             |
         | maturity-criteria | 1    | 1 open question(s), e.g. "Which delimiter?" (line 9); rule "Archived rows are exported too" has no example (line 6) |
 
   Rule: Content ahead of its label is no error, only an info that the spec can be promoted

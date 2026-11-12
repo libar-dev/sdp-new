@@ -11,10 +11,10 @@ Feature: A free-form system graph
 
     Scenario: A bounded context that publishes to an event bus
       Given these specs:
-        | tags                                                                                     | Feature           |
+        | tags                                                                                    | Feature           |
         | @id=ARCH-orders @kind=bounded-context @publishes-to:ARCH-event-bus @guarded-by:DEC-0001 | Orders            |
-        | @id=ARCH-event-bus @kind=element                                                         | Event bus         |
-        | @id=DEC-0001                                                                             | Events over calls |
+        | @id=ARCH-event-bus @kind=element                                                        | Event bus         |
+        | @id=DEC-0001                                                                            | Events over calls |
       When the workspace is loaded
       Then node "ARCH-orders" has attribute kind = "bounded-context"
       And the workspace graph has edges:
@@ -28,7 +28,7 @@ Feature: A free-form system graph
         vocabulary: { maturity: [constructor, toString] }
         """
       And these specs:
-        | tags                                                                                           | Feature |
+        | tags                                                                                            | Feature |
         | @id=REQ-a @kind=constructor @maturity=toString @owner.__proto__.valueOf=1 @hasOwnProperty:REQ-a | A       |
       When the workspace is checked
       Then sdp reports nothing
