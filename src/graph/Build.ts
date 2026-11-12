@@ -112,10 +112,12 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   const annotations: Array<Annotation> = []
   const importsOf = new Map<string, ReadonlyArray<Import>>()
+  const typesOf = new Map<string, ReadonlySet<string>>()
   for (const file of input.codeFiles) {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
     if (scan.imports.length > 0) importsOf.set(file.path, scan.imports)
+    if (scan.types.size > 0) typesOf.set(file.path, scan.types)
     for (const { hint, line, message } of scan.unreadable) {
       diagnostics.push(diagnostic("annotation-unreadable", { message, source: { file: file.path, line }, hint }))
     }
@@ -453,7 +455,7 @@ export const buildProject = (input: ProjectInput): Project => {
   }
 
   const codeFiles = new Set(input.codeFiles.map((file) => file.path))
-  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, codeFiles, nodes, vocabulary)])
+  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, typesOf, codeFiles, nodes, vocabulary)])
 
   return {
     root: input.root,
@@ -471,14 +473,16 @@ export const buildProject = (input: ProjectInput): Project => {
 /**
  * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
  * constant from a module anchored to element B, at the line that names the module: the
- * dependencies between elements as the code has them. An import of types alone calls nothing, and
- * no element imports itself. A name means the code file it resolves to among all of `codeFiles`,
+ * dependencies between elements as the code has them. An import of types alone calls nothing —
+ * written with `type`, or of names the module exports as types alone — and no element imports
+ * itself. A name means the code file it resolves to among all of `codeFiles`,
  * whether or not that file anchors an element. A pattern imports nothing and nothing imports it: the
  * code that plays it is part of an element.
  */
 const importsBetweenElements = (
   annotations: ReadonlyArray<Annotation>,
   importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
+  typesOf: ReadonlyMap<string, ReadonlySet<string>>,
   codeFiles: ReadonlySet<string>,
   nodes: ReadonlyMap<string, GraphNode>,
   vocabulary: Vocabulary
@@ -493,8 +497,10 @@ const importsBetweenElements = (
   }
   const edges: Array<GraphEdge> = []
   for (const [file, elements] of elementsOf) {
-    for (const { line, specifier } of importsOf.get(file) ?? []) {
+    for (const { line, names, specifier } of importsOf.get(file) ?? []) {
       const module = resolveModule(file, specifier, codeFiles)
+      const types = module === undefined ? undefined : typesOf.get(module)
+      if (names !== undefined && names.length > 0 && names.every((name) => types?.has(name))) continue
       for (const used of module === undefined ? [] : elementsOf.get(module) ?? []) {
         for (const element of elements) {
           if (element !== used) edges.push({ from: element, rel: made.relations.imports, to: used, source: { file, line } })

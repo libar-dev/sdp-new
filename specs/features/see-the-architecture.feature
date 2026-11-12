@@ -48,6 +48,10 @@ Feature: See the architecture
        */
       export class Mailer {}
       export class MailTemplates {}
+      export interface Receipt {
+        readonly number: string
+      }
+      export type { Cents } from "./money.ts"
       """
     And a file "src/orders.ts" containing:
       """
@@ -187,6 +191,9 @@ Feature: See the architecture
         | import type { Mailer } from "./mailer.ts"       | nothing     |
         | import { type Mailer } from "./mailer.ts"       | nothing     |
         | import type {} from "./mailer.ts"               | nothing     |
+        | import { Receipt } from "./mailer.ts"           | nothing     |
+        | import { Receipt, Cents } from "./mailer.ts"    | nothing     |
+        | import { Receipt, Mailer } from "./mailer.ts"   | ARCH-mailer |
 
     Scenario Outline: A name means the file TypeScript resolves it to, whether or not that file anchors an element
       Given a file "src/<unanchored>" containing:

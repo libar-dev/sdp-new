@@ -20,6 +20,8 @@ export interface Comment {
 export interface Import {
   readonly specifier: string
   readonly line: number
+  /** The names it imports by, `default` among them; undefined when it loads the module whole. */
+  readonly names?: ReadonlyArray<string> | undefined
 }
 
 export type Node = { readonly type: string; readonly start: number; readonly end: number; readonly [key: string]: unknown }
@@ -37,6 +39,11 @@ export interface Script {
    * name names no module.
    */
   readonly imports: () => ReadonlyArray<Import>
+  /**
+   * The names the module exports as types alone — an interface, a type alias, a name exported with
+   * `type` — so that an import of them alone loads none of its code.
+   */
+  readonly types: () => ReadonlySet<string>
 }
 
 const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
@@ -77,7 +84,8 @@ export const parseScript = (file: string, content: string): Script | undefined =
     comments: parsed.comments,
     error: error && { line: lineOf(error.labels[0]?.start ?? 0), message: error.message },
     lineOf,
-    imports: () => valueImports(program, parsed.module.dynamicImports.length > 0, lineOf)
+    imports: () => valueImports(program, parsed.module.dynamicImports.length > 0, lineOf),
+    types: () => typeExports(program)
   }
 }
 
@@ -88,26 +96,41 @@ export const literalName = (node: Node): string | undefined => {
   return (node.quasis as ReadonlyArray<{ readonly value: { readonly cooked: string | null } }>)[0]?.value.cooked ?? undefined
 }
 
+/** An identifier's name, or a string literal's in its place (`import { "a-b" as ab }`). */
+const nameOf = (node: Node): string => (node.name ?? node.value) as string
+
+/** The name of a module a statement loads code from, with the names it imports by, if it names them. */
+interface Source {
+  readonly source: Node
+  readonly names?: ReadonlyArray<string> | undefined
+}
+
 /** The names of what a top-level statement imports or re-exports a value from. */
-const valueSources = (statement: Node): ReadonlyArray<Node> => {
+const valueSources = (statement: Node): ReadonlyArray<Source> => {
   switch (statement.type) {
     case "ImportDeclaration": {
       const names = statement.specifiers as ReadonlyArray<Node>
       // Without names it imports the module for its effects, unless it is `import type {}`, erased with the types.
       const values = statement.importKind !== "type" && (names.length === 0 || names.some((name) => name.importKind !== "type"))
-      return values ? [statement.source as Node] : []
+      if (!values) return []
+      // For its effects, or as a namespace, it loads the module whole.
+      if (names.length === 0 || names.some((name) => name.type === "ImportNamespaceSpecifier")) return [{ source: statement.source as Node }]
+      const imported = names.filter((name) => name.importKind !== "type")
+        .map((name) => name.type === "ImportDefaultSpecifier" ? "default" : nameOf(name.imported as Node))
+      return [{ source: statement.source as Node, names: imported }]
     }
     case "ExportNamedDeclaration": {
       if (isNode(statement.declaration)) return valueSources(statement.declaration)
       const names = statement.specifiers as ReadonlyArray<Node>
       const values = statement.exportKind !== "type" && names.some((name) => name.exportKind !== "type")
-      return values && isNode(statement.source) ? [statement.source] : []
+      const exported = names.filter((name) => name.exportKind !== "type").map((name) => nameOf(name.local as Node))
+      return values && isNode(statement.source) ? [{ source: statement.source, names: exported }] : []
     }
     case "ExportAllDeclaration":
-      return statement.exportKind === "type" ? [] : [statement.source as Node]
+      return statement.exportKind === "type" ? [] : [{ source: statement.source as Node }]
     case "TSImportEqualsDeclaration": {
       const reference = statement.moduleReference as Node
-      return statement.importKind !== "type" && reference.type === "TSExternalModuleReference" ? [reference.expression as Node] : []
+      return statement.importKind !== "type" && reference.type === "TSExternalModuleReference" ? [{ source: reference.expression as Node }] : []
     }
     default:
       return []
@@ -115,22 +138,62 @@ const valueSources = (statement: Node): ReadonlyArray<Node> => {
 }
 
 /** The names `import()` loads within `node`. */
-const dynamicSources = (node: Node): ReadonlyArray<Node> => [
-  ...(node.type === "ImportExpression" && isNode(node.source) ? [node.source] : []),
+const dynamicSources = (node: Node): ReadonlyArray<Source> => [
+  ...(node.type === "ImportExpression" && isNode(node.source) ? [{ source: node.source }] : []),
   ...children(node).flatMap(dynamicSources)
 ]
 
 const valueImports = (program: Script["program"], dynamic: boolean, lineOf: (offset: number) => number): ReadonlyArray<Import> => {
   const named = [...program.body.flatMap(valueSources), ...(dynamic ? dynamicSources(program) : [])]
-  // One module named twice on a line is one import.
-  const seen = new Set<string>()
-  return named.flatMap((source) => {
+  // One module named twice on a line is one import, by the names of both.
+  const imports = new Map<string, Import>()
+  for (const { names, source } of named) {
     const value = literalName(source)
-    if (value === undefined) return []
+    if (value === undefined) continue
     const line = lineOf(source.start)
     const key = `${line}\u0000${value}`
-    if (seen.has(key)) return []
-    seen.add(key)
-    return [{ specifier: value, line }]
-  })
+    const seen = imports.get(key)
+    const all = seen === undefined ? names : seen.names && names && [...seen.names, ...names]
+    imports.set(key, { specifier: value, line, names: all })
+  }
+  return [...imports.values()]
+}
+
+const isType = (node: Node): boolean => node.type === "TSInterfaceDeclaration" || node.type === "TSTypeAliasDeclaration"
+
+/** The names a declaration declares: its own, or each a variable declaration's declarators name plainly. */
+const declaredNames = (declared: Node): ReadonlyArray<string> =>
+  declared.type === "VariableDeclaration"
+    ? (declared.declarations as ReadonlyArray<Node>).flatMap((declarator) => (declarator.id as Node).type === "Identifier" ? [nameOf(declarator.id as Node)] : [])
+    : isNode(declared.id) && declared.id.type === "Identifier" ? [nameOf(declared.id)] : []
+
+/**
+ * The names a module exports as types alone. A name it also exports as a value, as a class that
+ * merges with an interface, is a value; so is one re-exported from another module without `type`,
+ * since only that module knows what it is.
+ */
+const typeExports = (program: Script["program"]): ReadonlySet<string> => {
+  // The module's own declarations by name: whether each is a type alone.
+  const local = new Map<string, boolean>()
+  for (const statement of program.body) {
+    const declared = isNode(statement.declaration) ? statement.declaration : statement
+    for (const name of declaredNames(declared)) local.set(name, isType(declared) && local.get(name) !== false)
+  }
+  const types = new Set<string>()
+  const values = new Set<string>()
+  const exported = (name: string, type: boolean) => (type ? types : values).add(name)
+  for (const statement of program.body) {
+    if (statement.type === "ExportDefaultDeclaration") {
+      const declared = statement.declaration as Node
+      exported("default", isType(declared) || (declared.type === "Identifier" && local.get(nameOf(declared)) === true))
+    } else if (statement.type === "ExportNamedDeclaration" && isNode(statement.declaration)) {
+      for (const name of declaredNames(statement.declaration)) exported(name, isType(statement.declaration))
+    } else if (statement.type === "ExportNamedDeclaration") {
+      for (const specifier of statement.specifiers as ReadonlyArray<Node>) {
+        const own = !isNode(statement.source) && local.get(nameOf(specifier.local as Node)) === true
+        exported(nameOf(specifier.exported as Node), statement.exportKind === "type" || specifier.exportKind === "type" || own)
+      }
+    }
+  }
+  return new Set([...types].filter((name) => !values.has(name)))
 }
