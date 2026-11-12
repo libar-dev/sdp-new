@@ -80,7 +80,10 @@ const shapeOf = (vocabulary: Vocabulary, kind: string): readonly [string, string
     ? ["[[", "]]"]
     : ["[", "]"]
 
-/** The graph as a Mermaid flowchart; decisions, patterns, milestones, scenarios and code each have a shape of their own. */
+/**
+ * The graph as a Mermaid flowchart; decisions, patterns, milestones, scenarios and code each have a
+ * shape of their own. A node shows its title under its id, unless the title only repeats the id.
+ */
 export const mermaid = (graph: Graph, vocabulary: Vocabulary): string => {
   const ids = new Map<string, string>()
   const ref = (id: string) => {
@@ -95,7 +98,8 @@ export const mermaid = (graph: Graph, vocabulary: Vocabulary): string => {
   const lines = ["flowchart LR"]
   for (const n of graph.nodes()) {
     const [l, r] = shapeOf(vocabulary, n.kind)
-    lines.push(`  ${ref(n.id)}${l}"${label(n.id)}<br/><small>${label(n.title)}</small>"${r}`)
+    const title = n.title === n.id ? "" : `<br/><small>${label(n.title)}</small>`
+    lines.push(`  ${ref(n.id)}${l}"${label(n.id)}${title}"${r}`)
   }
   for (const e of graph.edges()) lines.push(`  ${ref(e.from)} -->|${label(e.rel)}| ${ref(e.to)}`)
   return lines.join("\n") + "\n"

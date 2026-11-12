@@ -61,6 +61,8 @@ Feature: See the architecture
 
   Rule: Each element is shown with what it is for, from its spec or else from the doc comment of its code, and with its links
 
+    An element declared by its code alone has no title of its own, so it is named by its id alone.
+
     Scenario: One element described by its spec, one by its code, one by its links alone
       When I run "sdp arch"
       Then the exit code is 0
@@ -75,17 +77,19 @@ Feature: See the architecture
         ARCH-orders -decided-by-> publish-through-an-outbox  Orders publish events through an outbox
         ARCH-orders -instance-of-> PAT-outbox  Transactional outbox
         ARCH-orders -constrained-by-> order-latency  Order latency
-        ARCH-orders -imports-> ARCH-mailer  ARCH-mailer
+        ARCH-orders -imports-> ARCH-mailer
         ARCH-orders <-is- code:src/orders.ts#place  place
 
         PAT-outbox — Transactional outbox (pattern)
         PAT-outbox <-instance-of- ARCH-orders  Orders
 
-        ARCH-mailer — ARCH-mailer (element)
+        ARCH-mailer (element)
         Sends receipts, and retries while the provider is down.
         ARCH-mailer <-imports- ARCH-orders  Orders
         ARCH-mailer <-is- code:src/mailer.ts#Mailer  Mailer
         """
+      And the output does not contain "ARCH-mailer — ARCH-mailer"
+      And the output does not contain "ARCH-mailer  ARCH-mailer"
 
     Scenario: An element anchored in two places is described by each, in the order of their files
       Given a file "src/outbox.ts" containing:
@@ -100,7 +104,7 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains:
         """
-        ARCH-mailer — ARCH-mailer (element)
+        ARCH-mailer (element)
         Sends receipts, and retries while the provider is down.
         Keeps each receipt until the provider has taken it.
         """
@@ -143,6 +147,7 @@ Feature: See the architecture
       And the output contains "flowchart LR"
       And the output contains "-->|decided-by|"
       And the output contains "-->|imports|"
+      And the output contains '["ARCH-mailer"]'
 
   Rule: A quality requirement, of kind nfr or of any kind whose type says so, is shown beside what it constrains
 
