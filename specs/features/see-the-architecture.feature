@@ -165,7 +165,8 @@ Feature: See the architecture
     constant from a module anchored to the other; an import of types alone calls no code of it.
     Derived, the dependencies cannot drift from the code, and none is written by hand (link-specs).
     Only TypeScript and JavaScript are read for imports: code in any other language imports no
-    element.
+    element, and neither does a name the code computes as it runs, for TypeScript resolves it to no
+    file.
 
     Scenario Outline: The billing module imports from the mailer's module
       Given a file "src/billing.ts" containing:
@@ -195,6 +196,14 @@ Feature: See the architecture
         | import { Receipt, Cents } from "./mailer.ts"    | nothing     |
         | import { Receipt, Mailer } from "./mailer.ts"   | ARCH-mailer |
         | const { Mailer } = require("./mailer.ts")       | ARCH-mailer |
+        | const mailer = (name: string) => import(name)   | nothing     |
+
+  Rule: An import means the file TypeScript resolves its name to, by the tsconfig.json and package.json files of the code, installed or not
+
+    sdp reads them where the code is and in each directory above it, as TypeScript does. A package
+    is found by the name its package.json gives, as a package manager links it into node_modules:
+    the graph follows the files, not what `npm install` linked, and TypeScript follows the same link
+    to the same file.
 
     Scenario Outline: A name means the file TypeScript resolves it to, whether or not that file anchors an element
       Given a file "<config>" containing:
@@ -232,7 +241,7 @@ Feature: See the architecture
         | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
         | package.json              | { "name": "shop" }                                                                                       | lib/tax.ts            | src/tax.ts                | tax       | nothing  |
 
-    Scenario: A tsconfig.json maps names as the configuration it extends does, from where that configuration is
+    Scenario: A tsconfig.json maps names as the one it extends does, from where that one is
       Given a file "config/tsconfig.base.json" containing:
         """
         { "compilerOptions": { "paths": { "@/*": ["../src/*"] } } }
@@ -256,7 +265,14 @@ Feature: See the architecture
       When I query "#ARCH-billing -imports-> *"
       Then the result is "ARCH-tax"
 
-    Scenario Outline: What sdp cannot follow, though it could name the workspace's code, is reported, and the answer is incomplete: <case>
+  Rule: An import sdp cannot follow is reported, and the answer is incomplete, when it could name the workspace's code
+
+    A library's module that a package.json declares, a module of Node.js and a file that is not
+    code are no element, whatever sdp reads. Any other name sdp cannot follow could hide a
+    dependency from the architecture's rules; one that could not is no reason to doubt the answer,
+    and a warning that fires for nothing teaches users to ignore it.
+
+    Scenario Outline: An import sdp cannot follow is reported, and the answer is incomplete: <case>
       Given a file "<config>" containing:
         """
         <says>
