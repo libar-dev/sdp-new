@@ -110,7 +110,7 @@ Feature: sdp, shown by running it
       Then the exit code is 0
       And the output contains:
         """
-        ARCH-pricing — ARCH-pricing (element)
+        ARCH-pricing (element)
         Prices, VAT rates and rounding: every monetary figure flows through here
         ARCH-pricing <-is- code:src/pricing.ts
         """
