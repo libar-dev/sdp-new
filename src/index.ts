@@ -1,0 +1,18 @@
+/**
+ * Public API for step definition modules and programmatic use.
+ */
+export { defineSteps, Pending, pending } from "./run/Steps.ts"
+export type { StepContext, StepModule, StepRegistrar } from "./run/Steps.ts"
+export { buildProject } from "./graph/Build.ts"
+export type { Project, SourceFile } from "./graph/Build.ts"
+export { parseQuery, query, runQuery } from "./graph/Query.ts"
+export { check } from "./check/Check.ts"
+export { architectureView, rankCandidates, significance } from "./arch/Significance.ts"
+export { lifecycle } from "./lifecycle/Lifecycle.ts"
+export { contextBundle } from "./graph/Context.ts"
+export { exportGraph } from "./graph/Export.ts"
+export { runScenarios } from "./run/Runner.ts"
+export { loadProject, loadStepModules } from "./workspace/Workspace.ts"
+export { layerMemory, memoryRoot } from "./workspace/MemoryFileSystem.ts"
+export { Graph } from "./model/Graph.ts"
+export type { GraphEdge, GraphNode } from "./model/Graph.ts"

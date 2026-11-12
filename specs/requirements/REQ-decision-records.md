@@ -1,0 +1,101 @@
+---
+id: REQ-decision-records
+kind: requirement
+title: Decision records for any decision
+maturity: ready
+iteration: E2
+tags: [decisions]
+links:
+  refines: CAP-curated-architecture
+  realized-by: ARCH-checker
+---
+
+# Decision records for any decision
+
+Teams record decisions the way they record requirements: Markdown with front matter, linked into
+the graph. Architecture decisions are one category among many — product, process, technology,
+organisation — set by a free-text `category`. A decision has a `status` (`proposed`, `accepted`,
+`rejected`, `deprecated`, `superseded`), names what it `affects`, and may `supersede` an older
+one. When a decision can be checked mechanically, its record carries the check as a scenario.
+
+## Scenarios
+
+~~~gherkin
+Scenario: Product and process decisions are first-class
+  Given a file "docs/DEC-0001.md" containing:
+    """
+    ---
+    id: DEC-0001
+    kind: decision
+    category: product
+    status: accepted
+    ---
+    # Free tier limited to three projects
+
+    ## Decision
+    Free accounts get three projects.
+    """
+  When the workspace is checked
+  Then node "DEC-0001" has attribute category = "product"
+  And the check does not report "decision-status"
+  And the check does not report "decision-content"
+
+Scenario: Superseding keeps the record consistent
+  Given a file "docs/DEC-0001.md" containing:
+    """
+    ---
+    id: DEC-0001
+    kind: decision
+    status: accepted
+    ---
+    # Weekly releases
+    """
+  And a file "docs/DEC-0002.md" containing:
+    """
+    ---
+    id: DEC-0002
+    kind: decision
+    status: accepted
+    links:
+      supersedes: DEC-0001
+    ---
+    # Continuous delivery
+    """
+  When the workspace is checked
+  Then the check reports "decision-supersede" for "DEC-0001"
+
+Scenario: A decision can guard itself
+  Given a file "docs/DEC-0003.md" containing:
+    """
+    ---
+    id: DEC-0003
+    kind: decision
+    category: architecture
+    status: accepted
+    ---
+    # Retire legacy billing
+
+    ## Decision
+    New code must not call the legacy billing module.
+
+    ```gherkin
+    Scenario: Nothing depends on legacy billing
+      Then the query "code -uses-> #ARCH-legacy-billing" returns no results
+    ```
+    """
+  And a file "docs/ARCH-legacy-billing.md" containing:
+    """
+    ---
+    id: ARCH-legacy-billing
+    kind: element
+    ---
+    # Legacy billing
+    """
+  And a file "src/invoices.ts" containing:
+    """
+    // @sdp uses ARCH-legacy-billing
+    export function invoice() {}
+    """
+  When the scenarios are run
+  Then scenario "DEC-0003#nothing-depends-on-legacy-billing" has status "failed"
+~~~

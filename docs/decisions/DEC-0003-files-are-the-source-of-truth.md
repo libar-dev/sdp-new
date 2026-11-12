@@ -1,0 +1,38 @@
+---
+id: DEC-0003
+kind: decision
+title: Files are the source of truth; the graph is a derived index
+status: accepted
+category: architecture
+date: 2026-09-17
+deciders: [architecture]
+iteration: E1
+links:
+  affects: [ARCH-graph, ARCH-graph-builder, NFR-greppable]
+---
+
+# Files are the source of truth; the graph is a derived index
+
+## Context
+
+The graph must be queryable as a whole, yet people and agents edit specs with ordinary tools and
+review them in pull requests. A database would give fast queries and a schema, at the price of a
+second copy of the truth, migrations, and invisibility to grep and git.
+
+## Options
+
+1. Store the graph in a database (SQLite, a graph DB) and edit it through the tool.
+2. Keep Markdown as the source and synchronise a database from it.
+3. Keep Markdown and code comments as the only source; rebuild the graph in memory on every command.
+
+## Decision
+
+Option 3. Every command parses the workspace and builds the graph from scratch; `sdp graph --write`
+dumps it as JSONL/TSV for tools that prefer a file. Scenario results are the only persisted state,
+in `.sdp/results.json`, keyed by a hash of each scenario so edits invalidate stale results.
+
+## Consequences
+
+- No migrations, no sync bugs, branches and merges just work.
+- Query latency includes parsing; [[NFR-query-performance]] keeps us honest.
+- Provenance is free: every node and edge carries the `file:line` it came from.

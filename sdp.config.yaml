@@ -1,0 +1,11 @@
+# sdp specifies itself. See docs/DESIGN.md for what each key means.
+specs: ["specs/**/*.md", "docs/**/*.md"]
+features: ["specs/**/*.feature"]
+code: ["src/**/*.ts"]
+steps: ["specs/steps/**/*.steps.ts"]
+architecture:
+  kinds: [element, pattern]
+  significanceBudget: 0.10
+  justifiedBy: [decision, nfr]
+  inventory:
+    include: ["src/**/*.ts"]

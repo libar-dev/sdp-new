@@ -1,0 +1,39 @@
+/**
+ * An in-memory `FileSystem` for tests and executable specs: the real loading
+ * pipeline runs against a map of `relative path → content` rooted at "/ws".
+ */
+import { Effect, FileSystem, Glob, Layer, Path } from "effect"
+import { systemError } from "effect/PlatformError"
+import { loadProject } from "./Workspace.ts"
+
+export const memoryRoot = "/ws"
+
+export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.FileSystem => {
+  const rel = (path: string) => path.startsWith(`${memoryRoot}/`) ? path.slice(memoryRoot.length + 1) : path.replace(/^\.\//, "")
+  const notFound = (method: string, path: string) =>
+    systemError({ _tag: "NotFound", module: "FileSystem", method, pathOrDescriptor: path })
+  return FileSystem.makeNoop({
+    exists: (path) => Effect.succeed(files.has(rel(path)) || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))),
+    readFileString: (path) => {
+      const content = files.get(rel(path))
+      return content === undefined ? Effect.fail(notFound("readFileString", path)) : Effect.succeed(content)
+    },
+    writeFileString: (path, data) => Effect.sync(() => void files.set(rel(path), data)),
+    makeDirectory: () => Effect.void,
+    glob: (pattern, options) =>
+      Effect.sync(() => {
+        const glob = Glob.make(pattern, { dot: options?.dot ?? false })
+        const excludes = (options?.exclude ?? []).map((p) => Glob.make(p, { dot: true }))
+        return [...files.keys()]
+          .filter((file) => Glob.match(glob, file) && !excludes.some((ex) => Glob.match(ex, file)))
+          .sort()
+      })
+  })
+}
+
+export const layerMemory = (files: Map<string, string>): Layer.Layer<FileSystem.FileSystem> =>
+  Layer.succeed(FileSystem.FileSystem, makeMemoryFileSystem(files))
+
+/** Load a project from in-memory files, optionally with stored results (as written to `config.results`). */
+export const loadMemoryProject = (files: Map<string, string>, options: { readonly withResults?: boolean } = {}) =>
+  loadProject(memoryRoot, options).pipe(Effect.provide(Layer.merge(layerMemory(files), Path.layer)))
