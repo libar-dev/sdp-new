@@ -20,7 +20,8 @@ and step definitions that drive the domain code.
 | [docs/DEC-0001-prices-in-cents.md](docs/DEC-0001-prices-in-cents.md) | an accepted architecture decision |
 | [docs/DEC-0002-free-shipping.md](docs/DEC-0002-free-shipping.md) | a proposed product decision |
 | [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp` |
-| [src/pricing.ts](src/pricing.ts) | code linked to the graph with `@sdp` comments |
+| [src/pricing.ts](src/pricing.ts), [src/cart.ts](src/cart.ts) | code linked to the graph with typed `annotate()` calls from `sdp/annotations`: `is` anchors ARCH-pricing, `implements` names the requirement |
+| [.sdp/ids.d.ts](.sdp/ids.d.ts) | the ids those calls accept, written by `sdp types`, so a mistyped id fails `tsc` |
 
 From the repository root:
 
@@ -28,6 +29,11 @@ From the repository root:
 node src/cli/main.ts -C examples/shop run         # 3 scenarios pass, guest checkout is undefined
 node src/cli/main.ts -C examples/shop arch        # ARCH-pricing with its decision and quality requirement
 node src/cli/main.ts -C examples/shop context REQ-guest-checkout
+node src/cli/main.ts -C examples/shop types       # after adding or renaming a spec
 ```
+
+Annotations are ordinary code, not comments: `annotate(vatFor, { implements: "REQ-cart-totals" })`
+puts `vatFor` in the graph as a `code` node linked to the requirement. In languages other than
+TypeScript and JavaScript, an `@sdp implements REQ-cart-totals` comment does the same.
 
 The root [README](../../README.md) runs this suite in a copy of the example with every build.

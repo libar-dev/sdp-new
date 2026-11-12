@@ -4,6 +4,7 @@ kind: requirement
 title: Specifications at every maturity
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [spec-format]
 links:
   refines: CAP-living-specs
@@ -26,6 +27,7 @@ kind: requirement                # free text; inferred from the id prefix when o
 title: Guest checkout            # defaults to the first # heading
 maturity: specified              # idea → draft → specified → ready
 iteration: C2                    # an attribute whose value is a node id becomes an edge
+activity: { implementation: C3 } # other disciplines' work, planned into iterations of their own
 tags: [checkout]
 links:                           # explicit, free-form relations
   refines: CAP-online-sales

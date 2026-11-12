@@ -188,9 +188,11 @@ nodes:
 # ${title}
 
 Four phases with one example iteration each; add, rename and re-date iterations as the plan firms
-up. Plan work by setting \`iteration: E1\` on a spec, decision or element, and close each phase with
-a milestone (\`sdp new milestone "Lifecycle architecture"\`, \`phase: elaboration\`) whose scenarios
-are its gate. \`sdp lifecycle\` shows the result.
+up. Plan work by setting \`iteration: E1\` on a spec, decision or element — that plans its own
+discipline's work, such as writing a requirement — and the other disciplines' work on it with
+\`activity: { implementation: C1, test: [C1, T1] }\`. Close each phase with a milestone
+(\`sdp new milestone "Lifecycle architecture"\`, \`phase: elaboration\`) whose scenarios are its
+gate. \`sdp lifecycle\` shows the result.
 `
     }
   }
@@ -202,7 +204,8 @@ id: ${id}
 kind: ${kind}
 title: ${title}
 maturity: ${maturity}   # ${ladder} (implemented/verified is derived from scenario results)
-${quality ? "quality: performance  # performance | availability | security | usability | ...\n" : ""}# iteration: E1
+${quality ? "quality: performance  # performance | availability | security | usability | ...\n" : ""}# iteration: E1         # when this spec is written
+# activity: { implementation: C1, test: [C1, T1] }   # when other disciplines work on it
 ${quality ? `# Elements this constrains link to it: \`constrained-by: ${id}\`.\n` : ""}links:
   # refines: CAP-…
 ${quality ? "" : "  # realized-by: ARCH-…\n"}---
@@ -219,8 +222,8 @@ ${level === 0 ? "One sentence capturing the idea." : quality ? "Which quality ma
   // What separates ready from specified: nothing is left open.
   if (level >= 3) sections.push(`## Open questions
 
-None: a ready spec has no open questions left, which is what sets it apart from a specified one.
-An unchecked item listed here fails the ready gate.
+None: a ready spec has no open questions left. That and complete scenarios are all the \`ready\`
+gate checks; whether the design behind it is settled is for the team's own Definition of Ready.
 `)
   if (level >= 2) {
     sections.push(
@@ -268,6 +271,10 @@ export const configTemplate = [
   "# architecture:",
   `#   kinds: [${defaults.architecture.kinds.join(", ")}]     # abstractions architects may mark significant`,
   `#   drivers: [${defaults.architecture.drivers.join(", ")}]  # shown next to significant elements in \`sdp arch\``,
+  "# lifecycle:",
+  "#   disciplines: {}            # merged with the RUP disciplines, e.g. { operations: [runbook] }",
+  `#   planRelations: [${defaults.planRelations.join(", ")}]   # relations that plan a node into an iteration`,
+  `#   phaseRelations: [${defaults.phaseRelations.join(", ")}]     # relations from an iteration or milestone to its phase`,
   ""
 ].join("\n")
 

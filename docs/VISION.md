@@ -65,8 +65,8 @@ agents as much as for people.
 
 ## Principles
 
-1. **Files are the source of truth.** Markdown, `.feature` files and code comments; the graph is
-   a derived index, rebuilt on every command. Git, pull requests, grep and editors work on
+1. **Files are the source of truth.** Markdown, `.feature` files and annotations in code; the
+   graph is a derived index, rebuilt on every command. Git, pull requests, grep and editors work on
    everything ([[DEC-0003]]).
 2. **One format for everything, at every maturity.** An idea and an implemented feature differ in
    content, not in format or tool; decisions, the plan, milestones and risks are written the same

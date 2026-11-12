@@ -101,6 +101,7 @@ declare module "sdp/annotations" {
     "TERM-context-bundle": "term"
     "TERM-dangling-link": "term"
     "TERM-decision-record": "term"
+    "TERM-definition-of-ready": "term"
     "TERM-diagnostic": "term"
     "TERM-discipline": "term"
     "TERM-element": "term"

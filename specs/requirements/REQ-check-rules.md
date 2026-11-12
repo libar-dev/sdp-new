@@ -4,6 +4,7 @@ kind: requirement
 title: Check rules
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [quality-gates]
 links:
   refines: CAP-living-specs
@@ -43,7 +44,7 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `decision-status` | warning | a decision has no `status`, or one other than `proposed`, `accepted`, `rejected`, `deprecated`, `superseded` | set `status` |
 | `decision-supersede` | warning | a decision supersedes one whose status is not `superseded`, or a superseded decision has no successor | make both records agree |
 | `decision-content` | info | an accepted decision has no "Decision" or "Outcome" section ([[REQ-decision-records]]) | state the decision under `## Decision` |
-| `plan-reference` | warning | an `iteration:` or `phase:` value names no node, so the work or milestone is planned nowhere ([[REQ-lifecycle-view]]) | use the id of a declared iteration or phase, or declare it |
+| `plan-reference` | warning | an `iteration:` or `phase:` value (or one of another configured plan or phase relation) names no iteration or phase, so the work or milestone is planned nowhere; or `activity:` is not a mapping, names a discipline that is not configured, or an iteration that is not declared ([[REQ-lifecycle-view]]) | use the id of a declared iteration, phase or discipline, or declare it |
 | `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
 | `annotation-unreadable` | warning | a typed annotation (`annotate(target, links)` from `sdp/annotations`) whose target is not a name or `import.meta`, or whose ids or attributes are computed rather than literal — sdp reads annotations without running code ([[ARCH-code-annotations]]) | write the target as a name and the ids as string literals |
 | `types-stale` | warning | the id declarations at the `types` path no longer match the graph, so `annotate()` may accept removed ids or reject new ones ([[REQ-configuration]]) | run `sdp types` |
@@ -89,6 +90,60 @@ Scenario Outline: Each rule reports its problem where it is
     | plan-reference      | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, iteration: C9 }                         |                                                                                       |
     | annotation-ignored  | warning  | src/cart.ts      | 6    |                                                      | export const total = 0 // @sdp implements REQ-a                                       |
     | template-placeholder | warning | docs/DEC-0001.md | 8    | { id: DEC-0001, kind: decision, status: proposed }   | ## Decision\n\nWe will …                                                             |
+
+Scenario Outline: Plans name declared iterations, phases and disciplines
+  Given a file "docs/PLAN.md" containing:
+    """
+    ---
+    id: PLAN
+    nodes:
+      - { id: elaboration, kind: phase }
+      - { id: E1, kind: iteration, phase: elaboration }
+    ---
+    # Plan
+    """
+  And a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    <front matter>
+    ---
+    # Example
+    """
+  When the workspace is checked
+  Then the check reports "plan-reference" for '<message>'
+
+  Examples:
+    | front matter                                   | message                                          |
+    | iteration: elaboration                         | iteration "elaboration" names no iteration       |
+    | activity: { implementation: E9 }               | activity.implementation "E9" names no iteration  |
+    | activity: { implementation: [E1, elaboration] } | activity.implementation "elaboration" names no iteration |
+    | activity: { testing: E1 }                      | activity names "testing", which is not a discipline |
+    | activity: E1                                   | activity should map disciplines to iterations    |
+
+Scenario: A plan that names what it declares is clean
+  Given a file "docs/PLAN.md" containing:
+    """
+    ---
+    id: PLAN
+    nodes:
+      - { id: elaboration, kind: phase }
+      - { id: E1, kind: iteration, phase: elaboration }
+      - { id: E2, kind: iteration, phase: elaboration }
+    ---
+    # Plan
+    """
+  And a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    iteration: E1
+    activity: { analysis-design: E1, implementation: [E1, E2], test: [] }
+    ---
+    # Example
+    """
+  When the workspace is checked
+  Then the check does not report "plan-reference"
 
 Scenario Outline: Template text is flagged until it is replaced
   Given a file "specs/REQ-a.md" containing:

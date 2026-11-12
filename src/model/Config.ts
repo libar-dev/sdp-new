@@ -18,7 +18,9 @@ export const ConfigFile = Schema.Struct({
     drivers: Schema.optional(Schema.Array(Schema.String))
   })),
   lifecycle: Schema.optional(Schema.Struct({
-    disciplines: Schema.optional(Schema.Record(Schema.String, Schema.Array(Schema.String)))
+    disciplines: Schema.optional(Schema.Record(Schema.String, Schema.Array(Schema.String))),
+    planRelations: Schema.optional(Schema.Array(Schema.String)),
+    phaseRelations: Schema.optional(Schema.Array(Schema.String))
   }))
 })
 export type ConfigFile = typeof ConfigFile.Type
@@ -43,8 +45,12 @@ export interface Config {
     /** Kinds of architectural drivers (decisions, quality requirements) shown with significant nodes. */
     readonly drivers: ReadonlyArray<string>
   }
-  /** RUP-style disciplines and the node kinds that represent work in each. */
+  /** RUP-style disciplines and the node kinds whose planned nodes are, by default, work in each. */
   readonly disciplines: Readonly<Record<string, ReadonlyArray<string>>>
+  /** Relations from a node to the iteration it is planned into (`iteration: E1`); mentions never plan. */
+  readonly planRelations: ReadonlyArray<string>
+  /** Relations from an iteration or a milestone to its phase (`phase: elaboration`). */
+  readonly phaseRelations: ReadonlyArray<string>
 }
 
 const sourceGlob = "**/*.{ts,tsx,mts,cts,js,jsx,mjs,cjs,py,go,java,kt,cs,rs,rb,scala,swift,php}"
@@ -76,11 +82,13 @@ export const defaults: Config = {
     "business-modeling": ["capability", "goal", "actor", "business-process", "vision", "stakeholder"],
     "requirements": ["requirement", "nfr", "feature", "story", "use-case", "epic"],
     "analysis-design": ["decision", "element", "pattern"],
-    // Implementation and test activity come from evidence (stages, executed scenarios), not kinds.
+    // No kind is implementation or test work by itself: a spec plans them with `activity:`.
     "implementation": [],
     "test": [],
     "deployment": ["release", "environment", "deployment"]
-  }
+  },
+  planRelations: ["iteration"],
+  phaseRelations: ["phase"]
 }
 
 export const resolveConfig = (file: ConfigFile | undefined): Config => {
@@ -100,7 +108,9 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
       kinds: arch?.kinds ?? defaults.architecture.kinds,
       drivers: arch?.drivers ?? defaults.architecture.drivers
     },
-    disciplines: { ...defaults.disciplines, ...file.lifecycle?.disciplines }
+    disciplines: { ...defaults.disciplines, ...file.lifecycle?.disciplines },
+    planRelations: file.lifecycle?.planRelations ?? defaults.planRelations,
+    phaseRelations: file.lifecycle?.phaseRelations ?? defaults.phaseRelations
   }
 }
 

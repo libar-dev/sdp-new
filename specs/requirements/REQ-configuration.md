@@ -4,6 +4,7 @@ kind: requirement
 title: Workspace configuration
 maturity: ready
 iteration: I1
+activity: { implementation: I1, test: I1 }
 tags: [configuration]
 links:
   refines: CAP-living-specs
@@ -31,7 +32,9 @@ the offending key.
 | `ids` | see below | the id prefix of each kind |
 | `architecture.kinds` | `[element, pattern]` | kinds that are architectural abstractions, the pool for candidates |
 | `architecture.drivers` | `[decision, nfr]` | kinds shown with the significant nodes they link to ([[REQ-curated-architecture]]) |
-| `lifecycle.disciplines` | see below | the node kinds that represent work in each discipline ([[REQ-lifecycle-view]]) |
+| `lifecycle.disciplines` | see below | the node kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
+| `lifecycle.planRelations` | `[iteration]` | the relations that plan a node into an iteration; no other edge, such as a mention, does |
+| `lifecycle.phaseRelations` | `[phase]` | the relations that put an iteration or a milestone into its phase |
 
 Lists replace their default, except `exclude`, which extends it; `ids` and `lifecycle.disciplines`
 merge key by key.
@@ -46,8 +49,9 @@ kind.
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Prefix | `REQ` | `NFR` | `DEC` | `ARCH` | `PAT` | `MS` | `CAP` | `RISK` |
 
-**Disciplines.** The RUP disciplines and the kinds whose planned nodes count as their work; how
-activity is counted is [[REQ-lifecycle-view]]'s:
+**Disciplines.** The RUP disciplines and the kinds whose planned nodes count as their work unless
+`activity:` says otherwise; how activity is planned and counted is [[REQ-lifecycle-view]]'s. No
+kind is implementation or test work by itself: specs plan those with `activity:`.
 
 | Discipline | Kinds |
 | --- | --- |
@@ -255,6 +259,46 @@ Scenario: lifecycle.disciplines adds or redefines disciplines
     """
   When the lifecycle is computed
   Then "operations" activity in iteration "C1" is 1
+
+Scenario: lifecycle.planRelations and lifecycle.phaseRelations name the relations the plan uses
+  Given a file "sdp.config.yaml" containing:
+    """
+    lifecycle: { planRelations: [sprint], phaseRelations: [part-of] }
+    """
+  And a file "plan.md" containing:
+    """
+    ---
+    id: PLAN
+    kind: plan
+    nodes:
+      - { id: build, kind: phase, order: 1 }
+      - { id: S1, kind: iteration, part-of: build }
+      - { id: S2, kind: iteration, phase: build }
+    ---
+    # Plan
+    """
+  And a file "specs/REQ-search.md" containing:
+    """
+    ---
+    id: REQ-search
+    maturity: idea
+    sprint: S1
+    ---
+    # Search
+    """
+  And a file "specs/REQ-filters.md" containing:
+    """
+    ---
+    id: REQ-filters
+    maturity: idea
+    iteration: S1
+    ---
+    # Filters
+    """
+  When the lifecycle is computed
+  Then phase "build" has iterations "S1"
+  And iteration "S1" plans "REQ-search"
+  And "requirements" activity in iteration "S1" is 1
 
 Scenario: A malformed configuration names the file and the key
   Given a file "sdp.config.yaml" containing:

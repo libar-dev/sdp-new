@@ -3,7 +3,11 @@ id: REQ-web-explorer
 kind: requirement
 title: Interactive graph explorer
 maturity: draft
-iteration: C3
+iteration: C1
+activity:
+  analysis-design: C2
+  implementation: C3
+  test: [C3, T1]
 links:
   refines: CAP-curated-architecture
 ---

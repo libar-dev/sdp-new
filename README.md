@@ -16,7 +16,8 @@ agents as much as for people.
   kind of file: Markdown + YAML front matter, with behaviour in standard Gherkin blocks. Scenarios
   execute as tests once step definitions exist; until then they are simply *undefined*, not failing.
 - **Honest status.** Authors declare maturity (`idea → draft → specified → ready`) and `sdp check`
-  verifies the claim; *implemented* is never declared — it is derived from scenario results.
+  verifies that the content supports the claim — structurally; a team's own Definition of Ready is
+  a gate it writes. *Implemented* is never declared: it is derived from scenario results.
 - **Decisions of every kind** (architecture, product, process, …) as records in the same graph,
   optionally guarding themselves with a scenario.
 - **Curated architecture.** Architects mark the few significant elements and patterns (with a
@@ -24,8 +25,9 @@ agents as much as for people.
   decides significance for them.
 - **Free-form graph.** Kinds and relation names are your words. Query with one-line path patterns,
   export as JSONL/TSV for grep and jq, or serve over MCP.
-- **Lifecycle.** Phases, iterations and milestones are graph nodes; milestone gates are scenarios;
-  the discipline activity chart is computed from the plan.
+- **Lifecycle.** Phases, iterations and milestones are graph nodes; milestone gates are scenarios.
+  Each piece of work plans its disciplines' activity (`iteration:`, `activity:`), so the RUP chart
+  of overlapping disciplines is the plan itself, shown apart from the evidence.
 - **Everything is a spec.** Guides too: this README is a node of sdp's own graph, and its quick
   start runs with every build.
 
@@ -106,10 +108,10 @@ Scenario: Specify behaviour before it is automated
 | `sdp show <id>` | A node with attributes and edges |
 | `sdp context <id>` | Everything needed to work on a node, as Markdown (for agents and humans) |
 | `sdp check` | Diagnostics with rule ids, `file:line` and a hint; exit 1 on errors |
-| `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last |
-| `sdp gate <milestone>` | Evaluate one milestone gate; exit 1 if unmet |
+| `sdp run [ids/paths] [--tags expr]` | Execute scenarios, record `.sdp/results.json`; gates run last and never fail the run |
+| `sdp gate <milestone>` | Evaluate one milestone's gate (or a spec's `@gate` scenarios); exit 1 if unmet |
 | `sdp arch [--candidates] [-f mermaid\|dot\|json]` | The curated architecture, or suggestions for architects to look at |
-| `sdp lifecycle` | Phases, iterations, gates and discipline activity |
+| `sdp lifecycle` | Phases, gates, planned work and discipline activity per iteration, and the evidence apart |
 | `sdp graph [-f jsonl\|tsv\|json\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
 | `sdp types` | Write the id declarations that type `annotate()` from `sdp/annotations` in TypeScript |
 | `sdp new <kind> <title>` · `sdp init` | Authoring helpers; templates for requirement, idea, nfr, decision, element, pattern, milestone and plan (`sdp new --help`) |
@@ -128,7 +130,7 @@ by the step definitions in `specs/steps/` against the real pipeline in memory or
 temporary directories.
 
 ```sh
-node src/cli/main.ts run          # every scenario; milestone gates run last and may be unmet
+node src/cli/main.ts run          # every scenario; gates run last, and an unmet gate does not fail the run
 node src/cli/main.ts lifecycle
 node src/cli/main.ts arch
 node src/cli/main.ts context REQ-graph-query

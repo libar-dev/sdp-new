@@ -9,9 +9,9 @@ links:
 
 # Lifecycle Architecture
 
-End of Elaboration: the requirements planned for it are ready, the risks that threatened the
-architecture are retired, and the architecture baseline is curated — the architects have named the
-significant elements and recorded why ([[DEC-0008]]). Which and how many is their call; this gate
+End of Elaboration: the requirements planned for it are ready, what it planned to build runs and
+is verified, the risks that threatened the architecture are retired, and the architecture baseline
+is curated — the architects have named the significant elements and recorded why ([[DEC-0008]]). Which and how many is their call; this gate
 only checks that the curation happened and is connected to the decisions behind it, which is this
 team's own definition of done.
 
@@ -22,6 +22,9 @@ the gate does not make.
 ~~~gherkin
 Scenario: Requirements planned for elaboration are ready
   Then the query "requirement|nfr[maturity<ready] ?-iteration-> iteration[phase=elaboration]" returns no results
+
+Scenario: What Elaboration builds is verified
+  Then the query "requirement|nfr[stage!=verified, activity.implementation=E1|E2]" returns no results
 
 Scenario: No high-exposure risk is left open
   Then the query "risk[exposure=high, status=open]" returns no results
