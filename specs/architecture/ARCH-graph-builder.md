@@ -149,8 +149,8 @@ Scenario: A mention adds nothing between nodes a link already joins, nor does a 
     ---
     id: MODEL
     nodes:
-      - { id: DEC-1, kind: decision, status: accepted }
-      - { id: DEC-2, kind: decision, status: accepted }
+      - { id: DEC-1, kind: decision }
+      - { id: DEC-2, kind: decision }
       - { id: RISK-1, kind: risk, links: { affects: REQ-a } }
     ---
     # Model

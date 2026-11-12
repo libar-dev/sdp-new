@@ -7,8 +7,8 @@ title: Example — a shop
 # Example — a shop
 
 A small product specified with sdp the way a team would: domain code in `src/`, specifications
-at every maturity in `specs/`, a decision and the one architecture element in `docs/`,
-and step definitions that drive the domain code.
+at every maturity, a decision and the one architecture element in `specs/`, and step definitions
+that drive the domain code.
 
 | File | Shows |
 | --- | --- |
@@ -16,8 +16,8 @@ and step definitions that drive the domain code.
 | [specs/REQ-guest-checkout.md](specs/REQ-guest-checkout.md) | specified, not built: its steps are *undefined*, not failing, and what is still undecided is an open question |
 | [specs/REQ-wishlist.md](specs/REQ-wishlist.md) | an idea — a title and a sentence are a valid spec |
 | [specs/NFR-pricing-latency.md](specs/NFR-pricing-latency.md) | a quality requirement whose step definitions are a fitness function |
-| [docs/ARCH-pricing.md](docs/ARCH-pricing.md) | the element an architect declared, and why it matters |
-| [docs/DEC-0001-money-is-integer-cents.md](docs/DEC-0001-money-is-integer-cents.md) | a decision: what was chosen over what, and why |
+| [specs/ARCH-pricing.md](specs/ARCH-pricing.md) | the element an architect declared, and why it matters |
+| [specs/DEC-0001-money-is-integer-cents.md](specs/DEC-0001-money-is-integer-cents.md) | a decision: what was chosen over what, and why |
 | [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp/steps` |
 | [src/pricing.ts](src/pricing.ts), [src/cart.ts](src/cart.ts) | code linked to the graph with typed `annotate()` calls from `sdp/annotations` |
 | [.sdp/ids.d.ts](.sdp/ids.d.ts) | the ids those calls accept, written by `sdp types`, so a mistyped id fails `tsc` |

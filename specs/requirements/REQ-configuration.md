@@ -167,7 +167,7 @@ Scenario: kinds.architectural says which kinds are the architecture
     """
     vocabulary: { kinds: { architectural: [component] } }
     """
-  And a file "docs/model.md" containing:
+  And a file "specs/model.md" containing:
     """
     ---
     id: MODEL
@@ -175,7 +175,7 @@ Scenario: kinds.architectural says which kinds are the architecture
     nodes:
       - { id: CMP-orders, kind: component, links: { decided-by: DEC-1 } }
       - { id: ARCH-legacy, kind: element }
-      - { id: DEC-1, kind: decision, status: accepted }
+      - { id: DEC-1, kind: decision }
     ---
     # Model
     """
@@ -188,7 +188,7 @@ Scenario: kinds.driver says what is shown next to the architecture
     """
     vocabulary: { kinds: { driver: [decision, nfr, risk] } }
     """
-  And a file "docs/model.md" containing:
+  And a file "specs/model.md" containing:
     """
     ---
     id: MODEL
@@ -207,7 +207,7 @@ Scenario: kinds.decision gives a team's own word for decisions the shape of one
     """
     vocabulary: { kinds: { decision: [adr], driver: [adr, nfr] } }
     """
-  And a file "docs/ADR-1.md" containing:
+  And a file "specs/ADR-1.md" containing:
     """
     ---
     id: ADR-1
@@ -284,7 +284,7 @@ Scenario: attributes.met names the key a milestone is recorded as met with
     """
     vocabulary: { attributes: { met: reached } }
     """
-  And a file "docs/MS-launch.md" containing:
+  And a file "specs/MS-launch.md" containing:
     """
     ---
     id: MS-launch
@@ -297,7 +297,7 @@ Scenario: attributes.met names the key a milestone is recorded as met with
     ```
     """
   When I run "sdp gate MS-launch --record"
-  Then the file "docs/MS-launch.md" contains "reached: 20"
+  Then the file "specs/MS-launch.md" contains "reached: 20"
   When I run "sdp status"
   Then the output contains "milestones    met 1"
 
@@ -315,7 +315,7 @@ Scenario: links names keys of the workspace's own that link
     ---
     # Catalogue
     """
-  And a file "docs/ARCH-index.md" containing:
+  And a file "specs/ARCH-index.md" containing:
     """
     ---
     id: ARCH-index
@@ -415,7 +415,7 @@ Scenario: A malformed configuration names the file and the key
 Scenario: A misspelled key is an error, not a silent default
   Given a file "sdp.config.yaml" containing:
     """
-    spec: ["docs/**/*.md"]
+    spec: ["specs/**/*.md"]
     """
   Then loading the workspace fails with "sdp.config.yaml"
   And loading the workspace fails with 'excess property'

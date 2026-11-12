@@ -72,7 +72,7 @@ Scenario Outline: A node declared inline or in code has only a title, so it can 
 
   Examples:
     | file            | content                                                                                     | id         |
-    | docs/backlog.md | ---\nid: BACKLOG\nnodes:\n  - { id: REQ-export, kind: requirement, maturity: ready }\n---\n# Backlog | REQ-export |
+    | specs/backlog.md | ---\nid: BACKLOG\nnodes:\n  - { id: REQ-export, kind: requirement, maturity: ready }\n---\n# Backlog | REQ-export |
     | src/pay.py      | # @sdp is REQ-pay kind=requirement maturity=ready\ndef pay(): pass                            | REQ-pay    |
 
 Scenario: Content ahead of its label is not wrong, only worth knowing: an info says it can be promoted
@@ -97,7 +97,7 @@ Scenario: Content ahead of its label is not wrong, only worth knowing: an info s
   And the "maturity-promotable" diagnostic has severity "info"
 
 Scenario Outline: A team's Definition of Ready is a gate of its own
-  Given a file "docs/POL-definition-of-ready.md" containing:
+  Given a file "specs/POL-definition-of-ready.md" containing:
     """
     ---
     id: POL-definition-of-ready
@@ -108,23 +108,26 @@ Scenario Outline: A team's Definition of Ready is a gate of its own
 
     ```gherkin
     @gate
-    Scenario: Ready requirements rest on accepted decisions and a review
-      Then the query "requirement[maturity=ready] ?-decided-by-> decision[status!=accepted]" returns no results
+    Scenario: A ready requirement is reviewed, and what it depends on is ready too
+      Then the query "requirement[maturity=ready] ?-depends-on-> requirement[maturity<ready]" returns no results
       And the query "requirement[maturity=ready, !reviewed-by]" returns no results
     ```
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/REQ-reports.md" containing:
     """
     ---
-    id: DEC-0001
-    kind: decision
-    status: <decision>
+    id: REQ-reports
+    maturity: <dependency>
+    reviewed-by: analysts
     ---
-    # CSV, not spreadsheets
+    # Reports
 
-    ## Decision
+    Analysts see what was sold.
 
-    Reports export as CSV.
+    ```gherkin
+    Scenario: Sales by day
+      Then the report has one row per day
+    ```
     """
   And a file "specs/REQ-csv.md" containing:
     """
@@ -133,7 +136,7 @@ Scenario Outline: A team's Definition of Ready is a gate of its own
     maturity: ready
     <review>
     links:
-      decided-by: DEC-0001
+      depends-on: REQ-reports
     ---
     # Export to CSV
 
@@ -151,10 +154,10 @@ Scenario Outline: A team's Definition of Ready is a gate of its own
   Then the exit code is <exit code>
 
   Examples:
-    | decision | review                | exit code |
-    | proposed | reviewed-by: analysts | 1         |
-    | accepted |                       | 1         |
-    | accepted | reviewed-by: analysts | 0         |
+    | dependency | review                | exit code |
+    | draft      | reviewed-by: analysts | 1         |
+    | ready      |                       | 1         |
+    | ready      | reviewed-by: analysts | 0         |
 
 Scenario: A level a team adds has no built-in criteria, and takes its place in the order
   Given a file "sdp.config.yaml" containing:
@@ -207,7 +210,7 @@ Scenario Outline: Stage is the declared maturity until scenarios say more, and o
     | maturity: verified  | something else   | passes  | undefined   |
 
 Scenario: Every report counts stages the same way, and failing ranks with in-progress
-  Given a file "docs/plan.md" containing:
+  Given a file "specs/plan.md" containing:
     """
     ---
     id: PLAN
@@ -243,22 +246,16 @@ Scenario: Every report counts stages the same way, and failing ranks with in-pro
 
     Something to import.
     """
-  And a file "docs/DEC-1.md" containing:
+  And a file "specs/NFR-fast.md" containing:
     """
     ---
-    id: DEC-1
-    kind: decision
-    status: accepted
+    id: NFR-fast
     iteration: I1
     ---
-    # Files are CSV
-
-    ## Decision
-
-    Every export is CSV.
+    # Exports are fast
 
     ```gherkin
-    Scenario: The decision holds
+    Scenario: A report exports within a second
       Then the guard holds
     ```
     """
@@ -268,7 +265,7 @@ Scenario: Every report counts stages the same way, and failing ranks with in-pro
   Then sdp status counts the stages "draft:1 failing:1 verified:1"
   And the lifecycle evidence of "I1" counts the stages "draft:1 failing:1 verified:1"
   When I query "*[stage>ready]"
-  Then the result is "DEC-1, REQ-a"
+  Then the result is "NFR-fast, REQ-a"
   When I query "*[stage<verified]"
   Then the result is "REQ-a, REQ-b"
   When I query "*[stage=in-progress]"

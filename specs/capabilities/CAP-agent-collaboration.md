@@ -27,11 +27,10 @@ Scenario: An MCP client and the command line get the same answer, with the file 
     ---
     # Checkout
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/DEC-0001.md" containing:
     """
     ---
     id: DEC-0001
-    status: proposed
     ---
     # Pay without an account
     """

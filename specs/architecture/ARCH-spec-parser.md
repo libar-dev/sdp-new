@@ -101,7 +101,6 @@ Scenario: Front matter with a kind but no id is plainly meant as a spec, and is 
     """
     ---
     kind: decision
-    status: accepted
     ---
     # Cache product pages
     """

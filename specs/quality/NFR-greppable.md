@@ -38,7 +38,7 @@ Scenario: The export keeps one fact per line, whatever the text
     ---
     Alpha comes first.
     """
-  And a file "docs/ARCH-x.md" containing:
+  And a file "specs/ARCH-x.md" containing:
     """
     ---
     id: ARCH-x

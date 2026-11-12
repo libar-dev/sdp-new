@@ -24,7 +24,7 @@ nodes where they write — in front matter, in prose, in code — and every node
 
 ~~~gherkin
 Scenario: Kinds and relations are named by their author
-  Given a file "docs/ARCH-orders.md" containing:
+  Given a file "specs/ARCH-orders.md" containing:
     """
     ---
     id: ARCH-orders
@@ -35,7 +35,7 @@ Scenario: Kinds and relations are named by their author
     ---
     # Orders
     """
-  And a file "docs/ARCH-event-bus.md" containing:
+  And a file "specs/ARCH-event-bus.md" containing:
     """
     ---
     id: ARCH-event-bus
@@ -43,12 +43,10 @@ Scenario: Kinds and relations are named by their author
     ---
     # Event bus
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/DEC-0001.md" containing:
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
     # Events over calls
     """
@@ -70,7 +68,7 @@ Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] lin
 
     realized-by:: [[ARCH-orders]]
     """
-  And a file "docs/ARCH-orders.md" containing:
+  And a file "specs/ARCH-orders.md" containing:
     """
     ---
     id: ARCH-orders
@@ -78,12 +76,10 @@ Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] lin
     ---
     # Orders
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/DEC-0001.md" containing:
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
     # Refund policy
     """
@@ -92,7 +88,7 @@ Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] lin
   And there is an edge "REQ-refunds" -realized-by-> "ARCH-orders"
 
 Scenario Outline: A link reads the same whichever way it is written, as an edge and as an attribute of the node it starts from
-  Given a file "docs/plan.md" containing:
+  Given a file "specs/plan.md" containing:
     """
     ---
     id: PLAN

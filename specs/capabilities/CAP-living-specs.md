@@ -34,7 +34,7 @@ Scenario: A milestone is met by what ran, not by a status or a date
       Then I see 1 product
     ```
     """
-  And a file "docs/MS-beta.md" containing:
+  And a file "specs/MS-beta.md" containing:
     """
     ---
     id: MS-beta

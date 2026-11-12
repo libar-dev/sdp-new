@@ -32,8 +32,8 @@ Background:
       - { id: ARCH-orders, kind: element, title: Orders, links: { decided-by: DEC-1, instance-of: PAT-outbox, constrained-by: NFR-latency } }
       - { id: ARCH-mailer, kind: element, title: Mailer }
       - { id: PAT-outbox, kind: pattern, title: Transactional outbox }
-      - { id: DEC-1, kind: decision, title: Orders publish events through an outbox, status: accepted }
-      - { id: DEC-2, kind: decision, title: Logs are JSON, status: accepted }
+      - { id: DEC-1, kind: decision, title: Orders publish events through an outbox }
+      - { id: DEC-2, kind: decision, title: Logs are JSON }
       - { id: NFR-latency, kind: nfr, title: Checkout latency }
       - { id: REQ-receipts, kind: requirement, maturity: idea, links: { realized-by: [ARCH-orders, ARCH-mailer] } }
     ---

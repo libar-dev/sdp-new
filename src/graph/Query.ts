@@ -47,7 +47,7 @@ examples
   requirement[maturity<ready]
   requirement -realized-by-> element
   element !-*- decision
-  element -decided-by-> decision[status=proposed]
+  milestone[!met]
   #DEC-0002 <-*- *
   scenario[status=failed] -verifies-> *`
 

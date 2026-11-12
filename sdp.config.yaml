@@ -1,5 +1,5 @@
 # sdp specifies itself; every key is described in specs/requirements/REQ-configuration.md.
-specs: ["*.md", "specs/**/*.md", "docs/**/*.md"]
+specs: ["*.md", "specs/**/*.md"]
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]

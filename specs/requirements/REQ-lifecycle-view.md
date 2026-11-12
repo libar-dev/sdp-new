@@ -75,7 +75,7 @@ Background:
     ---
     # Alpha
     """
-  And a file "docs/ARCH-x.md" containing:
+  And a file "specs/ARCH-x.md" containing:
     """
     ---
     id: ARCH-x
@@ -302,7 +302,7 @@ Scenario: Only nodes with a maturity can be unplanned
     ---
     # Later
     """
-  And a file "docs/ARCH-cache.md" containing:
+  And a file "specs/ARCH-cache.md" containing:
     """
     ---
     id: ARCH-cache

@@ -212,8 +212,8 @@ Scenario: The architecture tool returns the declared architecture and what shape
     nodes:
       - { id: ARCH-orders, kind: element, links: { decided-by: DEC-0001 } }
       - { id: ARCH-cache, kind: element }
-      - { id: DEC-0001, kind: decision, status: accepted }
-      - { id: DEC-0002, kind: decision, status: accepted }
+      - { id: DEC-0001, kind: decision }
+      - { id: DEC-0002, kind: decision }
     ---
     # Architecture
     """

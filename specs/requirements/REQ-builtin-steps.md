@@ -41,7 +41,7 @@ Background:
 
     Shoppers find products by name.
     """
-  And a file "docs/ARCH-index.md" containing:
+  And a file "specs/ARCH-index.md" containing:
     """
     ---
     id: ARCH-index
@@ -51,7 +51,7 @@ Background:
     ---
     # Search index
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/DEC-0001.md" containing:
     """
     ---
     id: DEC-0001
@@ -101,7 +101,7 @@ Scenario Outline: A built-in step that fails says why: what it expected and wher
     | the query "requirement" returns no results                  | REQ-search (requirement) specs/REQ-search.md:1   |
     | the query "element" returns at least 2 results              | returned 1 result(s), expected at least 2        |
     | the query "requirement\|element" returns at most 1 result   | returned 2 result(s), expected at most 1         |
-    | every node matching "element" also matches "*[maturity]"    | ARCH-index (element) docs/ARCH-index.md:1        |
+    | every node matching "element" also matches "*[maturity]"    | ARCH-index (element) specs/ARCH-index.md:1        |
     | there are no warning diagnostics                            | [decision-shape] DEC-0001                        |
     | there are no diagnostics for rule "decision-shape"          | DEC-0001 has a section ("Options")               |
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |

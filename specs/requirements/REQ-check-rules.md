@@ -44,25 +44,25 @@ Scenario Outline: Each rule reports its problem with its severity, at the line t
     | rule                | severity | file             | line | front matter                                         | body                                                                                  |
     | front-matter        | error    | specs/REQ-a.md   | 2    | { id: REQ-a                                          |                                                                                       |
     | missing-id          | error    | specs/REQ-a.md   | 1    | { kind: requirement }                                |                                                                                       |
-    | duplicate-id        | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [{ id: I1 }, { id: I1 }] }        |                                                                                       |
+    | duplicate-id        | error    | specs/PLAN.md     | 2    | { id: PLAN, nodes: [{ id: I1 }, { id: I1 }] }        |                                                                                       |
     | dangling-link       | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: { depends-on: REQ-gone } }       |                                                                                       |
     | link-syntax         | error    | specs/REQ-a.md   | 2    | { id: REQ-a, links: [REQ-b] }                        |                                                                                       |
     | link-conflict       | warning  | specs/REQ-a.md   | 5    | id: REQ-a\nlinks:\n  iteration: { to: REQ-a, by: x }\niteration: { to: REQ-a, by: y } |                                                         |
     | derived-attribute   | error    | specs/REQ-a.md   | 3    | id: REQ-a\nverification: passing                     |                                                                                       |
-    | inline-node         | error    | docs/PLAN.md     | 2    | { id: PLAN, nodes: [inception] }                     |                                                                                       |
+    | inline-node         | error    | specs/PLAN.md     | 2    | { id: PLAN, nodes: [inception] }                     |                                                                                       |
     | gherkin-syntax      | error    | specs/REQ-a.md   | 10   | { id: REQ-a }                                        | ```gherkin\nScenario: Rows\n  Given the rows:\n    \| a \| b \|\n    \| c \|\n```     |
     | scenario-empty      | warning  | specs/REQ-a.md   | 7    | { id: REQ-a }                                        | ```gherkin\nScenario: Nothing yet\n```                                                |
     | maturity-value      | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: someday }                     |                                                                                       |
     | maturity-criteria       | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: specified }                   | Analysts export reports.                                                              |
     | maturity-promotable | info     | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: draft }                       | Analysts export reports.\n\n```gherkin\nScenario: Export\n  Then a file is saved\n``` |
-    | decision-shape      | warning  | docs/DEC-0001.md | 8    | { id: DEC-0001 }                                     | Not monthly, because feedback is late.\n\n## Consequences                           |
+    | decision-shape      | warning  | specs/DEC-0001.md | 8    | { id: DEC-0001 }                                     | Not monthly, because feedback is late.\n\n## Consequences                           |
     | plan-reference      | warning  | specs/REQ-a.md   | 3    | id: REQ-a\niteration: REQ-a                          |                                                                                       |
-    | milestone-met       | warning  | docs/MS-beta.md  | 3    | id: MS-beta\nmet: soon                               |                                                                                       |
+    | milestone-met       | warning  | specs/MS-beta.md  | 3    | id: MS-beta\nmet: soon                               |                                                                                       |
     | annotation-ignored  | warning  | src/cart.py      | 6    |                                                      | total = 0  # @sdp implements REQ-a                                                    |
-    | template-placeholder | warning | docs/DEC-0001.md | 6    | { id: DEC-0001 }                                     | Not <what a reasonable person would have chosen>, because <why>.                      |
+    | template-placeholder | warning | specs/DEC-0001.md | 6    | { id: DEC-0001 }                                     | Not <what a reasonable person would have chosen>, because <why>.                      |
 
 Scenario Outline: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
-  Given a file "docs/PLAN.md" containing:
+  Given a file "specs/PLAN.md" containing:
     """
     ---
     id: PLAN
@@ -95,7 +95,7 @@ Scenario Outline: A plan names declared iterations, phases and disciplines, and 
     | kind: risk\niteration: E1                        | kind risk belongs to no discipline                       |
 
 Scenario: A plan that names what it declares is clean
-  Given a file "docs/PLAN.md" containing:
+  Given a file "specs/PLAN.md" containing:
     """
     ---
     id: PLAN

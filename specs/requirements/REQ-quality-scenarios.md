@@ -24,7 +24,7 @@ fitness functions that run with every `sdp run`.
 
 ~~~gherkin
 Scenario Outline: A quality requirement is a node of kind nfr, or of any kind whose type says so, and is shown next to the elements it constrains
-  Given a file "docs/model.md" containing:
+  Given a file "specs/model.md" containing:
     """
     ---
     id: MODEL
