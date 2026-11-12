@@ -114,7 +114,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     if (joined) groups.at(-1)!.push(comment)
     else groups.push([comment])
   }
-  const firstCode = program.body[0]?.start ?? content.length
+  const firstCode = program.body[0] === undefined ? content.length : leadingStart(program.body[0])
   const shaped = shapes(content, script)
   for (const group of groups) {
     const tags = group.flatMap((comment) =>
@@ -126,9 +126,9 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     )
     if (tags.length === 0) continue
     const end = group.at(-1)!.end
-    const next = program.body.find((statement) => statement.start >= end)
+    const next = program.body.find((statement) => leadingStart(statement) >= end)
     const doc = description(group.map((comment) => comment.value))
-    const declared = next && /^[ \t]*\r?\n?[ \t]*$/.test(content.slice(end, next.start)) ? declaredName(next) : undefined
+    const declared = next && /^[ \t]*\r?\n?[ \t]*$/.test(content.slice(end, leadingStart(next))) ? declaredName(next) : undefined
     const shape = declared === undefined ? undefined : shaped.of(next!)
     const target: Target | undefined = declared !== undefined
       ? { symbol: declared, symbolLine: lineOf(next!.start), doc, shape: shape?.text, returnType: shape?.returnType }
@@ -151,6 +151,13 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     }
   }
   return { annotations, ignored }
+}
+
+/** Where a module-level statement starts, its decorators included: `@sealed()` above `export class` is part of the class. */
+const leadingStart = (statement: Node): number => {
+  const declared = isNode(statement.declaration) ? statement.declaration : statement
+  const decorators = [...(Array.isArray(statement.decorators) ? statement.decorators : []), ...(Array.isArray(declared.decorators) ? declared.decorators : [])]
+  return Math.min(statement.start, ...decorators.filter(isNode).map((decorator) => decorator.start))
 }
 
 const nonEmpty = <A>(list: ReadonlyArray<A>): ReadonlyArray<A> | undefined => list.length > 0 ? list : undefined

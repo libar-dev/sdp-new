@@ -184,6 +184,28 @@ Feature: Link code to specs
         | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
         | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
 
+    Scenario Outline: A decorated declaration, <placed>
+      Given a file "src/pay.ts" containing:
+        """
+        <before>/**
+         * Charges the card on file.
+         *
+         * @sdp implements pay
+         */
+        <declaration>
+        """
+      When the workspace is loaded
+      Then the workspace graph has edges:
+        | from                    | rel        | to  | source            |
+        | code:src/pay.ts#Payment | implements | pay | src/pay.ts:<line> |
+      And sdp reports nothing
+
+      Examples:
+        | placed                     | before                                    | declaration                         | line |
+        | first in the file          |                                           | @sealed()\nexport class Payment {}  | 4    |
+        | after an import            | import { sealed } from "./sealed.ts"\n\n | @sealed()\nexport class Payment {}  | 6    |
+        | its decorator after export | import { sealed } from "./sealed.ts"\n\n | export @sealed() class Payment {}   | 6    |
+
     Scenario Outline: A tag in a comment that documents no module-level declaration and opens no file links nothing, and is reported
       Given a file "src/items.ts" containing:
         """
