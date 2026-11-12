@@ -215,7 +215,8 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     .sort((a, b) => firstOf(a, position) - firstOf(b, position) || a.node.id.localeCompare(b.node.id))
 
   // A milestone ends the timeline at the last iteration of what it closes; one that closes
-  // nothing on the timeline comes after the others.
+  // nothing on the timeline comes after the others, beyond the last iteration.
+  const beyond = iterations.length
   const closing = graph.ofKind(vocabulary.kinds.milestone).map((node) => {
     const closes = target(node, "closes")
     const iteration = closes && position.has(closes.id) ? closes : undefined
@@ -225,7 +226,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
       node,
       closes,
       phase: iteration ? phaseOf(iteration) : closed?.node,
-      at: last ? position.get(last.id)! : Infinity,
+      at: last ? position.get(last.id)! : beyond,
       // Where an iteration and its phase end on the same day, the iteration's milestone comes first.
       rank: iteration ? 0 : 1
     }
@@ -233,8 +234,8 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 
   let covered = -1
   const milestones = closing.map(({ at, closes, node, phase }): MilestoneReport => {
-    const stretch = Number.isFinite(at) ? iterations.slice(covered + 1, at + 1) : []
-    if (Number.isFinite(at)) covered = Math.max(covered, at)
+    const stretch = at < beyond ? iterations.slice(covered + 1, at + 1) : []
+    if (at < beyond) covered = Math.max(covered, at)
     return {
       node,
       closes,
@@ -275,10 +276,19 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
 }
 annotate(lifecycle, { is: "ARCH-lifecycle" })
 
+/**
+ * The milestones dated before this one that are not met. The timeline says they come first; of
+ * milestones without a date, or with the same one, it says nothing.
+ */
+export const unmetBefore = (report: LifecycleReport, milestone: MilestoneReport): ReadonlyArray<MilestoneReport> =>
+  report.milestones.filter((other) =>
+    other.met === undefined && other.planned !== undefined && milestone.planned !== undefined && other.planned < milestone.planned
+  )
+
 /** Where a phase begins on the timeline; one without iterations comes last. */
 const firstOf = (phase: PhaseReport, position: ReadonlyMap<string, number>) => {
   const [first] = phase.iterations
-  return first ? position.get(first.node.id)! : Infinity
+  return first ? position.get(first.node.id)! : position.size
 }
 
 const shades = [" ", "░", "▒", "▓", "█"]

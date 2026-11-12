@@ -1,7 +1,7 @@
 /**
  * Step definitions for the model the rest of sdp stands on: the vocabulary
  * profile and the guard that keeps the words sdp interprets in it
- * (DEC-0002, ARCH-vocabulary), the immutable graph (ARCH-graph), and how
+ * (ARCH-vocabulary), the immutable graph (ARCH-graph), and how
  * reports count stages (REQ-maturity-criteria).
  */
 import { Effect } from "effect"
@@ -117,7 +117,7 @@ const builtGraph = (world: World) => {
 }
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
-  // --- the vocabulary guard (DEC-0002) --------------------------------------
+  // --- the vocabulary guard (ARCH-vocabulary) -------------------------------
 
   When("the TypeScript files under {string} are searched for interpreted words", ({ args: [directory], world }) =>
     search(world, [...world.files].filter(([file]) => file.startsWith(`${directory}/`) && file.endsWith(".ts"))))

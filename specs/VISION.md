@@ -40,9 +40,8 @@ architects declared, connected to the decisions and evidence behind it.
 
 ## Principles and capabilities
 
-What sdp holds to are the decisions this vision names as its principles, and three capabilities
-refine it into requirements: `sdp q '#VISION -principle-> decision'`,
-`sdp q 'capability -refines-> #VISION'`.
+The principles are the decisions this vision links to, and three capabilities refine it:
+`sdp q '#VISION -principle-> decision'`, `sdp q 'capability -refines-> #VISION'`.
 
 ~~~gherkin
 Scenario: Every decision is one that something rests on

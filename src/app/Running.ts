@@ -13,7 +13,7 @@ import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
 import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
 import type { Project } from "../graph/Build.ts"
-import { lifecycle } from "../lifecycle/Lifecycle.ts"
+import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { problemLine } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
@@ -243,13 +243,13 @@ export interface GateReport extends RunReport {
 /** Why a milestone cannot be recorded as met whatever its gate says, or `undefined` when it can. */
 const unrecordable = (project: Project, spec: Spec): string | undefined => {
   const vocabulary = project.config.vocabulary
-  const { milestones } = lifecycle(project)
-  const at = milestones.findIndex((milestone) => milestone.node.id === spec.id)
-  const earlier = milestones.slice(0, Math.max(at, 0)).find((milestone) => milestone.met === undefined)
+  const plan = lifecycle(project)
+  const milestone = plan.milestones.find((candidate) => candidate.node.id === spec.id)
+  const [earlier] = milestone ? unmetBefore(plan, milestone) : []
   return !hasKind(vocabulary, "milestone", spec.kind)
     ? `${spec.id} is a ${spec.kind}: only a ${vocabulary.kinds.milestone.join(" or ")} is recorded as met`
     : earlier
-    ? `${spec.id} cannot be met before ${earlier.node.id}, which comes before it and is not met`
+    ? `${spec.id} cannot be met before ${earlier.node.id}, which is dated before it and is not met`
     : spec.format !== "markdown"
     ? `${spec.file} is not a Markdown spec: write the tag @${vocabulary.attributes.met}:<date> there yourself`
     : undefined

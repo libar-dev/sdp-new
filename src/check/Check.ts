@@ -30,7 +30,7 @@ import {
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
-import { declaredActivity, lifecycle } from "../lifecycle/Lifecycle.ts"
+import { declaredActivity, lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import type { OpenQuestion } from "../parse/Markdown.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
@@ -200,27 +200,28 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }))
   }
 
-  // Met is a date, and the milestones are met in the order of the timeline: where the project is
-  // is the first that is not.
+  // Met is a date, and milestones are met in the order of their dates: where the project is is
+  // the first that is not.
   const metKey = vocabulary.attributes.met
-  const { milestones, next } = lifecycle(project)
-  const nextAt = next === undefined ? Infinity : milestones.indexOf(next)
-  milestones.forEach(({ met, node }, index) => {
+  const plan = lifecycle(project)
+  for (const milestone of plan.milestones) {
+    const { met, node } = milestone
     const written = attribute(node, metKey)
-    if (written === undefined) return
+    if (written === undefined) continue
+    const [earlier] = unmetBefore(plan, milestone)
     const problem = met === undefined
       ? {
         message: `${node.id}: ${metKey} is ${JSON.stringify(written)}, which is not a date, so it records nothing`,
         hint: `write \`${metKey}: YYYY-MM-DD\`, or let \`sdp gate ${node.id} --record\` write it when the gate passes`
       }
-      : index > nextAt
+      : earlier
       ? {
-        message: `${node.id} is met, but ${next!.node.id}, which comes before it, is not`,
-        hint: `record ${next!.node.id} first, or delete \`${metKey}\` from ${node.id}`
+        message: `${node.id} is met, but ${earlier.node.id}, which is dated before it, is not`,
+        hint: `record ${earlier.node.id} first, or delete \`${metKey}\` from ${node.id}`
       }
       : undefined
     if (problem) out.push(diagnostic("milestone-met", { ...problem, node: node.id, source: writtenAt(node, metKey) }))
-  })
+  }
 
   // Plans: what a plan, phase or closing relation names must be an iteration or a phase (a target
   // that does not exist at all is a dangling link), and `activity:` must map disciplines to iterations.

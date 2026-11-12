@@ -60,6 +60,11 @@ Background:
     closes: PH-elaboration
     ---
     # Lifecycle architecture
+
+    ```gherkin
+    Scenario: There is an architecture
+      Then the query "element" returns at least 1 result
+    ```
     """
   And a file "specs/REQ-a.md" containing:
     """
@@ -225,7 +230,18 @@ Scenario: A timeline needs no phases, and a milestone nothing but what it closes
   And the output line with "MS-LCA" contains "2026-02-13"
   And the output line with "no milestone" contains "E2*"
 
-Scenario: A milestone met before an earlier one is reported
+Scenario: Milestones are met in the order of their dates
+  When I run "sdp gate MS-LCA --record"
+  Then the exit code is 1
+  And the output contains "MS-LCA cannot be met before MS-LCO"
+  When I run "sdp gate MS-LCO --record"
+  Then the exit code is 0
+  When I run "sdp gate MS-LCA --record"
+  Then the exit code is 0
+  When I run "sdp q milestone[met] --ids"
+  Then the output lines are "MS-LCA, MS-LCO"
+
+Scenario: A milestone written as met before one dated earlier is reported
   Given a file "MS-LCA.md" containing:
     """
     ---

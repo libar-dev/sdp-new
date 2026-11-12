@@ -172,7 +172,7 @@ const handlers = (root: string) =>
 export const registrations = (root: string) => McpServer.toolkit(SdpToolkit).pipe(Layer.provide(handlers(root)))
 
 export const instructions = [
-  "sdp exposes a software delivery graph: specs (requirements, quality requirements, ideas) at any maturity, decision records, curated architecture (the elements and patterns architects declared), lifecycle (milestones, iterations, phases), scenarios with execution status, and the code anchored to the architecture.",
+  "sdp exposes a software delivery graph: specs (requirements, quality requirements, ideas) at any maturity, decisions, curated architecture (the elements and patterns architects declared), lifecycle (milestones, iterations, phases), scenarios with execution status, and the code anchored to the architecture.",
   "Start with sdp_status, then sdp_query; use sdp_context before working on a spec, sdp_snippets to automate its scenarios and sdp_steps to find a step definition to extend.",
   "An answer that starts with \"incomplete:\" was given from a workspace sdp could not fully read: its notes say what is missing, so do not conclude that something is absent.",
   "Code links to the architecture, not to requirements. TypeScript and JavaScript say which code an element is with a typed call, `annotate(Orders, { is: \"ARCH-orders\" })` imported from \"sdp/annotations\", whose ids the compiler checks once `sdp types` has run; other languages use a comment line, `// @sdp is ARCH-orders`. A requirement names its element with `realized-by`, so the way from a requirement to its code is `requirement -realized-by-> element <-is- code`.",

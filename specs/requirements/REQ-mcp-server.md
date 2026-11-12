@@ -24,7 +24,7 @@ make of a workspace that cannot be fully read.
 
 | Tool | Arguments | Answers with |
 | --- | --- | --- |
-| `sdp_status` | — | summary counts: kinds, relations, stages, decision statuses, scenario results, nodes of an architectural kind, diagnostics |
+| `sdp_status` | — | summary counts: kinds, relations, stages, scenario and gate results, milestones met and open, nodes of an architectural kind, diagnostics |
 | `sdp_query` | `expression`, optional `paths` | the nodes the pattern leads to, one per line (id, kind, status or stage, title, `file:line`, separated by tabs), or the paths that led to them ([[REQ-graph-query]]) |
 | `sdp_show` | `id` | the node with its attributes and its outgoing and incoming edges |
 | `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle, as Markdown ([[REQ-agent-context]]) |

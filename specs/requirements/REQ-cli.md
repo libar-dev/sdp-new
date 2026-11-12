@@ -729,7 +729,7 @@ Scenario: arch --mermaid draws it
 
 ### `sdp vocabulary`
 
-The words sdp interprets — kinds, relations, attributes, statuses, the maturity ladder and the
+The words sdp interprets — kinds, relations, attributes, the maturity ladder and the
 disciplines — as the workspace configures them, one role per line, and then the words sdp makes
 itself, which no workspace configures: the kinds of its own nodes, the attributes it derives, the
 stages beyond the ladder and the names no link can have. With `--json`, `data.vocabulary` is the
@@ -1081,7 +1081,7 @@ Scenario: gate --record records nothing while the gate does not pass
   And the output contains "MS-beta is not recorded as met"
   And the file "docs/MS-beta.md" does not contain "met:"
 
-Scenario: gate --record writes met into a milestone whose gate passes, in the order of the timeline
+Scenario: gate --record writes met into a milestone whose gate passes, and the next one is where the project is
   Given a file "docs/MS-alpha.md" containing:
     """
     ---
@@ -1095,9 +1095,6 @@ Scenario: gate --record writes met into a milestone whose gate passes, in the or
       Then the query "plan" returns 1 result
     ```
     """
-  When I run "sdp gate MS-beta --record"
-  Then the exit code is 1
-  And the output contains "MS-beta cannot be met before MS-alpha"
   When I run "sdp gate MS-alpha --record"
   Then the exit code is 0
   And the file "docs/MS-alpha.md" contains "met: 20"
