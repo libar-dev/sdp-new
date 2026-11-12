@@ -124,13 +124,18 @@ export const gitRevisions = Layer.effect(
       if (commit === undefined) return yield* missing(`${command} found no commit`)
       const at = commit.slice(0, 7)
 
-      // The workspace is the directory `prefix` names in its repository.
+      // The workspace is the directory `prefix` names in its repository, whose top is `cdup` above it.
       const prefix = pathOf(yield* inWorkspace(["rev-parse", "--show-prefix"]))
-      if (prefix === undefined) return yield* missing("git could not say where this workspace is in its repository")
+      const cdup = pathOf(yield* inWorkspace(["rev-parse", "--show-cdup"]))
+      if (prefix === undefined || cdup === undefined) return yield* missing("git could not say where this workspace is in its repository")
       const workspace = prefix.replace(/\/$/, "")
       const fromTop = (path: string) => workspace === "" ? path : `${workspace}/${path}`
       const fromWorkspace = (path: string) => path.startsWith(prefix) ? path.slice(prefix.length) : path
-      const committed = commitFiles((repository, args, input) => git(repository, args, input, env), { mode: tree, object: commit, repository: root })
+      const committed = commitFiles(
+        (repository, args, input) => git(repository, args, input, env),
+        { mode: tree, object: commit, repository: root },
+        `${root}/${cdup}`
+      )
       return yield* Effect.gen(function*() {
         // The base is read as it was configured — its features globs, its exclusions and its vocabulary —
         // from the first configuration file it has, as on disk. One that is a link to no file git holds
@@ -177,7 +182,6 @@ export const gitRevisions = Layer.effect(
 const tree = "040000"
 const symbolicLink = "120000"
 const submodule = "160000"
-const inSubmodule = "a submodule, whose files are another repository's"
 
 /** A path from the root of a file system, not from the top of the repository. */
 const outOfRepository = /^(\/|[A-Za-z]:\/)/
@@ -235,16 +239,18 @@ const treeEntries = (out: Buffer, repository: string) =>
 /**
  * The files of a commit, `top` its tree, by their path from the top of the repository, as a file
  * system the workspace's walk (`findFiles`) finds specs in as it finds them on disk: a symbolic link
- * leads where its target does. A directory is listed from git when a path first goes through it, and
- * with all below it when the walk reads it, the targets of its links with it: reading the base costs
- * what its globs reach, not the size of the repository.
+ * leads where its target does, and a submodule checked out in `checkout`, the top of the working tree,
+ * holds the files of the commit the tree records for it, read from its own repository. A directory is
+ * listed from git when a path first goes through it, and with all below it when the walk reads it, the
+ * targets of its links with it: reading the base costs what its globs reach, not the size of the
+ * repository.
  *
  * What the walk reads there that the commit cannot say — a directory it lists, or a file it accepts,
- * out of the repository, through a link in a circle, in a submodule, or by a name the tree has only
- * in another case — is recorded in `unread`. A link it only passes over is not: on disk as here, `**`
+ * out of the repository, through a link in a circle, in a submodule that is not checked out here, or
+ * by a name the tree has only in another case — is recorded in `unread`. A link it only passes over is not: on disk as here, `**`
  * follows none, so whatever it leads to is never read.
  */
-const commitFiles = (git: Git, top: Entry) => {
+const commitFiles = (git: Git, top: Entry, checkout: string) => {
   /** Each directory listed so far, by its path, and those listed with all below them. */
   const listings = new Map<string, Map<string, Entry>>()
   const whole = new Set<string>()
@@ -290,13 +296,30 @@ const commitFiles = (git: Git, top: Entry) => {
   })
 
   /**
+   * The tree of the commit the submodule at `path` records, in its repository where it is checked out
+   * here; or what the submodule is when it is not, or its repository lacks that commit.
+   */
+  const opened = Effect.fnUntraced(function*(path: string, entry: Entry) {
+    const repository = `${checkout}${path}`
+    const shown = yield* git(repository, ["rev-parse", "--show-prefix"])
+    if (shown?.code !== 0 || shown.out.toString("utf8") !== "\n") {
+      return "a submodule that is not checked out here (check it out with git submodule update --init, or exclude it)"
+    }
+    const held = yield* git(repository, ["cat-file", "-e", `${entry.object}^{commit}`])
+    return held?.code === 0
+      ? { mode: tree, object: entry.object, repository }
+      : `a submodule whose repository here lacks its commit ${entry.object.slice(0, 7)} (fetch it with git submodule update, or exclude it)`
+  })
+
+  /**
    * The listing of the directory at `path`, `entry` in the tree, read when first reached — with all
    * below it if `deep` —, or what it is when the commit cannot say, or undefined when it is no directory.
    */
   const listingOf = Effect.fnUntraced(function*(path: string, entry: Entry, deep: boolean) {
     if (whole.has(path) || (!deep && listings.has(path))) return listings.get(path)!
-    if (entry.mode === submodule) return inSubmodule
-    return entry.mode === tree ? yield* list(path, entry, deep) : undefined
+    const contents = entry.mode === submodule ? yield* opened(path, entry) : entry
+    if (typeof contents === "string") return contents
+    return contents.mode === tree ? yield* list(path, contents, deep) : undefined
   })
 
   /** Where `written` leads in the tree, its links followed — the last one only if `follow`. */

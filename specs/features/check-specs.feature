@@ -668,6 +668,38 @@ Feature: Check specs
         | a configuration file sdp reads only after one | echo '# every key at its default' > sdp.config.yaml && ln -s /nowhere/sdp.config.json sdp.config.json      | 0         | true     |
         | that a features glob names                    | echo 'features: ["specs/**/*.feature", "shared/*.feature"]' > sdp.config.yaml && ln -s ../elsewhere shared | 2         | false    |
 
+    Scenario Outline: A submodule at the base, <case>
+      Given a file "lib/specs/lib.feature" containing:
+        """
+        @id=lib
+        Feature: Lib
+
+          Rule: A lib works
+
+            Scenario: It works
+              Then it works
+        """
+      When I run the pipeline:
+        """
+        cd lib && git init -q && git add -A && git -c user.name=sdp -c user.email=sdp@example.com -c commit.gpgsign=false commit -qm lib
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        <change> && sdp check --json
+        """
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | complete  | <complete> |
+        | data.node | <dropped>  |
+
+      Examples:
+        | case                                  | change                   | exit code | complete | dropped      |
+        | checked out                           | true                     | 0         | true     | nothing      |
+        | checked out, its live example deleted | rm lib/specs/lib.feature | 1         | true     | lib#it-works |
+        | not checked out                       | rm -rf lib && mkdir lib  | 2         | false    | nothing      |
+
     Scenario: A spec deleted, from a workspace whose directory's name starts with a space
       Given a file " app/sdp.config.yaml" containing:
         """
