@@ -11,15 +11,14 @@ import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
 import { architectureJson } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { relationVocabulary } from "../cli/templates.ts"
-import type { Project } from "../graph/Build.ts"
-import { type ContextSteps, contextBundle } from "../graph/Context.ts"
+import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
 import { formatPath, queryProject, querySyntax, unusedNamesNote } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
-import { makeMatcher, snippetModule, stepDefinitions, unmatchedSteps } from "../run/Match.ts"
+import { readSteps, snippetModule, unmatchedSteps } from "../run/Match.ts"
 import { loadProject } from "../workspace/Workspace.ts"
 
 annotate(import.meta, { is: "ARCH-mcp" })
@@ -123,8 +122,6 @@ const handlers = (root: string) =>
     const unreadable = (e: { readonly message: string }) =>
       new SdpToolError({ message: `could not load workspace: ${"file" in e ? `${String(e.file)}: ` : ""}${e.message}` })
     const load = loadProject(root).pipe(Effect.provide(services), Effect.mapError(unreadable))
-    // Read from the step files as they are now: nothing is imported, so nothing of the workspace runs.
-    const steps = (project: Project): ContextSteps => ({ matcher: makeMatcher(stepDefinitions(project)), files: project.steps.files })
     return SdpToolkit.of({
       sdp_query: ({ expression, paths }) =>
         Effect.flatMap(load, (project) => {
@@ -158,7 +155,7 @@ const handlers = (root: string) =>
         Effect.gen(function*() {
           const project = yield* load
           if (!project.graph.node(id)) return yield* toolError(`no node ${id}`)
-          return contextBundle(project, id, depth ?? 2, steps(project))!
+          return contextBundle(project, id, depth ?? 2, readSteps(project))!
         }),
       sdp_snippets: ({ id }) =>
         Effect.gen(function*() {
@@ -166,7 +163,7 @@ const handlers = (root: string) =>
           if (!project.graph.node(id)) return yield* toolError(`no node ${id}`)
           const spec = project.specById.get(id)
           if (!spec || spec.scenarios.length === 0) return `${id} has no scenarios`
-          const { files, matcher } = steps(project)
+          const { files, matcher, problems } = readSteps(project)
           const unmatched = unmatchedSteps(project, matcher, (_, s) => s.id === id)
           const where = files.length > 0 ? `step files: ${files.join(", ")}` : "no step files yet"
           if (unmatched.length === 0) return `every step of ${id} has exactly one definition (${where})`
@@ -179,6 +176,7 @@ const handlers = (root: string) =>
           return [
             `${id}: ${unmatched.length} step(s) without exactly one definition (${where})`,
             ...lines,
+            ...problems.map((problem) => `- not read, so possibly defined there: ${problem}`),
             ...(snippets.length > 0 ? ["", "```ts", snippetModule(snippets, files).trimEnd(), "```"] : [])
           ].join("\n")
         }),

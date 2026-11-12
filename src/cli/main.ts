@@ -20,7 +20,7 @@ import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { isGate } from "../run/Evidence.ts"
-import { makeMatcher, snippetModule, stepDefinitions } from "../run/Match.ts"
+import { listSteps, readSteps, snippetModule, stepProblems } from "../run/Match.ts"
 import type { ScenarioResult } from "../model/Results.ts"
 import { summarize } from "../run/Runner.ts"
 import { ensureReadable, runWorkspace } from "../run/Session.ts"
@@ -172,8 +172,7 @@ const contextCommand = Command.make(
     const project = yield* loadProject(yield* workspaceRoot)
     if (!project.graph.node(id)) return yield* fail(`no node ${id}`)
     // The step definitions as read from the step files show which steps are not automated yet: nothing runs.
-    const steps = { matcher: makeMatcher(stepDefinitions(project)), files: project.steps.files }
-    yield* Console.log(contextBundle(project, id, depth, steps))
+    yield* Console.log(contextBundle(project, id, depth, readSteps(project)))
   })
 ).pipe(
   Command.withDescription(
@@ -334,24 +333,12 @@ const stepsCommand = Command.make(
     json
   },
   Effect.fn(function*({ json, text }) {
-    const root = yield* workspaceRoot
-    const project = yield* loadProject(root, { withResults: false })
-    const path = yield* Path.Path
-    const all = stepDefinitions(project)
-    const wanted = Option.getOrUndefined(text)
-    const matching = new Set(wanted === undefined ? all : makeMatcher(all).match(wanted).map((match) => match.definition))
-    const steps = all
-      .filter((step) => wanted === undefined || matching.has(step) || expressionText(step.expression).toLowerCase().includes(wanted.toLowerCase()))
-      .map((step) => {
-        // Step files are relative to the workspace root already; sdp's built-in steps live in sdp.
-        const [, file = step.location, line = "0"] = /^(.*):(\d+)$/.exec(step.location) ?? []
-        const inside = path.relative(root, path.resolve(root, file))
-        const shown = inside.startsWith("..") || path.isAbsolute(inside) ? file : inside
-        return { file: shown, line: Number(line), keyword: step.keyword, expression: expressionText(step.expression) }
-      })
+    const project = yield* loadProject(yield* workspaceRoot, { withResults: false })
+    const steps = listSteps(project, Option.getOrUndefined(text))
     if (json) return yield* printJson(steps)
     for (const step of steps) yield* Console.log(`${step.file}:${step.line}\t${step.keyword}\t${step.expression}`)
     yield* Console.error(c.dim(`${steps.length} step definition(s)`))
+    for (const problem of stepProblems(project)) yield* Console.error(c.yellow(`not read: ${problem}`))
   })
 ).pipe(
   Command.withDescription(
@@ -363,8 +350,6 @@ const stepsCommand = Command.make(
     { command: "sdp steps 'the cart holds 3 items'", description: "The definition this step would run" }
   ])
 )
-
-const expressionText = (expression: string | RegExp) => typeof expression === "string" ? expression : String(expression)
 
 // --- arch / lifecycle / status ----------------------------------------------
 

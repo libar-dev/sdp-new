@@ -8,7 +8,9 @@
 import { annotate } from "sdp/annotations"
 import { CucumberExpression, CucumberExpressionGenerator, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
 import { Predicate } from "effect"
+import { isAbsolute, relative } from "node:path"
 import type { Project } from "../graph/Build.ts"
+import { formatSource } from "../model/Graph.ts"
 import type { PickleStep, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { expressionProblem, type StepSignature } from "../parse/StepDefinitions.ts"
@@ -77,6 +79,55 @@ export const stepDefinitions = (project: Project): ReadonlyArray<StepSignature> 
   ...builtinSteps.definitions,
   ...project.steps.definitions
 ]
+
+/**
+ * What the step files hold that could not be read or cannot match, one `file:line: message` each:
+ * a step that looks undefined to a reader may be one of these.
+ */
+export const stepProblems = (project: Project): ReadonlyArray<string> =>
+  project.diagnostics
+    .filter((diagnostic) => diagnostic.rule === "step-unreadable" || diagnostic.rule === "step-expression")
+    .map((diagnostic) => `${formatSource(diagnostic.source)}: ${diagnostic.message}`)
+
+/** What a reader knows of the workspace's steps without running anything: a matcher, the step files, and what could not be read. */
+export const readSteps = (project: Project) => ({
+  matcher: makeMatcher(stepDefinitions(project)),
+  files: project.steps.files,
+  problems: stepProblems(project)
+})
+
+/** A `file:line` inside the workspace, relative to its root; anywhere else (sdp's built-in steps) as it is. */
+export const locate = (root: string, location: string): string => {
+  if (!isAbsolute(location)) return location
+  const inside = relative(root, location)
+  return inside === "" || inside.startsWith("..") || isAbsolute(inside) ? location : inside
+}
+
+/** One step definition as `sdp steps` lists it. */
+export interface ListedStep {
+  readonly file: string
+  readonly line: number
+  readonly keyword: string
+  /** The Cucumber Expression, or the regular expression between slashes. */
+  readonly expression: string
+}
+
+/** The step definitions a run would know; with `text`, those whose expression contains it or that match it as a step. */
+export const listSteps = (project: Project, text?: string): ReadonlyArray<ListedStep> => {
+  const all = stepDefinitions(project)
+  const matching = new Set(text === undefined ? all : makeMatcher(all).match(text).map((match) => match.definition))
+  const mentions = (expression: string) => text !== undefined && expression.toLowerCase().includes(text.toLowerCase())
+  return all.filter((step) => matching.has(step) || mentions(String(step.expression))).map((step) => {
+    const location = locate(project.root, step.location)
+    const colon = location.lastIndexOf(":")
+    return {
+      file: location.slice(0, colon),
+      line: Number(location.slice(colon + 1)),
+      keyword: step.keyword,
+      expression: String(step.expression)
+    }
+  })
+}
 
 /** A step of a scenario that no definition matches (`undefined`), or more than one (`ambiguous`). */
 export interface UnmatchedStep {

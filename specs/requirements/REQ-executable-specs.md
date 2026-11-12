@@ -78,7 +78,10 @@ executes none of its code:
 | a registration whose expression is computed, or a step file without such a `defineSteps` call | `step-unreadable` ([[REQ-check-rules]]): only a run knows that step |
 | a Cucumber Expression that is malformed | `step-expression`, an error: `sdp run` refuses to start, naming its `file:line` |
 
-`sdp steps [text]` lists what was read, sdp's built-in steps included ([[REQ-cli]]).
+`sdp steps [text]` lists what was read, sdp's built-in steps included ([[REQ-cli]]). What could
+not be read is never passed over in silence: `sdp steps`, the context bundle and `sdp_snippets`
+name each such registration with its `file:line`, because a step they show as undefined may be
+defined there.
 
 Not supported yet: custom parameter types and Before/After hooks ([[REQ-cucumber-compatibility]]).
 
@@ -824,6 +827,7 @@ Scenario: A malformed step expression stops the run in one line that names the d
   When I run "sdp context REQ-cart"
   Then the exit code is 0
   And the output section "Scenarios" contains "undefined: Given an empty cart"
+  And the output section "Step definitions" contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}"'
 
 Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
   Given a file "specs/REQ-wishlist.md" containing:

@@ -25,7 +25,8 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
    and the `file:line` of its definition; and each step that no step definition — or more than one —
    matches, with a suggested definition. Steps are matched against the step definitions as read
    from the step files — nothing of the workspace runs — so this needs no run; the step files are
-   named, to add the definitions to;
+   named, to add the definitions to, and so is every registration in them that could not be read
+   ([[REQ-executable-specs]]), since its step would wrongly look undefined;
 6. the significant architecture within two hops (`--depth`), with the rationale for each element,
    and the patterns it applies;
 7. the quality requirements within reach, each with its measure: the outcome (`Then`) steps of its
@@ -301,4 +302,32 @@ Scenario: Steps without a definition are listed before any run, with the step fi
   And the output section "Scenarios" contains 'suggested: `When("I add a lamp", ({ world }) => pending())`'
   And the output section "Scenarios" does not contain "an empty cart"
   And the output section "Step definitions" contains "Step files: specs/steps/cart.steps.ts"
+
+Scenario: A registration that cannot be read is named, so its step is not mistaken for undefined
+  Given a file "specs/REQ-cart.md" containing:
+    """
+    ---
+    id: REQ-cart
+    ---
+    # Cart
+
+    ```gherkin
+    Scenario: Add an item
+      Given an empty cart
+    ```
+    """
+  And a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    const phrases = ["an empty cart"]
+    export default defineSteps(() => ({}), ({ Given }) => {
+      for (const phrase of phrases) Given(phrase, () => {})
+    })
+    """
+  When I run "sdp context REQ-cart"
+  Then the output section "Scenarios" contains "undefined: Given an empty cart"
+  And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: the expression of this Given definition is computed"
+  When I run "sdp steps cart"
+  Then the output contains "not read: specs/steps/cart.steps.ts:5"
 ~~~

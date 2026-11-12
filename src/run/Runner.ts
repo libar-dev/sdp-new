@@ -5,13 +5,12 @@
  */
 import { annotate } from "sdp/annotations"
 import { Cause, DateTime, Duration, Effect, Exit, Fiber, Predicate, Queue, Schema } from "effect"
-import { isAbsolute, relative } from "node:path"
 import type { Project } from "../graph/Build.ts"
 import { type ExampleResult, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "../model/Results.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { Snapshot } from "./Evidence.ts"
-import { makeMatcher } from "./Match.ts"
+import { locate, makeMatcher } from "./Match.ts"
 import type { StepContext, StepModule } from "./Steps.ts"
 
 /** Step definitions whose Cucumber Expression is malformed: nothing can be matched reliably, so nothing runs. */
@@ -56,12 +55,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
 ): Effect.fn.Return<ReadonlyArray<ScenarioResult>, InvalidStepExpressions> {
   const { against, gates = false } = options
   const { root } = options.project
-  // Inside the workspace relative to its root; anywhere else (sdp's built-in steps) absolute.
-  const where = (location: string) => {
-    if (!isAbsolute(location)) return location
-    const inside = relative(root, location)
-    return inside === "" || inside.startsWith("..") || isAbsolute(inside) ? location : inside
-  }
+  const where = (location: string) => locate(root, location)
   const matcher = makeMatcher(options.modules.flatMap((module) => module.definitions.map((definition) => ({ ...definition, module }))))
   if (matcher.invalid.length > 0) {
     return yield* new InvalidStepExpressions({

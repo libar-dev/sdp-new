@@ -22,6 +22,8 @@ export interface ContextSteps {
   readonly matcher: Matcher<StepSignature>
   /** Step definition files, relative to the workspace root. */
   readonly files: ReadonlyArray<string>
+  /** Registrations in those files that could not be read or cannot match, one `file:line: message` each. */
+  readonly problems: ReadonlyArray<string>
 }
 
 /** Everything needed to work on one node, as one Markdown document: spec, links, readiness, scenarios, curated architecture, decisions, code. */
@@ -97,6 +99,9 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
           ? `Step files: ${steps.files.join(", ")}. Modules that pass the same world factory share one world per scenario.`
           : `No step files yet (the \`steps\` globs: ${project.config.steps.join(", ")}).`,
         `\`sdp run ${id} --snippets\` prints one module with every suggested definition.`,
+        ...(steps.problems.length > 0
+          ? ["", "Not read from the step files, so a step shown as undefined may be defined there:", ...steps.problems.map((p) => `- ${p}`)]
+          : []),
         ""
       )
     }
