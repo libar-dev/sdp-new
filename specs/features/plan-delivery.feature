@@ -77,7 +77,7 @@ Feature: Plan delivery
       Then the output contains 'sdp new phase "Elaboration"'
       And the output contains 'sdp new iteration "<title>"'
       When I run "sdp -C fresh new plan 'Delivery plan'"
-      Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.feature"
+      Then the output contains "delivery-plan\tspecs/delivery/delivery-plan.feature"
       And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `@closes:PH-elaboration`'
       When I run the pipeline:
         """

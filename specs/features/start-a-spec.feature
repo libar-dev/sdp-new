@@ -43,12 +43,12 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind        | title       | options          | file                                   | tags                                             | next                                                                                 |
-        | requirement | Saved carts | --id saved-carts | specs/requirements/saved-carts.feature | @id=saved-carts @kind=requirement @maturity=idea | write the idea in a sentence under the title                                         |
-        | element     | Orders      |                  | specs/architecture/ARCH-orders.feature | @id=ARCH-orders                                  | anchor it next to the declaration that is it: annotate(Thing, { is: "ARCH-orders" }) |
-        | pattern     | Outbox      |                  | specs/architecture/PAT-outbox.feature  | @id=PAT-outbox                                   | elements that apply it link `@instance-of:PAT-outbox`                                |
-        | risk        | Outage      | --id outage      | specs/risks/outage.feature             | @id=outage @kind=risk                            | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…                        |
-        | phase       | Hardening   |                  | specs/delivery/PH-hardening.feature    | @id=PH-hardening                                 | say under the title what this phase takes on, and why in this order                  |
+        | kind        | title       | options | file                                   | tags                                             | next                                                                                 |
+        | requirement | Saved carts |         | specs/requirements/saved-carts.feature | @id=saved-carts @kind=requirement @maturity=idea | write the idea in a sentence under the title                                         |
+        | element     | Orders      |         | specs/architecture/ARCH-orders.feature | @id=ARCH-orders                                  | anchor it next to the declaration that is it: annotate(Thing, { is: "ARCH-orders" }) |
+        | pattern     | Outbox      |         | specs/architecture/PAT-outbox.feature  | @id=PAT-outbox                                   | elements that apply it link `@instance-of:PAT-outbox`                                |
+        | risk        | Outage      |         | specs/risks/outage.feature             | @id=outage @kind=risk                            | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…                        |
+        | phase       | Hardening   |         | specs/delivery/PH-hardening.feature    | @id=PH-hardening                                 | say under the title what this phase takes on, and why in this order                  |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -114,14 +114,15 @@ Feature: Start a spec
       Then the output contains "feature, idea, change, decision, requirement, nfr, element, pattern, milestone, plan, phase, iteration, risk"
       And the output contains "idea (default), draft, specified or ready"
       When I run "sdp new gizmo Sprocket"
-      Then the output lines are "GIZM-sprocket\tspecs/gizmo/GIZM-sprocket.feature"
-      And the file "specs/gizmo/GIZM-sprocket.feature" contains "@id=GIZM-sprocket @kind=gizmo"
+      Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
+      And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
 
   Rule: A new spec's id is an ASCII slug of its title, or a number, after its kind's prefix where it has one, and its file is named by it
 
-    An id says what it names, so whoever reads a message that cites it needs no lookup. What a
-    feature, a change or a decision says is name enough: their kinds have no prefix unless the
-    workspace gives them one. Only a title with no letters to slug gets a number.
+    An id says what it names, so whoever reads a message that cites it needs no lookup. What a spec
+    says is name enough: only elements, patterns, milestones, phases and iterations have a prefix,
+    unless the workspace gives one to another kind. Only a title with no letters to slug gets a
+    number, after its kind where it has no prefix.
 
     Scenario Outline: By kind and title, or as --id and --dir say, relative to the workspace root or absolute
       When I run "sdp new <arguments>"
@@ -181,15 +182,15 @@ Feature: Start a spec
       When the workspace is checked
       Then sdp reports:
         | rule                 | node             | line |
-        | maturity-criteria    | NFR-availability | 1    |
-        | maturity-criteria    | gift-cards       | 1    |
-        | maturity-criteria    | returns          | 1    |
-        | template-placeholder | returns          | 4    |
-        | template-placeholder | NFR-availability | 4    |
-        | template-placeholder | use-postgres     | 4    |
+        | maturity-criteria    | availability | 1    |
+        | maturity-criteria    | gift-cards   | 1    |
+        | maturity-criteria    | returns      | 1    |
+        | template-placeholder | returns      | 4    |
+        | template-placeholder | availability | 4    |
+        | template-placeholder | use-postgres | 4    |
 
     Scenario: From specified on, the file has a rule with a scenario to fill in
-      When I run "sdp new nfr 'Checkout latency' --id checkout-latency --maturity specified"
+      When I run "sdp new nfr 'Checkout latency' --maturity specified"
       Then the file "specs/quality/checkout-latency.feature" is:
         """
         @id=checkout-latency @kind=nfr @maturity=specified

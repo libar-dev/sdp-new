@@ -67,20 +67,12 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
     ? "risk"
     : "generic"
 
-const prefixOf = (kind: string, config: Config) => config.ids[kind] ?? kind.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4)
-
-/** The templates whose specs are named by what they say alone: a feature, a change and a decision. */
-const named: ReadonlyArray<Template> = ["feature", "change", "decision"]
-
 /**
- * The prefix of a new id, if it has one. A feature, a change and a decision have none unless the
- * workspace gives their kind a prefix of its own: sdp still reads its default `DEC-` as a decision.
+ * A new id is its kind's prefix, where the workspace has one, and the slug of its title. A kind
+ * without a prefix is named by the slug alone, and its spec says its kind with `@kind=`.
  */
-const prefixFor = (kind: string, config: Config): string | undefined =>
-  named.includes(templateOf(kind, config.vocabulary)) && config.ids[kind] === defaults.ids[kind] ? undefined : prefixOf(kind, config)
-
 export const newId = (kind: string, title: string, config: Config, existing: ReadonlyArray<string>): string => {
-  const prefix = prefixFor(kind, config)
+  const prefix = config.ids[kind]
   const slug = slugify(title)
   // Every id says what it names; only a title with no ASCII letters to slug is numbered, after its prefix or else its kind.
   if (slug === "") {
@@ -248,8 +240,8 @@ const specTemplate = (options: {
   )
 }
 
-/** Prefixed like every other id, so a phase is one grep away and no ordinary word is an id. */
-const phaseId = (config: Config, name: string) => `${prefixOf(wordFor(config.vocabulary.kinds.phase), config)}-${name.toLowerCase()}`
+/** The id `sdp new` gives a phase of that name. */
+const phaseId = (config: Config, name: string) => newId(wordFor(config.vocabulary.kinds.phase), name, config, [])
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
@@ -270,7 +262,8 @@ const guidance = (options: {
   const { vocabulary } = config
   const { anchor } = vocabulary.relations
   const activity = vocabulary.attributes.activity
-  const iteration = `${prefixOf(wordFor(vocabulary.kinds.iteration), config)}-…`
+  const iterationPrefix = config.ids[wordFor(vocabulary.kinds.iteration)]
+  const iteration = iterationPrefix === undefined ? "<iteration>" : `${iterationPrefix}-…`
   const plan = `\`@${wordFor(vocabulary.relations.plan)}:${iteration}\` says when it is written, \`@${activity}.implementation:${iteration} @${activity}.test:${iteration}\` when it is built and tested`
   const closes = wordFor(vocabulary.relations.closes)
   const phase = wordFor(vocabulary.relations.phase)

@@ -50,7 +50,8 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
 - An id names what it is, so that a reader of a message that cites it needs no lookup:
   `files-are-the-source-of-truth`, not `ADR-0003`; `IT-packaging`, not `E2`. A feature, a change
   and a decision have no prefix: a feature is what an id without one names, and a change and a
-  decision say their kind with `@kind=`. Elements, milestones and iterations keep a prefix.
+  decision say their kind with `@kind=`. Elements, patterns, milestones, phases and iterations
+  keep a prefix (`ARCH-`, `PAT-`, `MS-`, `PH-`, `IT-`), and no other kind has one.
 - A decision that changes is rewritten or deleted: its history is git's.
 - One word for one thing: a word this repository replaced does not come back.
 

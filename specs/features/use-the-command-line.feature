@@ -170,8 +170,8 @@ Feature: Use the command line
         | context search --depth 0          | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
         | context search --depth 7          | depth must be a whole number from 1 to 6                        | .sdp/results.json                   |
         | new feature ''                    | a feature needs a title                                         | specs/incoming/feature-0001.feature |
-        | new a/b Carts                     | is not a kind: a kind is one word                               | specs/a/b/AB-carts.feature          |
-        | new ../x Carts                    | is not a kind: a kind is one word                               | x/X-carts.feature                   |
+        | new a/b Carts                     | is not a kind: a kind is one word                               | specs/a/b/carts.feature             |
+        | new ../x Carts                    | is not a kind: a kind is one word                               | x/carts.feature                     |
         | new feature Carts --id a/b        | cannot name a file: write it without a slash                    | specs/incoming/a/b.feature          |
         | new feature Carts --dir ''        | --dir needs a directory                                         | carts.feature                       |
         | new feature Carts --maturity done | unknown maturity done: use one of idea, draft, specified, ready | specs/incoming/carts.feature        |

@@ -103,21 +103,15 @@ Feature: Configure a workspace
       Then node "<id>" has attribute kind = "<kind>"
 
       Examples:
-        | id                  | kind        |
-        | REQ-guest-login     | requirement |
-        | NFR-latency         | nfr         |
-        | DEC-charge-once     | decision    |
-        | ARCH-orders         | element     |
-        | PAT-outbox          | pattern     |
-        | MS-launch           | milestone   |
-        | CAP-online-sales    | capability  |
-        | RISK-vendor-lock-in | risk        |
-        | EPIC-checkout       | epic        |
-        | PH-construction     | phase       |
-        | IT-beta             | iteration   |
-        | req_guest_login     | requirement |
-        | TODO-1              | feature     |
-        | checkout            | feature     |
+        | id              | kind      |
+        | ARCH-orders     | element   |
+        | PAT-outbox      | pattern   |
+        | MS-launch       | milestone |
+        | PH-construction | phase     |
+        | IT-beta         | iteration |
+        | arch_orders     | element   |
+        | TODO-1          | feature   |
+        | checkout        | feature   |
 
     Scenario: A prefix of the team's own, beside the defaults
       Given a file "sdp.config.yaml" containing:
@@ -231,7 +225,7 @@ Feature: Configure a workspace
         """
       Then the exit code is 0
       And the file "specs/delivery/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
-      And the file "specs/delivery/CHEC-launch.feature" contains "@ends:ERA-elaboration"
+      And the file "specs/delivery/launch.feature" contains "@id=launch @kind=checkpoint @ends:ERA-elaboration"
       And the file "specs/incoming/wishlist.feature" contains "@id=wishlist @maturity=idea"
       And the file "specs/incoming/shared-wishlists.feature" contains "@changes:wishlist"
       When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"

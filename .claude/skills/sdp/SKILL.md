@@ -63,8 +63,10 @@ Feature: Guest checkout
   agent's memory: `sdp q 'rule[tags~open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
   what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
-  whoever reads a message citing it needs no lookup. A feature, a change and a decision need no
-  prefix; the other kinds keep theirs.
+  whoever reads a message citing it needs no lookup. Elements, patterns, milestones, phases and
+  iterations keep a prefix (`ARCH-`, `PAT-`, `MS-`, `PH-`, `IT-`); no other kind has one unless
+  the workspace gives it one with `ids:`, so a change, a decision or a kind of the team's own says
+  what it is with `@kind=`.
 
 The sharp edges of the format, each what the official parser does:
 

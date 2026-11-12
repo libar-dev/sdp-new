@@ -92,16 +92,11 @@ const record = <V>(entries: Iterable<readonly [string, V]>): Readonly<Record<str
   return out
 }
 
+/** The kinds whose ids keep a prefix; any other kind, a feature first, is named by its id alone. */
 const defaultIds: ReadonlyArray<readonly [string, string]> = [
-  ["requirement", "REQ"],
-  ["nfr", "NFR"],
-  ["decision", "DEC"],
   ["element", "ARCH"],
   ["pattern", "PAT"],
   ["milestone", "MS"],
-  ["capability", "CAP"],
-  ["epic", "EPIC"],
-  ["risk", "RISK"],
   ["phase", "PH"],
   ["iteration", "IT"]
 ]
