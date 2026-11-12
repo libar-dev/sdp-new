@@ -721,7 +721,7 @@ Feature: Know what is verified
       When I run "sdp q feature[stage=verified] --ids"
       Then the output lines are ""
 
-    Scenario: A step file is added while the run runs
+    Scenario Outline: A step file is added while a run <that> runs
       Given a file "specs/MS-beta.feature" containing:
         """
         @id=MS-beta
@@ -743,12 +743,17 @@ Feature: Know what is verified
           Step("the cart holds {int} item(s)", () => {})
         })
         """
-      When I run "sdp run"
-      Then the exit code is 1
-      And the output contains "specs/steps/more.steps.ts was added after this process loaded the step modules"
+      When I run "sdp run <targets>"
+      Then the exit code is <exit code>
+      And the output contains "<output>"
       And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "cart#add-an-item"
+
+      Examples:
+        | that                       | targets | exit code | output                                                                                      |
+        | that would record a gate   | .       | 1         | specs/steps/more.steps.ts was added after this process loaded the step modules              |
+        | that records no gate       | cart    | 0         | stale: 1 result(s) of this run no longer count (1 code-changed): what they ran against changed |
 
   Rule: A result goes stale when a lockfile at the workspace root changes
 

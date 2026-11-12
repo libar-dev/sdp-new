@@ -178,7 +178,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     const known = new Set(ranAgainst.sources.map((file) => file.path))
     const late = yield* readFiles(root, imports().filter((file) => !known.has(file)))
     const files = [...ranAgainst.sources, ...late]
-    yield* asLoaded(ranAgainst, files)
+    // A batch with no result records nothing that could rest on what this process did not load.
+    if (batch.length > 0) yield* asLoaded(ranAgainst, files)
     const sources = late.length === 0 ? ranAgainst.now.sources : fingerprint(files)
     const executed = batch.map((result) => complete({ ...result, evidence: { ...result.evidence, sources } }))
     return { sources, executed, results: yield* commitResults(root, config, { executed, gone, imports: imports() }) }
