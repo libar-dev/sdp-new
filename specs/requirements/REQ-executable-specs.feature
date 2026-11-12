@@ -749,7 +749,7 @@ Feature: Executable specifications
       Then the JSON output has:
         | data.summary.passed | 1 |
 
-    Scenario: A module that is not exported, a registration after a return and defineSteps renamed are reported, never listed
+    Scenario: A module not exported, a registration after a return, defineSteps renamed and a module a function makes are reported, never listed
       Given a file "specs/steps/cart.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
@@ -780,6 +780,16 @@ Feature: Executable specifications
           Then("a hidden step", () => {})
         })
         """
+      And a file "specs/steps/made.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        const make = () =>
+          defineSteps(() => ({}), ({ Then }) => {
+            Then("a made step", () => {})
+          })
+        export const made = make()
+        """
       When I run "sdp steps"
       Then the exit code is 2
       And the output contains "specs/steps/count.steps.ts:4\tThen\tthe cart holds {int} item(s)"
@@ -788,6 +798,7 @@ Feature: Executable specifications
       And the output contains "not read: specs/steps/cart.steps.ts:3: this defineSteps(…) is not exported, so a run loads none of its steps"
       And the output contains "not read: specs/steps/lamp.steps.ts:5: this statement may return before the registrations after it"
       And the output contains "not read: specs/steps/count.steps.ts:6: defineSteps is renamed or passed on here"
+      And the output contains "not read: specs/steps/made.steps.ts:7: this export is what a call returns"
       When I run "sdp run --json"
       Then the JSON output has:
         | data.summary.undefined | 1 |

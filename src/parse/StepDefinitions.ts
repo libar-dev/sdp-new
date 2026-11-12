@@ -7,7 +7,8 @@
  * expression a string or RegExp literal. That form is read, with each
  * `file:line`. What is registered any other way — under a condition, in a
  * loop, after a statement that may return, through another name or a helper,
- * with a computed expression, by a `defineSteps` renamed or not exported — is
+ * with a computed expression, by a `defineSteps` renamed or not exported, as
+ * the export of another call — is
  * reported, never guessed: only `sdp run`, which imports the module, knows it.
  */
 import { annotate } from "sdp/annotations"
@@ -171,7 +172,11 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
       }))
       : [{ value: declared, loaded: isExport }]
     for (const { loaded, value } of values) {
-      if (!isNode(value) || value.type !== "CallExpression" || !defineSteps.has(nameOf(value.callee) ?? "")) continue
+      if (!isNode(value) || value.type !== "CallExpression") continue
+      if (!defineSteps.has(nameOf(value.callee) ?? "")) {
+        if (loaded) unreadable(value, "this export is what a call returns, which a run loads if it is a step module: export defineSteps(…) itself")
+        continue
+      }
       if (!loaded) {
         unreadable(value, "this defineSteps(…) is not exported, so a run loads none of its steps: write `export default defineSteps(…)`")
         continue
