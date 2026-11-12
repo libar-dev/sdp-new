@@ -508,6 +508,43 @@ Feature: Check specs
         | a rule whose example the base had live       |                                            | @replaces:cart#a-cart-holds-what-was-added |                                                                                         | 1         | example-dropped              |
         | a rule with an example the base did not have |                                            | @replaces:cart#a-cart-holds-what-was-added | \n    Scenario: The total of two items\n      Then the total is the sum of their prices | 0         | nothing                      |
 
+    Scenario Outline: A live rule of two examples replaced by a rule whose one example names <named>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+            Scenario: Add a lamp
+              Then the cart holds a lamp
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          @replaces:cart#a-cart-holds-what-was-added
+          Rule: A cart holds what was put in it
+
+            <tags>
+            Scenario: Put an item in
+              Then the cart holds the item put in
+        """
+      When I run "sdp check --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.rule | nothing |
+
+      Examples:
+        | named          | tags                       |
+        | neither        |                            |
+        | the one it was | @replaces:cart#add-an-item |
+
     Scenario Outline: A live rule replaced by a rule still to come, which <replacement>
       Given a file "specs/cart.feature" containing:
         """

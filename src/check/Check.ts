@@ -420,15 +420,17 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
  * the workspace with two: the same example unchanged, then the same id, edited, then the example
  * whose Scenario names it as the one it was (`namedBy`, given the id of the Scenario that names it),
  * then the same steps under another name or in another place. Rows of one outline pair in their
- * order, a live row with a live one before any other.
+ * order, a live row with a live one before any other. `named` holds the examples of the base paired
+ * with one that names them.
  */
 const pairExamples = (
   before: ReadonlyArray<Example>,
   now: ReadonlyArray<Example>,
   namedBy: (id: string) => ReadonlyArray<string>
-): ReadonlyMap<Example, Example> => {
+): { readonly paired: ReadonlyMap<Example, Example>; readonly named: ReadonlySet<Example> } => {
   const free = new Set(now)
   const paired = new Map<Example, Example>()
+  const named = new Set<Example>()
   /** A base example's match: a free example of the workspace that `keys` gives the key `key` gives it. */
   const index = (key: (example: Example) => string, keys: (example: Example) => ReadonlyArray<string> = (example) => [key(example)]) => {
     const by = new Map<string, Array<Example>>()
@@ -438,10 +440,11 @@ const pairExamples = (
       return candidates.find((candidate) => candidate.live === example.live) ?? candidates[0]
     }
   }
+  const byName = index((example) => example.scenario.id, (example) => namedBy(example.scenario.id))
   const passes: ReadonlyArray<(example: Example) => Example | undefined> = [
     index((example) => `${example.scenario.id}\u0000${example.tests}`),
     index((example) => example.scenario.id),
-    index((example) => example.scenario.id, (example) => namedBy(example.scenario.id)),
+    byName,
     index((example) => example.tests)
   ]
   for (const find of passes) {
@@ -451,9 +454,10 @@ const pairExamples = (
       if (match === undefined) continue
       free.delete(match)
       paired.set(example, match)
+      if (find === byName) named.add(example)
     }
   }
-  return paired
+  return { paired, named }
 }
 
 /**
@@ -557,10 +561,11 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     }))
   }
 
-  const paired = pairExamples(before.examples.filter((example) => example.live), now.examples, namedBy)
+  const { named, paired } = pairExamples(before.examples.filter((example) => example.live), now.examples, namedBy)
   // A replacement counts once it is live and has a live example the base did not have live: a test
-  // that was already there takes over no other, and a gate enforces nothing.
-  const kept = new Set(paired.values())
+  // that was already there takes over no other, and a gate enforces nothing. One that names the
+  // example it was counts as new, as it would unnamed: its name and its steps are.
+  const kept = new Set([...paired].flatMap(([example, still]) => named.has(example) ? [] : [still]))
   const newlyTested = new Set(now.examples.filter((example) => example.live && !kept.has(example)).flatMap(({ scenario, spec }) =>
     [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])]
   ))
