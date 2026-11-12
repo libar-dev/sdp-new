@@ -9,104 +9,100 @@ Feature: Curated architecture
   an architect declared, and `sdp arch`, the context bundle and the MCP tool show exactly that.
 
   Background:
-    Given a file "specs/architecture.md" containing:
+    Given these specs:
+      | tags                                                                                  | Feature                                 |
+      | @id=ARCH-orders @decided-by:DEC-1 @instance-of:PAT-outbox @constrained-by:NFR-latency | Orders                                  |
+      | @id=ARCH-mailer                                                                       | Mailer                                  |
+      | @id=PAT-outbox                                                                        | Transactional outbox                    |
+      | @id=DEC-1                                                                             | Orders publish events through an outbox |
+      | @id=DEC-2                                                                             | Logs are JSON                           |
+      | @id=NFR-latency                                                                       | Checkout latency                        |
+      | @id=REQ-receipts @realized-by:ARCH-orders                                             | Receipts                                |
+    And a file "specs/ARCH-billing.feature" containing:
       """
-      ---
-      id: ARCH-VIEW
-      kind: view
-      nodes:
-        - { id: ARCH-orders, kind: element, title: Orders, links: { decided-by: DEC-1, instance-of: PAT-outbox, constrained-by: NFR-latency } }
-        - { id: ARCH-mailer, kind: element, title: Mailer }
-        - { id: PAT-outbox, kind: pattern, title: Transactional outbox }
-        - { id: DEC-1, kind: decision, title: Orders publish events through an outbox }
-        - { id: DEC-2, kind: decision, title: Logs are JSON }
-        - { id: NFR-latency, kind: nfr, title: Checkout latency }
-        - { id: REQ-receipts, kind: requirement, maturity: idea, links: { realized-by: [ARCH-orders, ARCH-mailer] } }
-      ---
-      # Architecture
-      """
-    And a file "specs/ARCH-billing.md" containing:
-      """
-      ---
-      id: ARCH-billing
-      kind: element
-      title: Billing
-      ---
-      # Billing
+      @id=ARCH-billing
+      Feature: Billing
 
-      Owns invoices; tax rules are regulated and costly to change.
-
-      It writes logs, as [[DEC-2]] says.
+        Owns invoices; tax rules are regulated and costly to change. It writes logs as DEC-2 says.
       """
 
-  Scenario: The view is every declared element and pattern, each with what it is for and its links
-    When I ask for the architecture view
-    Then the output contains "ARCH-orders — Orders (element)"
-    And the output contains "ARCH-mailer — Mailer (element)"
-    And the output contains "PAT-outbox — Transactional outbox (pattern)"
-    And the output contains "ARCH-orders -instance-of-> PAT-outbox"
-    And the output contains "ARCH-orders -decided-by-> DEC-1"
-    And the output contains "ARCH-orders -constrained-by-> NFR-latency"
-    And the output contains:
-      """
-      ARCH-billing — Billing (element)
-      Owns invoices; tax rules are regulated and costly to change.
-      """
-    And the output does not contain "REQ-receipts"
+  Rule: The architecture is every element and pattern declared in a spec or anchored in code, and nothing else
 
-  Scenario: A decision or quality requirement is shown when a link joins it to the architecture; a mention is no link
-    When an agent calls the MCP tool "sdp_architecture" with:
-      """
-      { "json": true }
-      """
-    Then the JSON output has:
-      | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox |
-      | data.drivers      | DEC-1, NFR-latency                                 |
+    Scenario: Every declared element and pattern, with its links
+      When I ask for the architecture view
+      Then the output contains "ARCH-orders — Orders (element)"
+      And the output contains "ARCH-mailer — Mailer (element)"
+      And the output contains "ARCH-billing — Billing (element)"
+      And the output contains "PAT-outbox — Transactional outbox (pattern)"
+      And the output contains "ARCH-orders -instance-of-> PAT-outbox"
+      And the output contains "ARCH-orders -decided-by-> DEC-1"
+      And the output contains "ARCH-orders -constrained-by-> NFR-latency"
+      And the output does not contain "REQ-receipts"
 
-  Scenario: An element anchored in code is part of the architecture, with or without a spec
-    Given a file "src/quiet.ts" containing:
-      """
-      // @sdp is ARCH-quiet
-      export class Quiet {}
-      """
-    When I ask for the architecture view
-    Then the output contains "ARCH-quiet — ARCH-quiet (element)"
-    And the output contains "ARCH-quiet <-is- code:src/quiet.ts#Quiet"
+    Scenario: An element anchored in code, without a spec
+      Given a file "src/quiet.ts" containing:
+        """
+        // @sdp is ARCH-quiet
+        export class Quiet {}
+        """
+      When I ask for the architecture view
+      Then the output contains "ARCH-quiet — ARCH-quiet (element)"
+      And the output contains "ARCH-quiet <-is- code:src/quiet.ts#Quiet"
 
-  Scenario: An element declared without a description is described by the code anchored to it
-    Given a file "src/mailer.ts" containing:
-      """
-      import { annotate } from "sdp/annotations"
+    Scenario: Code nobody anchored stays out, however much of it there is
+      Given a file "src/orders.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+        export class Orders {}
+        export class OrderMapper {}
+        export class OrderValidator {}
+        annotate(Orders, { is: "ARCH-orders" })
+        """
+      When I query "element|pattern"
+      Then the result is "ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox"
 
-      /** Sends receipts, and retries while the provider is down. */
-      export class Mailer {}
-      annotate(Mailer, { is: "ARCH-mailer" })
-      """
-    When I ask for the architecture view
-    Then the output contains:
-      """
-      ARCH-mailer — Mailer (element)
-      Sends receipts, and retries while the provider is down.
-      """
-    When an agent calls the MCP tool "sdp_architecture" with:
-      """
-      { "json": true }
-      """
-    Then the JSON output has:
-      | data.anchors | code:src/mailer.ts#Mailer |
+  Rule: An element is described by its spec, or else by the doc comment of the code anchored to it
 
-  Scenario: However much code there is, the architecture is what an architect declared or anchored
-    Given a file "src/orders.ts" containing:
-      """
-      import { annotate } from "sdp/annotations"
-      export class Orders {}
-      export class OrderMapper {}
-      export class OrderValidator {}
-      annotate(Orders, { is: "ARCH-orders" })
-      """
-    When I query "element|pattern"
-    Then the result is "ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox"
+    Scenario: One element described by its spec, one by its code
+      Given a file "src/mailer.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
 
-  Scenario: What belongs in the architecture is never checked
-    When the workspace is checked
-    Then sdp reports nothing
+        /** Sends receipts, and retries while the provider is down. */
+        export class Mailer {}
+        annotate(Mailer, { is: "ARCH-mailer" })
+        """
+      When I ask for the architecture view
+      Then the output contains:
+        """
+        ARCH-billing — Billing (element)
+        Owns invoices; tax rules are regulated and costly to change. It writes logs as DEC-2 says.
+        """
+      And the output contains:
+        """
+        ARCH-mailer — Mailer (element)
+        Sends receipts, and retries while the provider is down.
+        """
+      When an agent calls the MCP tool "sdp_architecture" with:
+        """
+        { "json": true }
+        """
+      Then the JSON output has:
+        | data.anchors | code:src/mailer.ts#Mailer |
+
+  Rule: A decision or a quality requirement is part of the view when a link joins it to the architecture
+
+    Scenario: A decision only named in a description is left out
+      When an agent calls the MCP tool "sdp_architecture" with:
+        """
+        { "json": true }
+        """
+      Then the JSON output has:
+        | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox |
+        | data.drivers      | DEC-1, NFR-latency                                 |
+
+  Rule: What belongs in the architecture is never checked
+
+    Scenario: An element without links or code, and a decision nothing links to
+      When the workspace is checked
+      Then sdp reports nothing
