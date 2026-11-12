@@ -7,6 +7,6 @@ Feature: Rebuilding the graph on every command does not scale
   become slow enough that agents stop asking and start guessing.
 
   Due in Elaboration because the remedy, if one is needed, is a cache of parsed files, and that
-  changes the derived index (PAT-derived-index).
+  changes the derived index.
 
   **Watch for:** `sdp status` taking more than a second on a real repository.
