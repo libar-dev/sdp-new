@@ -5,19 +5,19 @@ title: Delivery plan for sdp 1.0
 links:
   decided-by: DEC-0007
 nodes:
-  - { id: inception,    kind: phase, title: Inception,    order: 1 }
-  - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
-  - { id: construction, kind: phase, title: Construction, order: 3 }
-  - { id: transition,   kind: phase, title: Transition,   order: 4 }
-  - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: inception, start: "2026-11-02", end: "2026-11-13" }
-  - { id: E1, kind: iteration, title: Scale and compatibility, phase: elaboration,  start: "2026-11-16", end: "2026-11-27" }
-  - { id: E2, kind: iteration, title: Packaging,               phase: elaboration,  start: "2026-11-30", end: "2026-12-11" }
-  - { id: C1, kind: iteration, title: Editor support,          phase: construction, start: "2027-01-04", end: "2027-01-15" }
-  - { id: C2, kind: iteration, title: Spec-aware review,       phase: construction, start: "2027-01-18", end: "2027-01-29" }
-  - { id: C3, kind: iteration, title: Graph explorer,          phase: construction, start: "2027-02-01", end: "2027-02-12" }
-  - { id: C4, kind: iteration, title: Lifecycle from history,  phase: construction, start: "2027-02-15", end: "2027-02-26" }
-  - { id: T1, kind: iteration, title: Beta,                    phase: transition,   start: "2027-03-01", end: "2027-03-12" }
-  - { id: T2, kind: iteration, title: Release,                 phase: transition,   start: "2027-03-15", end: "2027-03-26" }
+  - { id: PH-inception, title: Inception,    order: 1 }
+  - { id: PH-elaboration, title: Elaboration,  order: 2 }
+  - { id: PH-construction, title: Construction, order: 3 }
+  - { id: PH-transition, title: Transition,   order: 4 }
+  - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: PH-inception, start: "2026-11-02", end: "2026-11-13" }
+  - { id: E1, kind: iteration, title: Scale and compatibility, phase: PH-elaboration,  start: "2026-11-16", end: "2026-11-27" }
+  - { id: E2, kind: iteration, title: Packaging,               phase: PH-elaboration,  start: "2026-11-30", end: "2026-12-11" }
+  - { id: C1, kind: iteration, title: Editor support,          phase: PH-construction, start: "2027-01-04", end: "2027-01-15" }
+  - { id: C2, kind: iteration, title: Spec-aware review,       phase: PH-construction, start: "2027-01-18", end: "2027-01-29" }
+  - { id: C3, kind: iteration, title: Graph explorer,          phase: PH-construction, start: "2027-02-01", end: "2027-02-12" }
+  - { id: C4, kind: iteration, title: Lifecycle from history,  phase: PH-construction, start: "2027-02-15", end: "2027-02-26" }
+  - { id: T1, kind: iteration, title: Beta,                    phase: PH-transition,   start: "2027-03-01", end: "2027-03-12" }
+  - { id: T2, kind: iteration, title: Release,                 phase: PH-transition,   start: "2027-03-15", end: "2027-03-26" }
   - { id: REL-0.9, kind: release, title: "0.9 beta", iteration: T1, activity: { test: T1 } }
   - { id: REL-1.0, kind: release, title: "1.0",      iteration: T2 }
 ---

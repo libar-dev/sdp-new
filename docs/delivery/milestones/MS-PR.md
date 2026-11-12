@@ -2,7 +2,7 @@
 id: MS-PR
 kind: milestone
 title: Product Release
-phase: transition
+phase: PH-transition
 ---
 
 # Product Release

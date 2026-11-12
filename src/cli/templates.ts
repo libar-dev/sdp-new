@@ -11,7 +11,7 @@ import { parseMarkdownSpec } from "../parse/Spec.ts"
 
 export const directoryFor: Record<string, string> = {
   requirement: "specs/requirements",
-  idea: "specs/ideas",
+  idea: "specs/requirements",
   nfr: "specs/quality",
   capability: "specs/capabilities",
   decision: "docs/decisions",
@@ -180,7 +180,7 @@ The problem this pattern solves and how, in a sentence or two. Elements that app
           ["id", id],
           ["kind", "milestone"],
           ["title", title],
-          ["phase", "elaboration", "the phase this milestone closes: inception | elaboration | construction | transition (sdp new plan)"]
+          ["phase", "PH-elaboration", "the phase this milestone closes: PH-inception | PH-elaboration | PH-construction | PH-transition (sdp new plan)"]
         ])
       }
 # ${title}
@@ -196,13 +196,15 @@ Scenario: No errors in the specification graph
       // One phase each, and back-to-back two-week iterations, one per phase, starting today.
       const phases = ["Inception", "Elaboration", "Construction", "Transition"]
       const iterations = [["I1", "Vision and scope"], ["E1", "Architecture baseline"], ["C1", "First increment"], ["T1", "Beta"]]
+      // Prefixed like every other id, so a phase is one grep away and no ordinary word is an id.
+      const phaseId = (name: string) => `PH-${name.toLowerCase()}`
       const nodes = [
-        ...phases.map((name, index) => ({ id: name.toLowerCase(), kind: "phase", title: name, order: index + 1 })),
+        ...phases.map((name, index) => ({ id: phaseId(name), kind: "phase", title: name, order: index + 1 })),
         ...iterations.map(([iteration, name], index) => ({
           id: iteration,
           kind: "iteration",
           title: name,
-          phase: phases[index]!.toLowerCase(),
+          phase: phaseId(phases[index]!),
           start: addDays(today, 14 * index),
           end: addDays(today, 14 * index + 13)
         }))
@@ -214,7 +216,7 @@ Four phases with one example iteration each; add, rename and re-date iterations 
 up. Plan work by setting \`iteration: E1\` on a spec, decision or element — that plans its own
 discipline's work, such as writing a requirement — and the other disciplines' work on it with
 \`activity: { implementation: C1, test: [C1, T1] }\`. Close each phase with a milestone
-(\`sdp new milestone "Lifecycle architecture"\`, \`phase: elaboration\`) whose scenarios are its
+(\`sdp new milestone "Lifecycle architecture"\`, \`phase: PH-elaboration\`) whose scenarios are its
 gate. \`sdp lifecycle\` shows the result.
 `
     }

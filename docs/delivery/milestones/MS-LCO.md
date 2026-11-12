@@ -2,7 +2,7 @@
 id: MS-LCO
 kind: milestone
 title: Lifecycle Objectives
-phase: inception
+phase: PH-inception
 ---
 
 # Lifecycle Objectives

@@ -60,7 +60,7 @@ sdp q 'requirement[maturity<ready]'
 sdp q 'requirement -realized-by-> element -decided-by-> decision' --paths
 sdp q 'scenario[status=failed] -verifies-> *'
 sdp q '#DEC-0003 <-*- *'
-sdp q 'requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=construction]'
+sdp q 'requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=PH-construction]'
 ```
 
 A query returns nodes or paths, nothing more. Counting and grouping are left to standard tools:

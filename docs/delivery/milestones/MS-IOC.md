@@ -2,7 +2,7 @@
 id: MS-IOC
 kind: milestone
 title: Initial Operational Capability
-phase: construction
+phase: PH-construction
 ---
 
 # Initial Operational Capability
@@ -14,8 +14,8 @@ is not implemented either, so it keeps the gate unmet.
 
 ~~~gherkin
 Scenario: Construction work is verified
-  Then the query "requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=construction]" returns no results
-  And the query "requirement|nfr[stage!=verified] ?-activity.implementation-> iteration[phase=elaboration|construction]" returns no results
+  Then the query "requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=PH-construction]" returns no results
+  And the query "requirement|nfr[stage!=verified] ?-activity.implementation-> iteration[phase=PH-elaboration|PH-construction]" returns no results
 
 Scenario: The specification graph is consistent
   Then there are no error diagnostics
