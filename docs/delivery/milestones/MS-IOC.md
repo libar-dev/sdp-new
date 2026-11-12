@@ -3,21 +3,30 @@ id: MS-IOC
 kind: milestone
 title: Initial Operational Capability
 phase: PH-construction
+links:
+  decided-by: DEC-0015
 ---
 
 # Initial Operational Capability
 
-End of Construction: everything whose implementation is planned up to and during Construction —
-`activity: { implementation: … }`, an `-activity.implementation->` edge ([[REQ-lifecycle-view]]) — is implemented, which
-here means its scenarios pass, and the specification graph is consistent. Work left below `ready`
-is not implemented either, so it keeps the gate unmet.
+End of Construction: the requirements written in it are ready, everything planned to be built by
+now runs, the risks due here are retired, and the specification graph is consistent.
 
 ~~~gherkin
-Scenario: Construction work is verified
-  Then the query "requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=PH-construction]" returns no results
-  And the query "requirement|nfr[stage!=verified] ?-activity.implementation-> iteration[phase=PH-elaboration|PH-construction]" returns no results
+Scenario: Requirements written in Construction are ready
+  Then the query "requirement|nfr ?-iteration-> iteration[phase=PH-construction]" returns at least 1 result
+  And the query "requirement|nfr[maturity<ready] ?-iteration-> iteration[phase=PH-construction]" returns no results
+
+Scenario: Everything built up to the end of Construction is verified
+  Then the query "requirement|nfr ?-activity.implementation-> iteration[phase=PH-construction]" returns at least 1 result
+  And the query "requirement|nfr[stage!=verified] ?-activity.implementation-> iteration[phase=PH-inception|PH-elaboration|PH-construction]" returns no results
+
+Scenario: The risks due at this milestone are retired, by verified work
+  Then the query "risk ?-due-> #MS-IOC" returns at least 1 result
+  And the query "risk[status!=retired] ?-due-> #MS-IOC" returns no results
+  And the query "risk ?-due-> #MS-IOC -mitigated-by-> *[stage!=verified]" returns no results
 
 Scenario: The specification graph is consistent
   Then there are no error diagnostics
-  And the query "scenario[status=failed] -verifies-> *[kind!=milestone]" returns no results
+  And the query "scenario[status=failed]" returns no results
 ~~~

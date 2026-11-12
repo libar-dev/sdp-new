@@ -3,13 +3,13 @@ id: PLAN
 kind: plan
 title: Delivery plan for sdp 1.0
 links:
-  decided-by: DEC-0007
+  decided-by: [DEC-0007, DEC-0013]
 nodes:
   - { id: PH-inception, title: Inception,    order: 1 }
   - { id: PH-elaboration, title: Elaboration,  order: 2 }
   - { id: PH-construction, title: Construction, order: 3 }
   - { id: PH-transition, title: Transition,   order: 4 }
-  - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: PH-inception, start: "2026-11-02", end: "2026-11-13" }
+  - { id: I1, kind: iteration, title: "Vision, scope and prototype", phase: PH-inception, start: "2026-11-02", end: "2026-11-13", planned: after-the-fact }
   - { id: E1, kind: iteration, title: Scale and compatibility, phase: PH-elaboration,  start: "2026-11-16", end: "2026-11-27" }
   - { id: E2, kind: iteration, title: Packaging,               phase: PH-elaboration,  start: "2026-11-30", end: "2026-12-11" }
   - { id: C1, kind: iteration, title: Editor support,          phase: PH-construction, start: "2027-01-04", end: "2027-01-15" }
@@ -24,46 +24,37 @@ nodes:
 
 # Delivery plan for sdp 1.0
 
-Risk-driven phases with two-week iterations ([[DEC-0007]]). A spec's `iteration:` plans the work of
-its own discipline — a requirement is written, a decision taken, a release shipped — and its
-`activity:` plans the other disciplines' work on it, so one requirement can be specified in E2,
-built in C1 and tested again in the beta. `sdp lifecycle` charts that plan per discipline and shows
-the evidence for it apart. `sdp q 'requirement|nfr !-iteration-> iteration'` lists what is not
-planned yet, and `sdp q 'requirement|nfr[activity.implementation=C1]'` what C1 builds.
+The plan is data: the phases, iterations and releases above, and the `iteration:` and `activity:`
+keys of each piece of work ([[DEC-0013]]). Ask it rather than read about it:
 
-**We are in Inception (I1).** I1 built an executable prototype. What it verified is planned in
-I1: the requirements and quality requirements, the decisions, and the significant architecture.
-Everything still to do is planned in the iterations after it, so each later gate stays unmet until
-its phase's work is done.
+```sh
+sdp lifecycle                                             # where we are, what is planned when, which gates are met
+sdp q 'requirement|nfr ?-activity.implementation-> #C1'   # what an iteration builds
+sdp q 'risk -due-> milestone' --paths                     # which risk is to be retired by which milestone
+sdp q 'requirement|nfr !-iteration-> iteration'           # what is not planned yet
+sdp q 'iteration[planned=after-the-fact]'                 # iterations written down after the work
+```
 
-| Phase | Iterations | Milestone | The gate checks |
-| --- | --- | --- | --- |
-| Inception | I1 | [[MS-LCO]] Lifecycle Objectives | the vision, capabilities refined by requirements, risks with planned mitigations, accepted decisions |
-| Elaboration | E1, E2 | [[MS-LCA]] Lifecycle Architecture | elaboration requirements ready; what elaboration builds verified; architecture curated and justified; no high-exposure risk open |
-| Construction | C1–C4 | [[MS-IOC]] Initial Operational Capability | everything built by the end of construction verified; no errors, no failing scenarios |
-| Transition | T1, T2 | [[MS-PR]] Product Release | everything planned is verified |
+What the data cannot say is why each phase takes what it takes ([[DEC-0007]]):
 
-**Gates and `sdp run`.** No gate fails `sdp run`, whatever its phase and whatever the date: the run
-reports every gate, met or not. `sdp gate MS-…` enforces one; it is what the pipeline runs when a
-phase is to close. The calendar meets nothing: `sdp lifecycle` marks a gate of a later phase *not
-due*, and one whose phase is over without it passing *overdue*.
+- **Inception** was a prototype built in one go. Its plan was written down afterwards, so I1 is
+  marked `planned: after-the-fact`: its column of the chart is a record, not a forecast that came
+  true.
+- **Elaboration** takes the work that could still change the architecture — how a large workspace
+  is read, the step definition API, how the tool is packaged — so that Construction builds on a
+  baseline that has run.
+- **Construction** builds what keeps specifications honest and readable once more people and
+  agents write them, one feature per iteration.
+- **Transition** puts a beta in front of its first users, then ships the release.
 
-**Elaboration** retires the risks that threaten the architecture: reading large workspaces from
-disk ([[RISK-0003]]), running existing Cucumber suites, whose hooks and parameter types would
-change the step definition API ([[RISK-0006]]), and publishing a package that Node.js will run
-([[RISK-0008]]). Each is specified and designed in E1 or E2 and built and tested before
-[[MS-LCA]], so the architecture baseline is executable; when a mitigation is verified, its risk can
-be marked `mitigated`. The construction features are specified alongside, in E2, while their
-requirements can still change the architecture.
+## Scenarios
 
-**Construction** builds what keeps the specifications honest and readable as more people and
-agents write them, one feature per iteration: editor support in C1 ([[RISK-0001]]), a spec-aware
-pull request review in C2 ([[RISK-0004]]), a graph explorer in C3 ([[RISK-0005]]) and lifecycle
-activity read from git history in C4 ([[RISK-0007]]). Each is designed in the iteration before
-it is built — the last two also specified there — and tested in the iteration that builds it.
+~~~gherkin
+Scenario: Whatever has left the idea stage is planned
+  Then the query "requirement|nfr[maturity>=draft] !-iteration-> iteration" returns no results
 
-**Transition** ships 0.9 as a beta in T1, where the features are tested again by their first users
-and the package is published, and 1.0 as the release in T2.
-
-`sdp q 'risk -mitigated-by-> * -iteration-> iteration' --paths` shows where each risk's
-mitigation is specified.
+@gate
+Scenario: An iteration recorded after the fact holds no work that is still to be done
+  Then the query "requirement|nfr ?-iteration-> iteration[planned=after-the-fact]" returns at least 1 result
+  And the query "requirement|nfr[stage!=verified] ?-iteration|activity.implementation-> iteration[planned=after-the-fact]" returns no results
+~~~

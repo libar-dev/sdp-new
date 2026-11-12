@@ -2,7 +2,7 @@
 id: RISK-0002
 kind: risk
 title: Step definitions sprawl
-status: open
+status: tolerated
 exposure: medium
 links:
   affects: REQ-executable-specs
@@ -12,19 +12,13 @@ links:
 # Step definitions sprawl
 
 Step text is untyped prose ([[DEC-0001]]). As specs multiply, authors write near-duplicate phrases
-for the same behaviour, each with its own definition. Definitions grow hard to find, two of them
-start matching the same step (an *ambiguous* result), and the cost of changing behaviour moves from
-the specs into the glue code. Several people or agents writing steps in parallel make collisions
-more likely.
+for one behaviour, each with its own definition. Definitions grow hard to find, two of them start
+matching the same step, and the cost of a change moves from the specs into the glue code.
 
-## Mitigation
+Tolerated: it comes with Gherkin, and nothing planned makes it go away. What keeps it small is
+built: rules over the graph need no glue code at all ([[REQ-builtin-steps]]), an ambiguous match
+fails instead of picking one, and `sdp steps <text>` finds the definition to extend before
+another is written ([[REQ-executable-specs]], [[AGENTS]]).
 
-- Built-in steps cover rules over the graph, so gates, guards and architecture rules need no glue
-  code at all ([[REQ-builtin-steps]]).
-- Typed Cucumber Expressions and suggested definitions for undefined steps steer authors to one
-  phrasing per behaviour, and ambiguous matches are reported as such, never silently resolved
-  ([[REQ-executable-specs]]).
-- Agents are told to extend existing steps before adding one, and `sdp steps <text>` lists the
-  definitions that mention or match a phrase, each with its `file:line` ([[AGENTS]]).
-
-**Watch for:** ambiguous results in `sdp run`, and step modules that grow faster than specs.
+**Watch for:** step modules that grow faster than the specs, and families of steps that say one
+thing in several ways.

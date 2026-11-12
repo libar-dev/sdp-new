@@ -3,10 +3,22 @@ id: CAP-curated-architecture
 kind: capability
 title: Curated architecture knowledge
 iteration: I1
+links:
+  refines: VISION
 ---
 
 # Curated architecture knowledge
 
-The few abstractions, patterns and decisions that actually shape the system are named, justified
-and linked to the decisions and quality requirements behind them. Architects decide which ones
-they are; everything else stays design detail in the code, reachable but out of the way.
+The few elements, patterns and decisions that shape the system are named, justified and linked to
+the decisions and quality requirements behind them. Architects decide which ones they are;
+everything else stays design detail in the code, out of the graph.
+
+The [[README]] shows an element anchored in code next to its decision. sdp holds its own
+architecture to that: a description that no code stands behind is a diagram that stopped being
+true.
+
+~~~gherkin
+Scenario: Every element of sdp's own architecture is anchored in its code
+  Then the query "element" returns at least 1 result
+  And the query "element !<-is- code" returns no results
+~~~
