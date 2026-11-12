@@ -189,6 +189,10 @@ export interface RunReport {
 
 /** Imports the step modules and runs the selection; `enforce` says which scenarios decide `passed`. */
 const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enforce: "scenarios" | "gates") {
+  const { concurrency = 1 } = input
+  if (!Number.isInteger(concurrency) || concurrency < 1) {
+    return yield* new Refused({ reason: `--concurrency ${concurrency}: the number of scenarios to run at once is 1 or more` })
+  }
   const config = yield* loadConfig(root)
   const steps = yield* loadSteps(root, config)
   const run = yield* runWorkspace(root, {

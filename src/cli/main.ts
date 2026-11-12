@@ -12,7 +12,7 @@ import { Console, Effect, FileSystem, Option, Path } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
 import type { Answer } from "../app/Answer.ts"
 import * as Authoring from "../app/Authoring.ts"
-import { describe } from "../app/Errors.ts"
+import { describe, Refused } from "../app/Errors.ts"
 import * as Reading from "../app/Reading.ts"
 import * as Running from "../app/Running.ts"
 import { templateKinds } from "../app/Templates.ts"
@@ -48,11 +48,20 @@ const sdp = Command.make("sdp").pipe(
   Command.withDescription("Living specifications, curated architecture and decisions as one queryable graph")
 )
 
+/** The directory `-C` names, if it was given. One that does not exist yet is for the command to report, or to make. */
+const givenRoot = Effect.gen(function*() {
+  const { root } = yield* sdp
+  if (Option.isNone(root)) return undefined
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const directory = path.resolve(root.value)
+  const isDirectory = yield* fs.stat(directory).pipe(Effect.map((info) => info.type === "Directory"), Effect.orElseSucceed(() => true))
+  return isDirectory ? directory : yield* new Refused({ reason: `-C ${root.value}: a workspace is a directory, and this is a file` })
+})
+
 /** `-C <dir>`, or the nearest directory with a configuration file, the way git finds its repository. */
 const workspaceRoot = Effect.gen(function*() {
-  const { root } = yield* sdp
-  const path = yield* Path.Path
-  return Option.isSome(root) ? path.resolve(root.value) : yield* findWorkspaceRoot(process.cwd())
+  return (yield* givenRoot) ?? (yield* findWorkspaceRoot(process.cwd()))
 })
 
 /** The command did not do what it was asked: a check with errors, a failed scenario, input it refuses. */
@@ -356,9 +365,8 @@ const initCommand = Command.make(
   {},
   Effect.fn(function*() {
     // A new workspace starts here (or at -C), never in a workspace further up.
-    const { root: given } = yield* sdp
     const path = yield* Path.Path
-    for (const { created, file } of yield* Authoring.init(path.resolve(Option.getOrElse(given, () => ".")))) {
+    for (const { created, file } of yield* Authoring.init((yield* givenRoot) ?? path.resolve("."))) {
       yield* Console.log(created ? `created ${file}` : Text.c.dim(`exists  ${file}`))
     }
     yield* Console.log(

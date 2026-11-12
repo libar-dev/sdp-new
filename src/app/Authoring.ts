@@ -42,8 +42,22 @@ export interface CreateInput {
   readonly dir?: string | undefined
 }
 
-/** `sdp new`: a spec from a template. Refuses an id or a file that exists, and a spec that would not read back. */
+/** Why `sdp new` cannot make a file out of this input, or `undefined` when it can. */
+const unusable = (input: CreateInput): string | undefined =>
+  !/^[\p{L}][\p{L}\p{N}_-]*$/u.test(input.kind)
+    ? `${JSON.stringify(input.kind)} is not a kind: a kind is one word — letters, digits, - and _ — such as requirement or bounded-context`
+    : input.title.trim() === ""
+    ? `a ${input.kind} needs a title: sdp new ${input.kind} "<title>"`
+    : input.id !== undefined && /[\\/]/.test(input.id)
+    ? `the id ${JSON.stringify(input.id)} cannot name a file: write it without a slash, and choose the directory with --dir`
+    : input.dir !== undefined && input.dir.trim() === ""
+    ? "--dir needs a directory, relative to the workspace root or absolute"
+    : undefined
+
+/** `sdp new`: a spec from a template. Refuses input it cannot make a file of, an id or a file that exists, and a spec that would not read back. */
 export const create = Effect.fn("create")(function*(root: string, input: CreateInput) {
+  const reason = unusable(input)
+  if (reason !== undefined) return yield* new Refused({ reason })
   const project = yield* loadProject(root, { withResults: false })
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
