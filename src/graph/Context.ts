@@ -37,9 +37,11 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   const spec = project.specById.get(id)
   const out: Array<string> = []
   const statusOf = describeStatus
-  const describe = (n: GraphNode) => `${n.id} — ${n.title} (${n.kind}${statusOf(n)}) ${formatSource(n.source)}`.trimEnd()
+  // A node without a title of its own, as an element declared by its code, is named by its id alone.
+  const named = (n: GraphNode) => n.title === n.id ? n.id : `${n.id} — ${n.title}`
+  const describe = (n: GraphNode) => `${named(n)} (${n.kind}${statusOf(n)}) ${formatSource(n.source)}`.trimEnd()
 
-  out.push(`# ${node.id} — ${node.title}`, "")
+  out.push(`# ${named(node)}`, "")
   out.push(`kind: ${node.kind}${statusOf(node)}  ·  source: ${formatSource(node.source) || "n/a"}`, "")
   const attrs = Object.entries(node.attrs).filter(([k]) => !["summary", "file", "title"].includes(k))
   if (attrs.length > 0) out.push(`attributes: ${attrs.map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(" ")}`, "")

@@ -60,7 +60,8 @@ Feature: Serve AI agents
       When I run "sdp context cart"
       Then the output contains "kind: feature, maturity: draft  ·  source: specs/cart.feature:1"
       And the sections of the output are "Not ready yet, Contract, Step definitions, Specification, Relationships, Architecture within 2 hops, Decisions in reach, Code"
-      And the output section "Relationships" contains "cart -realized-by-> ARCH-orders — ARCH-orders (element)"
+      And the output section "Relationships" contains "cart -realized-by-> ARCH-orders (element)"
+      And the output does not contain "ARCH-orders — ARCH-orders"
       And the output section "Code" contains "src/orders.ts:4 Orders — is ARCH-orders"
 
     Scenario: Each rule with its state, what it rests on and why it holds, then its examples
@@ -206,7 +207,7 @@ Feature: Serve AI agents
       When I ask for the context of "cart"
       Then the output contains:
         """
-        - ARCH-orders — ARCH-orders (element)
+        - ARCH-orders (element)
         Owns the order aggregate and its transaction boundary.
         """
       And the output section "Quality requirements" contains "cart-latency — Cart latency"
