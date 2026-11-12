@@ -190,13 +190,13 @@ Feature: Check specs
     compares the specs with a base revision. A maturity or `@open` on a Feature or a Rule that was
     live there is an error, whatever its examples were, and so is a live example of the base that is
     gone, still to come or a gate, unless what replaces its rule or its feature is live and has a
-    live example of its own: a gate enforces nothing, so it replaces no test. Examples are compared
-    one for one, each row of an outline on its own and a Background's steps with those of each
-    example: by their id, then by their steps, so a new name or a new place for one is no removal,
-    and an example edited under its name is the same example, while one that is gone is not made up
-    for by another that tests the same. The base is read with its own configuration, and the specs
-    of today with today's, so a live test that a configuration leaves out is dropped like any other,
-    and a file is read whatever its name.
+    new live example of its own: a gate enforces nothing, and a test the base already had takes over
+    no other. Examples are compared one for one, each row of an outline on its own and a
+    Background's steps with those of each example: by their id, then by their steps, so a new name
+    or a new place for one is no removal, and an example edited under its name is the same example,
+    while one that is gone is not made up for by another that tests the same. The base is read with
+    its own configuration, and the specs of today with today's, so a live test that a configuration
+    leaves out is dropped like any other, and a file is read whatever its name.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -343,6 +343,46 @@ Feature: Check specs
         | a feature, the cart gone                      | 0         | nothing         | # Cart is now the basket.                                                                                                                                                                                                                                                                                                                | @id=basket @replaces:cart\nFeature: Basket\n  \n  Rule: A basket holds what was added\n    Scenario: Add an item to the basket\n      Then the basket holds 1 item\n |
         | a rule of another feature that names the cart | 0         | nothing         | # Cart is now the basket.                                                                                                                                                                                                                                                                                                                | @id=basket\nFeature: Basket\n  @replaces:cart\n  Rule: A basket holds what was added\n    Scenario: Add an item to the basket\n      Then the basket holds 1 item\n  |
 
+    Scenario Outline: A live rule deleted, and named as replaced by <replacement>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          Rule: A cart has a total
+
+            Scenario: The total of one item
+              Then the total is the item's price
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart <feature>
+        Feature: Cart
+
+          <rule>
+          Rule: A cart has a total
+
+            Scenario: The total of one item
+              Then the total is the item's price
+            <example>
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+
+      Examples:
+        | replacement                                  | feature                                    | rule                                       | example                                                                                 | exit code | reported                     |
+        | its own feature                              | @replaces:cart#a-cart-holds-what-was-added |                                            |                                                                                         | 1         | example-dropped, replacement |
+        | a rule whose example the base had live       |                                            | @replaces:cart#a-cart-holds-what-was-added |                                                                                         | 1         | example-dropped              |
+        | a rule with an example the base did not have |                                            | @replaces:cart#a-cart-holds-what-was-added | \n    Scenario: The total of two items\n      Then the total is the sum of their prices | 0         | nothing                      |
+
     Scenario Outline: The configuration changed: <change>
       Given a file "sdp.config.yaml" containing:
         """
@@ -472,7 +512,7 @@ Feature: Check specs
       When I run "sdp check"
       Then the exit code is 1
       And the output contains "[example-dropped] cart#add-an-item, a live example at the base "
-      And the output contains ", is gone, and nothing that replaces cart#a-cart-holds-what-was-added is live with a live example  specs/cart.feature:8"
+      And the output contains ", is gone, and nothing that replaces cart#a-cart-holds-what-was-added is live with a new live example  specs/cart.feature:8"
 
     Scenario Outline: A live rule replaced by a rule still to come, which <replacement>
       Given a file "specs/cart.feature" containing:
