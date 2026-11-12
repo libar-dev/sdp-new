@@ -22,6 +22,8 @@ export interface PickleStep {
   readonly keyword: string
   readonly text: string
   readonly line: number
+  /** What the step does, with `And`/`But` resolved to the keyword before them; `*` steps are `Unknown`. */
+  readonly type: "Context" | "Action" | "Outcome" | "Unknown"
   readonly docString?: string | undefined
   readonly dataTable?: ReadonlyArray<ReadonlyArray<string>> | undefined
 }
@@ -175,6 +177,7 @@ const parseVirtual = (specId: string, source: string, mapLine: (virtual: number)
         return {
           keyword: ast?.keyword.trim() ?? "*",
           text: step.text,
+          type: step.type ?? "Unknown",
           line: astLines.get(step.astNodeIds[0]!) ?? 1,
           docString: step.argument?.docString?.content,
           dataTable: step.argument?.dataTable?.rows.map((row) => row.cells.map((cell) => cell.value))

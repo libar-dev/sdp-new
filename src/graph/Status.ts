@@ -1,6 +1,6 @@
 import { architectureSummary } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
-import type { Project } from "./Build.ts"
+import { isGate, type Project } from "./Build.ts"
 
 const tally = (values: ReadonlyArray<unknown>) => {
   const counts: Record<string, number> = {}
@@ -12,6 +12,8 @@ const tally = (values: ReadonlyArray<unknown>) => {
 export const statusSummary = (project: Project) => {
   const { graph } = project
   const architecture = architectureSummary(project)
+  const gates = new Set(project.specs.flatMap((spec) => spec.scenarios.filter((s) => isGate(s, spec)).map((s) => s.id)))
+  const scenarios = graph.ofKind("scenario")
   return {
     nodes: graph.nodes.size,
     edges: graph.edges.length,
@@ -20,7 +22,9 @@ export const statusSummary = (project: Project) => {
     relations: Object.fromEntries(graph.relations()),
     stages: tally([...graph.nodes.values()].filter((n) => n.attrs.maturity !== undefined).map((n) => n.attrs.stage)),
     decisions: tally(graph.ofKind("decision").map((n) => n.attrs.status)),
-    scenarios: tally(graph.ofKind("scenario").map((n) => n.attrs.status)),
+    scenarios: tally(scenarios.filter((n) => !gates.has(n.id)).map((n) => n.attrs.status)),
+    /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
+    gates: tally(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status)),
     architecture: {
       significant: architecture.significant.length,
       declared: architecture.declared.length

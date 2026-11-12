@@ -57,6 +57,48 @@ export const achievableMaturity = (spec: Spec): string => {
 
 const decisionStatuses = ["proposed", "accepted", "rejected", "deprecated", "superseded"]
 
+/** How lines of `sdp new` templates begin that ask the author to write something in their place. */
+const placeholderLines = [
+  "One sentence capturing the idea.",
+  "Who needs what, and why.",
+  "Which quality matters, for whom, and why.",
+  "What forces are at play?",
+  "1. **Option A** — pros / cons",
+  "We will …",
+  "What becomes easier or harder.",
+  "Responsibility in one or two sentences.",
+  "The problem this pattern solves and how",
+  "What must be true to pass this milestone."
+]
+const placeholderQuestion = "What is still unknown?"
+/** Template scenarios name their parts in angle brackets: `Given <context>`. */
+const placeholderStep = /^<[^<>]+>$/
+
+/** Template text still in a spec, with its line: prose, the open question, scenario names and steps. */
+export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
+  const found: Array<{ text: string; line: number }> = []
+  let fence: string | undefined
+  spec.body.split("\n").forEach((raw, index) => {
+    const text = raw.trim()
+    const opens = /^(`{3,}|~{3,})/.exec(text)?.[1]
+    if (fence === undefined && opens) fence = opens
+    else if (fence !== undefined && text.startsWith(fence)) fence = undefined
+    else if (fence === undefined) {
+      const placeholder = placeholderLines.find((p) => text.startsWith(p))
+      if (placeholder) found.push({ text: placeholder, line: spec.bodyLine + index })
+    }
+  })
+  for (const question of spec.openQuestions) if (question.text === placeholderQuestion) found.push(question)
+  for (const scenario of spec.scenarios) {
+    if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })
+    for (const step of scenario.steps) if (placeholderStep.test(step.text)) found.push({ text: `${step.keyword} ${step.text}`, line: step.line })
+  }
+  return found.sort((a, b) => a.line - b.line)
+}
+
+/** Attributes whose values name lifecycle nodes; a value that names no node is a typo or a missing plan entry. */
+const planKeys = ["iteration", "phase"]
+
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const out: Array<Diagnostic> = [...project.diagnostics]
   const { graph, config } = project
@@ -150,6 +192,43 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         source: node.source,
         hint: "state the decision under a `## Decision` heading"
       })
+    }
+  }
+
+  for (const spec of project.specs) {
+    const placeholders = templatePlaceholders(spec)
+    if (placeholders.length > 0) {
+      const [first] = placeholders
+      out.push({
+        rule: "template-placeholder",
+        severity: "warning",
+        message: `${spec.id} still has template text: "${first!.text}"${placeholders.length > 1 ? ` (and ${placeholders.length - 1} more)` : ""}`,
+        node: spec.id,
+        source: at(spec, first!.line),
+        hint: "replace the template's text with your own, or delete it"
+      })
+    }
+    const owners = [
+      { id: spec.id, attrs: spec.attrs, line: (key: string) => spec.attrLines[key] ?? 1 },
+      ...spec.inlineNodes.map((inline) => ({ id: inline.id, attrs: inline.attrs, line: () => inline.line }))
+    ]
+    for (const owner of owners) {
+      for (const key of planKeys) {
+        const values = [owner.attrs[key]].flat().filter(Predicate.isString)
+        for (const value of values.filter((v) => !graph.node(v) || graph.node(v)!.kind === "missing")) {
+          const known = graph.ofKind(key).map((n) => n.id)
+          out.push({
+            rule: "plan-reference",
+            severity: "warning",
+            message: `${owner.id}: ${key} "${value}" names no node`,
+            node: owner.id,
+            source: at(spec, owner.line(key)),
+            hint: known.length > 0
+              ? `use the id of a ${key}: ${known.join(", ")}`
+              : `declare the ${key} in a plan (sdp new plan) or remove \`${key}: ${value}\``
+          })
+        }
+      }
     }
   }
 

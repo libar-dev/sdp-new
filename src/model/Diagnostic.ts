@@ -21,7 +21,10 @@ export const rules = {
   "maturity-promotable": "info",
   "decision-status": "warning",
   "decision-supersede": "warning",
-  "decision-content": "info"
+  "decision-content": "info",
+  "template-placeholder": "warning",
+  "plan-reference": "warning",
+  "annotation-ignored": "warning"
 } as const satisfies Record<string, Severity>
 
 export type RuleId = keyof typeof rules

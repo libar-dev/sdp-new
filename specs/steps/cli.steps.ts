@@ -2,18 +2,21 @@
  * Steps that run the real `sdp` command line as a process, the way people and
  * agents use it. Files given with `a file … containing:` are written to a fresh
  * temporary directory before the first command; commands run in it, with `sdp`
- * standing for `node <this repository>/src/cli/main.ts`. Shares its world with
- * every other module (world.ts).
+ * standing for `node <this repository>/src/cli/main.ts` and `$PWD` for that
+ * directory, as in a shell. Shares its world with every other module (world.ts).
  */
+import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Effect } from "effect"
+import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { execFile } from "node:child_process"
 import { rmSync } from "node:fs"
-import { cp, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises"
+import { access, cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { newSpec } from "../../src/cli/templates.ts"
+import { registrations } from "../../src/mcp/Server.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
 import { load, newWorld, setFile, type World } from "./world.ts"
 
@@ -54,7 +57,7 @@ const words = (command: string) => [...command.matchAll(/'([^']*)'|"([^"]*)"|(\S
 
 const exec = (command: string, cwd: string, input = "") =>
   new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-    const [bin, ...args] = words(command)
+    const [bin, ...args] = words(command).map((word) => word.replaceAll("$PWD", cwd))
     const sdp = bin === "sdp"
     const child = execFile(sdp ? process.execPath : bin!, sdp ? [cli, ...args] : args, { cwd, env }, (error, stdout, stderr) => {
       if (error && typeof error.code !== "number") reject(error)
@@ -72,13 +75,11 @@ const record = (world: World, result: { code: number; stdout: string; stderr: st
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("the workspace is a copy of {string}", async ({ args: [source], world }) => {
     const directory = await directoryOf(world)
+    // Its step definitions import "sdp" with nothing installed: sdp resolves that import itself.
     await cp(join(repository, source), directory, {
       recursive: true,
       filter: (file) => ![".sdp", "node_modules"].includes(basename(file))
     })
-    // Its step definitions import "sdp", as they would with sdp installed.
-    await mkdir(join(directory, "node_modules"), { recursive: true })
-    await symlink(repository, join(directory, "node_modules/sdp"), "dir")
   })
 
   Given("specs created from the sdp new templates:", ({ table, world }) =>
@@ -90,7 +91,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
         const spec = newSpec({
           kind: cell("kind"),
           title: cell("title"),
-          maturity: cell("maturity") || "idea",
+          maturity: cell("maturity") || undefined,
           today: "2026-11-12",
           config: project.config,
           existing
@@ -106,6 +107,19 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("I run {string} in the repository", async ({ args: [command], project, world }) => {
     record(world, await exec(command, project.root))
+  })
+
+  When("I run {string} in {string}", async ({ args: [command, subdirectory], world }) => {
+    const directory = await workspace(world)
+    await mkdir(join(directory, subdirectory), { recursive: true })
+    record(world, await exec(command, join(directory, subdirectory)))
+  })
+
+  // Suggested links are commented out in the templates: `  # realized-by: ARCH-…`.
+  When("the suggested links are uncommented", ({ world }) => {
+    for (const [file, content] of world.files) {
+      setFile(world, file, content.replace(/^(\s+)# ([a-z][\w-]*: \S.*)$/gm, "$1$2"))
+    }
   })
 
   When("an MCP client of {string} calls {string} with:", async ({ args: [command, tool], doc, world }) => {
@@ -127,6 +141,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     world.output = reply.result.content.map((c: { text?: string }) => c.text ?? "").join("\n")
   })
 
+  // A server in this very process, on the files on disk: like a long-running `sdp mcp`, every call
+  // shares one module cache, so it shows whether edits to step files are seen.
+  When("an agent calls the MCP tool {string} on the workspace directory with:", ({ args: [tool], doc, world }) =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => workspace(world))
+      const client = yield* McpTest.makeClient(registrations(directory), { protocols: [McpProtocol.v2025_11_25] })
+      const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
+      world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
+    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)))
+
   Then("the exit code is {int}", ({ args: [code], world }) => {
     assert.equal(world.exitCode, code, `exit code ${world.exitCode}, output:\n${world.output}`)
   })
@@ -140,8 +164,18 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     }
   })
 
+  Then("the file {string} does not exist", async ({ args: [file], world }) => {
+    const exists = await access(join(await directoryOf(world), file)).then(() => true, () => false)
+    assert.ok(!exists, `${file} exists`)
+  })
+
   Then("the file {string} contains {string}", async ({ args: [file, text], world }) => {
     const content = await readFile(join(await directoryOf(world), file), "utf8")
     assert.ok(content.includes(text.replace(/\\t/g, "\t")), `${file} does not contain ${JSON.stringify(text)}:\n${content}`)
+  })
+
+  Then("the file {string} does not contain {string}", async ({ args: [file, text], world }) => {
+    const content = await readFile(join(await directoryOf(world), file), "utf8")
+    assert.ok(!content.includes(text), `${file} contains ${JSON.stringify(text)}:\n${content}`)
   })
 })

@@ -7,7 +7,9 @@
  * links the code (the declaration directly below, or the whole file when a blank line follows) to graph
  * nodes. The relation is free text (`implements`, `is`, `instance-of`, ...).
  * `is` anchors a node in code and declares it if no spec defines it.
- * `grep -rn "@sdp" src/` lists every annotation.
+ * `grep -rn "@sdp" src/` lists every annotation. One written after code on the
+ * same line (`total() // @sdp implements X`) is not read; `ignoredAnnotations`
+ * finds those so `sdp check` can say so.
  */
 
 export interface Annotation {
@@ -43,6 +45,21 @@ export const scanAnnotations = (file: string, content: string): ReadonlyArray<An
     }
     if (targets.length === 0 || !targets.every((t) => idToken.test(t))) return
     found.push({ file, line: index + 1, rel: match[1]!, targets, attrs, symbol: nextSymbol(lines, index) })
+  })
+  return found
+}
+
+const trailing = /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[A-Za-z][\w.:#/-]*(?:,[A-Za-z][\w.:#/-]*)*)(?=\s|$|\*\/|-->)/
+
+/** Comments after code that look like annotations but, not opening their comment line, are not read as one. */
+export const ignoredAnnotations = (content: string): ReadonlyArray<{ readonly line: number; readonly text: string }> => {
+  if (!content.includes("@sdp")) return []
+  const found: Array<{ line: number; text: string }> = []
+  content.split(/\r?\n/).forEach((text, index) => {
+    // A comment line that mentions an annotation is prose; only code followed by a comment counts.
+    if (marker.test(text) || commentOnly.test(text)) return
+    const match = trailing.exec(text)
+    if (match) found.push({ line: index + 1, text: match[1]! })
   })
   return found
 }

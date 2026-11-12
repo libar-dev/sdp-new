@@ -141,7 +141,7 @@ const shades = [" ", "░", "▒", "▓", "█"]
 export const renderLifecycle = (report: LifecycleReport): string => {
   const out: Array<string> = []
   if (report.phases.length === 0) {
-    return "No phases defined. Declare `kind: phase` and `kind: iteration` nodes (see docs/delivery/plan.md for an example).\n"
+    return `${emptyPlanHint}\n`
   }
   const currentIndex = report.phases.findIndex((p) => p.node.id === report.currentPhase?.id)
   out.push("PHASES")
@@ -179,7 +179,19 @@ export const renderLifecycle = (report: LifecycleReport): string => {
     })
     out.push(`  ${pad(discipline, 18)} ${cells.join("")}`)
   }
+  out.push(`  ${pad("", 18)} ${shades.slice(1).join(" ")}  more work in an iteration, relative to the discipline's busiest; blank: none`)
   return out.join("\n") + "\n"
 }
+
+/** What `sdp lifecycle` says before there is a plan: how to write one, inline. */
+export const emptyPlanHint = `No phases defined yet. \`sdp new plan "Delivery plan"\` writes a plan with the four phases and an
+iteration in each, or declare phases and iterations in any spec's front matter:
+
+  nodes:
+    - { id: elaboration, kind: phase, title: Elaboration, order: 2 }
+    - { id: E1, kind: iteration, title: Architecture baseline, phase: elaboration, start: "2026-11-16", end: "2026-11-27" }
+
+Then plan work with \`iteration: E1\` on a spec, and close each phase with a milestone
+(\`sdp new milestone "Architecture baseline"\`, \`phase: elaboration\`) whose scenarios are its gate.`
 
 const pad = (s: string, n: number) => s.length >= n ? `${s} ` : s + " ".repeat(n - s.length)

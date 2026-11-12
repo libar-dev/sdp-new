@@ -35,6 +35,7 @@ examples
   requirement[maturity<ready]
   requirement -realized-by-> element[significant]
   element[significant] !-*- decision
+  element -decided-by-> decision[status=proposed]
   #DEC-0002 <-*- *
   scenario[status=failed] -verifies-> *`
 
@@ -508,4 +509,21 @@ export const unknownNames = (project: Project, parsed: Query): { readonly kinds:
   const kinds = selectors.flatMap((selector) => selector.kinds === "*" ? [] : selector.kinds).filter((kind) => !knownKinds.has(kind))
   const relations = parsed.steps.flatMap((step) => step.edge.rels === "*" ? [] : step.edge.rels).filter((rel) => !knownRelations.has(rel))
   return { kinds: [...new Set(kinds)], relations: [...new Set(relations)] }
+}
+
+/**
+ * Why a query that matched nothing may have: it names a kind or relation nothing in the project
+ * uses, listed with those in use. Undefined when every name is in use (or the query is invalid).
+ */
+export const unusedNamesNote = (project: Project, source: string): string | undefined => {
+  const parsed = parseQuery(source)
+  if (Result.isFailure(parsed)) return undefined
+  const { kinds, relations } = unknownNames(project, parsed.success)
+  const notes = [
+    kinds.length > 0 ? `no kind ${kinds.join(", ")}; kinds in use: ${[...project.graph.kinds().keys()].sort().join(", ")}` : undefined,
+    relations.length > 0
+      ? `no relation ${relations.join(", ")}; relations in use: ${[...project.graph.relations().keys()].sort().join(", ")}`
+      : undefined
+  ].filter(Predicate.isString)
+  return notes.length > 0 ? notes.join("\n") : undefined
 }

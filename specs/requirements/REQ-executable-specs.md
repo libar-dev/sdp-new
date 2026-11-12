@@ -21,8 +21,8 @@ update. The spec never changes format; only the evidence around it does.
 
 ## Step definitions
 
-Step definitions are TypeScript modules found by the `steps` globs of the configuration
-(`**/*.steps.ts` by default). Each binds Cucumber Expressions to handlers:
+Step definitions are TypeScript or JavaScript modules found by the `steps` globs of the
+configuration ([[REQ-configuration]]). Each binds Cucumber Expressions to handlers:
 
 ```ts
 // specs/steps/cart.steps.ts
@@ -46,9 +46,13 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
   world per factory; modules passing the same factory share that world, so a step library can be
   split across files (sdp's own steps share `specs/steps/world.ts`).
 - Steps match by text, not keyword: `Given`, `When`, `Then` and `Step` register alike.
+- **`import … from "sdp"`** always resolves to the sdp that runs the steps, so a workspace needs no
+  package installed for it, and step modules and runner never disagree about versions.
+- A step file must export its module (`export default defineSteps(…)`); one that exports none is
+  reported as a warning, and one that fails to load stops the run with one line naming the file
+  ([[REQ-cli]]).
 
-Not supported yet: custom parameter types, Before/After hooks, and running scenarios in parallel
-from the command line (`runScenarios` takes a `concurrency` option).
+Not supported yet: custom parameter types and Before/After hooks.
 
 ## Statuses
 
@@ -60,7 +64,7 @@ Examples table — and matches each step against every step definition.
 | `passed` | the handler succeeded |
 | `failed` | the handler threw, rejected, failed or timed out |
 | `pending` | the handler returned or threw `pending()` |
-| `undefined` | no definition matches: not automated yet, *not* a failure; `sdp run --snippets` prints a suggested definition |
+| `undefined` | no definition matches: not automated yet, *not* a failure; it comes with a suggested definition |
 | `ambiguous` | more than one definition matches; the error names them |
 | `skipped` | an earlier step of the same example did not pass |
 
@@ -72,6 +76,13 @@ the worst of its examples, in this order: `failed`, `ambiguous`, `undefined`, `p
 `passed`. A scenario therefore stays `undefined` until every step has a definition; the stubs that
 `--snippets` suggests return `pending()`, so pasting them turns it `pending` until they are
 implemented.
+
+Matching needs no run: `sdp context <id>` and the MCP tool `sdp_snippets` match a spec's steps
+against the current step definitions and list those without exactly one ([[REQ-agent-context]]).
+A suggested definition is registered with the keyword the step means — `And` and `But` take the
+keyword before them, `*` registers with `Step`. `sdp run --snippets` prints all suggestions of a run
+as one module to save as a `.steps.ts` file: imports, a world factory, and each expression once
+(defining it twice would make the step ambiguous), naming the existing step files it could join.
 
 ## Evidence
 
@@ -371,6 +382,63 @@ Scenario Outline: After a step that does not pass, the rest are skipped but stil
     | first step | status  |
     | fails      | failed  |
     | pends      | pending |
+~~~
+
+### Step modules
+
+~~~gherkin
+Scenario: A step module imports sdp without installing it
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp"
+
+    export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
+      Given("an empty cart", () => {})
+      When("I add a lamp", ({ world }) => {
+        world.items++
+      })
+      Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
+        if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
+      })
+    })
+    """
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
+
+Scenario: --snippets prints one module for every undefined step, each expression once, And and But as the keyword before them
+  Given a file "specs/REQ-wishlist.md" containing:
+    """
+    ---
+    id: REQ-wishlist
+    ---
+    # Wishlist
+
+    ```gherkin
+    Scenario: Keep a lamp for later
+      Given an empty cart
+      When I add a lamp
+      And I keep it for later
+      Then the wishlist holds 1 item
+      But the cart holds 1 item
+    ```
+    """
+  And a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp"
+
+    export default defineSteps(() => ({}), ({ Given }) => {
+      Given("an empty cart", () => {})
+    })
+    """
+  When I run "sdp run --snippets"
+  Then the output contains 'import { defineSteps, pending } from "sdp"'
+  And the output contains "export default defineSteps(newWorld, ({ When, Then }) => {"
+  And the output contains '  When("I add a lamp", ({ world }) => pending())' 1 time
+  And the output contains '  When("I keep it for later", ({ world }) => pending())'
+  And the output contains '  Then("the wishlist holds {int} item", ({ world, args: [int] }) => pending())'
+  And the output contains '  Then("the cart holds {int} item", ({ world, args: [int] }) => pending())' 1 time
+  And the output contains "Existing step files: specs/steps/cart.steps.ts"
+  And the output contains "step modules that pass the same factory share it"
 ~~~
 
 ### Runs

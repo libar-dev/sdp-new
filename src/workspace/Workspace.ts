@@ -5,6 +5,7 @@
  * pipeline against an in-memory workspace.
  */
 import { Effect, FileSystem, Path, Schema } from "effect"
+import { registerHooks } from "node:module"
 import { pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
@@ -31,6 +32,22 @@ export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoad
   file: Schema.String,
   message: Schema.String
 }) {}
+
+/**
+ * The workspace a command run in `start` works on: the nearest directory, `start` or above, with an
+ * `sdp.config.*` file — the way git finds its repository — or `start` itself when there is none.
+ */
+export const findWorkspaceRoot = Effect.fn("findWorkspaceRoot")(function*(start: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  let directory = path.resolve(start)
+  while (true) {
+    for (const name of configFileNames) if (yield* fs.exists(path.join(directory, name))) return directory
+    const parent = path.dirname(directory)
+    if (parent === directory) return path.resolve(start)
+    directory = parent
+  }
+})
 
 export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
@@ -111,18 +128,76 @@ export const loadProject = Effect.fn("loadProject")(function*(root: string, opti
   return buildProject({ root, config, specFiles, featureFiles, codeFiles, results }) satisfies Project
 })
 
-/** Import every step definition module matched by `config.steps`. */
-export const loadStepModules = Effect.fn("loadStepModules")(function*(root: string, config: Config) {
+const sdpIndex = new URL("../index.ts", import.meta.url).href
+const sdpSources = new URL("../", import.meta.url).href
+let hooked = false
+
+/**
+ * Step modules `import { defineSteps } from "sdp"`: that always resolves to the sdp that runs them,
+ * so a workspace needs no install, and step modules and runner agree on one sdp. A module imported
+ * with `?sdp-load=<n>` passes the marker on to the workspace files it imports (not to packages or
+ * to sdp itself), so a fresh load re-evaluates the step modules and their helpers.
+ */
+const hookImports = () => {
+  if (hooked) return
+  hooked = true
+  registerHooks({
+    resolve: (specifier, context, nextResolve) => {
+      if (specifier === "sdp") return { url: sdpIndex, shortCircuit: true }
+      const resolved = nextResolve(specifier, context)
+      const load = context.parentURL?.startsWith("file:") ? new URL(context.parentURL).searchParams.get("sdp-load") : null
+      if (load === null || !resolved.url.startsWith("file:") || resolved.url.includes("/node_modules/") || resolved.url.startsWith(sdpSources)) {
+        return resolved
+      }
+      const url = new URL(resolved.url)
+      url.searchParams.set("sdp-load", load)
+      return { ...resolved, url: url.href }
+    }
+  })
+}
+
+let loads = 0
+
+export interface LoadedSteps {
+  /** Step definition files found by the `steps` globs, relative to the root. */
+  readonly files: ReadonlyArray<string>
+  readonly modules: ReadonlyArray<StepModule<any>>
+  /** Files that export no step module (`export default defineSteps(…)`), so define nothing. */
+  readonly empty: ReadonlyArray<string>
+}
+
+/**
+ * Import every step definition module matched by `config.steps`. With `fresh`, modules are
+ * evaluated again instead of taken from the module cache, so a long-running process (the MCP
+ * server) sees edits to step files.
+ */
+export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: Config, options: { readonly fresh?: boolean } = {}) {
   const path = yield* Path.Path
   const files = yield* findFiles(root, config.steps, config.exclude)
+  if (files.length > 0) hookImports()
+  const suffix = options.fresh ? `?sdp-load=${++loads}` : ""
   const modules: Array<StepModule<any>> = []
+  const empty: Array<string> = []
   for (const file of files) {
     const absolute = path.resolve(root, file)
     const exports = yield* Effect.tryPromise({
-      try: () => import(pathToFileURL(absolute).href) as Promise<Record<string, unknown>>,
-      catch: (e) => new StepLoadError({ file, message: e instanceof Error ? e.message : String(e) })
+      try: () => import(pathToFileURL(absolute).href + suffix) as Promise<Record<string, unknown>>,
+      catch: (e) => new StepLoadError({ file, message: loadMessage(e) })
     })
-    for (const value of Object.values(exports)) if (isStepModule(value)) modules.push(value)
+    const found = Object.values(exports).filter(isStepModule)
+    if (found.length === 0) empty.push(file)
+    modules.push(...found)
   }
-  return modules
+  return { files, modules, empty } satisfies LoadedSteps
+})
+
+/** The first line of what went wrong; Node appends the code frame and a stack nobody needs here. */
+const loadMessage = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.split("\n").find((line) => line.trim() !== "")?.trim() ?? message
+}
+
+/** Import every step definition module matched by `config.steps`. */
+export const loadStepModules = Effect.fn("loadStepModules")(function*(root: string, config: Config) {
+  return (yield* loadSteps(root, config)).modules
 })

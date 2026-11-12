@@ -43,6 +43,8 @@ export interface Spec {
   readonly summary: string
   readonly headings: ReadonlyArray<string>
   readonly body: string
+  /** File line of the body's first line (the line after the front matter). */
+  readonly bodyLine: number
   /** Fenced gherkin blocks present (even if empty or unparseable). */
   readonly hasGherkin: boolean
   /** Line of each top-level front matter attribute, so facts derived from one can point at it. */
@@ -131,6 +133,7 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       summary: md.summary,
       headings: md.headings.map((h) => h.text),
       body: md.body,
+      bodyLine: md.frontMatterLines + 1,
       hasGherkin: md.fences.some((fence) => gherkinLangs.has(fence.lang)),
       attrLines: Object.fromEntries(Object.keys(attrs).map((key) => [key, frontMatterKeyLine(md, key)]))
     },
@@ -183,6 +186,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       summary: parsed.description?.split("\n\n")[0]?.replace(/\s+/g, " ") ?? "",
       headings: [],
       body: content,
+      bodyLine: 1,
       hasGherkin: true,
       attrLines: {}
     },

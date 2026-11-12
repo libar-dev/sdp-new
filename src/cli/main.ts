@@ -9,20 +9,22 @@ import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "eff
 import { Argument, Command, Flag } from "effect/cli"
 import { architectureJson, architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
+import { isGate } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
-import { formatPath, queryProject, querySyntax } from "../graph/Query.ts"
+import { formatPath, queryProject, querySyntax, unusedNamesNote } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
 import { builtinSteps } from "../run/Builtin.ts"
+import { makeMatcher, snippetModule } from "../run/Match.ts"
 import type { ScenarioResult } from "../run/Results.ts"
 import { summarize } from "../run/Runner.ts"
-import { isGate, runWorkspace } from "../run/Session.ts"
-import { loadConfig, loadProject, loadStepModules } from "../workspace/Workspace.ts"
+import { runWorkspace } from "../run/Session.ts"
+import { findWorkspaceRoot, loadConfig, loadProject, loadSteps } from "../workspace/Workspace.ts"
 import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
-import { agentsTemplate, configTemplate, newSpec } from "./templates.ts"
+import { agentsTemplate, configTemplate, newSpec, templateKinds } from "./templates.ts"
 
 // @sdp is ARCH-cli
 
@@ -38,17 +40,20 @@ const sdp = Command.make("sdp").pipe(
   Command.withSharedFlags({
     root: Flag.String("root").pipe(
       Flag.withAlias("C"),
-      Flag.withDescription("Workspace root (directory containing sdp.config.yaml)"),
-      Flag.withDefault(".")
+      Flag.withDescription(
+        "Workspace root (default: the nearest directory, current or above, with an sdp.config.* file; else the current one)"
+      ),
+      Flag.optional
     )
   }),
   Command.withDescription("Living specifications, curated architecture and decisions as one queryable graph")
 )
 
+/** `-C <dir>`, or the nearest directory with a configuration file, the way git finds its repository. */
 const workspaceRoot = Effect.gen(function*() {
   const { root } = yield* sdp
   const path = yield* Path.Path
-  return path.resolve(root)
+  return Option.isSome(root) ? path.resolve(root.value) : yield* findWorkspaceRoot(process.cwd())
 })
 
 const fail = (message: string) =>
@@ -64,7 +69,7 @@ const printJson = (value: unknown) => Console.log(JSON.stringify(value, null, 2)
 const graphCommand = Command.make(
   "graph",
   {
-    format: Flag.Literals("format", graphFormats).pipe(Flag.withAlias("f"), Flag.withDefault("jsonl")),
+    format: Flag.Literals("format", graphFormats).pipe(Flag.withAlias("f"), Flag.withDescription("Output format"), Flag.withDefault("jsonl")),
     write: Flag.Boolean("write").pipe(
       Flag.withDescription("Write .sdp/graph.jsonl and .sdp/graph.tsv for grep/jq instead of printing"),
       Flag.withDefault(false)
@@ -118,6 +123,9 @@ const queryCommand = Command.make(
     }
     if (truncated) yield* Console.error(c.yellow("result truncated"))
     if (!ids) yield* Console.error(c.dim(`${nodes.length} node(s)`))
+    // An empty result because of a misspelt kind or relation should not look like a real "none".
+    const note = nodes.length === 0 ? unusedNamesNote(project, expression) : undefined
+    if (note) yield* Console.error(c.yellow(note))
   })
 ).pipe(
   Command.withAlias("q"),
@@ -134,7 +142,7 @@ const queryCommand = Command.make(
 
 const showCommand = Command.make(
   "show",
-  { id: Argument.String("id"), json },
+  { id: Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout")), json },
   Effect.fn(function*({ id, json }) {
     const project = yield* loadProject(yield* workspaceRoot)
     const node = project.graph.node(id)
@@ -151,14 +159,31 @@ const showCommand = Command.make(
 
 const contextCommand = Command.make(
   "context",
-  { id: Argument.String("id"), depth: Flag.Int("depth").pipe(Flag.withDefault(2)) },
+  {
+    id: Argument.String("id").pipe(Argument.withDescription("Node id, e.g. REQ-guest-checkout")),
+    depth: Flag.Int("depth").pipe(
+      Flag.withDescription("Hops to search for significant architecture, quality requirements and decisions"),
+      Flag.withDefault(2)
+    )
+  },
   Effect.fn(function*({ depth, id }) {
-    const project = yield* loadProject(yield* workspaceRoot)
-    const bundle = contextBundle(project, id, depth)
-    if (!bundle) return yield* fail(`no node ${id}`)
-    yield* Console.log(bundle)
+    const root = yield* workspaceRoot
+    const project = yield* loadProject(root)
+    if (!project.graph.node(id)) return yield* fail(`no node ${id}`)
+    // Step definitions show which steps are not automated yet without a run; a broken step file
+    // must not keep anyone from reading the context, so it only costs that part.
+    const steps = yield* loadSteps(root, project.config).pipe(
+      Effect.map((loaded) => ({ matcher: makeMatcher([builtinSteps, ...loaded.modules]), files: loaded.files })),
+      Effect.catchTag("StepLoadError", (e) =>
+        Effect.as(Console.error(c.yellow(`${e.file}: could not load step definitions: ${e.message}`)), undefined))
+    )
+    yield* Console.log(contextBundle(project, id, depth, steps))
   })
-).pipe(Command.withDescription("Markdown context bundle for one node: spec, links, scenarios, architecture, decisions, code"))
+).pipe(
+  Command.withDescription(
+    "Markdown context bundle for one node: spec, why it is not ready, links, scenarios with the step definitions still to write, architecture, quality requirements, decisions, code"
+  )
+)
 
 // --- check ------------------------------------------------------------------
 
@@ -195,12 +220,14 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
 }) {
   const root = yield* workspaceRoot
   const config = yield* loadConfig(root)
-  const modules = [builtinSteps, ...(yield* loadStepModules(root, config))]
-  const print = (r: ScenarioResult) =>
-    options.json ? Effect.void : Console.log(formatScenario(r, { snippets: options.snippets, verbose: options.verbose }))
+  const steps = yield* loadSteps(root, config)
+  for (const file of steps.empty) {
+    yield* Console.error(c.yellow(`warning: ${file} defines no steps: export the module, e.g. \`export default defineSteps(…)\``))
+  }
+  const print = (r: ScenarioResult) => options.json ? Effect.void : Console.log(formatScenario(r, { verbose: options.verbose }))
   const run = yield* runWorkspace(root, {
-    modules,
-    selection: { targets: options.targets, tags: Option.getOrUndefined(options.tags) },
+    modules: [builtinSteps, ...steps.modules],
+    selection: { targets: yield* fromHere(root, options.targets), tags: Option.getOrUndefined(options.tags) },
     concurrency: options.concurrency,
     onScenario: print
   })
@@ -214,14 +241,33 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
     ? gates.length === 0 || gateCounts.passed < gates.length
     : counts.failed + counts.ambiguous > 0
   if (failed) process.exitCode = 1
-  if (options.json) return yield* printJson({ summary: counts, gates: gateCounts, scenarios: [...scenarios, ...gates] })
+  const snippets = [...scenarios, ...gates].flatMap((r) => r.pickles.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
+  const module = options.snippets && snippets.length > 0 ? snippetModule(snippets, steps.files) : undefined
+  if (options.json) {
+    return yield* printJson({ summary: counts, gates: gateCounts, scenarios: [...scenarios, ...gates], ...(module ? { snippets: module } : {}) })
+  }
   const describe = (c: Readonly<Record<string, number>>) =>
     Object.entries(c).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s}`).join(", ") || "none"
   if (scenarios.length > 0 || gates.length === 0) yield* Console.log(`\n${scenarios.length} scenario(s): ${describe(counts)}`)
   if (gates.length > 0) yield* Console.log(`${gates.length} gate scenario(s): ${describe(gateCounts)}`)
-  if (counts.undefined > 0 && !options.snippets) {
-    yield* Console.log(c.dim("undefined steps describe behaviour not automated yet; --snippets prints step definition stubs"))
+  if (module) {
+    yield* Console.log(`\nStep definitions for the undefined steps:\n\n${module}`)
+  } else if (snippets.length > 0) {
+    yield* Console.log(c.dim("undefined steps describe behaviour not automated yet; --snippets prints a step definition module for them"))
   }
+})
+
+/** Targets that are paths relative to the current directory, made relative to the workspace root. */
+const fromHere = Effect.fnUntraced(function*(root: string, targets: ReadonlyArray<string>) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const cwd = process.cwd()
+  if (cwd === root) return targets
+  return yield* Effect.forEach(targets, (target) =>
+    Effect.map(fs.exists(path.resolve(cwd, target)), (exists) => {
+      const inside = path.relative(root, path.resolve(cwd, target))
+      return exists && !inside.startsWith("..") && !path.isAbsolute(inside) ? inside || "." : target
+    }))
 })
 
 const runCommand = Command.make(
@@ -232,7 +278,10 @@ const runCommand = Command.make(
       Argument.variadic()
     ),
     tags: Flag.String("tags").pipe(Flag.withDescription("Cucumber tag expression, e.g. '@nfr and not @slow'"), Flag.optional),
-    snippets: Flag.Boolean("snippets").pipe(Flag.withDescription("Print stubs for undefined steps"), Flag.withDefault(false)),
+    snippets: Flag.Boolean("snippets").pipe(
+      Flag.withDescription("Print one step definition module with a suggested definition for every undefined step"),
+      Flag.withDefault(false)
+    ),
     concurrency: Flag.Int("concurrency").pipe(
       Flag.withDescription("Scenarios to run at once (scenarios tagged @serial always run alone)"),
       Flag.withDefault(1)
@@ -247,7 +296,7 @@ const runCommand = Command.make(
 
 const gateCommand = Command.make(
   "gate",
-  { milestone: Argument.String("milestone"), json },
+  { milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta")), json },
   Effect.fn(function*({ json, milestone }) {
     const project = yield* loadProject(yield* workspaceRoot)
     const node = project.graph.node(milestone)
@@ -266,7 +315,11 @@ const gateCommand = Command.make(
 const archCommand = Command.make(
   "arch",
   {
-    format: Flag.Literals("format", ["text", "mermaid", "dot", "json"]).pipe(Flag.withDefault("text")),
+    format: Flag.Literals("format", ["text", "mermaid", "dot", "json"]).pipe(
+      Flag.withAlias("f"),
+      Flag.withDescription("Output format"),
+      Flag.withDefault("text")
+    ),
     candidates: Flag.Boolean("candidates").pipe(
       Flag.withDescription("Suggest elements an architect may want to look at (suggestions only)"),
       Flag.withDefault(false)
@@ -339,20 +392,22 @@ const statusCommand = Command.make(
     const summary = statusSummary(project)
     const stageOrder = [...project.config.maturity, "in-progress", "verified"]
     if (json) return yield* printJson(summary)
-    const line = (label: string, m: Record<string, number>, order?: ReadonlyArray<string>) => {
+    const line = (label: string, m: Record<string, number>, order?: ReadonlyArray<string>, none = "—") => {
       const keys = order ? [...order.filter((k) => k in m), ...Object.keys(m).filter((k) => !order.includes(k))] : Object.keys(m)
-      return `${c.bold(label.padEnd(13))} ${keys.map((k) => `${k} ${m[k]}`).join(" · ") || "—"}`
+      return `${c.bold(label.padEnd(13))} ${keys.map((k) => `${k} ${m[k]}`).join(" · ") || none}`
     }
+    const results = ["passed", "failed", "pending", "undefined", "unrun", "stale"]
     yield* Console.log(`${c.bold("graph".padEnd(13))} ${summary.nodes} nodes, ${summary.edges} edges, ${summary.specFiles} spec files`)
     yield* Console.log(line("kinds", summary.kinds))
     yield* Console.log(line("relations", summary.relations))
     yield* Console.log(line("spec stages", summary.stages, stageOrder))
     yield* Console.log(line("decisions", summary.decisions))
-    yield* Console.log(line("scenarios", summary.scenarios, ["passed", "failed", "pending", "undefined", "unrun", "stale"]))
+    yield* Console.log(line("scenarios", summary.scenarios, results))
+    yield* Console.log(line("gates", summary.gates, results))
     yield* Console.log(
       `${c.bold("architecture".padEnd(13))} ${summary.architecture.significant} significant · ${summary.architecture.declared} declared, not significant`
     )
-    yield* Console.log(line("check", summary.diagnostics, ["error", "warning", "info"]))
+    yield* Console.log(line("check", summary.diagnostics, ["error", "warning", "info"], "no diagnostics"))
   })
 ).pipe(Command.withDescription("One-screen summary of the delivery state"))
 
@@ -361,44 +416,76 @@ const statusCommand = Command.make(
 const newCommand = Command.make(
   "new",
   {
-    kind: Argument.String("kind").pipe(Argument.withDescription("requirement, nfr, decision, element, pattern, milestone, or any kind")),
-    title: Argument.String("title"),
-    id: Flag.String("id").pipe(Flag.optional),
-    maturity: Flag.String("maturity").pipe(Flag.withDefault("idea")),
-    dir: Flag.String("dir").pipe(Flag.withDescription("Target directory (default depends on kind)"), Flag.optional)
+    kind: Argument.String("kind").pipe(
+      Argument.withDescription(
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a requirement at maturity idea, in specs/ideas). Any other kind gets the generic template`
+      )
+    ),
+    title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it (decisions and risks are numbered)")),
+    id: Flag.String("id").pipe(Flag.withDescription("Use this id instead of one made from the title"), Flag.optional),
+    maturity: Flag.String("maturity").pipe(
+      Flag.withDescription("Start at this maturity — idea (default), draft, specified or ready, or your configured ladder; the template grows with it"),
+      Flag.optional
+    ),
+    dir: Flag.String("dir").pipe(
+      Flag.withDescription("Directory to write to, relative to the workspace root or absolute (default depends on kind)"),
+      Flag.optional
+    )
   },
   Effect.fn(function*({ dir, id, kind, maturity, title }) {
     const root = yield* workspaceRoot
     const project = yield* loadProject(root, { withResults: false })
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
+    const ladder = project.config.maturity
+    if (Option.isSome(maturity) && !ladder.includes(maturity.value)) {
+      return yield* fail(`unknown maturity ${maturity.value}: use one of ${ladder.join(", ")}`)
+    }
     const created = newSpec({
       kind,
       title,
-      maturity,
+      maturity: Option.getOrUndefined(maturity),
       today: DateTime.formatIsoDate(yield* DateTime.now),
       config: project.config,
       existing: [...project.graph.nodes.keys()],
       id: Option.getOrUndefined(id),
       dir: Option.getOrUndefined(dir)
     })
+    // An id only a dangling link names is waiting for exactly this node.
     const existing = project.graph.node(created.id)
-    if (existing) return yield* fail(`id ${created.id} already exists at ${formatSource(existing.source)}`)
-    const target = path.join(root, created.file)
-    if (yield* fs.exists(target)) return yield* fail(`${created.file} already exists`)
+    if (existing && existing.kind !== "missing") return yield* fail(`id ${created.id} already exists at ${formatSource(existing.source)}`)
+    const target = path.resolve(root, created.file)
     yield* fs.makeDirectory(path.dirname(target), { recursive: true })
+    // Compared as real paths: an absolute --dir may reach the workspace through a symbolic link.
+    const relative = path.relative(yield* fs.realPath(root), path.join(yield* fs.realPath(path.dirname(target)), path.basename(target)))
+    const inside = !relative.startsWith("..") && !path.isAbsolute(relative)
+    const shown = inside ? relative : target
+    if (yield* fs.exists(target)) return yield* fail(`${shown} already exists`)
     yield* fs.writeFileString(target, created.content)
-    yield* Console.log(`${created.id}\t${created.file}`)
+    yield* Console.log(`${created.id}\t${shown}`)
+    if (!inside) yield* Console.error(c.yellow(`note: ${shown} is outside the workspace ${root}, so it is not part of its graph`))
   })
-).pipe(Command.withDescription("Create a spec, decision, element, ... from a template"))
+).pipe(
+  Command.withDescription(
+    `Create a spec, decision, element, plan, ... from a template and print its id and file. Templates: ${templateKinds.join(", ")}`
+  ),
+  Command.withExamples([
+    { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
+    { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea in specs/ideas" },
+    { command: "sdp new plan 'Delivery plan'", description: "Phases with an example iteration each" },
+    { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision record" }
+  ])
+)
 
 const initCommand = Command.make(
   "init",
   {},
   Effect.fn(function*() {
-    const root = yield* workspaceRoot
+    // A new workspace starts here (or at -C), never in a workspace further up.
+    const { root: given } = yield* sdp
     const fs = yield* FileSystem.FileSystem
     const path = yield* Path.Path
+    const root = path.resolve(Option.getOrElse(given, () => "."))
     const write = Effect.fnUntraced(function*(file: string, content: string) {
       const target = path.join(root, file)
       if (yield* fs.exists(target)) return yield* Console.log(c.dim(`exists  ${file}`))
@@ -409,7 +496,9 @@ const initCommand = Command.make(
     yield* write("sdp.config.yaml", configTemplate)
     yield* write(".sdp/.gitignore", "# regenerate with `sdp graph --write`; commit results.json if you want verified status in git\ngraph.*\n")
     yield* write("AGENTS.sdp.md", agentsTemplate)
-    yield* Console.log(c.dim("next: sdp new requirement \"My first idea\"  ·  point your AGENTS.md or CLAUDE.md at AGENTS.sdp.md"))
+    yield* Console.log(
+      c.dim("next: sdp new idea \"My first idea\"  ·  sdp new plan \"Delivery plan\"  ·  point your AGENTS.md or CLAUDE.md at AGENTS.sdp.md")
+    )
   })
 ).pipe(Command.withDescription("Create sdp.config.yaml and an agent guide (AGENTS.sdp.md, itself a spec) in the workspace"))
 
