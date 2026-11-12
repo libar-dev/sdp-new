@@ -1,13 +1,15 @@
 @id=ARCH-code-annotations
-@instance-of:PAT-pipes-and-filters @uses:ARCH-vocabulary @decided-by:DEC-0009
+@instance-of:PAT-pipes-and-filters @uses:ARCH-vocabulary
 Feature: Code annotations
 
   Links code into the graph. In TypeScript and JavaScript an annotation is code, a call to
   `annotate` from `sdp/annotations` that the compiler checks; in every language it may also be a
   comment. Both are read statically: sdp never runs the code.
 
-  @decided-by:DEC-0009
   Rule: In TypeScript and JavaScript an annotation is a call to the `annotate` that sdp exports, and to nothing else of that name
+
+    Not a comment, which the compiler cannot check and a rename leaves behind, and not a decorator,
+    which Node.js cannot run from source and which executes.
 
     Scenario Outline: annotate is read from the sdp package or its annotations subpath, by its name or through a namespace
       Given a file "src/pay.ts" containing:

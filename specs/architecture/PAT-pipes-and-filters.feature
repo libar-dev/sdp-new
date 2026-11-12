@@ -1,5 +1,5 @@
 @id=PAT-pipes-and-filters
-@decided-by:DEC-0004
+@decided-by:effect-for-io
 Feature: Pipes and filters
 
   Workspace IO → parse → build graph → analyse (query, check, run, lifecycle).

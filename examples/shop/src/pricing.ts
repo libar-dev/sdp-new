@@ -3,7 +3,7 @@ import { annotate } from "sdp/annotations"
 
 annotate(import.meta, { is: "ARCH-pricing" })
 
-/** Money is integer cents everywhere (DEC-0001). */
+/** Money is integer cents everywhere (DEC-integer-cents). */
 export type Cents = number
 
 export const vatRates: Readonly<Record<string, number>> = { DE: 19, FR: 20, HR: 25 }

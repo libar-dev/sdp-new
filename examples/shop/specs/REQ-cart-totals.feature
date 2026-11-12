@@ -4,7 +4,7 @@ Feature: Cart totals include VAT
 
   Shoppers see the gross total, including the VAT of the delivery country, before they pay.
 
-  @decided-by:DEC-0001
+  @decided-by:DEC-integer-cents
   Rule: The total adds the VAT of the delivery country, rounded once to whole cents
 
     Scenario Outline: Gross total by country

@@ -1,6 +1,5 @@
 @id=ARCH-spec-parser
-@decided-by:DEC-0001 @instance-of:PAT-pipes-and-filters @uses:ARCH-vocabulary
-@iteration:I1
+@decided-by:specs-are-gherkin-files @instance-of:PAT-pipes-and-filters @uses:ARCH-vocabulary
 Feature: Spec parser
 
   Reads one `.feature` file into one spec, and what it cannot read into a diagnostic. It reads what
@@ -11,7 +10,7 @@ Feature: Spec parser
   It is architecture because it defines the one specification format: a change here changes what
   every spec in every workspace means, the highest cost of change in the system.
 
-  @decided-by:DEC-0001
+  @decided-by:specs-are-gherkin-files
   Rule: A file is one spec: its Feature, named by its tags or else by its path
 
     Scenario Outline: Named by its tags or its path, titled by its Feature or its id
@@ -68,7 +67,7 @@ Feature: Spec parser
         | keyword | text                       | doc string      |
         | Given   | a feature file containing: | Feature: Search |
 
-  @decided-by:DEC-0001
+  @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag
 
     So a link is a property of how it is written, never of its value.
@@ -373,6 +372,19 @@ Feature: Spec parser
         | REQ-pay#scenario-3                   | 12   |
         | REQ-pay#a-declined-card-is-retried-2 | 15   |
       And sdp reports nothing
+
+    Scenario: A long name is cut after the last whole word within 64 characters
+      Given a file "specs/REQ-pay.feature" containing:
+        """
+        @id=REQ-pay
+        Feature: Pay
+
+          Rule: A card the bank declines is retried every hour for a whole day, then never again
+        """
+      When "specs/REQ-pay.feature" is parsed
+      Then the parsed spec has rules:
+        | id                                                                     | line |
+        | REQ-pay#a-card-the-bank-declines-is-retried-every-hour-for-a-whole-day | 4    |
 
     Scenario: Two rules alike are one id twice, which stops a run
       Given a file "specs/REQ-pay.feature" containing:

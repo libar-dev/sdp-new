@@ -1,3 +1,3 @@
 @id=ARCH-architecture-view
-@uses:ARCH-vocabulary @decided-by:DEC-0008
+@uses:ARCH-vocabulary
 Feature: Architecture view

@@ -1,6 +1,6 @@
 @id=VISION @kind=vision
-@principle:DEC-0001 @principle:DEC-0002 @principle:DEC-0003 @principle:DEC-0005 @principle:DEC-0006 @principle:DEC-0007 @principle:DEC-0008
-@iteration:I1
+@principle:specs-are-gherkin-files @principle:free-vocabulary @principle:files-are-the-source-of-truth
+@principle:declared-maturity-derived-stage
 Feature: Vision
 
   sdp manages software delivery end to end. Requirements at every maturity, quality requirements,

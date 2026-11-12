@@ -1,5 +1,5 @@
 @id=ARCH-graph-builder
-@decided-by:DEC-0003 @instance-of:PAT-pipes-and-filters @instance-of:PAT-derived-index @uses:ARCH-spec-parser @uses:ARCH-code-annotations @uses:ARCH-graph @uses:ARCH-vocabulary
+@decided-by:files-are-the-source-of-truth @instance-of:PAT-pipes-and-filters @instance-of:PAT-derived-index @uses:ARCH-spec-parser @uses:ARCH-code-annotations @uses:ARCH-graph @uses:ARCH-vocabulary
 Feature: Graph builder
 
   Builds the system graph from what the workspace read — specs, annotations and the last scenario

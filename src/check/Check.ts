@@ -298,7 +298,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${node.id}: ${activityKey} should map disciplines to iterations`,
         node: node.id,
         source: writtenAt(node, activityKey),
-        hint: `plan each discipline with a link of its own: \`@${activityKey}.implementation:C1 @${activityKey}.test:T1\``
+        hint: `plan each discipline with a link of its own: \`@${activityKey}.implementation:IT-beta @${activityKey}.test:IT-beta\``
       }))
     }
   }

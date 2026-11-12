@@ -117,7 +117,7 @@ const queryCommand = Command.make(
   Command.withExamples([
     { command: "sdp q 'requirement[maturity<ready]'", description: "Requirements not ready yet" },
     { command: "sdp q 'element !-*- decision'", description: "Elements without a decision" },
-    { command: "sdp q '#DEC-0002 <-*- *' --json | jq -r '.data.nodes[].id'", description: "Everything that points at a decision, as data" }
+    { command: "sdp q '#DEC-use-postgres <-*- *' --json | jq -r '.data.nodes[].id'", description: "Everything that points at a decision, as data" }
   ])
 )
 

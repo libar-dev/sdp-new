@@ -1,5 +1,5 @@
 @id=ARCH-vocabulary
-@decided-by:DEC-0002 @configured-by:REQ-configuration
+@decided-by:free-vocabulary @configured-by:REQ-configuration
 Feature: Vocabulary profile
 
   The few words sdp reads meaning into, each as a role with a default word that a workspace can
@@ -34,6 +34,3 @@ Feature: Vocabulary profile
         """
       When the TypeScript files under "src" are searched for interpreted words
       Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 quality, src/report.ts:9 type, src/report.ts:12 closes"
-
-  @open
-  Rule: The role `quality` reads the attribute `type`, while this repository writes `@quality=` and nothing reads it: which of the two is renamed?

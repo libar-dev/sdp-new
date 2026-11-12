@@ -4,7 +4,7 @@
 declare module "sdp/annotations" {
   interface Ids {
     "ARCH-pricing": "element"
-    "DEC-0001": "decision"
+    "DEC-integer-cents": "decision"
     "NFR-pricing-latency": "nfr"
     "REQ-cart-totals": "requirement"
     "REQ-guest-checkout": "requirement"

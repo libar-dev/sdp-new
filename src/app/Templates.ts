@@ -59,16 +59,13 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
     ? "risk"
     : "generic"
 
-/** What is numbered, not named: decisions, and risks. */
-const isNumbered = (kind: string, vocabulary: Vocabulary) => hasKind(vocabulary, "decision", kind) || kind === "risk"
-
 const prefixOf = (kind: string, config: Config) => config.ids[kind] ?? kind.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4)
 
 export const newId = (kind: string, title: string, config: Config, existing: ReadonlyArray<string>): string => {
   const prefix = prefixOf(kind, config)
   const slug = slugify(title)
-  // Decisions and risks are numbered; so is anything whose title has no ASCII letters to slug.
-  if (isNumbered(kind, config.vocabulary) || slug === "") {
+  // Every id says what it names; only a title with no ASCII letters to slug is numbered.
+  if (slug === "") {
     const numbers = existing.map((id) => new RegExp(`^${prefix}-(\\d+)$`).exec(id)?.[1]).filter(Boolean).map(Number)
     return `${prefix}-${String(Math.max(0, ...numbers) + 1).padStart(4, "0")}`
   }
@@ -219,7 +216,7 @@ const phaseId = (config: Config, name: string) => `${prefixOf(wordFor(config.voc
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
-  "requirement `@realized-by:ARCH-…` and `@refines:CAP-…`; element `@decided-by:DEC-…`, `@instance-of:PAT-…`, `@constrained-by:NFR-…`"
+  "requirement `@realized-by:ARCH-…` and `@refines:EPIC-…`; element `@decided-by:DEC-…`, `@instance-of:PAT-…`, `@constrained-by:NFR-…`"
 
 /**
  * What the author of a new spec writes next, in the workspace's own words. It is the answer of
@@ -235,7 +232,8 @@ const guidance = (options: {
   const { vocabulary } = config
   const { anchor } = vocabulary.relations
   const activity = vocabulary.attributes.activity
-  const plan = `\`@${wordFor(vocabulary.relations.plan)}:E1\` says when it is written, \`@${activity}.implementation:C1 @${activity}.test:T1\` when it is built and tested`
+  const iteration = `${prefixOf(wordFor(vocabulary.kinds.iteration), config)}-…`
+  const plan = `\`@${wordFor(vocabulary.relations.plan)}:${iteration}\` says when it is written, \`@${activity}.implementation:${iteration} @${activity}.test:${iteration}\` when it is built and tested`
   const closes = wordFor(vocabulary.relations.closes)
   const phase = wordFor(vocabulary.relations.phase)
   switch (templateOf(kind, vocabulary)) {
@@ -300,7 +298,7 @@ const guidance = (options: {
             ? "fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
             : "fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
           : []),
-        quality ? "link it: @refines:CAP-…; elements it constrains link to it with @constrained-by:" : "link it: @refines:CAP-… @realized-by:ARCH-…",
+        quality ? "link it: @refines:EPIC-…; elements it constrains link to it with @constrained-by:" : "link it: @refines:EPIC-… @realized-by:ARCH-…",
         `plan it: ${plan}`
       ]
     }

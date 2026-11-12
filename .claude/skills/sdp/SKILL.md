@@ -20,13 +20,13 @@ nothing.
 
 ```gherkin
 @id=REQ-guest-checkout @maturity=specified @checkout   # what it is: = is a value; a bare tag is a tag
-@refines:CAP-online-sales @realized-by:ARCH-orders    # what it links to: one tag, one link
-@iteration:C2 @activity.implementation:C3              # when it is written, when it is built
+@refines:EPIC-checkout @realized-by:ARCH-orders       # what it links to: one tag, one link
+@iteration:IT-payments                                 # the iteration it is planned into
 Feature: Guest checkout
 
   Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form.
 
-  @decided-by:DEC-0004
+  @decided-by:DEC-no-sign-up-at-checkout
   Rule: A guest pays without creating an account
 
     Scenario: By card
@@ -60,7 +60,9 @@ Feature: Guest checkout
   it means renaming it into the rule that was chosen and deleting the tag. What is undecided or
   waits on someone is written this way, on the spec it concerns, never kept in a chat or an
   agent's memory: `sdp q 'rule[tags~open]'` lists it.
-- **One node, one file**, named by its id: a phase, an iteration and a decision too.
+- **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
+  what it is — `DEC-use-postgres`, `IT-payments`, not `DEC-0007` or `E2` — so that whoever reads a
+  message citing it needs no lookup.
 
 The sharp edges of the format, each what the official parser does:
 
@@ -84,6 +86,9 @@ The sharp edges of the format, each what the official parser does:
 
 ## What holds everywhere
 
+- **A spec has a purpose.** It says what is still to be built — a feature or a change — or, once
+  that is built, it is its test. What does neither — a status, the plan of work that is done, a
+  note nobody acts on — is not written, and is deleted where it is found.
 - **Files are the source of truth.** The graph is rebuilt from them on every command. Edit the
   files; never a derived artefact (`.sdp/results.json` is written by `sdp run`).
 - **The architecture is what architects declared.** An element or pattern is in the graph because
@@ -98,9 +103,14 @@ The sharp edges of the format, each what the official parser does:
   list, a status, or a restatement of the rules below it. When a sentence becomes a rule, delete
   the sentence: promote, do not copy.
 - **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
-  context and a real trade-off is recorded: a Feature whose name is the choice and one to three
-  sentences on what was chosen over what. The rules it imposes stay on the spec they constrain,
-  tagged `@decided-by:DEC-x`. Any other choice is a sentence where it applies.
+  context and a real trade-off, and that spans features, is recorded: a Feature whose name is the
+  choice and one to three sentences on what was chosen over what. The rules it imposes stay on the
+  spec they constrain, tagged `@decided-by:<its id>`. A reason that concerns one feature is written
+  under the rule it explains, and any other choice is a sentence where it applies.
+- **One feature, one file.** A feature's spec is its requirements document and its test suite at
+  once: who needs what and why, what it is not, a rule per requirement with its reason, and the
+  scenarios that prove each one. It is not split into requirement, quality requirement and
+  element files; it names a technology only where its users see one.
 - **Evidence, not status.** Scenarios are the tests. The stage `verified` is derived from a run
   and goes stale when what it ran against changes; `@stage=` written by hand is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
@@ -136,8 +146,8 @@ faster than grepping for a guess.
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
 
-Plain grep is still right for what tags make literal: `grep -rn '@id=DEC-0003'` is the
-declaration, `grep -rn ':DEC-0003\b'` every link to it, `grep -rn -A1 '@open'` every open question.
+Plain grep is still right for what tags make literal: `grep -rn '@id=DEC-use-postgres'` is the
+declaration, `grep -rn ':DEC-use-postgres\b'` every link to it, `grep -rn -A1 '@open'` every open question.
 
 **An answer says when it is incomplete.** If sdp could not read a file, dropped a tag it could not
 read as written, or cut a traversal short, it prints `incomplete:` and `note:` lines on stderr and exits with code 2; with `--json` the
@@ -164,8 +174,10 @@ a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without 
 
 ## Planning work
 
-- Work is planned on the work itself: `@iteration:E1` says when a spec is written,
-  `@activity.implementation:C1 @activity.test:T1` when it is built and tested.
+- Work is planned on the work itself: `@iteration:IT-payments` says when a spec is written; where
+  a team plans disciplines apart, `@activity.implementation:IT-payments @activity.test:IT-beta`
+  says when it is built and tested. Only work still to do is planned: once it is built, its
+  scenarios are the record, and the plan tags can go.
 - A phase and an iteration are files of their own (`sdp new phase`, `sdp new iteration`), and
   `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
   iteration in which it will be done, never into one that is over.

@@ -99,8 +99,10 @@ const defaultIds: ReadonlyArray<readonly [string, string]> = [
   ["pattern", "PAT"],
   ["milestone", "MS"],
   ["capability", "CAP"],
+  ["epic", "EPIC"],
   ["risk", "RISK"],
-  ["phase", "PH"]
+  ["phase", "PH"],
+  ["iteration", "IT"]
 ]
 
 export const defaults: Config = {

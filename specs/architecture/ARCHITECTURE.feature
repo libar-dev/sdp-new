@@ -23,6 +23,14 @@ Feature: Architecture overview
       And the query "#ARCH-mcp <-uses- *" returns:
         | ARCH-cli |
 
+  Rule: Every element is anchored in the code it describes
+
+    An element that no code stands behind is a diagram that stopped being true.
+
+    Scenario: The elements of sdp's own architecture
+      Then the query "element" returns at least 1 result
+      And the query "element !<-is- code" returns no results
+
   @open
   Rule: Does `src/app/` — the use cases, the answer envelope, the templates — get an element of its own?
 

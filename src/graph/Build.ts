@@ -425,7 +425,7 @@ const codeLinks = (
         message: `${at.owner}: ${rel} ${JSON.stringify(to)} names no id`,
         node: at.owner,
         source: { file: at.file, line: at.line },
-        hint: `write the id it links to, e.g. ${rel}: "E1"`
+        hint: `write the id it links to, e.g. ${rel}: "IT-beta"`
       }))
     }
   }

@@ -1,5 +1,4 @@
 @id=GUIDE @kind=guide
-@introduces:VISION @introduces:CAP-living-specs @introduces:CAP-curated-architecture @introduces:CAP-agent-collaboration
 Feature: sdp, shown by running it
 
   What README.md promises a reader and AGENTS.md asks of an agent in this repository, as scenarios
@@ -55,24 +54,49 @@ Feature: sdp, shown by running it
       Then the exit code is 0
       And the output contains "4 scenario(s): 3 passed, 1 undefined"
 
-  Rule: The graph is data: grep, jq and a query give the same answer
+  Rule: A milestone is met by what ran, not by a status or a date
 
-    Each reads the files, and every node and link knows the file and line it came from.
+    Scenario: A gate that passes once the requirement's steps are written
+      Given a file "specs/REQ-search.feature" containing:
+        """
+        @id=REQ-search @maturity=specified
+        Feature: Search
 
-    Scenario: The specs a decision constrains
-      Given these specs:
-        | tags                                        | Feature                |
-        | @id=REQ-guest-checkout @decided-by:DEC-0001 | Guest checkout         |
-        | @id=DEC-0001                                | Pay without an account |
-      When I run "grep -rl ':DEC-0001' specs"
-      Then the output contains "specs/REQ-guest-checkout.feature"
-      When I run the pipeline:
+          Rule: A product is found by its name
+
+            Scenario: Find by name
+              When I search for "lamp"
+              Then I see 1 product
         """
-        sdp graph | jq -r 'select(.rel == "decided-by" and .to == "DEC-0001") | .from'
+      And a file "specs/MS-beta.feature" containing:
         """
-      Then the output contains "REQ-guest-checkout"
-      When I run "sdp q '#DEC-0001 <-decided-by- *' --ids"
-      Then the output contains "REQ-guest-checkout"
+        @id=MS-beta
+        Feature: Beta
+
+          Rule: Every requirement works
+
+            Scenario: Nothing is unverified
+              Then the query "requirement[stage!=verified]" returns no results
+        """
+      When I run "sdp gate MS-beta"
+      Then the exit code is 1
+      Given a file "specs/steps/search.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({ found: 0 }), ({ When, Then }) => {
+          When("I search for {string}", ({ world, args: [name] }) => {
+            world.found = name === "lamp" ? 1 : 0
+          })
+          Then("I see {int} product", ({ world, args: [count] }) => {
+            if (world.found !== count) throw new Error(`found ${world.found}`)
+          })
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      When I run "sdp gate MS-beta"
+      Then the exit code is 0
 
   Rule: The architecture is what an architect declares, with what shaped it
 
@@ -83,7 +107,7 @@ Feature: sdp, shown by running it
       Given the workspace is a copy of "examples/shop"
       When I run "sdp arch"
       Then the output contains "ARCH-pricing"
-      And the output contains "DEC-0001"
+      And the output contains "DEC-integer-cents"
       And the output contains "NFR-pricing-latency"
       And the output does not contain "src/cart.ts"
 
@@ -95,7 +119,7 @@ Feature: sdp, shown by running it
       When I run "sdp new idea 'Gift wrapping'"
       Then the output contains "REQ-gift-wrapping"
       When I run "sdp new decision 'Use Postgres for orders'"
-      Then the output contains "DEC-0001"
+      Then the output contains "DEC-use-postgres-for-orders"
       When I run "sdp check"
       Then the exit code is 0
       When I run "sdp q 'requirement[maturity=idea]' --ids"
@@ -117,13 +141,10 @@ Feature: sdp, shown by running it
         | prefix | kind        |
         | REQ    | requirement |
         | NFR    | nfr         |
-        | DEC    | decision    |
         | ARCH   | element     |
         | PAT    | pattern     |
         | MS     | milestone   |
-        | CAP    | capability  |
-        | RISK   | risk        |
-        | PH     | phase       |
+        | IT     | iteration   |
 
   Rule: A spec is a feature file; Markdown is only for the pages sdp does not read
 
@@ -132,6 +153,28 @@ Feature: sdp, shown by running it
     Scenario: The Markdown files of this repository, the example's included
       When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
       Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"
+
+  Rule: What is built is in specs/features, and what is still to come is in specs/incoming
+
+    So the folder alone tells what sdp does from what it might do. A feature in specs/features is
+    its own test: every rule has an example and none is open. A change names the feature it changes,
+    and is deleted once its rules have joined that feature.
+
+    Scenario: Where each spec of this repository is
+      Then the query "requirement|nfr|feature[file~^specs/features/][maturity!=ready]" returns no results
+      And the query "requirement|nfr|feature|change[file!~^specs/(features|incoming)/]" returns no results
+      And the query "change[file!~^specs/incoming/]" returns no results
+      And the query "change !-changes-> *[file~^specs/features/]" returns no results
+      And the query "element|pattern[file!~^specs/architecture/]" returns no results
+
+  Rule: A decision is in specs/decisions, and only what no feature's rule can hold is one
+
+    A decision is hard to reverse, surprising without context and a real trade-off, and it spans
+    features. A reason that concerns one feature is written under the rule it explains.
+
+    Scenario: The decisions of this repository
+      Then the query "decision[file!~^specs/decisions/]" returns no results
+      And the query "*[file~^specs/decisions/][kind!=decision]" returns no results
 
   @open
   Rule: Does a Markdown file where specs live make every answer incomplete, as a spec that cannot be read does, or is the warning from sdp check enough?

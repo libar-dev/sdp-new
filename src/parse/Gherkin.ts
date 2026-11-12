@@ -127,7 +127,7 @@ export interface FeatureFile {
 
 const featureLine = /^\s*Feature:/
 
-/** Which keys link, so that one written with `=` is a slip: `@iteration=E1` plans nothing. */
+/** Which keys link, so that one written with `=` is a slip: `@iteration=IT-beta` plans nothing. */
 export type LinkKeys = (key: string) => boolean
 
 /** Parse a `.feature` file, or say where the parser stopped. */
@@ -443,10 +443,16 @@ const parserErrors = (error: unknown): ReadonlyArray<GherkinError> => {
 
 const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : `@${tag.replace(/\s+/g, "-")}`
 
-/** Lower-case ASCII words joined by `-`; accents are dropped first, so "für Gäste" → "fur-gaste". */
-export const slugify = (text: string): string =>
-  text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
-    .slice(0, 64).replace(/-+$/, "")
+/**
+ * Lower-case ASCII words joined by `-`; accents are dropped first, so "für Gäste" → "fur-gaste". At
+ * most 64 characters, cut after the last whole word that fits, so an id never ends in half a word.
+ */
+export const slugify = (text: string): string => {
+  const slug = text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+  if (slug.length <= 64) return slug
+  const cut = slug.lastIndexOf("-", 64)
+  return cut > 0 ? slug.slice(0, cut) : slug.slice(0, 64)
+}
 
 /** Everything a step handler can observe of a scenario: each example's name, tags (inherited ones too) and steps with their arguments. */
 const hashPickles = (pickles: ReadonlyArray<Pickle>): string =>

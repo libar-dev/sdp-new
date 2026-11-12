@@ -1,6 +1,5 @@
 @id=PAT-derived-index
-@decided-by:DEC-0003
-@iteration:I1
+@decided-by:files-are-the-source-of-truth
 Feature: Derived index over source files
 
   Any structure needed to answer a question fast is derived from the human-edited files on demand,

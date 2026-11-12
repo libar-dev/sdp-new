@@ -11,7 +11,7 @@ that drive the domain code.
 | [specs/REQ-wishlist.feature](specs/REQ-wishlist.feature) | an idea — a title and a sentence are a valid spec |
 | [specs/NFR-pricing-latency.feature](specs/NFR-pricing-latency.feature) | a quality requirement whose step definitions are a fitness function |
 | [specs/ARCH-pricing.feature](specs/ARCH-pricing.feature) | the element an architect declared, and why it matters |
-| [specs/DEC-0001.feature](specs/DEC-0001.feature) | a decision: what was chosen over what, and why |
+| [specs/DEC-integer-cents.feature](specs/DEC-integer-cents.feature) | a decision: what was chosen over what, and why |
 | [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp/steps` |
 | [src/pricing.ts](src/pricing.ts), [src/cart.ts](src/cart.ts) | code linked to the graph with typed `annotate()` calls from `sdp/annotations` |
 | [.sdp/ids.d.ts](.sdp/ids.d.ts) | the ids those calls accept, written by `sdp types`, so a mistyped id fails `tsc` |

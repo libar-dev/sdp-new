@@ -3,7 +3,7 @@
  * Cypher's ASCII art so agents can guess it, but written on one line so it
  * fits a shell argument. Its syntax is `querySyntax` below, which
  * `sdp q --help` prints; what each part means is pinned by the scenarios of
- * REQ-graph-query, and the limits by those of ARCH-query-engine.
+ * the feature ask-the-graph, with its limits.
  *
  * A query is parsed completely before anything is evaluated. Evaluation keeps
  * a frontier of paths. It starts with one path per node matching the first
@@ -32,7 +32,7 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
 notes
   key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
   < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
-  a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
+  a key also holds the targets of the node's links of that relation: [iteration=IT-beta] agrees with -iteration-> #IT-beta
   rel: * or nothing is any relation, a|b either, a trailing + one or more hops
   + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
   ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
@@ -41,7 +41,7 @@ examples
   requirement -realized-by-> element
   element !-*- decision
   milestone[!met]
-  #DEC-0002 <-*- *
+  #DEC-use-postgres <-*- *
   scenario[status=failed] -verifies-> *`
 
 export class QueryError extends Data.TaggedError("QueryError")<{

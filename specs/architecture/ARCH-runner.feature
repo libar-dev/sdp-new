@@ -1,6 +1,5 @@
 @id=ARCH-runner
-@decided-by:DEC-0005 @decided-by:DEC-0004 @uses:ARCH-spec-parser @uses:ARCH-graph @uses:ARCH-vocabulary @uses:ARCH-query-engine @uses:ARCH-checker
-@iteration:I1
+@decided-by:declared-maturity-derived-stage @decided-by:effect-for-io @uses:ARCH-spec-parser @uses:ARCH-graph @uses:ARCH-vocabulary @uses:ARCH-query-engine @uses:ARCH-checker
 Feature: Scenario runner
 
   Turns specifications into evidence: it matches the steps of the selected examples to step

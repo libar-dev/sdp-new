@@ -14,5 +14,5 @@ node src/cli/main.ts --help       # every command, one line each (`sdp` is this,
 
 - sdp shown by running it: [specs/GUIDE.feature](specs/GUIDE.feature)
 - why it exists: [specs/VISION.feature](specs/VISION.feature)
-- what every command promises: [specs/requirements/REQ-cli.feature](specs/requirements/REQ-cli.feature)
+- what every command promises: [specs/features/REQ-cli.feature](specs/features/REQ-cli.feature)
 - how to work with it, for agents and people: [the skill](.claude/skills/sdp/SKILL.md)

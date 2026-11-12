@@ -11,10 +11,10 @@
  *   phase      a name for a group of iterations, in the order of its first
  *   milestone  ends what it closes, a phase or an iteration, and with it the
  *              stretch of the timeline since the milestone before
- *   work       nodes linked to an iteration (`@iteration:E2`): its kind's
+ *   work       nodes linked to an iteration (`@iteration:IT-beta`): its kind's
  *              discipline is planned there, and a link named for a
  *              discipline plans that one into iterations of its own
- *              (`@activity.implementation:C1 @activity.test:T1`)
+ *              (`@activity.implementation:IT-beta @activity.test:IT-release`)
  *
  * Plan facts are read as edges, and no other edge counts: a node is counted
  * once however many edges lead to the same iteration. The
@@ -118,7 +118,7 @@ const iterationsBy = (project: Project, node: GraphNode, matches: (rel: string) 
 const planIterations = (project: Project, node: GraphNode): ReadonlyArray<string> =>
   iterationsBy(project, node, (rel) => hasRelation(project.config.vocabulary, "plan", rel))
 
-/** The disciplines whose work on a node is planned by its own edges, `activity.implementation:C1`. */
+/** The disciplines whose work on a node is planned by its own edges, `activity.implementation:IT-beta`. */
 export const plannedDisciplines = (project: Project, node: GraphNode): ReadonlyMap<string, GraphEdge> => {
   const prefix = activityRelation(project.config.vocabulary, "")
   return new Map(project.graph.out(node.id).filter((edge) => edge.rel.startsWith(prefix)).map((edge) => [edge.rel.slice(prefix.length), edge]))
@@ -250,8 +250,10 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     discipline,
     activity: iterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))
+  // Only work still to do can be unplanned: what has a maturity and is not yet verified.
   const unplanned = graph.nodes().filter((n) =>
-    Predicate.isString(n.attrs.maturity) && !planned.has(n.id) && !isStructural(vocabulary, n)
+    Predicate.isString(n.attrs.maturity) && n.attrs.stage !== made.stages.verified && !planned.has(n.id) &&
+    !isStructural(vocabulary, n)
   )
   const current = iterations.find((it) => {
     const first = day(it, start)
@@ -356,19 +358,22 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   }
   out.push("  ✔ met · ▶ next to be met, with its gate as last run · n/m of its gate passes · * today · the date is the end of what it closes")
 
-  out.push("", "PLANNED WORK  (nodes planned into each iteration, by kind)")
+  // The chart numbers its columns, so an iteration's id may say what it is at any length.
+  const column = (it: GraphNode) => String(report.iterations.findIndex((i) => i.id === it.id) + 1)
+  const labelWidth = Math.max(4, ...report.work.map((it) => label(it.node).length))
+  out.push("", "PLANNED WORK  (nodes planned into each iteration, by kind; the number is its column in the chart)")
   for (const it of report.work) {
     const { end, start } = report.vocabulary.attributes
     const begins = attribute(it.node, start)
     const dates = begins ? ` ${String(begins)}…${String(attribute(it.node, end) ?? "")}` : ""
     const kinds = tally(it.items.map((item) => item.kind))
-    out.push(`  ${pad(label(it.node), 4)} ${pad(it.node.title, 28)}${pad(dates, 25)} ${it.items.length} item(s)  ${counts(kinds)}`)
+    out.push(`  ${pad(column(it.node), 3)}${pad(label(it.node), labelWidth)} ${pad(it.node.title, 28)}${pad(dates, 25)} ${it.items.length} item(s)  ${counts(kinds)}`)
   }
   if (report.unplanned.length > 0) {
     out.push(`  (unplanned: ${report.unplanned.map((n) => n.id).join(", ")})`)
   }
   out.push("", "DISCIPLINE ACTIVITY  (planned; relative per discipline)")
-  out.push(`  ${pad("", 18)} ${report.iterations.map((i) => pad(i.id, 4)).join("")}`)
+  out.push(`  ${pad("", 18)} ${report.iterations.map((i) => pad(column(i), 4)).join("")}`)
   for (const { activity, discipline } of report.disciplines) {
     const max = Math.max(...activity, 0)
     const cells = activity.map((a) => {
@@ -382,7 +387,7 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   for (const it of report.work) {
     const scenarios = counts(it.scenarios)
     const evidence = [counts(it.stages), scenarios && `scenarios ${scenarios}`].filter(Boolean).join("  ")
-    out.push(`  ${pad(label(it.node), 4)} ${evidence || "—"}`)
+    out.push(`  ${pad(column(it.node), 3)}${pad(label(it.node), labelWidth)} ${evidence || "—"}`)
   }
   return out.join("\n") + "\n"
 }

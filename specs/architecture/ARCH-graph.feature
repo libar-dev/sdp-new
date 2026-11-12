@@ -1,6 +1,5 @@
 @id=ARCH-graph
-@decided-by:DEC-0002 @decided-by:DEC-0003 @instance-of:PAT-derived-index @constrained-by:NFR-query-performance
-@iteration:I1
+@decided-by:free-vocabulary @decided-by:files-are-the-source-of-truth @instance-of:PAT-derived-index
 Feature: System graph
 
   Nodes and edges with in and out adjacency indexes, each with the `file:line` it came from, and

@@ -24,12 +24,30 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   in `node_modules/effect/AGENTS.md` — use it, not memory of Effect 2 or 3.
 - The few words sdp interprets are roles of the vocabulary profile (`src/model/Vocabulary.ts`):
   ask it, never compare with one of its words as a literal — a scenario fails the run if you do.
+- A spec says what is still to be built, or, once built, is its test. What does neither — a status,
+  a plan of work that is done, a note nobody acts on — is not written, and is deleted where found.
+- `specs/` is organised by what a spec is for:
+  - `features/` — what sdp does, one file per feature, named for what its users do
+    (`ask-the-graph`, `@kind=feature`). The file is the feature's requirements document and its
+    test suite at once: every rule has an example, and every example passes.
+  - `incoming/` — what is still to come: a new feature, or a change to a built one
+    (`@kind=change @changes:<feature>`). A new feature moves to `features/` when its scenarios
+    pass; a change's rules move into the feature it changes, and the change is deleted.
+  - `decisions/` — few. Only a choice that is hard to reverse, surprising without context and a
+    real trade-off, and that spans features: a title and one to three sentences. A reason that
+    concerns one feature is written under the rule it explains.
+  - `architecture/` — the elements code is anchored to, and the rules between them.
+  - `plan/` — the order of incoming work: iterations and the milestone they lead to, MVP first.
+  - `VISION` and `GUIDE` are about the whole. Specs not yet rewritten as features keep their
+    `REQ-`/`NFR-` ids until they are; `ask-the-graph` is the example to follow.
+- A feature is written as a requirements document would be: under its name, who needs what and
+  why, then what it is not; a `Rule:` per requirement, quality ones included, stated as what a user
+  can observe, with its reason under it; its scenarios are the acceptance examples. It names a
+  technology only where users see one: a command, an output, a bound an answer reports.
+- An id names what it is, so that a reader of a message that cites it needs no lookup:
+  `files-are-the-source-of-truth`, not `DEC-0003`; `IT-packaging`, not `E2`. A feature, a change
+  and a decision say their kind with `@kind=`; elements, milestones and iterations keep a prefix.
 - A decision that changes is rewritten or deleted: its history is git's.
-- A risk links what it threatens (`@affects:`), the work that retires it (`@mitigated-by:`) and the
-  milestone that work is `@due:` at; `@status=tolerated` says we live with it instead.
-- An id's prefix says its kind, and a kind has one prefix.
-- Two attributes are this repository's own: `@quality=` names the quality attribute of an `NFR-`,
-  and `@planned=after-the-fact` an iteration written down after its work.
 - One word for one thing: a word this repository replaced does not come back.
 
 How the work is done here, on whichever machine and with whichever agent:
@@ -41,8 +59,9 @@ How the work is done here, on whichever machine and with whichever agent:
   of what exists.
 - Nothing needed to continue lives in an agent's memory or outside this repository. A call that
   waits on the owner is an `@open` rule on the spec it concerns (`sdp q 'rule[tags~open]'`), the
-  next work is a draft planned into an iteration (`sdp q 'requirement|nfr[maturity<ready]'`,
-  `sdp lifecycle`), and a reason is a decision (`sdp q decision`).
+  next work is a spec in the backlog planned into an iteration (`sdp lifecycle`), and a reason is
+  a decision (`sdp q decision`). An open question is asked only where its answer changes what is
+  built next; one that only the design of later work can answer waits for that work.
 - What is in the architecture, what code is anchored to it and how an element is described are the
   architect's: propose them, do not write them. Recording a milestone as met is the owner's act.
 - The reviews, advisory reports and design brief behind the redesign of November 2026 are on the

@@ -1,6 +1,6 @@
 /**
  * The graph as plain data. A node and an edge are each one record with stable
- * field names (REQ-graph-export), and `sdp graph` prints one record per line,
+ * field names (ask-the-graph), and `sdp graph` prints one record per line,
  * so grep, jq or a few lines of script answer what `sdp q` answers:
  *
  *   sdp graph | grep '"rel":"decided-by"'
