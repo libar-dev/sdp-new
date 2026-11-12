@@ -22,6 +22,11 @@ export interface Import {
   readonly line: number
   /** The names it imports by, `default` among them; undefined when it loads the module whole. */
   readonly names?: ReadonlyArray<string> | undefined
+  /**
+   * How it loads the module, which decides the conditions TypeScript resolves the name under: by an
+   * import or export statement, by `import()`, or by `require()` or `import … = require()`.
+   */
+  readonly kind: "static" | "dynamic" | "require"
 }
 
 export type Node = { readonly type: string; readonly start: number; readonly end: number; readonly [key: string]: unknown }
@@ -103,6 +108,7 @@ const nameOf = (node: Node): string => (node.name ?? node.value) as string
 interface Source {
   readonly source: Node
   readonly names?: ReadonlyArray<string> | undefined
+  readonly kind: Import["kind"]
 }
 
 /** The names of what a top-level statement imports or re-exports a value from. */
@@ -114,23 +120,23 @@ const valueSources = (statement: Node): ReadonlyArray<Source> => {
       const values = statement.importKind !== "type" && (names.length === 0 || names.some((name) => name.importKind !== "type"))
       if (!values) return []
       // For its effects, or as a namespace, it loads the module whole.
-      if (names.length === 0 || names.some((name) => name.type === "ImportNamespaceSpecifier")) return [{ source: statement.source as Node }]
+      if (names.length === 0 || names.some((name) => name.type === "ImportNamespaceSpecifier")) return [{ source: statement.source as Node, kind: "static" }]
       const imported = names.filter((name) => name.importKind !== "type")
         .map((name) => name.type === "ImportDefaultSpecifier" ? "default" : nameOf(name.imported as Node))
-      return [{ source: statement.source as Node, names: imported }]
+      return [{ source: statement.source as Node, names: imported, kind: "static" }]
     }
     case "ExportNamedDeclaration": {
       if (isNode(statement.declaration)) return valueSources(statement.declaration)
       const names = statement.specifiers as ReadonlyArray<Node>
       const values = statement.exportKind !== "type" && names.some((name) => name.exportKind !== "type")
       const exported = names.filter((name) => name.exportKind !== "type").map((name) => nameOf(name.local as Node))
-      return values && isNode(statement.source) ? [{ source: statement.source, names: exported }] : []
+      return values && isNode(statement.source) ? [{ source: statement.source, names: exported, kind: "static" }] : []
     }
     case "ExportAllDeclaration":
-      return statement.exportKind === "type" ? [] : [{ source: statement.source as Node }]
+      return statement.exportKind === "type" ? [] : [{ source: statement.source as Node, kind: "static" }]
     case "TSImportEqualsDeclaration": {
       const reference = statement.moduleReference as Node
-      return statement.importKind !== "type" && reference.type === "TSExternalModuleReference" ? [{ source: reference.expression as Node }] : []
+      return statement.importKind !== "type" && reference.type === "TSExternalModuleReference" ? [{ source: reference.expression as Node, kind: "require" }] : []
     }
     default:
       return []
@@ -139,8 +145,8 @@ const valueSources = (statement: Node): ReadonlyArray<Source> => {
 
 /** The names `import()` and `require()` load within `node`. */
 const dynamicSources = (node: Node): ReadonlyArray<Source> => [
-  ...(node.type === "ImportExpression" && isNode(node.source) ? [{ source: node.source }] : []),
-  ...(isRequire(node) ? [{ source: (node.arguments as ReadonlyArray<Node>)[0]! }] : []),
+  ...(node.type === "ImportExpression" && isNode(node.source) ? [{ source: node.source, kind: "dynamic" as const }] : []),
+  ...(isRequire(node) ? [{ source: (node.arguments as ReadonlyArray<Node>)[0]!, kind: "require" as const }] : []),
   ...children(node).flatMap(dynamicSources)
 ]
 
@@ -151,16 +157,16 @@ const isRequire = (node: Node): boolean =>
 
 const valueImports = (program: Script["program"], dynamic: boolean, lineOf: (offset: number) => number): ReadonlyArray<Import> => {
   const named = [...program.body.flatMap(valueSources), ...(dynamic ? dynamicSources(program) : [])]
-  // One module named twice on a line is one import, by the names of both.
+  // One module named twice on a line, the same way, is one import, by the names of both.
   const imports = new Map<string, Import>()
-  for (const { names, source } of named) {
+  for (const { kind, names, source } of named) {
     const value = literalName(source)
     if (value === undefined) continue
     const line = lineOf(source.start)
-    const key = `${line}\u0000${value}`
+    const key = `${line}\u0000${kind}\u0000${value}`
     const seen = imports.get(key)
     const all = seen === undefined ? names : seen.names && names && [...seen.names, ...names]
-    imports.set(key, { specifier: value, line, names: all })
+    imports.set(key, { specifier: value, line, names: all, kind })
   }
   return [...imports.values()]
 }

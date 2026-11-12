@@ -44,9 +44,6 @@ const tsconfigFile = "tsconfig.json"
 const packageFile = "package.json"
 const pnpmWorkspaceFile = "pnpm-workspace.yaml"
 
-/** The conditions of `exports` and `imports` TypeScript resolves by, whatever kind of module imports. */
-const conditions: ReadonlySet<string> = new Set(["types", "import", "require", "node", "default"])
-
 /**
  * The files that may say what the names code imports mean: the tsconfig.json, package.json and
  * pnpm-workspace.yaml of each directory that holds code and of every one above it, past the
@@ -111,8 +108,12 @@ export const pathFrom = (root: string, ...parts: ReadonlyArray<string>): string 
  * - a library a package.json declares, a module of Node.js, a name with a scheme (`node:`,
  *   `virtual:`) or a file that is not code, no code of the workspace.
  *
- * A name whose answer depends on what sdp could not read of the tsconfig.json — a file that does
- * not parse, or one it extends that is neither in the workspace nor installed — is reported.
+ * `exports` and `imports` are walked in their order under the conditions TypeScript 7 resolves the
+ * import by: `import` or `require` as the import is written and the file is compiled, `types`,
+ * `node` for Node.js, the tsconfig.json's `customConditions`, and `default`. Any other name is not
+ * followed, and reported. So is a name whose answer depends on what sdp could not read of the
+ * tsconfig.json: a file that does not parse, or one it extends that is neither in the workspace nor
+ * installed.
  */
 export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>): Modules => {
   const at = pathsFrom(configs.root)
@@ -161,7 +162,10 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
     return {
       ...inherited,
       ...own.baseUrl === undefined ? {} : { baseUrl: place(own.baseUrl) },
-      ...own.paths === undefined ? {} : { paths: { map: own.paths, from: directory } }
+      ...own.paths === undefined ? {} : { paths: { map: own.paths, from: directory } },
+      ...own.customConditions === undefined ? {} : { customConditions: own.customConditions },
+      ...own.module === undefined ? {} : { module: own.module.toLowerCase() },
+      ...own.moduleResolution === undefined ? {} : { moduleResolution: own.moduleResolution.toLowerCase() }
     }
   }
   const settings = cache((path: string) => settingsOf(path, directoryOf(path), new Set()))
@@ -173,48 +177,85 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
   /** The package.json nearest a directory, at it or above it. */
   const scopeOf = (directory: string) => at.upFrom(directory).map((above) => at.join(above, packageFile)).find((path) => byPath.has(path))
 
-  /**
-   * What a map of names — `exports`, `imports` — gives `name`: through the conditions TypeScript
-   * knows, the first of a list that gives one. It notes in `trail` whether a condition other than
-   * `types` and `default`, which always hold, decided the answer.
-   */
-  const mapped = (value: Target, star: string, path: string, specifier: string, trail: Trail): { readonly target?: string; readonly unresolved?: Unresolved } => {
-    if (typeof value === "string") return { target: value.replaceAll("*", star) }
-    if (isArray(value)) {
-      return value.map((each) => mapped(each, star, path, specifier, trail)).find((found) => found.target !== undefined) ?? {}
-    }
-    if (value === null) return {}
-    const keys = Object.keys(value)
-    if (keys.some((condition) => condition !== "types" && condition !== "default")) trail.decided = true
-    const known = keys.filter((condition) => conditions.has(condition))
-    if (known.length === 0) {
-      return {
-        unresolved: {
-          message: `"${specifier}" is mapped by ${path} only under the conditions ${keys.join(", ")}, which TypeScript does not resolve by, so it is not resolved`,
-          hint: `add a "types" or a "default" condition to ${path}`
-        }
-      }
-    }
-    return mapped(value[known[0]!]!, star, path, specifier, trail)
+  /** The conditions `imported` is resolved under in `file`, read with `options`, besides `default`. */
+  const conditionsOf = (file: string, imported: Import, options: Settings): ReadonlySet<string> => {
+    const node = options.moduleResolution === "node16" || options.moduleResolution === "nodenext" ||
+      (options.moduleResolution !== "bundler" && /^node(16|18|20|next)$/.test(options.module ?? ""))
+    const module = /\.m[jt]sx?$/.test(file)
+      ? true
+      : /\.c[jt]sx?$/.test(file)
+      ? false
+      : node
+      ? manifest(scopeOf(directoryOf(file)) ?? packageFile)?.type === "module"
+      : options.module !== "commonjs"
+    const syntax = imported.kind === "require" ? "require" : (imported.kind === "dynamic" && node) || module ? "import" : "require"
+    return new Set([syntax, "types", ...node ? ["node"] : [], ...options.customConditions ?? []])
   }
 
+  /**
+   * What a map of names — `exports`, `imports` — gives under `conditions`: the first target, in the
+   * order written, that `take` finds, or undefined. It notes in `trail` the conditions it passed
+   * over, and whether a condition other than `types` and `default`, which always hold, decided the
+   * answer.
+   */
+  const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take: (target: string) => Outcome | undefined, trail: Trail): Outcome | undefined => {
+    if (value === null) return undefined
+    if (typeof value === "string") return take(value.replaceAll("*", star))
+    if (isArray(value)) {
+      for (const each of value) {
+        const found = pick(each, star, conditions, take, trail)
+        if (found !== undefined) return found
+      }
+      return undefined
+    }
+    for (const [condition, target] of Object.entries(value)) {
+      if (condition !== "types" && condition !== "default") trail.decided = true
+      if (condition !== "default" && !conditions.has(condition)) {
+        trail.passed.push(condition)
+        continue
+      }
+      const found = pick(target, star, conditions, take, trail)
+      if (found !== undefined) return found
+    }
+    return undefined
+  }
+
+  /** What a target of a package's map of names means; undefined for a file that is not there. */
+  const entry = (directory: string, target: string): Outcome | undefined => {
+    const path = at.join(directory, target)
+    const found = fileAt(path, false)
+    if (found !== undefined) return { module: found }
+    return namesNoCode(path) ? {} : undefined
+  }
+
+  /** What a map of names that gave nothing means: nothing it maps, or what is mapped only under conditions that do not hold. */
+  const missed = (specifier: string, path: string, trail: Trail): Outcome =>
+    trail.passed.length === 0 ? {} : {
+      unresolved: {
+        message: `"${specifier}" is mapped by ${path} only under the conditions ${[...new Set(trail.passed)].join(", ")}, which do not hold for it, so it is not resolved`,
+        hint: `add a "default" condition to ${path}, or name the condition in the customConditions of the tsconfig.json`
+      }
+    }
+
   /** What `specifier` means as a package of the workspace, in `directory`, by its subpath. */
-  const packageExport = (directory: string, specifier: string, subpath: string, trail: Trail): Outcome => {
+  const packageExport = (directory: string, specifier: string, subpath: string, conditions: ReadonlySet<string>, trail: Trail): Outcome => {
     const path = at.join(directory, packageFile)
     const { exports, main, types, typings } = manifest(path) ?? {}
-    if (exports !== undefined && exports !== null) {
-      const map = !isArray(exports) && typeof exports === "object" && Object.keys(exports).some((key) => key.startsWith(".")) ? exports : { ".": exports }
+    if (exports !== undefined) {
+      const map = !isArray(exports) && typeof exports === "object" && exports !== null && Object.keys(exports).some((key) => key.startsWith("."))
+        ? exports
+        : { ".": exports }
       const key = matchKey(Object.keys(map), subpath === "" ? "." : `./${subpath}`)
-      const { target, unresolved } = key === undefined ? {} : mapped(map[key.key]!, key.star, path, specifier, trail)
-      return { module: target === undefined ? undefined : fileAt(at.join(directory, target), false), unresolved }
+      const take = (target: string) => entry(directory, target)
+      return (key === undefined ? undefined : pick(map[key.key]!, key.star, conditions, take, trail)) ?? missed(specifier, path, trail)
     }
     if (subpath !== "") return { module: fileAt(at.join(directory, subpath), false) }
-    const entry = [types, typings, main].find(Predicate.isString)
-    return { module: entry === undefined ? fileAt(directory, true) : fileAt(at.join(directory, entry), false) }
+    const named = [types, typings, main].find(Predicate.isString)
+    return { module: named === undefined ? fileAt(directory, true) : fileAt(at.join(directory, named), false) }
   }
 
   /** What a name that is neither relative nor `#` means as a package: of the workspace, a library, or neither. */
-  const packageOf = (file: string, specifier: string, trail: Trail): Outcome | undefined => {
+  const packageOf = (file: string, specifier: string, conditions: ReadonlySet<string>, trail: Trail): Outcome | undefined => {
     if (isBuiltin(specifier) || /^[a-z][a-z0-9+.-]*:/i.test(specifier)) return {}
     const { name, subpath } = packageName(specifier)
     const linked = aliasOf(file, name) ?? name
@@ -227,7 +268,7 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
         }
       }
     }
-    if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, trail)
+    if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, conditions, trail)
     if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return {}
     return undefined
   }
@@ -245,7 +286,7 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
   }
 
   /** What a `#` name means by the `imports` of the package.json nearest `file`. */
-  const packageImport = (file: string, specifier: string, trail: Trail): Outcome => {
+  const packageImport = (file: string, specifier: string, conditions: ReadonlySet<string>, trail: Trail): Outcome => {
     const scope = scopeOf(directoryOf(file))
     const imports = scope === undefined ? undefined : manifest(scope)?.imports
     const key = imports === undefined ? undefined : matchKey(Object.keys(imports), specifier)
@@ -257,14 +298,15 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
         }
       }
     }
-    const { target, unresolved } = mapped(imports[key.key]!, key.star, scope, specifier, trail)
-    if (target === undefined) return { unresolved }
-    return /^\.\.?\//.test(target) ? { module: fileAt(at.join(directoryOf(scope), target), false) } : packageOf(file, target, trail) ?? {}
+    const take = (target: string): Outcome | undefined =>
+      /^\.\.?\//.test(target) ? entry(directoryOf(scope), target) : packageOf(file, target, conditions, trail) ?? {}
+    return pick(imports[key.key]!, key.star, conditions, take, trail) ?? missed(specifier, scope, trail)
   }
 
   /** What a name that is not relative means in `file`, read with `options`. */
   const meaningOf = (file: string, imported: Import, options: Settings, project: string | undefined, trail: Trail): Outcome => {
     const { specifier } = imported
+    const conditions = conditionsOf(file, imported, options)
     let mappedTo: string | undefined
     const key = options.paths === undefined ? undefined : matchKey(Object.keys(options.paths.map), specifier)
     for (const target of key === undefined ? [] : options.paths!.map[key.key]!) {
@@ -278,8 +320,8 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
     }
     const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), false)
     if (under !== undefined) return { module: under }
-    if (specifier.startsWith("#")) return packageImport(file, specifier, trail)
-    const found = packageOf(file, specifier, trail)
+    if (specifier.startsWith("#")) return packageImport(file, specifier, conditions, trail)
+    const found = packageOf(file, specifier, conditions, trail)
     if (found !== undefined) return found
     const { name } = packageName(specifier)
     const unread = packages.unread.map((path) => `; ${path} does not parse, and could declare it`).join("")
@@ -301,7 +343,7 @@ export const readModules = (configs: ModuleConfigs, files: ReadonlySet<string>):
     if (/^\.\.?(\/|$)/.test(specifier)) return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier)) }
     const project = projectOf(file)
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
-    const trail: Trail = { decided: false }
+    const trail: Trail = { passed: [], decided: false }
     const { module, unresolved } = meaningOf(file, imported, options, project, trail)
     if (options.unread.length === 0 || (unresolved === undefined && !trail.decided)) return { module, unresolved }
     const unread = options.unread.join(", and ")
@@ -324,6 +366,7 @@ type Outcome = Resolved
 
 /** What walking a map of names noted. */
 interface Trail {
+  readonly passed: Array<string>
   decided: boolean
 }
 
@@ -332,6 +375,9 @@ interface Settings {
   readonly configDir?: string
   readonly baseUrl?: string
   readonly paths?: { readonly map: { readonly [name: string]: ReadonlyArray<string> }; readonly from: string }
+  readonly customConditions?: ReadonlyArray<string>
+  readonly module?: string
+  readonly moduleResolution?: string
   readonly unread: ReadonlyArray<string>
 }
 
@@ -344,7 +390,10 @@ const TsConfig = Schema.Struct({
   extends: Schema.optional(Schema.Union([Schema.String, Strings])),
   compilerOptions: Schema.optional(Schema.Struct({
     baseUrl: Schema.optional(Schema.String),
-    paths: Schema.optional(Schema.Record(Schema.String, Strings))
+    paths: Schema.optional(Schema.Record(Schema.String, Strings)),
+    customConditions: Schema.optional(Strings),
+    module: Schema.optional(Schema.String),
+    moduleResolution: Schema.optional(Schema.String)
   }))
 })
 
@@ -362,6 +411,7 @@ const Dependencies = Schema.Record(Schema.String, Schema.String)
 /** What sdp reads of a package.json. */
 const PackageJson = Schema.Struct({
   name: Schema.optional(Schema.String),
+  type: Schema.optional(Schema.String),
   exports: Schema.optional(Target),
   imports: Schema.optional(Schema.Record(Schema.String, Target)),
   types: Schema.optional(Schema.String),

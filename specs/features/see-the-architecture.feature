@@ -241,6 +241,55 @@ Feature: See the architecture
         | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
         | package.json              | { "name": "shop", "dependencies": { "tax": "^1.0.0" } }                                                  | lib/tax.ts            | src/tax.ts                | tax       | nothing  |
 
+    Scenario Outline: A package's exports under conditions mean what TypeScript resolves the import by: <case>
+      Given a file "tsconfig.json" containing:
+        """
+        <tsconfig>
+        """
+      And a file "package.json" containing:
+        """
+        { "name": "shop", "type": "<type>" }
+        """
+      And a file "packages/tax/package.json" containing:
+        """
+        { "name": "@shop/tax", "exports": { "@shop/source": "./src/index.ts", "require": "./cjs.ts", "import": "./esm.ts" } }
+        """
+      And a file "packages/tax/src/index.ts" containing:
+        """
+        /** @sdp is ARCH-tax-source */
+        export const rate = 0.25
+        """
+      And a file "packages/tax/cjs.ts" containing:
+        """
+        /** @sdp is ARCH-tax-cjs */
+        export const rate = 0.25
+        """
+      And a file "packages/tax/esm.ts" containing:
+        """
+        /** @sdp is ARCH-tax-esm */
+        export const rate = 0.25
+        """
+      And a file "src/billing.ts" containing:
+        """
+        <import>
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => 0
+        """
+      When I query "#ARCH-billing -imports-> *"
+      Then the result is "<imports>"
+
+      Examples:
+        | case                                     | tsconfig                                                        | type     | import                                | imports         |
+        | an import                                | {}                                                              | commonjs | import { rate } from "@shop/tax"      | ARCH-tax-esm    |
+        | import = require()                       | {}                                                              | module   | import tax = require("@shop/tax")     | ARCH-tax-cjs    |
+        | require()                                | {}                                                              | module   | const tax = require("@shop/tax")      | ARCH-tax-cjs    |
+        | an import compiled to CommonJS           | { "compilerOptions": { "module": "commonjs" } }                 | module   | import { rate } from "@shop/tax"      | ARCH-tax-cjs    |
+        | an import of a CommonJS package, for Node.js   | { "compilerOptions": { "module": "nodenext" } }           | commonjs | import { rate } from "@shop/tax"      | ARCH-tax-cjs    |
+        | an import of an ES module package, for Node.js | { "compilerOptions": { "module": "nodenext" } }           | module   | import { rate } from "@shop/tax"      | ARCH-tax-esm    |
+        | import() of a CommonJS package, for Node.js    | { "compilerOptions": { "module": "nodenext" } }           | commonjs | const tax = () => import("@shop/tax") | ARCH-tax-esm    |
+        | a condition the tsconfig.json adds       | { "compilerOptions": { "customConditions": ["@shop/source"] } } | module   | import { rate } from "@shop/tax"      | ARCH-tax-source |
+
     Scenario Outline: A package of the workspace means the source of the entry its package.json names: <case>
       Given a file "package.json" containing:
         """
@@ -413,6 +462,7 @@ Feature: See the architecture
         | a module of Node.js                                      | package.json  | { "name": "shop" }                                                    | { "name": "@shop/tax", "exports": "./src/index.ts" }                                                    | node:fs    | nothing  |
         | a module of Node.js, named without node:                 | package.json  | { "name": "shop" }                                                    | { "name": "@shop/tax", "exports": "./src/index.ts" }                                                    | fs         | nothing  |
         | a file that is not code                                  | tsconfig.json | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }            | { "name": "@shop/tax", "exports": "./src/index.ts" }                                                    | @/logo.svg | nothing  |
+        | a condition on a branch the import does not take         | package.json  | { "name": "shop" }                                                    | { "name": "@shop/tax", "exports": { "import": "./src/index.ts", "require": { "browser": "./cjs.ts" } } } | @shop/tax  | ARCH-tax |
         | what the tsconfig.json extends is not installed, and sets nothing the import depends on | tsconfig.json | { "extends": "@tsconfig/node22" } | { "name": "@shop/tax", "exports": "./src/index.ts" }                                     | @shop/tax  | ARCH-tax |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
