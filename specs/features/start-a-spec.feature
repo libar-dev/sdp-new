@@ -43,11 +43,11 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind    | title     | options | file                                  | tags                                    | next                                                                |
-        | gizmo   | Sprocket  |         | specs/gizmo/sprocket.feature          | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
-        | plan    | Roadmap   |         | specs/delivery/roadmap.feature        | @id=roadmap @kind=plan                  | a phase is a file of its own                                        |
-        | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk @maturity=idea    | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
-        | phase   | Hardening |         | specs/delivery/PH-hardening.feature   | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
+        | kind  | title         | options | file                                 | tags                                    | next                                                                |
+        | gizmo | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
+        | idea  | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea        | say under the title who needs what, and why, before any solution    |
+        | risk  | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk @maturity=idea    | write the idea in a sentence under the title                        |
+        | phase | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -139,7 +139,7 @@ Feature: Start a spec
 
     Scenario: A kind without a template
       When I run "sdp new --help"
-      Then the output contains "feature, idea, decision, element, pattern, milestone, plan, phase, iteration, risk"
+      Then the output contains "feature, idea, decision, element, pattern, milestone, phase, iteration"
       And the output contains "idea (default), draft, specified or ready, or any word of the team's own"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
@@ -158,15 +158,15 @@ Feature: Start a spec
       And the file "<file>" contains "@id=<id>"
 
       Examples:
-        | arguments                                               | id                 | file                                      |
-        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/delivery/MS-kasse-fur-gaste.feature |
-        | milestone 'Корзина'                                     | MS-0001            | specs/delivery/MS-0001.feature            |
-        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature      |
-        | feature 'Корзина'                                       | feature-0001       | specs/features/feature-0001.feature       |
-        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature     |
-        | milestone 'Go-live'                                     | MS-go-live         | specs/delivery/MS-go-live.feature         |
-        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature           |
-        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature         |
+        | arguments                                               | id                 | file                                  |
+        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/plan/MS-kasse-fur-gaste.feature |
+        | milestone 'Корзина'                                     | MS-0001            | specs/plan/MS-0001.feature            |
+        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature  |
+        | feature 'Корзина'                                       | feature-0001       | specs/features/feature-0001.feature   |
+        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature |
+        | milestone 'Go-live'                                     | MS-go-live         | specs/plan/MS-go-live.feature         |
+        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature       |
+        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature     |
 
     Scenario: A title that leaves no ASCII letter or digit to slug is numbered after the highest number its kind has
       Given these specs:

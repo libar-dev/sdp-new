@@ -73,12 +73,10 @@ Feature: Plan delivery
     Scenario: In a fresh workspace
       When I run "sdp -C fresh init"
       Then the output contains "created sdp.config.yaml"
+      And the output contains 'a plan: sdp new phase "Elaboration", then sdp new iteration "<title>" and sdp new milestone "<title>"'
       When I run "sdp -C fresh lifecycle"
       Then the output contains 'sdp new phase "Elaboration"'
       And the output contains 'sdp new iteration "<title>"'
-      When I run "sdp -C fresh new plan 'Delivery plan'"
-      Then the output contains "delivery-plan\tspecs/delivery/delivery-plan.feature"
-      And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `@closes:PH-elaboration`'
       When I run the pipeline:
         """
         sdp -C fresh new phase Elaboration
@@ -86,8 +84,8 @@ Feature: Plan delivery
         sdp -C fresh new milestone 'Architecture baseline'
         """
       Then the exit code is 0
-      And the file "fresh/specs/delivery/IT-architecture-baseline.feature" contains "@id=IT-architecture-baseline @phase:PH-elaboration"
-      And the file "fresh/specs/delivery/MS-architecture-baseline.feature" contains "@id=MS-architecture-baseline @closes:PH-elaboration"
+      And the file "fresh/specs/plan/IT-architecture-baseline.feature" contains "@id=IT-architecture-baseline @phase:PH-elaboration"
+      And the file "fresh/specs/plan/MS-architecture-baseline.feature" contains "@id=MS-architecture-baseline @closes:PH-elaboration"
       When I run "sdp -C fresh lifecycle"
       Then the output line with "MS-architecture-baseline" contains "Elaboration"
       And the output line with "MS-architecture-baseline" contains "IT-architecture-baseline"
@@ -192,7 +190,7 @@ Feature: Plan delivery
 
     Scenario: After IT-baseline, which ends last
       When I run "sdp new iteration Packaging"
-      Then the file "specs/delivery/IT-packaging.feature" is:
+      Then the file "specs/plan/IT-packaging.feature" is:
         """
         @id=IT-packaging @phase:PH-elaboration @start=2026-02-28 @end=2026-03-13
         Feature: Packaging
@@ -206,7 +204,7 @@ Feature: Plan delivery
       When I run "sdp new iteration Packaging"
       Then the exit code is 1
       And the output contains 'IT-baseline ends on "2026-02-30", which is not a date'
-      And the file "specs/delivery/IT-packaging.feature" does not exist
+      And the file "specs/plan/IT-packaging.feature" does not exist
 
   Rule: The project is at the first milestone not met; the calendar marks only today and lateness
 

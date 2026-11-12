@@ -366,13 +366,13 @@ const newCommand = Command.make(
   })
 ).pipe(
   Command.withDescription(
-    `Create a feature, decision, plan, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
+    `Create a feature, decision, phase, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
   ),
   Command.withExamples([
     { command: "sdp new feature 'Saved carts' --maturity draft", description: "A feature still to build, with who needs it and why to write" },
     { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a feature at maturity idea" },
     { command: "sdp new decision 'Use Postgres for orders'", description: "A decision: a title and a sentence" },
-    { command: "sdp new plan 'Delivery plan'", description: "The plan; each phase and iteration is a file of its own" }
+    { command: "sdp new phase 'Elaboration'", description: "A phase of the plan; each iteration and milestone is a file of its own too" }
   ])
 )
 
@@ -386,7 +386,9 @@ const initCommand = Command.make(
       yield* Console.log(created ? `created ${file}` : Text.c.dim(`exists  ${file}`))
     }
     yield* Console.log(
-      Text.c.dim("next: sdp new idea \"My first idea\"  ·  sdp new plan \"Delivery plan\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill")
+      Text.c.dim(
+        "next: sdp new idea \"My first idea\"  ·  a plan: sdp new phase \"Elaboration\", then sdp new iteration \"<title>\" and sdp new milestone \"<title>\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill"
+      )
     )
   })
 ).pipe(Command.withDescription("Create sdp.config.yaml and the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) in the workspace"))

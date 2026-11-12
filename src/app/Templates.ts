@@ -18,20 +18,18 @@ import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 const directoryFor: Record<string, string> = {
   feature: "specs/features",
   decision: "specs/decisions",
-  milestone: "specs/delivery",
-  plan: "specs/delivery",
-  phase: "specs/delivery",
-  iteration: "specs/delivery",
-  risk: "specs/risks"
+  milestone: "specs/plan",
+  phase: "specs/plan",
+  iteration: "specs/plan"
 }
 
 /**
  * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
  * maturity idea, and an element or a pattern is no file: its code declares it.
  */
-export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
+export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "phase", "iteration"] as const
 
-type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "plan" | "phase" | "iteration" | "risk" | "generic"
+type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "phase" | "iteration" | "generic"
 
 /**
  * The template for a kind: the one of the role it plays in the workspace's vocabulary, so a team
@@ -52,10 +50,6 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
     ? "pattern"
     : hasKind(vocabulary, "architectural", kind)
     ? "element"
-    : kind === "plan"
-    ? "plan"
-    : kind === "risk"
-    ? "risk"
     : "generic"
 
 /**
@@ -189,7 +183,6 @@ const specTemplate = (options: {
   switch (templateOf(kind, vocabulary)) {
     case "decision":
       return feature(identity, `  ${decisionPlaceholder}`)
-    case "plan":
     case "phase":
       return feature(identity)
     case "milestone":
@@ -214,7 +207,7 @@ const phaseId = (config: Config, name: string) => newId(wordFor(config.vocabular
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
-  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp plays PAT-…`; risk `@affects:<feature>` and `@mitigated-by:<feature>`"
+  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp plays PAT-…`"
 
 /**
  * What the author of a new spec writes next, in the workspace's own words. It is the answer of
@@ -255,12 +248,6 @@ const guidance = (options: {
         `set \`@${closes}:\` to the phase or the iteration this milestone ends: sdp lifecycle shows them`,
         `write what must hold as rules with scenarios: they are its gate, and sdp gate ${id} says whether it is met`
       ]
-    case "plan":
-      return [
-        `a phase is a file of its own: sdp new ${wordFor(vocabulary.kinds.phase)} "Elaboration"; so is an iteration: sdp new ${wordFor(vocabulary.kinds.iteration)} "<title>"`,
-        `plan work on the work itself: on a spec, ${plan}`,
-        `end each phase with a milestone: sdp new ${wordFor(vocabulary.kinds.milestone)} "<title>" writes one that \`@${closes}:${phaseId(config, "Elaboration")}\``
-      ]
     case "phase":
       return [
         "say under the title what this phase takes on, and why in this order",
@@ -270,12 +257,6 @@ const guidance = (options: {
       return [
         `check its dates and its \`@${phase}:\`: a new iteration follows the one that ends last, in its phase`,
         `work is planned into it from the work itself: \`@${wordFor(vocabulary.relations.plan)}:${id}\``
-      ]
-    case "risk":
-      return [
-        "say under the title what could go wrong, and what it would cost",
-        "link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…",
-        "it is retired when the work that mitigates it is verified; `@status=tolerated` says we live with it instead"
       ]
     case "element":
       return [

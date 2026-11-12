@@ -235,8 +235,8 @@ Feature: Configure a workspace
         sdp new story Wishlist
         """
       Then the exit code is 0
-      And the file "specs/delivery/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
-      And the file "specs/delivery/launch.feature" contains "@id=launch @kind=checkpoint @ends:ERA-elaboration"
+      And the file "specs/plan/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
+      And the file "specs/plan/launch.feature" contains "@id=launch @kind=checkpoint @ends:ERA-elaboration"
       And the file "specs/features/wishlist.feature" contains "@id=wishlist @maturity=idea"
       When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
       Then the output lines are "IT-baseline"
