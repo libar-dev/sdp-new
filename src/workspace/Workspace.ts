@@ -72,7 +72,8 @@ const readConfigFile = Effect.fnUntraced(function*(root: string) {
   return undefined
 })
 
-const parseConfig = Effect.fnUntraced(function*(file: SourceFile | undefined) {
+/** A configuration file as sdp reads it, or the defaults when there is none: the workspace's, or the one a base revision had. */
+export const parseConfig = Effect.fnUntraced(function*(file: SourceFile | undefined) {
   if (!file) return resolveConfig(undefined)
   const raw = yield* Effect.try({
     try: () => file.path.endsWith(".json") ? JSON.parse(file.content) : parseYaml(file.content) ?? {},

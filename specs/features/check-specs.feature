@@ -190,7 +190,9 @@ Feature: Check specs
     compares the specs with a base revision. A maturity or `@open` on a Feature or a Rule whose
     examples were live there is an error, and so is a live example of the base that is gone or still
     to come, unless a rule that replaces its rule is live. An example is known by its steps, so a new
-    name for it or for its rule is no removal.
+    name for it or for its rule is no removal. The base is read with its own configuration, and the
+    specs of today with today's, so a live test that a configuration leaves out is dropped like any
+    other, and a file is read whatever its name.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -237,6 +239,41 @@ Feature: Check specs
         | The live example's steps edited                       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item                                                                          |
         | The rule still to come built                          | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp |
         | The rule still to come deleted with its example       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                    |
+
+    Scenario Outline: The configuration changed: <change>
+      Given a file "sdp.config.yaml" containing:
+        """
+        <configuration>
+        """
+      When I run "sdp check --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule | example-dropped |
+        | data.node | cart#add-an-item |
+
+      Examples:
+        | change                      | configuration                        |
+        | the spec excluded           | exclude: ["specs/cart.feature"]      |
+        | the features globs elsewhere | features: ["requirements/**/*.feature"] |
+
+    Scenario: A spec whose file name holds a line break, deleted
+      When I run the pipeline:
+        """
+        mv specs/cart.feature "specs/cart
+        list.feature"
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/cart*list.feature
+        """
+      Then the exit code is 0
+      When I run "sdp check --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule | example-dropped |
+        | data.node | cart#add-an-item |
 
     Scenario: What a demotion and a dropped example say, and where
       Given a file "specs/cart.feature" containing:

@@ -158,7 +158,7 @@ export const check = Effect.fn("check")(function*(root: string, input: { readonl
   const revisions = yield* Revisions
   const named = input.base ?? project.config.base
   const waived = { diagnostics: [], missing: [], notes: [`no live test was compared with a base: the comparison is waived (${input.base === undefined ? `base: ${noBase}` : `--base ${noBase}`})`] }
-  const { diagnostics, missing, notes } = named === noBase ? waived : comparedWith(project, yield* revisions.base(root, project.config, named))
+  const { diagnostics, missing, notes } = named === noBase ? waived : comparedWith(project, yield* revisions.base(root, named))
   const found = sortDiagnostics([...checkProject(project), ...diagnostics])
     .filter((diagnostic) => atLeast(diagnostic.severity, input.severity ?? "info"))
   return answer(project, found.map(diagnosticRecord), { missing, notes })

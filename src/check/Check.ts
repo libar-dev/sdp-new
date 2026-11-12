@@ -12,6 +12,7 @@
  */
 import { Predicate } from "effect"
 import { createHash } from "node:crypto"
+import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
@@ -328,8 +329,10 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
 export interface BaseSpecs {
   /** The commit, abbreviated, as messages name it. */
   readonly commit: string
-  /** The feature files at that commit that the workspace's features globs find, relative to its root. */
+  /** The feature files at that commit that its own configuration finds, relative to the workspace's root. */
   readonly files: ReadonlyArray<SourceFile>
+  /** The configuration at that commit: its specs are read as it was configured, its vocabulary included. */
+  readonly config: Config
 }
 
 /**
@@ -367,10 +370,10 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
  * is not reported again. The notes say which files of the base could not be read.
  */
 export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly notes: ReadonlyArray<string> } => {
-  const parsed = base.files.map((file) => ({ file: file.path, spec: parseFeatureSpec(file.path, file.content, project.config).spec }))
+  const parsed = base.files.map((file) => ({ file: file.path, spec: parseFeatureSpec(file.path, file.content, base.config).spec }))
   const specs = parsed.flatMap(({ spec }) => spec === undefined ? [] : [spec])
   const { vocabulary } = project.config
-  const before = liveTests(specs, vocabulary)
+  const before = liveTests(specs, base.config.vocabulary)
   const now = liveTests(project.specs, vocabulary)
   const at = `the base ${base.commit}`
   const out: Array<Diagnostic> = []
