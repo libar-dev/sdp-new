@@ -295,7 +295,7 @@ const guidance = (options: {
         ...(level >= 2
           ? [quality
             ? "fill in the scenario: Given the source and environment, When the stimulus, Then the response and its measure"
-            : "fill in the scenario, and add one for every rule: its name is the rule"]
+            : "fill in the scenario, and add one for every rule: its name is the rule; a rule with several examples is a `Rule:` with its reason under it"]
           : []),
         quality ? "link it: links: { refines: CAP-… }; elements it constrains link to it with constrained-by" : "link it: links: { refines: CAP-…, realized-by: ARCH-… }",
         `plan it: ${plan}`

@@ -923,6 +923,7 @@ Rule: A run records only what it executed
     And the workspace is run for "REQ-cart" and for "REQ-wishlist" at the same time
     Then node "REQ-wishlist#keep-a-lamp-for-later" has attribute status = "failed"
     And node "REQ-cart#add-an-item" has attribute status = "passed"
+
   Scenario: The results file holds one plain record per scenario, with what it ran against
     Given a file "specs/steps/cart.steps.ts" containing:
       """
@@ -1005,6 +1006,7 @@ Rule: A run executes the examples it was asked for, one at a time unless asked o
     Then the scenarios "One" and "Two" overlapped
     And the scenario "Alone" ran alone
     And node "REQ-timing#alone" has attribute status = "passed"
+
   Scenario: --tags selects examples, and a scenario passes only when all its examples ran
     Given a file "specs/payment.feature" containing:
       """
@@ -1085,9 +1087,11 @@ Rule: No scenario reads the layer of evidence it belongs to
     And a step definition "the cart holds {int} item(s)" that passes
     When the workspace is run
     Then node "MS-beta#the-cart-works" has attribute status = "passed"
+
   Scenario: An unmet gate is reported like any other scenario
     When the workspace is run
     Then node "MS-beta#the-cart-works" has attribute status = "failed"
+
   Scenario: A gate's result goes stale when the results it read change
     Given a step definition "an empty cart" that passes
     And a step definition "I add a lamp" that passes
@@ -1122,6 +1126,7 @@ Rule: No scenario reads the layer of evidence it belongs to
     When the workspace is run with "--tags 'not @gate'"
     Then the step 'the node "REQ-cart" has maturity "ready"' has status "passed"
     And node "REQ-release#the-cart-is-state" has attribute status = "skipped"
+
   Scenario: An ordinary scenario sees the graph without results, whatever ran before
     Given a step definition "an empty cart" that passes
     And a step definition "I add a lamp" that passes
@@ -1138,6 +1143,7 @@ Rule: No scenario reads the layer of evidence it belongs to
     And the workspace is run
     Then node "REQ-cart#add-an-item" has attribute status = "passed"
     And node "REQ-audit#look-at-the-graph" has attribute status = "passed"
+
   Scenario Outline: An ordinary scenario that asserts on results is told to become a gate
     Given a file "specs/progress.feature" containing:
       """
