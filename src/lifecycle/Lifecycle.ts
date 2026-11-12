@@ -2,8 +2,8 @@
  * The delivery lifecycle. The milestone is the one concept it stands on: a
  * node whose scenarios are its gate and whose `met` records that the gate
  * passed. Where the project is follows from the files alone — the first
- * milestone that is not met, in the order of their dates — and the calendar
- * only marks today and lateness.
+ * milestone that is not met, in the order of their dates, or the only one not
+ * met when it has none — and the calendar only marks today and lateness.
  * All of it is plain graph data, read through the words of the workspace's
  * vocabulary profile:
  *
@@ -72,8 +72,9 @@ export interface LifecycleReport {
   /** Every milestone, in the order of the timeline: by the end of what it closes. */
   readonly milestones: ReadonlyArray<MilestoneReport>
   /**
-   * Where the project is: the first milestone that is not met. Milestones none of which is on the
-   * timeline are in no order, and the project is at none of them.
+   * Where the project is: the first milestone on the timeline that is not met, or else the only
+   * milestone not met. Milestones off the timeline are in no order, so of two or more of them not
+   * met the project is at none.
    */
   readonly next: MilestoneReport | undefined
   /**
@@ -318,9 +319,11 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     const last = day(it, end)
     return today !== undefined && first !== undefined && last !== undefined && first <= today && today <= last
   })
+  // The timeline orders the milestones it dates. Off it, one not met is next only when no other is.
+  const unmet = milestones.filter((milestone) => milestone.met === undefined)
   return {
     milestones,
-    next: milestones.some((milestone) => milestone.planned !== undefined) ? milestones.find((milestone) => milestone.met === undefined) : undefined,
+    next: unmet.find((milestone) => milestone.planned !== undefined) ?? (unmet.length === 1 ? unmet[0] : undefined),
     unclosed: [...timeline.slice(covered + 1), ...undated.filter((iteration) => !endedBy.has(iteration.id))],
     phases,
     unplanned: alone,
@@ -368,13 +371,15 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   if (report.iterations.length === 0 && milestones.length === 0) return `${emptyPlanHint(report.vocabulary)}\n`
   const out: Array<string> = []
   const label = (it: GraphNode) => it.id === current?.id ? `${it.id}*` : it.id
+  // With no milestone next, those not met are all off the timeline, and at least two.
+  const unmet = milestones.filter((milestone) => milestone.met === undefined)
   const position = next !== undefined
     ? `project ${next.phase ? `in ${next.phase.title}` : `at ${next.node.id}`}`
     : milestones.length === 0
     ? undefined
-    : milestones.every((milestone) => milestone.met !== undefined)
+    : unmet.length === 0
     ? "every milestone is met"
-    : "no timeline to place the milestones on"
+    : `not on the timeline: ${unmet.map((milestone) => milestone.node.id).join(", ")} — they close nothing dated`
   const calendar = today === undefined ? undefined : current ? `calendar in ${current.id}` : "no iteration today"
   const heading = [today, position, calendar].filter(Predicate.isNotUndefined).join(" · ")
 

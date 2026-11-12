@@ -258,6 +258,15 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
           : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``)
       }))
     }
+    // A milestone is dated, and so ordered, by what it closes.
+    if (hasKind(vocabulary, "milestone", node.kind) && !graph.out(node.id).some((edge) => hasRelation(vocabulary, "closes", edge.rel))) {
+      out.push(diagnostic("plan-reference", {
+        message: `${node.id}: closes nothing, so no date places it among the milestones`,
+        node: node.id,
+        source: node.source,
+        hint: `set \`@${wordFor(vocabulary.relations.closes)}:\` to the phase or iteration it ends`
+      }))
+    }
     const activityKey = vocabulary.attributes.activity
     const disciplines = [...vocabulary.disciplines.keys()].join(", ")
     for (const edge of graph.out(node.id)) {

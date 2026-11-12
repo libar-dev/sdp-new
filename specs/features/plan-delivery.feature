@@ -87,8 +87,9 @@ Feature: Plan delivery
       And the file "fresh/specs/plan/IT-architecture-baseline.feature" contains "@id=IT-architecture-baseline @phase:PH-elaboration"
       And the output contains "next: set `@closes:` to the phase or the iteration this milestone ends"
       When I run "sdp -C fresh lifecycle"
-      Then the output contains "no timeline to place the milestones on"
-      And the output line with "MS-architecture-baseline" contains "0/1"
+      Then the output contains "project at MS-architecture-baseline"
+      And the output line with "▶ MS-architecture-baseline" contains "0/1"
+      And the output contains "… No errors in the specification graph  (unrun)"
       And the output line with "no milestone" contains "Elaboration"
       And the output line with "no milestone" contains "IT-architecture-baseline"
 
@@ -196,6 +197,15 @@ Feature: Plan delivery
       And the output contains "project at MS-objectives · calendar in IT-baseline"
       And the output line with "no milestone" contains "IT-baseline*"
 
+    Scenario: A milestone that closes nothing is reported, with what to set
+      Given these specs:
+        | tags           | Feature |
+        | @id=MS-release | Release |
+      When the workspace is checked
+      Then sdp reports:
+        | rule           | severity | node       | at                         | message                                                               | hint                                             |
+        | plan-reference | warning  | MS-release | specs/MS-release.feature:1 | MS-release: closes nothing, so no date places it among the milestones | set `@closes:` to the phase or iteration it ends |
+
   Rule: A new iteration follows the one that ends last, in its phase
 
     Scenario: After IT-baseline, which ends last
@@ -234,19 +244,6 @@ Feature: Plan delivery
       And the output line with "MS-objectives" contains "✔"
       And the output line with "MS-architecture" contains "▶"
 
-    Scenario: Milestones none of which is on the timeline are in no order, and the project is at none of them
-      Given these specs:
-        | tags                                                     | Feature   |
-        | @id=IT-scope @phase:PH-inception @start=2026-01-05       | Scope     |
-        | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 | Prototype |
-        | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16  | Baseline  |
-      When the lifecycle is computed on "2026-01-20"
-      Then the milestones are:
-        | id              | planned | next |
-        | MS-architecture |         |      |
-        | MS-objectives   |         |      |
-      And the output contains "(2026-01-20 · no timeline to place the milestones on · no iteration today)"
-
     Scenario: A met that is no day of the calendar records nothing
       Given these specs:
         | tags                                                   | Feature              |
@@ -283,6 +280,57 @@ Feature: Plan delivery
         | met        | off |
         | 2026-02-03 | +4d |
         | 2026-01-28 | -2d |
+
+  Rule: Off the timeline, the project is at a milestone not met only when no other is; otherwise the heading names those off it, and why
+
+    Milestones are ordered by the dates of what they close, so those that close nothing dated are in
+    no order: one alone not met is where the project is, for nothing else is left, but of two sdp
+    cannot say which comes first.
+
+    Scenario: The milestones on the timeline met, and one that closes nothing
+      Given these specs:
+        | tags                                                       | Feature                |
+        | @id=MS-objectives @closes:PH-inception @met=2026-01-30     | Lifecycle objectives   |
+        | @id=MS-architecture @closes:PH-elaboration @met=2026-02-27 | Lifecycle architecture |
+        | @id=MS-release                                             | Release                |
+      When the lifecycle is computed on "2026-03-02"
+      Then the milestones are:
+        | id              | planned    | met        | next |
+        | MS-objectives   | 2026-01-30 | 2026-01-30 |      |
+        | MS-architecture | 2026-02-27 | 2026-02-27 |      |
+        | MS-release      |            |            | yes  |
+      And the output contains "(2026-03-02 · project at MS-release · no iteration today)"
+      And the output line with "▶ MS-release" contains "no gate"
+
+    Scenario: The milestones on the timeline met, and two that close nothing dated
+      Given these specs:
+        | tags                                                       | Feature                |
+        | @id=MS-objectives @closes:PH-inception @met=2026-01-30     | Lifecycle objectives   |
+        | @id=MS-architecture @closes:PH-elaboration @met=2026-02-27 | Lifecycle architecture |
+        | @id=PH-transition                                          | Transition             |
+        | @id=MS-release @closes:PH-transition                       | Release                |
+        | @id=MS-beta                                                | Beta                   |
+      When the lifecycle is computed on "2026-03-02"
+      Then the milestones are:
+        | id              | planned    | next |
+        | MS-objectives   | 2026-01-30 |      |
+        | MS-architecture | 2026-02-27 |      |
+        | MS-beta         |            |      |
+        | MS-release      |            |      |
+      And the output contains "(2026-03-02 · not on the timeline: MS-beta, MS-release — they close nothing dated · no iteration today)"
+
+    Scenario: Milestones none of which is on the timeline are in no order, and the project is at none of them
+      Given these specs:
+        | tags                                                     | Feature   |
+        | @id=IT-scope @phase:PH-inception @start=2026-01-05       | Scope     |
+        | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 | Prototype |
+        | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16  | Baseline  |
+      When the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id              | planned | next |
+        | MS-architecture |         |      |
+        | MS-objectives   |         |      |
+      And the output contains "(2026-01-20 · not on the timeline: MS-architecture, MS-objectives — they close nothing dated · no iteration today)"
 
   Rule: Work is planned on the node itself: its iteration plans the discipline of its kind, an activity tag any other
 

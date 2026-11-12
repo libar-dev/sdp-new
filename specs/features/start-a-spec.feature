@@ -227,7 +227,7 @@ Feature: Start a spec
       When I run "sdp -C shop new feature 'Gift cards' --dir requirements"
       Then the output does not contain "note:"
 
-  Rule: A new spec fails the check only for template text its author has yet to replace
+  Rule: Check reports a new spec only for what its author has yet to write: template text, and what a milestone closes
 
     At any maturity a feature starts as its tags and its title: what it says next is the author's.
 
@@ -246,8 +246,10 @@ Feature: Start a spec
         | decision  | Use Postgres  |          |
       When the workspace is checked
       Then sdp reports:
-        | rule                 | node         | line |
-        | template-placeholder | use-postgres | 4    |
+        | rule                 | severity | node         | line |
+        | plan-reference       | warning  | MS-go-live   | 1    |
+        | plan-reference       | warning  | MS-launch    | 1    |
+        | template-placeholder | warning  | use-postgres | 4    |
 
     Scenario: A feature started at ready
       When I run "sdp new feature 'Saved carts' --maturity ready"

@@ -213,9 +213,10 @@ a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without 
 - A phase and an iteration are files of their own (`sdp new phase`, `sdp new iteration`), and
   `sdp lifecycle` shows the plan and marks the current iteration with `*`. Plan work into the
   iteration in which it will be done, never into one that is over.
-- A milestone's scenarios are its gate. `sdp gate <milestone>` says whether it passes, and
-  `--record` writes `@met=<date>` on its tag line when it does: the project is at the first
-  milestone without one. Recording is the team's act, never a side effect.
+- A milestone's scenarios are its gate, and `@closes:` names the phase or iteration it ends, whose
+  last day dates it. `sdp gate <milestone>` says whether it passes, and `--record` writes
+  `@met=<date>` on its tag line when it does: the project is at the first milestone without one.
+  Recording is the team's act, never a side effect.
 
 ## More
 

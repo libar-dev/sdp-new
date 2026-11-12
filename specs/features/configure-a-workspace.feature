@@ -269,7 +269,8 @@ Feature: Configure a workspace
       When I run "sdp check --json --base none"
       Then the exit code is 0
       And the JSON output has:
-        | data.rule | template-placeholder |
+        | data.rule | plan-reference, template-placeholder |
+      And the output contains "set `@ends:` to the phase or iteration it ends"
 
   @decided-by:free-vocabulary
   Rule: A ladder of the team's own orders the maturities of work still to come, and a value off it ranks below every rung
