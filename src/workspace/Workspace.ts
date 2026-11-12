@@ -262,8 +262,9 @@ export interface LoadedSteps {
    */
   readonly imports: () => ReadonlyArray<string>
   /**
-   * Of `sources`, the step files and their imports whose content is no longer what this process
-   * loaded: a run against them would record evidence about code that did not run.
+   * The step files and their imports that `sources` holds with another content than this process
+   * loaded, or no longer holds at all: a run against them would record evidence about code that
+   * did not run.
    */
   readonly changed: (sources: ReadonlyArray<SourceFile>) => ReadonlyArray<string>
 }
@@ -305,14 +306,16 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
       .sort()
   }
   const changed = (sources: ReadonlyArray<SourceFile>) => {
-    const running = new Set([...files, ...imports()])
-    return sources.filter((file) => {
-      if (!running.has(file.path)) return false
+    const present = new Map(sources.map((file) => [file.path, file.content]))
+    return [...files, ...imports()].filter((file) => {
+      const content = present.get(file)
+      // Deleted: Node still runs what it loaded.
+      if (content === undefined) return true
       // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
-      const loaded = loadedSources.get(urlOf(file.path)) ?? file.content
-      loadedSources.set(urlOf(file.path), loaded)
-      return loaded !== file.content
-    }).map((file) => file.path)
+      const loaded = loadedSources.get(urlOf(file)) ?? content
+      loadedSources.set(urlOf(file), loaded)
+      return loaded !== content
+    }).sort()
   }
   return { files, modules, empty, imports, changed } satisfies LoadedSteps
 })

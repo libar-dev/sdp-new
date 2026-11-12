@@ -414,6 +414,33 @@ Feature: Executable specifications
       Then the exit code is 1
       And the output contains "the cart holds 2"
 
+    Scenario: A process that imported a module refuses to record a run once the module is deleted
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When this process runs the workspace through the API
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "rm specs/steps/lamps.ts"
+      Then the exit code is 0
+      When this process runs the workspace through the API
+      Then the output contains "specs/steps/lamps.ts changed after this process imported it"
+      When I run "sdp q requirement[stage=verified] --ids"
+      Then the output lines are ""
+
     Scenario: A declared environment variable is part of the evidence, and only its digest is stored
       Given a file "sdp.config.yaml" containing:
         """
