@@ -18,6 +18,8 @@ links:
 Matches pickle steps to step definitions (Cucumber Expressions), runs handlers as Effects with
 timeouts, one world per world factory per scenario, and records results keyed by scenario hash.
 Built-in steps assert against the graph through the query engine and the checker, which is how
-gates and guards execute. What it does for authors: [[REQ-executable-specs]].
+gates and guards execute. Matching is separate from running (`src/run/Match.ts`): `sdp context`,
+`sdp run --snippets` and the MCP tool `sdp_snippets` match steps without executing them. What it
+does for authors: [[REQ-executable-specs]].
 
 Code: `src/run/`.

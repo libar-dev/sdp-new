@@ -3,11 +3,11 @@ id: REQ-agent-context
 kind: requirement
 title: Context bundles for agents
 maturity: ready
-iteration: C2
+iteration: I1
 tags: [agents]
 links:
   refines: CAP-agent-collaboration
-  realized-by: ARCH-graph
+  realized-by: ARCH-reports
 ---
 
 # Context bundles for agents

@@ -3,7 +3,7 @@ id: REQ-mcp-server
 kind: requirement
 title: Graph access over MCP
 maturity: ready
-iteration: C2
+iteration: I1
 tags: [agents]
 links:
   refines: CAP-agent-collaboration
@@ -15,7 +15,7 @@ links:
 Agents that speak the Model Context Protocol get the graph as tools by running `sdp mcp`, a server
 on stdio. Each call reads the workspace afresh — and the step definition modules, where a tool uses
 them — so an agent sees its own edits immediately. Agents with a shell can do everything through
-the CLI or plain grep instead; MCP is a convenience, not a requirement.
+the CLI or plain grep instead; MCP is optional.
 
 | Tool | Arguments | Answers with |
 | --- | --- | --- |

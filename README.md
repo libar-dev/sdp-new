@@ -65,7 +65,8 @@ Scenario: Start with an idea, a quality requirement and a decision
 `sdp init` writes `sdp.config.yaml` and `AGENTS.sdp.md`, a guide for coding agents. Each `sdp new`
 prints the id and file it created from a template; `--maturity` decides how much the template
 asks for. Once behaviour is written down as Gherkin, `sdp run` executes it. Steps without a
-definition are *undefined* — reported with a suggested definition, never failing:
+definition are *undefined* — reported, never failing — and `sdp run --snippets` ends with one
+step definition module covering all of them:
 
 ~~~gherkin
 Scenario: Specify behaviour before it is automated
@@ -100,7 +101,7 @@ Scenario: Specify behaviour before it is automated
 
 | Command | What it does |
 | --- | --- |
-| `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, significant elements, diagnostics |
+| `sdp status` | One-screen summary: kinds, relations, stages, decisions, scenarios, gates, significant elements, diagnostics |
 | `sdp q '<pattern>'` | Query, e.g. `sdp q 'requirement[maturity<ready]'`, `--paths`, `--ids` |
 | `sdp show <id>` | A node with attributes and edges |
 | `sdp context <id>` | Everything needed to work on a node, as Markdown (for agents and humans) |
@@ -110,10 +111,11 @@ Scenario: Specify behaviour before it is automated
 | `sdp arch [--candidates] [-f mermaid\|dot\|json]` | The curated architecture, or suggestions for architects to look at |
 | `sdp lifecycle` | Phases, iterations, gates and discipline activity |
 | `sdp graph [-f jsonl\|tsv\|json\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
-| `sdp new <kind> <title>` · `sdp init` | Authoring helpers |
+| `sdp new <kind> <title>` · `sdp init` | Authoring helpers; templates for requirement, idea, nfr, decision, element, pattern, milestone and plan (`sdp new --help`) |
 | `sdp mcp` | MCP server (stdio) for agents |
 
-`-C <dir>` selects the workspace root. Which commands print JSON with `--json`, and every flag,
+Like git, commands work on the nearest directory at or above the current one that holds an
+`sdp.config.yaml`; `-C <dir>` names the workspace root instead. Which commands print JSON with `--json`, and every flag,
 exit code and example: [REQ-cli](specs/requirements/REQ-cli.md).
 
 ## This repository specifies itself

@@ -3,7 +3,7 @@ id: REQ-builtin-steps
 kind: requirement
 title: Built-in steps over the graph
 maturity: ready
-iteration: C1
+iteration: I1
 tags: [execution, quality-gates]
 links:
   refines: CAP-living-specs
@@ -37,19 +37,8 @@ and kinds named in the configuration count as known — and so do an unknown sev
 scenarios see the results of earlier runs and gate scenarios those of the current one
 ([[REQ-executable-specs]]). Like any step, they match by text, whatever the keyword.
 
-This repository uses them for its decision guards and milestone gates:
-
-```gherkin
-# docs/decisions/DEC-0001: all Gherkin in this repository parses
-Then there are no diagnostics for rule "gherkin-syntax"
-
-# docs/decisions/DEC-0002: every reference resolves
-Then the query "missing" returns no results
-
-# docs/delivery/milestones/MS-LCA: the architecture baseline is curated
-Then the query "*[significant, !rationale]" returns no results
-And the query "*[significant] !-*- decision|nfr" returns no results
-```
+This repository uses them for its decision guards ([[DEC-0001]], [[DEC-0002]], [[DEC-0007]]) and its
+milestone gates (for example [[MS-LCA]]).
 
 ## Scenarios
 

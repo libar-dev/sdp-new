@@ -27,7 +27,9 @@ that its instructions work.
 1. Find or create the spec (`node src/cli/main.ts new requirement "…"`). Write or adjust scenarios
    first; they are the acceptance tests — there are no other tests, only Gherkin scenarios and
    their step definitions.
-2. `node src/cli/main.ts run <spec-id> --snippets` shows undefined steps with suggested definitions.
+2. `node src/cli/main.ts context <spec-id>` lists the steps without a definition (no run needed);
+   `node src/cli/main.ts run <spec-id> --snippets` prints one paste-ready module with a suggested
+   definition for each.
    Step definitions live in `specs/steps/*.steps.ts` and share one world (`specs/steps/world.ts`).
    They drive the real pipeline against an in-memory workspace (`loadMemoryProject`), or the real
    CLI in a temporary directory (`cli.steps.ts`). Prefer extending existing steps over adding

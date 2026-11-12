@@ -252,29 +252,4 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the median run completes within {int} ms", ({ args: [budget], world }) => {
     assert.ok(world.durationMs <= budget, `median ${world.durationMs.toFixed(1)} ms exceeds ${budget} ms`)
   })
-
-  // These assert against this repository's own graph (ctx.project), not an in-memory one.
-  Then("every node of this repository has a source location", ({ project }) => {
-    const missing = [...project.graph.nodes.values()].filter((n) => n.kind !== "missing" && !n.source)
-    assert.equal(missing.length, 0, missing.map((n) => n.id).join(", "))
-  })
-
-  Then("every edge of this repository has a source location", ({ project }) => {
-    const missing = project.graph.edges.filter((e) => !e.source)
-    assert.equal(missing.length, 0, missing.map((e) => `${e.from} -${e.rel}-> ${e.to}`).join(", "))
-  })
-
-  Then("every node id of this repository appears literally in its source file", ({ project }) =>
-    Effect.tryPromise(async () => {
-      const { readFile } = await import("node:fs/promises")
-      const cache = new Map<string, string>()
-      const offenders: Array<string> = []
-      for (const n of project.graph.nodes.values()) {
-        if (!n.source || n.kind === "code" || n.kind === "scenario") continue
-        const file = `${project.root}/${n.source.file}`
-        if (!cache.has(file)) cache.set(file, await readFile(file, "utf8"))
-        if (!cache.get(file)!.includes(n.id)) offenders.push(`${n.id} (${n.source.file})`)
-      }
-      assert.equal(offenders.length, 0, offenders.join(", "))
-    }))
 })

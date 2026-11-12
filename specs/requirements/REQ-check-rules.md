@@ -3,7 +3,7 @@ id: REQ-check-rules
 kind: requirement
 title: Check rules
 maturity: ready
-iteration: E2
+iteration: I1
 tags: [quality-gates]
 links:
   refines: CAP-living-specs

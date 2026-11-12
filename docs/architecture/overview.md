@@ -60,7 +60,7 @@ per element:
 
 | Module | Responsibility | Element |
 | --- | --- | --- |
-| `src/workspace/` | Config, globbing and reading through Effect `FileSystem`; an in-memory file system for executable specs | ARCH-workspace |
+| `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, imports step modules with `import "sdp"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
 | `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts` | Markdown scanner, Gherkin through the official parser with every line mapped back, spec assembly | ARCH-spec-parser |
 | `src/parse/Annotations.ts` | `@sdp` comments in code | ARCH-code-annotations |
 | `src/graph/Build.ts` | Pure graph construction, implicit links, results merge, stage derivation | ARCH-graph-builder |

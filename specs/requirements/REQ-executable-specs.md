@@ -3,12 +3,12 @@ id: REQ-executable-specs
 kind: requirement
 title: Executable specifications
 maturity: ready
-iteration: C1
+iteration: I1
 tags: [execution]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-runner
-  decided-by: DEC-0005
+  decided-by: [DEC-0005, DEC-0001]
 ---
 
 # Executable specifications
@@ -52,7 +52,7 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
   reported as a warning, and one that fails to load stops the run with one line naming the file
   ([[REQ-cli]]).
 
-Not supported yet: custom parameter types and Before/After hooks.
+Not supported yet: custom parameter types and Before/After hooks ([[REQ-cucumber-compatibility]]).
 
 ## Statuses
 

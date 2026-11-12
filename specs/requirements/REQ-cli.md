@@ -3,7 +3,7 @@ id: REQ-cli
 kind: requirement
 title: Command line
 maturity: ready
-iteration: C2
+iteration: I1
 tags: [cli, agents]
 links:
   refines: CAP-agent-collaboration

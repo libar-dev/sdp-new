@@ -199,7 +199,7 @@ id: ${id}
 kind: ${kind}
 title: ${title}
 maturity: ${maturity}   # ${ladder} (implemented/verified is derived from scenario results)
-${quality ? "type: quality\nquality: performance  # performance | availability | security | usability | ...\n" : ""}# iteration: E1
+${quality ? "quality: performance  # performance | availability | security | usability | ...\n" : ""}# iteration: E1
 ${quality ? `# Elements this constrains link to it: \`constrained-by: ${id}\`.\n` : ""}links:
   # refines: CAP-…
 ${quality ? "" : "  # realized-by: ARCH-…\n"}---
