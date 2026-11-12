@@ -265,18 +265,21 @@ Feature: Link code to specs
         | a comment above a statement       | // @sdp is ARCH-c\nconsole.log(item)                                       | 4    |
         | a comment apart from what follows | // @sdp is ARCH-d\n\nexport const other = 1                                | 4    |
 
-    Scenario: A call named annotate is code like any other
+    Scenario Outline: A call named annotate is code like any other: <case>
       Given a file "src/pay.ts" containing:
         """
-        import { annotate } from "./notes.ts"
-
-        export const pay = (): number => 0
-        annotate(pay, { implements: "pay" })
+        <code>
         """
       When the workspace is loaded
       Then sdp reports nothing
       When I query "code"
       Then the result is "nothing"
+
+      Examples:
+        | case                                     | code                                                                                                                              |
+        | a function of another module             | import { annotate } from "./notes.ts"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: "pay" })                   |
+        | a parameter that shadows the retired one | import { annotate } from "sdp/annotations"\n\nexport const pay = (annotate: (note: string) => void): void => annotate("paid")         |
+        | a local function that shadows it         | import { annotate } from "sdp/annotations"\n\nexport function pay(): void {\n  const annotate = (note: string) => note\n  annotate("paid")\n} |
 
     Scenario Outline: A comment line in any language carries a tag, bound to the declaration below it if sdp knows its keyword
       Given a file "sdp.config.yaml" containing:

@@ -98,7 +98,8 @@ const retiredModule = "sdp/annotations"
  * Each call of what a file imports from the retired module, `annotate(pay, { implements: "pay" })`
  * or `annotations.annotate(…)` of the module imported whole: nothing reads it any more, so it is
  * reported with the tags that say the same. A function of the file's own, or of another module,
- * named `annotate` is ordinary code.
+ * named `annotate` is ordinary code, and so is a name declared where the call is, which hides the
+ * import.
  */
 const retiredCalls = (script: Script): ReadonlyArray<Unread> => {
   const specifiers = script.program.body.flatMap((statement) =>
@@ -110,20 +111,24 @@ const retiredCalls = (script: Script): ReadonlyArray<Unread> => {
   const functions = new Set(specifiers.filter((specifier) => specifier.type !== "ImportNamespaceSpecifier").map(local))
   const modules = new Set(specifiers.filter((specifier) => specifier.type !== "ImportSpecifier").map(local))
   if (specifiers.length === 0) return []
-  const retired = (callee: unknown): boolean => {
+  const retired = (callee: unknown, hidden: ReadonlySet<string>): boolean => {
     if (!isNode(callee)) return false
-    if (callee.type === "Identifier") return functions.has(callee.name as string)
+    if (callee.type === "Identifier") return functions.has(callee.name as string) && !hidden.has(callee.name as string)
     if (callee.type !== "MemberExpression" || !isNode(callee.object) || callee.object.type !== "Identifier") return false
     const holder = callee.object.name as string
     const property = callee.property as Node
     const member = callee.computed ? property.value : property.name
-    return modules.has(holder) && member === "annotate"
+    return modules.has(holder) && !hidden.has(holder) && member === "annotate"
   }
-  const calls = (node: Node): ReadonlyArray<Node> => [
-    ...(node.type === "CallExpression" && retired(node.callee) ? [node] : []),
-    ...children(node).flatMap(calls)
-  ]
-  return calls(script.program).map((call) => {
+  const calls = (node: Node, hidden: ReadonlySet<string>): ReadonlyArray<Node> => {
+    const declared = declaredIn(node)
+    const inside = declared.length === 0 ? hidden : new Set([...hidden, ...declared])
+    return [
+      ...(node.type === "CallExpression" && retired(node.callee, inside) ? [node] : []),
+      ...children(node).flatMap((child) => calls(child, inside))
+    ]
+  }
+  return calls(script.program, new Set()).map((call) => {
     const [subject, links] = call.arguments as ReadonlyArray<Node | undefined>
     const name = subject?.type === "Identifier" ? subject.name as string : undefined
     const tags = isNode(links) && links.type === "ObjectExpression" ? retiredTags(links) : []
@@ -133,6 +138,71 @@ const retiredCalls = (script: Script): ReadonlyArray<Unread> => {
       hint: `write it as tags in the doc comment of ${name ?? "the declaration"}${tags.length > 0 ? `: ${tags.join("; ")}` : ", `@sdp <relation> <ID>`"}, and delete the call`
     }
   })
+}
+
+/** The names a function, a block, a loop, a `switch` or a `catch` declares for the code inside it, a function's `var`s included. */
+const declaredIn = (node: Node): ReadonlyArray<string> => {
+  switch (node.type) {
+    case "FunctionDeclaration":
+    case "FunctionExpression":
+    case "ArrowFunctionExpression":
+      return [
+        ...(node.type === "FunctionExpression" ? bound(node.id) : []),
+        ...(node.params as ReadonlyArray<Node>).flatMap(bound),
+        ...(isNode(node.body) ? hoisted(node.body) : [])
+      ]
+    case "ClassExpression":
+      return bound(node.id)
+    case "BlockStatement":
+    case "StaticBlock":
+      return (node.body as ReadonlyArray<Node>).flatMap(lexical)
+    case "SwitchStatement":
+      return (node.cases as ReadonlyArray<Node>).flatMap((branch) => (branch.consequent as ReadonlyArray<Node>).flatMap(lexical))
+    case "ForStatement":
+      return isNode(node.init) ? lexical(node.init) : []
+    case "ForInStatement":
+    case "ForOfStatement":
+      return isNode(node.left) ? lexical(node.left) : []
+    case "CatchClause":
+      return bound(node.param)
+    default:
+      return []
+  }
+}
+
+/** The names a declaration statement declares. */
+const lexical = (statement: Node): ReadonlyArray<string> =>
+  statement.type === "VariableDeclaration"
+    ? (statement.declarations as ReadonlyArray<Node>).flatMap((declaration) => bound(declaration.id))
+    : ["FunctionDeclaration", "ClassDeclaration", "TSEnumDeclaration"].includes(statement.type)
+    ? bound(statement.id)
+    : []
+
+/** The `var`s of a function's body, which belong to the whole function, those of functions inside it excepted. */
+const hoisted = (node: Node): ReadonlyArray<string> => [
+  ...(node.type === "VariableDeclaration" && node.kind === "var" ? lexical(node) : []),
+  ...children(node).flatMap((child) => /Function/.test(child.type) ? [] : hoisted(child))
+]
+
+/** The names a binding pattern declares: `annotate`, `{ annotate }`, `[annotate]`, `annotate = …`, `...annotate`. */
+const bound = (pattern: unknown): ReadonlyArray<string> => {
+  if (!isNode(pattern)) return []
+  switch (pattern.type) {
+    case "Identifier":
+      return [pattern.name as string]
+    case "ObjectPattern":
+      return (pattern.properties as ReadonlyArray<Node>).flatMap((property) => bound(property.type === "RestElement" ? property.argument : property.value))
+    case "ArrayPattern":
+      return (pattern.elements as ReadonlyArray<unknown>).flatMap(bound)
+    case "AssignmentPattern":
+      return bound(pattern.left)
+    case "RestElement":
+      return bound(pattern.argument)
+    case "TSParameterProperty":
+      return bound(pattern.parameter)
+    default:
+      return []
+  }
 }
 
 /** The tags an `annotate()` object says, one per key whose value is an id or a list of ids, as written. */
