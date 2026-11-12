@@ -36,9 +36,12 @@ the offending key.
 Lists replace their default, except `exclude`, which extends it; `ids` merges key by key.
 
 **Vocabulary.** The few words sdp reads meaning into are roles of one profile, each with a default
-word ([[ARCH-vocabulary]]). `sdp vocabulary` prints the active profile in the shape this section
-takes, so renaming a word is copying its line and changing the word. A role the section names
-replaces its default; `disciplines` merge one by one.
+word ([[ARCH-vocabulary]]). `sdp vocabulary` prints the active profile role by role, and
+`sdp vocabulary --json` holds it as `data.vocabulary` in the shape this section takes, so it can
+be copied into the configuration and changed there. A role the section names replaces its default;
+`disciplines` merge one by one. Under `made`, the same command lists the words that are not
+configurable because sdp makes them itself: the kinds `scenario`, `code` and `missing`, the
+attributes it derives, the stages beyond the ladder, and the names no link can have ([[DEC-0010]]).
 
 | Section | What sdp reads its words for |
 | --- | --- |
@@ -51,8 +54,22 @@ replaces its default; `disciplines` merge one by one.
 | `links` | keys of the workspace's own that link like `links:` entries ([[DEC-0010]]) |
 | `words` | `kinds`, `relations` and `attributes` of the workspace's own that nothing in its graph has yet, so that a rule can assert there is none of them without its query being taken for a typo ([[REQ-builtin-steps]]) |
 
-A profile that cannot work is an error naming its path: an empty ladder, a level listed twice, or a
-level named like a stage sdp derives (`failing`, `in-progress`, `verified`).
+A profile that cannot work is an error naming its path, where it is configured and not later in a
+spec or a query:
+
+- a word that is empty, or a kind, relation or decision-status role left without any word —
+  renaming a role is free, removing it would switch off what sdp reads through it;
+- an empty ladder, a level listed twice, or a level named like a stage sdp derives (`failing`,
+  `in-progress`, `verified`);
+- a role given a word sdp makes or reads itself: a kind sdp makes (`scenario`, `code`, `missing`),
+  or a relation, link key or attribute named like an attribute sdp derives or checks (`stage`,
+  `maturity`, `status`, …);
+- the mention, scenario or anchor relation sharing its word with another of them or with a relation
+  authors write as a link key (plan, phase, supersedes, `links`): one edge would be two things;
+- `statuses.accepted` or `statuses.superseded` naming a status that `statuses.decision` does not list.
+
+`sdp new` writes what the profile says ([[REQ-cli]]): the template of a kind is that of the role it
+plays, and the keys, kinds and statuses it writes are the workspace's words.
 
 **Id prefixes.** A spec that omits `kind` gets it from its id prefix — case-insensitive, followed
 by `-` or `_` — and a prefix that maps to no kind gives `spec`. `sdp new` names new specs with the same prefixes: decisions and risks are
@@ -367,10 +384,52 @@ Scenario: sdp vocabulary prints the profile in force
     """
   When I run "sdp vocabulary --json"
   Then the output is valid JSON
-  And the output field "data.links" holds "owner"
-  And the output field "data.maturity" holds "idea, draft, specified, ready"
+  And the output field "data.vocabulary.links" holds "owner"
+  And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
+  And the output field "data.made.kinds" holds "scenario, code, missing"
+  And the output field "data.made.stages" holds "failing, in-progress, verified"
+  And the output field "data.made.reservedRelations" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn, maturity, status"
   When I run "sdp vocabulary"
   Then the output line with "decision" contains "adr"
+  And the output line with "scenarioAttributes" under "made by sdp, not configurable" contains "staleBecause"
+
+Scenario: What sdp vocabulary prints as the profile is a configuration that reads back
+  When I run the pipeline:
+    """
+    sdp vocabulary --json | jq '{ vocabulary: .data.vocabulary }' > copied.json
+    mv copied.json sdp.config.json
+    sdp vocabulary --json | jq -r '.data.vocabulary.relations.plan[]'
+    """
+  Then the exit code is 0
+  And the output lines are "iteration"
+
+Scenario: sdp new writes what a renamed profile reads
+  Given a file "sdp.config.yaml" containing:
+    """
+    ids: { adr: ADR, era: ERA }
+    vocabulary:
+      kinds: { decision: [adr], milestone: [checkpoint], phase: [era], iteration: [sprint], driver: [adr, nfr] }
+      relations: { plan: [sprint], phase: [part-of], supersedes: [replaces], anchor: implements-element }
+      attributes: { order: position, start: from, end: until }
+      statuses: { decision: [pending, approved, retired], accepted: approved, superseded: retired, inactive: [retired] }
+    """
+  When I run "sdp new adr 'Use Postgres'"
+  Then the output contains "ADR-0001\tdocs/decisions/ADR-0001-use-postgres.md"
+  And the file "docs/decisions/ADR-0001-use-postgres.md" contains "status: pending # pending | approved | retired"
+  And the file "docs/decisions/ADR-0001-use-postgres.md" contains "# replaces: ADR-…"
+  When I run "sdp new plan Roadmap"
+  And I run "sdp new checkpoint Launch"
+  Then the file "docs/delivery/milestones/CHEC-launch.md" contains "part-of: ERA-elaboration"
+  When I run "sdp q era|sprint --ids"
+  Then the output lines are "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition, I1, E1, C1, T1"
+  When I run "sdp q 'sprint -part-of-> era[position=2]' --ids"
+  Then the output lines are "ERA-elaboration"
+  When I run "sdp check"
+  Then the output does not contain "[decision-status]"
+  And the output does not contain "[dangling-link]"
+  And the output does not contain "[plan-reference]"
+  When I run "sdp lifecycle --json"
+  Then the output field "data.phases" holds "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition"
 
 Scenario Outline: A profile that cannot work is rejected where it is wrong
   Given a file "sdp.config.yaml" containing:
@@ -385,6 +444,15 @@ Scenario Outline: A profile that cannot work is rejected where it is wrong
     | vocabulary: { maturity: [] }                      | needs at least one level             | at ["vocabulary"]["maturity"] |
     | vocabulary: { maturity: [idea, ready, idea] }     | idea repeats                         | at ["vocabulary"]["maturity"] |
     | vocabulary: { maturity: [idea, verified] }        | verified is a stage sdp derives      | at ["vocabulary"]["maturity"] |
+    | vocabulary: { maturity: [idea, " "] }             | a word cannot be empty               | at ["vocabulary"]["maturity"] |
+    | vocabulary: { relations: { anchor: "" } }         | a word cannot be empty               | at ["vocabulary"]["relations"]["anchor"] |
+    | vocabulary: { kinds: { decision: [] } }           | a role needs at least one word       | at ["vocabulary"]["kinds"]["decision"] |
+    | vocabulary: { kinds: { milestone: [scenario] } }  | scenario is a kind sdp makes itself  | at ["vocabulary"]["kinds"]["milestone"] |
+    | vocabulary: { attributes: { activity: stage } }   | stage is an attribute sdp derives or checks itself | at ["vocabulary"]["attributes"]["activity"] |
+    | vocabulary: { links: [status] }                   | status is an attribute sdp derives or checks itself | at ["vocabulary"]["links"] |
+    | vocabulary: { relations: { mention: iteration } } | iteration is also a relation authors write as a link key | at ["vocabulary"]["relations"]["mention"] |
+    | vocabulary: { relations: { scenario: is } }       | is is also relations.anchor          | at ["vocabulary"]["relations"]["scenario"] |
+    | vocabulary: { statuses: { accepted: approved } }  | approved is not one of statuses.decision | at ["vocabulary"]["statuses"]["accepted"] |
     | ids: { component: MY-COMP }                       | must be letters only                 | at ["ids"]["component"]       |
     | ids: { story: REQ }                               | requirement and story share the prefix REQ | at ["ids"]              |
 

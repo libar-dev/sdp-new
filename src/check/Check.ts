@@ -38,7 +38,7 @@ import type { Spec } from "../parse/Spec.ts"
 const builtinLevels: ReadonlyArray<string> = Object.values(criteria)
 
 /** What the maturity criteria look at: a spec has all of it, an inline or code-declared node none. */
-export interface Content {
+interface Content {
   readonly summary: string
   readonly body: string
   readonly scenarios: ReadonlyArray<Scenario>
@@ -70,7 +70,7 @@ export const gateReasons = (content: Content, level: string): ReadonlyArray<stri
 }
 
 /** The highest built-in level whose criteria the content meets. */
-export const achievableMaturity = (content: Content): string => {
+const achievableMaturity = (content: Content): string => {
   let best: string = builtinLevels[0]!
   for (const level of builtinLevels) {
     if (gateReasons(content, level).length === 0) best = level

@@ -53,7 +53,7 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
 - **Worlds.** The first argument of `defineSteps` is a world factory. Every scenario gets a fresh
   world per factory; modules passing the same factory share that world, so a step library can be
   split across files (sdp's own steps share `specs/steps/world.ts`). A world is made as part of the
-  first step that needs it: a factory that throws fails that step, naming the module.
+  first step that needs it: a factory that throws fails that step, naming the module's file.
 - Steps match by text, not keyword: `Given`, `When`, `Then` and `Step` register alike.
 - **`import … from "sdp/steps"`** — and `"sdp/annotations"` in the application code the steps
   exercise — always resolve to the sdp that runs the steps, so a workspace needs no package
@@ -821,7 +821,8 @@ Scenario: A world factory that throws fails the step that needs the world
   And a step definition "I add a lamp" that passes
   When the scenarios are run
   Then the step "an empty cart" has status "failed"
-  And the step "an empty cart" reports "could not create the world of cart: deliberate failure in the world factory"
+  And the step "an empty cart" reports "could not create the world of"
+  And the step "an empty cart" reports "execution.steps.ts: deliberate failure in the world factory"
   And the step "I add a lamp" has status "skipped"
 ~~~
 

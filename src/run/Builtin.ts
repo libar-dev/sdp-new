@@ -157,4 +157,4 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
     const actual = key === "kind" ? node.kind : key === "title" ? node.title : attribute(node, key)
     if (String(actual) !== value) throw new Error(`${id}.${key} is ${JSON.stringify(actual)}, expected ${JSON.stringify(value)}`)
   })
-}, { name: "sdp/builtin" })
+})

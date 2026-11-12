@@ -126,7 +126,7 @@ const scriptedSteps = (
     return factories.get(name)!
   }
   const byModule = Map.groupBy(definitions, (d) => d.module)
-  return [...byModule].map(([name, list]) =>
+  return [...byModule.values()].map((list) =>
     defineSteps(factory(list[0]!.world), ({ Step }) => {
       for (const { behaviour, expression } of list) {
         const handler = (context: StepContext<Record<string, number>, ReadonlyArray<unknown>>) => behaviours[behaviour]!(context, expression, log)
@@ -135,7 +135,7 @@ const scriptedSteps = (
         if (regexp) Step(new RegExp(regexp[1]!), handler)
         else Step(expression, handler)
       }
-    }, { name })
+    })
   )
 }
 

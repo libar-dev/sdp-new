@@ -2,7 +2,7 @@
  * The programmatic API: the use cases the command line and the MCP server
  * call, with the shapes they print. Each takes the workspace root and returns
  * an Effect that needs a `FileSystem` and a `Path` (`NodeServices.layer` from
- * `@effect/platform-node`, or `layerMemory` for a workspace held in memory):
+ * `@effect/platform-node`):
  *
  *   import { query } from "sdp"
  *   const found = await Effect.runPromise(query(".", { expression: "requirement[maturity<ready]" }).pipe(Effect.provide(NodeServices.layer)))
@@ -37,4 +37,3 @@ export { gate, run } from "./app/Running.ts"
 export type { GateReport, RunReport } from "./app/Running.ts"
 export type { EdgeRecord, GraphRecord, NodeRecord } from "./graph/Export.ts"
 export type { QueryPath } from "./graph/Query.ts"
-export { layerMemory, memoryRoot } from "./workspace/MemoryFileSystem.ts"

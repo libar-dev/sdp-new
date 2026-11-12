@@ -7,12 +7,14 @@ import { annotate } from "sdp/annotations"
 import { Result } from "effect"
 import { Document, isMap, isNode, isSeq } from "yaml"
 import { type Config, defaults } from "../model/Config.ts"
+import { criteria, hasKind, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { parseMarkdownSpec } from "../parse/Spec.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
 
-export const directoryFor: Record<string, string> = {
+/** Where a new spec goes, by the template it is written from, then by its kind. */
+const directoryFor: Record<string, string> = {
   requirement: "specs/requirements",
   idea: "specs/requirements",
   nfr: "specs/quality",
@@ -25,22 +27,46 @@ export const directoryFor: Record<string, string> = {
   risk: "docs/risks"
 }
 
-/** Kinds with a template of their own; any other kind gets the generic one. `idea` is a requirement at maturity idea. */
+/** What `sdp new` has a template for; any other kind gets the generic one. `idea` is a requirement at maturity idea. */
 export const templateKinds = ["requirement", "idea", "nfr", "decision", "element", "pattern", "milestone", "plan"] as const
 
+type Template = "decision" | "element" | "pattern" | "milestone" | "plan" | "generic"
+
+/**
+ * The template for a kind: the one of the role it plays in the workspace's vocabulary, so a team
+ * that calls its decisions `adr` gets the decision template for `sdp new adr`.
+ */
+const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
+  hasKind(vocabulary, "decision", kind)
+    ? "decision"
+    : hasKind(vocabulary, "milestone", kind)
+    ? "milestone"
+    : hasKind(vocabulary, "pattern", kind)
+    ? "pattern"
+    : hasKind(vocabulary, "architectural", kind)
+    ? "element"
+    : kind === "plan"
+    ? "plan"
+    : "generic"
+
+/** Records that are numbered, not named: decisions, and risks. */
+const isNumbered = (kind: string, vocabulary: Vocabulary) => hasKind(vocabulary, "decision", kind) || kind === "risk"
+
+const prefixOf = (kind: string, config: Config) => config.ids[kind] ?? kind.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4)
+
 export const newId = (kind: string, title: string, config: Config, existing: ReadonlyArray<string>): string => {
-  const prefix = config.ids[kind] ?? kind.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4)
+  const prefix = prefixOf(kind, config)
   const slug = slugify(title)
   // Decisions and risks are numbered; so is anything whose title has no ASCII letters to slug.
-  if (kind === "decision" || kind === "risk" || slug === "") {
+  if (isNumbered(kind, config.vocabulary) || slug === "") {
     const numbers = existing.map((id) => new RegExp(`^${prefix}-(\\d+)$`).exec(id)?.[1]).filter(Boolean).map(Number)
     return `${prefix}-${String(Math.max(0, ...numbers) + 1).padStart(4, "0")}`
   }
   return `${prefix}-${slug}`
 }
 
-export const fileNameFor = (kind: string, id: string, title: string) =>
-  /^\w+-\d+$/.test(id) && (kind === "decision" || kind === "risk") && slugify(title) !== "" ? `${id}-${slugify(title)}.md` : `${id}.md`
+const fileNameFor = (kind: string, id: string, title: string, vocabulary: Vocabulary) =>
+  /^\w+-\d+$/.test(id) && isNumbered(kind, vocabulary) && slugify(title) !== "" ? `${id}-${slugify(title)}.md` : `${id}.md`
 
 export interface NewSpec {
   readonly id: string
@@ -65,13 +91,16 @@ export const newSpec = (options: {
   readonly dir?: string | undefined
 }): Result.Result<NewSpec, string> => {
   const { config, dir, existing, title } = options
+  const { vocabulary } = config
   const idea = options.kind === "idea"
   const kind = idea ? "requirement" : options.kind
-  const maturity = options.maturity ?? config.vocabulary.maturity[0]!
+  const maturity = options.maturity ?? vocabulary.maturity[0]!
   const id = options.id ?? newId(kind, title, config, existing)
-  const directory = (dir ?? (Object.hasOwn(directoryFor, options.kind) ? directoryFor[options.kind] : undefined) ?? `specs/${kind}`).replace(/(.)\/+$/, "$1")
-  const file = `${directory}/${fileNameFor(kind, id, title)}`
-  const content = specTemplate({ kind, id, title, maturity, today: options.today, ladder: config.vocabulary.maturity })
+  const template = templateOf(kind, vocabulary)
+  const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
+  const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")
+  const file = `${directory}/${fileNameFor(kind, id, title, vocabulary)}`
+  const content = specTemplate({ kind, id, title, maturity, today: options.today, config })
   const back = parseMarkdownSpec(file, content, config).spec
   if (back?.id !== id || back.kind !== kind || back.title !== title) {
     return Result.fail(
@@ -98,7 +127,8 @@ const frontMatter = (fields: ReadonlyArray<Field>, fixed: ReadonlyArray<string> 
   return ["---", doc.toString({ lineWidth: 0 }).trimEnd(), ...fixed, "---", ""].join("\n")
 }
 
-const levels = ["idea", "draft", "specified", "ready"]
+/** The levels whose criteria are built in: a template grows with them. */
+const levels: ReadonlyArray<string> = Object.values(criteria)
 
 const addDays = (isoDate: string, days: number) => {
   const date = new Date(`${isoDate}T00:00:00Z`)
@@ -106,32 +136,45 @@ const addDays = (isoDate: string, days: number) => {
   return date.toISOString().slice(0, 10)
 }
 
-export const specTemplate = (options: {
+/**
+ * The content of a new spec. The words sdp interprets — kinds, relations, attributes, statuses —
+ * are written as the workspace's vocabulary names them, so what a template writes is what sdp reads.
+ */
+const specTemplate = (options: {
   readonly kind: string
   readonly id: string
   readonly title: string
   readonly maturity: string
   readonly today: string
-  /** The configured maturity ladder, lowest first. */
-  readonly ladder?: ReadonlyArray<string> | undefined
+  readonly config: Config
 }): string => {
-  const { id, kind, maturity, title, today } = options
+  const { config, id, kind, maturity, title, today } = options
+  const { vocabulary } = config
   const level = Math.max(0, levels.indexOf(maturity))
-  switch (kind) {
-    case "decision":
+  const plan = wordFor(vocabulary.relations.plan)
+  const phase = wordFor(vocabulary.relations.phase)
+  const { activity } = vocabulary.attributes
+  // Prefixed like every other id, so a phase is one grep away and no ordinary word is an id.
+  const phaseKind = wordFor(vocabulary.kinds.phase)
+  const phaseId = (name: string) => `${config.ids[phaseKind] ?? "PH"}-${name.toLowerCase()}`
+  const phases = ["Inception", "Elaboration", "Construction", "Transition"]
+  switch (templateOf(kind, vocabulary)) {
+    case "decision": {
+      const statuses = vocabulary.statuses.decision
       return `${
         frontMatter([
           ["id", id],
-          ["kind", "decision"],
+          ["kind", kind],
           ["title", title],
-          ["status", "proposed", "proposed | accepted | rejected | deprecated | superseded"],
+          // A new record starts at the first status the workspace lists.
+          ["status", wordFor(statuses), statuses.join(" | ")],
           ["category", "architecture", "architecture | product | process | technology | organization | ..."],
           ["date", today],
           ["deciders", []]
         ], [
           "# What this decision shapes links to it, with `decided-by` on the requirement or element.",
           "links:",
-          "  # supersedes: DEC-…"
+          `  # ${wordFor(vocabulary.relations.supersedes)}: ${prefixOf(kind, config)}-…`
         ])
       }
 # ${title}
@@ -153,9 +196,10 @@ We will …
 
 What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be guarded automatically.
 `
+    }
     case "element":
       return `${
-        frontMatter([["id", id], ["kind", "element"], ["title", title]], [
+        frontMatter([["id", id], ["kind", kind], ["title", title]], [
           "links:",
           "  # instance-of: PAT-…",
           "  # decided-by: DEC-…",
@@ -166,11 +210,11 @@ What becomes easier or harder. Add a \`\`\`gherkin block if the decision can be 
 # ${title}
 
 Responsibility in one or two sentences, and why it matters to the architecture. Anchor it in code next to the declaration that is it:
-\`annotate(Thing, { is: "${id}" })\` in TypeScript (from \`sdp/annotations\`; run \`sdp types\`
-so the id is typed), or an \`@sdp is ${id}\` comment in other languages.
+\`annotate(Thing, { ${vocabulary.relations.anchor}: "${id}" })\` in TypeScript (from \`sdp/annotations\`; run \`sdp types\`
+so the id is typed), or an \`@sdp ${vocabulary.relations.anchor} ${id}\` comment in other languages.
 `
     case "pattern":
-      return `${frontMatter([["id", id], ["kind", "pattern"], ["title", title]], ["links:", "  # decided-by: DEC-…"])}
+      return `${frontMatter([["id", id], ["kind", kind], ["title", title]], ["links:", "  # decided-by: DEC-…"])}
 # ${title}
 
 The problem this pattern solves and how, in a sentence or two. Elements that apply it link
@@ -181,9 +225,9 @@ The problem this pattern solves and how, in a sentence or two. Elements that app
       return `${
         frontMatter([
           ["id", id],
-          ["kind", "milestone"],
+          ["kind", kind],
           ["title", title],
-          ["phase", "PH-elaboration", "the phase this milestone closes: PH-inception | PH-elaboration | PH-construction | PH-transition (sdp new plan)"]
+          [phase, phaseId("Elaboration"), `the phase this milestone closes: ${phases.map(phaseId).join(" | ")} (sdp new plan)`]
         ])
       }
 # ${title}
@@ -197,46 +241,43 @@ Scenario: No errors in the specification graph
 `
     case "plan": {
       // One phase each, and back-to-back two-week iterations, one per phase, starting today.
-      const phases = ["Inception", "Elaboration", "Construction", "Transition"]
       const iterations = [["I1", "Vision and scope"], ["E1", "Architecture baseline"], ["C1", "First increment"], ["T1", "Beta"]]
-      // Prefixed like every other id, so a phase is one grep away and no ordinary word is an id.
-      const phaseId = (name: string) => `PH-${name.toLowerCase()}`
+      const { end, order, start } = vocabulary.attributes
       const nodes = [
-        ...phases.map((name, index) => ({ id: phaseId(name), kind: "phase", title: name, order: index + 1 })),
+        ...phases.map((name, index) => ({ id: phaseId(name), kind: phaseKind, title: name, [order]: index + 1 })),
         ...iterations.map(([iteration, name], index) => ({
           id: iteration,
-          kind: "iteration",
+          kind: wordFor(vocabulary.kinds.iteration),
           title: name,
-          phase: phaseId(phases[index]!),
-          start: addDays(today, 14 * index),
-          end: addDays(today, 14 * index + 13)
+          [phase]: phaseId(phases[index]!),
+          [start]: addDays(today, 14 * index),
+          [end]: addDays(today, 14 * index + 13)
         }))
       ]
-      return `${frontMatter([["id", id], ["kind", "plan"], ["title", title], ["nodes", nodes]])}
+      return `${frontMatter([["id", id], ["kind", kind], ["title", title], ["nodes", nodes]])}
 # ${title}
 
 Four phases with one example iteration each; add, rename and re-date iterations as the plan firms
-up. Plan work by setting \`iteration: E1\` on a spec, decision or element — that plans its own
+up. Plan work by setting \`${plan}: E1\` on a spec, decision or element — that plans its own
 discipline's work, such as writing a requirement — and the other disciplines' work on it with
-\`activity: { implementation: C1, test: [C1, T1] }\`. Close each phase with a milestone
-(\`sdp new milestone "Lifecycle architecture"\`, \`phase: PH-elaboration\`) whose scenarios are its
-gate. \`sdp lifecycle\` shows the result.
+\`${activity}: { implementation: C1, test: [C1, T1] }\`. Close each phase with a milestone
+(\`sdp new ${wordFor(vocabulary.kinds.milestone)} "Lifecycle architecture"\`, \`${phase}: ${phaseId("Elaboration")}\`) whose
+scenarios are its gate. \`sdp lifecycle\` shows the result.
 `
     }
   }
   const quality = kind === "nfr"
-  const ladder = (options.ladder ?? levels).join(" → ")
   const sections: Array<string> = [
     `${
       frontMatter([
         ["id", id],
         ["kind", kind],
         ["title", title],
-        ["maturity", maturity, `${ladder} (implemented/verified is derived from scenario results)`],
+        ["maturity", maturity, `${vocabulary.maturity.join(" → ")} (implemented/verified is derived from scenario results)`],
         ...(quality ? [["quality", "performance", "performance | availability | security | usability | ..."] as const] : [])
       ], [
-        "# iteration: E1         # when this spec is written",
-        "# activity: { implementation: C1, test: [C1, T1] }   # when other disciplines work on it",
+        `# ${plan}: E1         # when this spec is written`,
+        `# ${activity}: { implementation: C1, test: [C1, T1] }   # when other disciplines work on it`,
         ...(quality ? ["# Elements this constrains link to it, with `constrained-by`."] : []),
         "links:",
         "  # refines: CAP-…",
@@ -255,8 +296,8 @@ ${level === 0 ? "One sentence capturing the idea." : quality ? "Which quality ma
   // What separates ready from specified: nothing is left open.
   if (level >= 3) sections.push(`## Open questions
 
-None: a ready spec has no open questions left. That and complete scenarios are all the \`ready\`
-gate checks; whether the design behind it is settled is for the team's own Definition of Ready.
+None: a ready spec has no open questions left. That and complete scenarios are all the criteria
+of \`ready\` ask for; whether the design behind it is settled is for the team's own Definition of Ready.
 `)
   if (level >= 2) {
     sections.push(

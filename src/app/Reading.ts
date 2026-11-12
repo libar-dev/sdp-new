@@ -229,10 +229,12 @@ export const lifecycleChart = Effect.fn("lifecycleChart")(function*(root: string
   return answer(project, renderLifecycle(lifecycleReport(project, yield* today)))
 })
 
-/** `sdp vocabulary`: the words sdp interprets, as the workspace configures them. Only the configuration is read. */
+export type VocabularyData = ReturnType<typeof vocabularyJson>
+
+/** `sdp vocabulary`: the words sdp interprets, as the workspace configures them, and those it makes itself. Only the configuration is read. */
 export const vocabulary = Effect.fn("vocabulary")(function*(root: string) {
-  const data = vocabularyJson((yield* loadConfig(root)).vocabulary)
-  return { complete: true, notes: [], data } satisfies Answer<typeof data>
+  const data: VocabularyData = vocabularyJson((yield* loadConfig(root)).vocabulary)
+  return { complete: true, notes: [], data } satisfies Answer<VocabularyData>
 })
 
 /** The whole graph, or with `select` the part along the paths a query matches. */

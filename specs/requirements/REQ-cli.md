@@ -709,14 +709,20 @@ Scenario: arch --mermaid draws it
 ### `sdp vocabulary`
 
 The words sdp interprets — kinds, relations, attributes, statuses, the maturity ladder and the
-disciplines — as the workspace configures them, in the shape of the `vocabulary:` section of the
-configuration ([[REQ-configuration]]); `--json` for scripts.
+disciplines — as the workspace configures them, one role per line, and then the words sdp makes
+itself, which no workspace configures: the kinds of its own nodes, the attributes it derives, the
+stages beyond the ladder and the names no link can have. With `--json`, `data.vocabulary` is the
+profile in the shape of the `vocabulary:` section of the configuration ([[REQ-configuration]]) and
+`data.made` the fixed words.
 
 ~~~gherkin
-Scenario: vocabulary prints the words sdp interprets
+Scenario: vocabulary prints the words sdp interprets and the words it makes
   When I run "sdp vocabulary --json"
   Then the output is valid JSON
-  And the output field "data.maturity" holds "idea, draft, specified, ready"
+  And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
+  And the output field "data.made.attributes" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn"
+  When I run "sdp vocabulary"
+  Then the output line with "stages" under "made by sdp, not configurable" contains "failing, in-progress, verified"
 ~~~
 
 ### `sdp lifecycle`

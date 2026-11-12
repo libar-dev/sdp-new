@@ -159,6 +159,9 @@ export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "ma
 /** The maturity levels whose criteria are built in; levels a workspace adds have none. */
 export const criteria = { idea: "idea", draft: "draft", specified: "specified", ready: "ready" } as const
 
+/** The word a role is written with — its first; a valid profile gives every role one. */
+export const wordFor = (words: Words): string => words[0]!
+
 export type KindRole = Exclude<keyof Vocabulary["kinds"], "anchored">
 export type RelationRole = "supersedes" | "plan" | "phase"
 
@@ -208,5 +211,22 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
   disciplines: [...vocabulary.disciplines.keys()]
 })
 
-/** The profile as plain data, in the shape of the `vocabulary:` configuration section. */
-export const vocabularyJson = (vocabulary: Vocabulary) => ({ ...vocabulary, disciplines: Object.fromEntries(vocabulary.disciplines) })
+/**
+ * The words sdp interprets, as plain data: `vocabulary`, the profile in the shape of the
+ * configuration section of that name, and `made`, the words sdp makes itself, which nothing configures.
+ */
+export const vocabularyJson = (vocabulary: Vocabulary) => ({
+  vocabulary: { ...vocabulary, disciplines: Object.fromEntries(vocabulary.disciplines) },
+  made: {
+    /** The kinds of the nodes sdp makes; no author's node has one. */
+    kinds: Object.values(made.kinds),
+    /** The attributes sdp derives on the nodes authors declare. */
+    attributes: made.attributes,
+    /** The attributes of a scenario node. */
+    scenarioAttributes: made.scenarioAttributes,
+    /** The stages beyond the maturity ladder. */
+    stages: Object.values(made.stages),
+    /** The names no link can have. */
+    reservedRelations
+  }
+})

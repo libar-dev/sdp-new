@@ -17,7 +17,7 @@ import { dueMilestones, lifecycle } from "../lifecycle/Lifecycle.ts"
 import { problemLine } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
-import { attribute, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { attribute, made } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
@@ -116,9 +116,9 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
   const { config } = before.project
   // Whether a scenario is a gate is decided by the examples this run selected.
-  const select = (gates: boolean, vocabulary: Vocabulary) => (scenario: Scenario, spec: Spec) => {
-    const chosen = isActive(spec, vocabulary) ? selected(scenario, spec) : undefined
-    return chosen && isGate(scenario, spec, vocabulary, chosen) === gates ? chosen : undefined
+  const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {
+    const chosen = isActive(spec, config.vocabulary) ? selected(scenario, spec) : undefined
+    return chosen && isGate(scenario, spec, config.vocabulary, chosen) === gates ? chosen : undefined
   }
   const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))
   /**
@@ -139,7 +139,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       project: workspace.project,
       modules: options.modules,
       against: workspace.now,
-      select: select(gates, workspace.project.config.vocabulary),
+      select: select(gates),
       gates,
       timeout: options.timeout,
       concurrency: options.concurrency,
