@@ -309,6 +309,48 @@ Feature: Know what is verified
       And the output contains 'cart.stage is "unrun", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
+    Scenario: In a monorepo, a file outside the workspace that the step definitions import changes
+      Given a file "shop/sdp.config.yaml" containing:
+        """
+        features: ["specs/**/*.feature"]
+        """
+      And a file "shop/specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "shop/specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "../../../shared/lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "shared/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "sdp run" in "shop"
+      Then the output contains "1 scenario(s): 1 passed"
+      Given a file "shared/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp status --json" in "shop"
+      Then the JSON output has:
+        | data.stale.code-changed | 1 |
+
     Scenario: An outline whose ordinary row changed the code while it ran, and whose gate row ran after
       Given a file "src/cart.ts" containing:
         """

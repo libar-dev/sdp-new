@@ -129,7 +129,7 @@ const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<s
   const path = yield* Path.Path
   return yield* Effect.forEach(
     files,
-    (file) => Effect.map(fs.readFileString(path.join(root, file)), (content): SourceFile => ({ path: file, content })),
+    (file) => Effect.map(fs.readFileString(path.resolve(root, file)), (content): SourceFile => ({ path: file, content })),
     { concurrency: 32 }
   )
 })
@@ -166,7 +166,7 @@ export interface Workspace {
 export const readFiles = Effect.fn("readFiles")(function*(root: string, files: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  return yield* readAll(root, yield* Effect.filter(files, (file) => fs.exists(path.join(root, file))))
+  return yield* readAll(root, yield* Effect.filter(files, (file) => fs.exists(path.resolve(root, file))))
 })
 
 /**
@@ -270,7 +270,8 @@ const hookImports = () => {
       const own = sdpExports.get(specifier)
       if (own !== undefined) return { url: own, shortCircuit: true }
       const resolved = nextResolve(specifier, context)
-      if (context.parentURL?.startsWith("file:") && isWorkspaceFile(resolved.url)) {
+      // This module imports the step files of every workspace this process runs: that is no import of theirs.
+      if (context.parentURL?.startsWith("file:") && context.parentURL !== import.meta.url && isWorkspaceFile(resolved.url)) {
         importGraph.set(context.parentURL, (importGraph.get(context.parentURL) ?? new Set()).add(resolved.url))
       }
       return resolved
@@ -291,8 +292,9 @@ export interface LoadedSteps {
   /** Files that export no step module (`export default defineSteps(…)`), so define nothing. */
   readonly empty: ReadonlyArray<string>
   /**
-   * Workspace files the step definition files have imported so far, directly or not, relative to
-   * the root. Ask again after a run: a handler may import a file only when it executes.
+   * Local files the step definition files have imported so far, directly or not, relative to the
+   * root, those outside it included. Ask again after a run: a handler may import a file only when
+   * it executes.
    */
   readonly imports: () => ReadonlyArray<string>
   /**
@@ -325,7 +327,12 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     if (found.length === 0) empty.push(file)
     modules.push(...found)
   }
-  const imports = () => {
+  /**
+   * The step files and every local file they imported so far, directly or not, by module URL and
+   * relative to the root. One outside the root — a monorepo's shared code — is named from the root
+   * as given, which reaches it whether or not the root is a link.
+   */
+  const reached = () => {
     const seen = new Set(files.map(urlOf))
     const queue = [...seen]
     for (const url of queue) {
@@ -335,23 +342,25 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
         queue.push(next)
       }
     }
-    const own = new Set(files)
-    return [...seen]
-      .map((url) => path.relative(real, fileURLToPath(url)))
-      .filter((file) => !own.has(file) && !file.startsWith("..") && !path.isAbsolute(file))
-      .sort()
+    return [...seen].map((url) => {
+      const absolute = fileURLToPath(url)
+      const inside = path.relative(real, absolute)
+      return { url, file: inside.startsWith("..") || path.isAbsolute(inside) ? path.relative(root, absolute) : inside }
+    })
   }
+  const own = new Set(files)
+  const imports = () => reached().map(({ file }) => file).filter((file) => !own.has(file)).sort()
   const changed = (sources: ReadonlyArray<SourceFile>) => {
     const present = new Map(sources.map((file) => [file.path, file.content]))
-    return [...files, ...imports()].filter((file) => {
+    return reached().filter(({ file, url }) => {
       const content = present.get(file)
       // Deleted: Node still runs what it loaded.
       if (content === undefined) return true
       // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
-      const loaded = loadedSources.get(urlOf(file)) ?? content
-      loadedSources.set(urlOf(file), loaded)
+      const loaded = loadedSources.get(url) ?? content
+      loadedSources.set(url, loaded)
       return loaded !== content
-    }).sort()
+    }).map(({ file }) => file).sort()
   }
   const added = (steps: ReadonlyArray<string>) => steps.filter((file) => !files.includes(file))
   return { files, modules, empty, imports, changed, added } satisfies LoadedSteps
