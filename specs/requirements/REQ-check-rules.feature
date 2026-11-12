@@ -39,7 +39,8 @@ Feature: Check rules
         | decision-shape        | warning  | specs/DEC-0001.feature | 4    | @id=DEC-0001\nFeature: Monthly releases\n  Not monthly, because feedback is late.\n  Rule: Consequences                        |
         | template-placeholder  | warning  | specs/DEC-0001.feature | 3    | @id=DEC-0001\nFeature: Monthly releases\n  Not <what a reasonable person would have chosen>, because <why>.                    |
         | plan-reference        | warning  | specs/REQ-a.feature    | 1    | @id=REQ-a @iteration:REQ-a\nFeature: A                                                                                         |
-        | milestone-met         | warning  | specs/MS-beta.feature  | 1    | @id=MS-beta @met=soon\nFeature: Beta                                                                                           |
+        | plan-date             | warning  | specs/E1.feature       | 1    | @id=E1 @kind=iteration @start=2026-11-16 @end=2026-11-31\nFeature: E1                                                        |
+        | milestone-met         | warning  | specs/MS-beta.feature  | 1    | @id=MS-beta @met=2026-02-30\nFeature: Beta                                                                                     |
         | annotation-ignored    | warning  | src/cart.py            | 1    | total = 0  # @sdp implements REQ-a                                                                                             |
 
     Scenario: A typed annotation whose target is computed

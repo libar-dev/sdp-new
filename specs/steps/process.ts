@@ -1,8 +1,9 @@
 /**
  * Processes and the directory they run in. Files given with `a file … containing:` are written to
  * a fresh temporary directory before the first command; commands run there, with `sdp` standing
- * for `node <this repository>/src/cli/main.ts`, `$PWD` for that directory and leading
- * `NAME=value` words setting environment variables, as in a shell.
+ * for `node <this repository>/src/cli/main.ts`, `$PWD` for that directory, `$TODAY` for today's
+ * date (YYYY-MM-DD, as sdp's clock gives it) and leading `NAME=value` words setting environment
+ * variables, as in a shell.
  */
 import { strict as assert } from "node:assert"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
@@ -50,7 +51,8 @@ const words = (command: string) => [...command.matchAll(/'([^']*)'|"([^"]*)"|(\S
 
 export const exec = (command: string, cwd: string, input = "") =>
   new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-    const all = words(command).map((word) => word.replaceAll("$PWD", cwd))
+    const today = new Date().toISOString().slice(0, 10)
+    const all = words(command).map((word) => word.replaceAll("$PWD", cwd).replaceAll("$TODAY", today))
     const assignments = all.findIndex((word) => !/^[A-Z_][A-Z0-9_]*=/.test(word))
     const variables = Object.fromEntries(all.slice(0, assignments).map((word) => word.split(/=(.*)/s).slice(0, 2)))
     const [bin, ...args] = all.slice(assignments)

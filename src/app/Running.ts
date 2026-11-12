@@ -260,6 +260,39 @@ const unrecordable = (project: Project, spec: Spec): string | undefined => {
 }
 
 /**
+ * Writes `@met=<today>` on a milestone whose gate has just passed, as the workspace is now: read
+ * again, the milestone must still be recordable and every scenario of its gate must still pass, or
+ * an edit made while the gate ran would be closed without having run.
+ */
+const recordMet = Effect.fnUntraced(function*(root: string, milestone: string) {
+  const project = yield* loadProject(root)
+  const spec = project.specById.get(milestone)
+  if (!spec) return yield* new Refused({ reason: `${milestone} is not recorded as met: it is no longer in the workspace` })
+  const reason = unrecordable(project, spec)
+  if (reason !== undefined) return yield* new Refused({ reason })
+  const { vocabulary } = project.config
+  const unmet = spec.scenarios.flatMap((scenario) => {
+    const status = attribute(project.graph.node(scenario.id) ?? { attrs: {} }, "status")
+    return isGate(scenario, spec, vocabulary) && status !== "passed" ? [`${scenario.id} (${String(status)})`] : []
+  })
+  const fs = yield* FileSystem.FileSystem
+  const file = (yield* Path.Path).join(root, spec.file)
+  const content = yield* fs.readFileString(file)
+  if (unmet.length > 0 || content !== spec.body) {
+    return yield* new Refused({
+      reason: `${milestone} is not recorded as met: its gate changed while it ran${
+        unmet.length > 0 ? `, and ${unmet.join(", ")} does not pass as it is now` : ""
+      }; run sdp gate ${milestone} --record again`
+    })
+  }
+  const met = DateTime.formatIsoDate(yield* DateTime.now)
+  const recorded = withTag(content, `@${vocabulary.attributes.met}=${met}`)
+  if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${milestone} on` })
+  yield* fs.writeFileString(file, recorded)
+  return met
+})
+
+/**
  * `sdp gate`: evaluates one spec's gate scenarios against the current graph, and passes only when
  * every one of them passed. With `record`, a milestone whose gate passes is written down as met
  * today; one that is met already is closed, and nothing runs.
@@ -271,28 +304,21 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const { vocabulary } = project.config
   if (!project.graph.node(milestone)) return yield* new UnknownNode({ id: milestone })
   const spec = project.specById.get(milestone)
+  // Closed first: the closing commit may move its last criterion to the spec that owns the rule.
+  if (spec && isClosed(spec, vocabulary)) {
+    const nothing = { passed: true, summary: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
+    const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
+    return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
+  }
   if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, vocabulary))) {
     return yield* new Refused({
       reason: `${milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`
     })
   }
-  if (isClosed(spec, vocabulary)) {
-    const nothing = { passed: true, summary: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
-    const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
-    return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
-  }
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
   const ran = yield* execute(root, { targets: [milestone], onScenario: input.onScenario }, "gates")
-  const met = input.record && ran.data.passed ? DateTime.formatIsoDate(yield* DateTime.now) : undefined
-  if (met !== undefined) {
-    const fs = yield* FileSystem.FileSystem
-    const file = (yield* Path.Path).join(root, spec.file)
-    const content = yield* fs.readFileString(file)
-    const recorded = withTag(content, `@${vocabulary.attributes.met}=${met}`)
-    if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${milestone} on` })
-    yield* fs.writeFileString(file, recorded)
-  }
+  const met = input.record && ran.data.passed ? yield* recordMet(root, milestone) : undefined
   const report: GateReport = { ...ran.data, milestone, met }
   const notes = input.record && !ran.data.passed ? [...ran.notes, `${milestone} is not recorded as met: its gate does not pass`] : ran.notes
   return { ...ran, notes, data: report } satisfies Answer<GateReport>

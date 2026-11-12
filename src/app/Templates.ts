@@ -5,11 +5,11 @@
  * tags say what it is and what it links to, its Feature's name is its title.
  */
 import { annotate } from "sdp/annotations"
-import { Predicate, Result } from "effect"
+import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, criteria, hasKind, hasRelation, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
+import { attribute, criteria, dayOf, hasKind, hasRelation, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -107,6 +107,15 @@ export const newSpec = (options: {
   const maturity = options.maturity ?? vocabulary.maturity[0]!
   const id = options.id ?? newId(kind, title, config, graph.nodes().map((node) => node.id))
   const template = templateOf(kind, vocabulary)
+  const endKey = vocabulary.attributes.end
+  const undated = template === "iteration"
+    ? graph.ofKind(vocabulary.kinds.iteration).find((node) => attribute(node, endKey) !== undefined && dayOf(node, endKey) === undefined)
+    : undefined
+  if (undated !== undefined) {
+    return Result.fail(
+      `${undated.id} ends on ${JSON.stringify(attribute(undated, endKey))}, which is not a date: write @${endKey}=YYYY-MM-DD there first, so that a new iteration can follow the one that ends last`
+    )
+  }
   const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
   const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")
   const file = `${directory}/${id}.feature`
@@ -134,10 +143,7 @@ const addDays = (isoDate: string, days: number) => {
  * one, today, in the phase if there is just one.
  */
 const nextIteration = (graph: Graph, vocabulary: Vocabulary, today: string) => {
-  const end = (id: string) => {
-    const value = attribute(graph.node(id)!, vocabulary.attributes.end)
-    return Predicate.isString(value) ? value : ""
-  }
+  const end = (id: string) => dayOf(graph.node(id)!, vocabulary.attributes.end) ?? ""
   const [last] = graph.ofKind(vocabulary.kinds.iteration).map((node) => node.id).filter((id) => end(id) !== "")
     .sort((a, b) => end(b).localeCompare(end(a)))
   const phases = graph.ofKind(vocabulary.kinds.phase)

@@ -22,6 +22,7 @@ import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
   attribute,
   criteria,
+  dayOf,
   hasKind,
   hasRelation,
   isPlanKind,
@@ -193,6 +194,20 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       source: at(spec, first!.line),
       hint: "replace the template's text with your own, or delete it"
     }))
+  }
+
+  // An iteration's days place it on the timeline; anything else written there places nothing.
+  for (const node of graph.ofKind(vocabulary.kinds.iteration)) {
+    for (const key of [vocabulary.attributes.start, vocabulary.attributes.end]) {
+      const written = attribute(node, key)
+      if (written === undefined || dayOf(node, key) !== undefined) continue
+      out.push(diagnostic("plan-date", {
+        message: `${node.id}: ${key} is ${JSON.stringify(written)}, which is not a date, so the timeline ignores it`,
+        node: node.id,
+        source: writtenAt(node, key),
+        hint: `write \`@${key}=YYYY-MM-DD\``
+      }))
+    }
   }
 
   // Met is a date, and milestones are met in the order of their dates: where the project is is

@@ -467,6 +467,17 @@ Feature: Command line
         """
       And the output contains "next: check its dates and its `@phase:`"
 
+    Scenario: Not after an iteration whose end is no date
+      Given a file "specs/delivery/E1.feature" containing:
+        """
+        @id=E1 @kind=iteration @phase:PH-elaboration @start=2026-11-16 @end=2026-11-31
+        Feature: Architecture baseline
+        """
+      When I run "sdp new iteration Packaging --id E2"
+      Then the exit code is 1
+      And the output contains 'E1 ends on "2026-11-31", which is not a date'
+      And the file "specs/delivery/E2.feature" does not exist
+
   Rule: types declares every id with its kind for annotate() to accept, and check says when the declarations no longer match
 
     Scenario: After a spec is added
@@ -876,9 +887,10 @@ Feature: Command line
       Then the output does not contain "gate"
 
   @decided-by:DEC-0007
-  Rule: gate --record writes @met on a milestone whose gate passes and on no other, and a milestone that is met is closed
+  Rule: gate --record writes @met on a milestone whose gate passes as the workspace is when it is written, and on no other, and a milestone that is met is closed
 
-    Ending a phase is somebody's act, so nothing is recorded unasked.
+    Ending a phase is somebody's act, so nothing is recorded unasked; and a criterion edited while
+    the gate ran has not run, so it is not closed.
 
     Scenario: gate --record records nothing while the gate does not pass
       When I run "sdp gate MS-beta --record"
@@ -901,13 +913,41 @@ Feature: Command line
       Then the exit code is 0
       And the file "specs/MS-alpha.feature" contains "@id=MS-alpha @closes:C1 @met=20"
       And the file "specs/MS-alpha.feature" contains "   # the first iteration"
-      When I run "sdp q milestone[met] --ids"
+      When I run "sdp q milestone[met=$TODAY] --ids"
       Then the output lines are "MS-alpha"
       When I run "sdp lifecycle --json"
       Then the JSON output has:
         | data.position.milestone | MS-beta |
 
-    Scenario: A milestone that is met is closed: its gate does not run again
+    Scenario: gate --record writes nothing when the milestone changed while its gate ran
+      Given a file "specs/MS-alpha.feature" containing:
+        """
+        @id=MS-alpha @closes:C1
+        Feature: Alpha
+
+          Rule: The search is planned
+
+            Scenario: There is an iteration
+              Given the gate is edited while it runs
+        """
+      And a file "specs/steps/edit.steps.ts" containing:
+        """
+        import { readFileSync, writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("the gate is edited while it runs", () => {
+            const file = "specs/MS-alpha.feature"
+            writeFileSync(file, readFileSync(file, "utf8").replace("the gate is edited while it runs", "a step nobody wrote"))
+          })
+        })
+        """
+      When I run "sdp gate MS-alpha --record"
+      Then the exit code is 1
+      And the output contains "MS-alpha is not recorded as met: its gate changed while it ran, and MS-alpha#there-is-an-iteration (stale) does not pass"
+      And the file "specs/MS-alpha.feature" does not contain "@met="
+
+    Scenario: A milestone that is met is closed: its gate does not run again, nor is it needed once its criteria moved
       Given a file "specs/MS-alpha.feature" containing:
         """
         @id=MS-alpha @closes:C1 @met=2026-11-13
@@ -917,6 +957,14 @@ Feature: Command line
 
             Scenario: There is no iteration
               Then the query "iteration" returns no results
+        """
+      When I run "sdp gate MS-alpha"
+      Then the exit code is 0
+      And the output contains "MS-alpha was met on 2026-11-13"
+      Given a file "specs/MS-alpha.feature" containing:
+        """
+        @id=MS-alpha @closes:C1 @met=2026-11-13
+        Feature: Alpha
         """
       When I run "sdp gate MS-alpha"
       Then the exit code is 0

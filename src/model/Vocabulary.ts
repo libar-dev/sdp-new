@@ -186,11 +186,22 @@ export const linkKeys = (vocabulary: Vocabulary): Words =>
 export const isLinkKey = (vocabulary: Vocabulary, key: string): boolean =>
   linkKeys(vocabulary).includes(key) || key.startsWith(`${vocabulary.attributes.activity}.`)
 
-/** The day a milestone was recorded as met. Anything but an ISO date written there records nothing. */
-export const metOn = (vocabulary: Vocabulary, node: { readonly attrs: Readonly<Record<string, unknown>> }): string | undefined => {
-  const value = attribute(node, vocabulary.attributes.met)
-  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined
+/** Whether a value is a day of the calendar written YYYY-MM-DD: `2026-02-30` is not one. */
+const isDay = (value: unknown): value is string => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const time = Date.parse(`${value}T00:00:00Z`)
+  return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value)
 }
+
+/** The day a node's attribute holds, such as an iteration's `end`; anything but a day of the calendar holds none. */
+export const dayOf = (node: { readonly attrs: Readonly<Record<string, unknown>> }, key: string): string | undefined => {
+  const value = attribute(node, key)
+  return isDay(value) ? value : undefined
+}
+
+/** The day a milestone was recorded as met. Anything but a day of the calendar written there records nothing. */
+export const metOn = (vocabulary: Vocabulary, node: { readonly attrs: Readonly<Record<string, unknown>> }): string | undefined =>
+  dayOf(node, vocabulary.attributes.met)
 
 /** The relation of a planned discipline's edge: `activity.implementation`. */
 export const activityRelation = (vocabulary: Vocabulary, discipline: string): string => `${vocabulary.attributes.activity}.${discipline}`

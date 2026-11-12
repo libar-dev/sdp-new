@@ -25,6 +25,7 @@ export const rules = {
   "decision-shape": "warning",
   "template-placeholder": "warning",
   "plan-reference": "warning",
+  "plan-date": "warning",
   "milestone-met": "warning",
   "annotation-ignored": "warning",
   "annotation-unreadable": "warning",

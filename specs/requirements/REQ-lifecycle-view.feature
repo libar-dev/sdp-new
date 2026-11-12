@@ -101,6 +101,16 @@ Feature: Lifecycle view
       And the output line with "MS-LCO" contains "✔"
       And the output line with "MS-LCA" contains "▶"
 
+    Scenario: A met that is no day of the calendar records nothing
+      Given these specs:
+        | tags                                            | Feature              |
+        | @id=MS-LCO @closes:PH-inception @met=2026-02-30 | Lifecycle objectives |
+      When the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id     | met | next |
+        | MS-LCO |     | yes  |
+        | MS-LCA |     |      |
+
     Scenario: Past its date and not met, a milestone is late
       When the lifecycle is computed on "2026-02-20"
       Then the milestones are:

@@ -23,7 +23,7 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type GraphEdge, type GraphNode, tally } from "../model/Graph.ts"
-import { activityRelation, attribute, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
+import { activityRelation, attribute, dayOf, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
@@ -148,10 +148,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const { end, start } = vocabulary.attributes
-  const day = (node: GraphNode | undefined, key: string) => {
-    const value = node && attribute(node, key)
-    return Predicate.isString(value) ? value : undefined
-  }
+  const day = (node: GraphNode | undefined, key: string) => node && dayOf(node, key)
   const target = (node: GraphNode, role: "phase" | "closes") =>
     graph.out(node.id).flatMap((edge) => hasRelation(vocabulary, role, edge.rel) ? [graph.node(edge.to)] : []).find(Predicate.isNotUndefined)
 
