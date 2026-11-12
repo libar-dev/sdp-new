@@ -9,7 +9,7 @@ tags: [lifecycle]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-lifecycle
-  decided-by: DEC-0007
+  decided-by: [DEC-0007, DEC-0013]
 ---
 
 # Lifecycle view
@@ -88,11 +88,11 @@ Background:
     id: PLAN
     kind: plan
     nodes:
-      - { id: inception, kind: phase, order: 1 }
-      - { id: elaboration, kind: phase, order: 2 }
-      - { id: I1, kind: iteration, phase: inception, start: "2026-01-05", end: "2026-01-30" }
-      - { id: E1, kind: iteration, phase: elaboration, start: "2026-02-02", end: "2026-02-13" }
-      - { id: E2, kind: iteration, phase: elaboration, start: "2026-02-16", end: "2026-02-27" }
+      - { id: PH-inception, kind: phase, order: 1 }
+      - { id: PH-elaboration, kind: phase, order: 2 }
+      - { id: I1, kind: iteration, phase: PH-inception, start: "2026-01-05", end: "2026-01-30" }
+      - { id: E1, kind: iteration, phase: PH-elaboration, start: "2026-02-02", end: "2026-02-13" }
+      - { id: E2, kind: iteration, phase: PH-elaboration, start: "2026-02-16", end: "2026-02-27" }
     ---
     # Plan
     """
@@ -101,7 +101,7 @@ Background:
     ---
     id: LCA
     kind: milestone
-    phase: elaboration
+    phase: PH-elaboration
     ---
     # Lifecycle architecture
     """
@@ -127,27 +127,27 @@ Background:
 
 Scenario: Iterations and milestones hang off their phase
   When the lifecycle is computed
-  Then phase "elaboration" has iterations "E1, E2"
-  And phase "elaboration" has milestone "LCA"
+  Then phase "PH-elaboration" has iterations "E1, E2"
+  And phase "PH-elaboration" has milestone "LCA"
 
 Scenario: The current iteration is marked and later gates are not due
   When the lifecycle is computed on "2026-01-20"
   Then the current iteration is "I1"
-  And the output line with "inception" contains "◀ now"
+  And the output line with "PH-inception" contains "◀ now"
   And the output line with "◆ LCA" contains "not due"
 
 Scenario: A gate falls due when its phase starts
   When the lifecycle is computed on "2026-02-20"
   Then the current iteration is "E2"
-  And the output line with "elaboration" contains "E2*"
-  And the output line with "elaboration" contains "◀ now"
+  And the output line with "PH-elaboration" contains "E2*"
+  And the output line with "PH-elaboration" contains "◀ now"
   And the output line with "◆ LCA" does not contain "not due"
   And the output line with "◆ LCA" does not contain "overdue"
 
 Scenario: A break between iterations stays in the phase just worked on
   When the lifecycle is computed on "2026-01-31"
   Then the current iteration is "none"
-  And the output line with "inception" contains "◀ now"
+  And the output line with "PH-inception" contains "◀ now"
   And the output line with "◆ LCA" contains "not due"
 
 Scenario: Before the plan starts no gate is due
@@ -161,7 +161,7 @@ Scenario: The calendar never marks a milestone met
     ---
     id: LCO
     kind: milestone
-    phase: inception
+    phase: PH-inception
     ---
     # Lifecycle objectives
 
@@ -191,7 +191,7 @@ Scenario: An iteration plans each node once, and mentions and the plan's own nod
     ---
     id: MS-demo
     kind: milestone
-    phase: elaboration
+    phase: PH-elaboration
     iteration: E2
     ---
     # Demo

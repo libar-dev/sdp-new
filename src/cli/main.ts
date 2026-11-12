@@ -201,7 +201,7 @@ const checkCommand = Command.make(
     const count = (s: string) => diagnostics.filter((d) => d.severity === s).length
     yield* Console.log(c.dim(`${count("error")} error(s), ${count("warning")} warning(s), ${count("info")} info`))
   })
-).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity gates and decision records; exit 1 on errors"))
+).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and decision records; exit 1 on errors"))
 
 // --- run / gate -------------------------------------------------------------
 
@@ -453,7 +453,7 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a requirement at maturity idea, in specs/ideas). Any other kind gets the generic template`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a requirement at maturity idea). Any other kind gets the generic template`
       )
     ),
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it (decisions and risks are numbered)")),
@@ -508,7 +508,7 @@ const newCommand = Command.make(
   ),
   Command.withExamples([
     { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
-    { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea in specs/ideas" },
+    { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a requirement at maturity idea" },
     { command: "sdp new plan 'Delivery plan'", description: "Phases with an example iteration each" },
     { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision record" }
   ])

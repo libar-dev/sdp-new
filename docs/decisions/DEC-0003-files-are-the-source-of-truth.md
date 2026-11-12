@@ -21,15 +21,15 @@ second copy of the truth, migrations, and invisibility to grep and git.
 
 1. Store the graph in a database (SQLite, a graph DB) and edit it through the tool.
 2. Keep Markdown as the source and synchronise a database from it.
-3. Keep Markdown and code comments as the only source; rebuild the graph in memory on every command.
+3. Keep Markdown and code as the only source; rebuild the graph in memory on every command.
 
 ## Decision
 
-Option 3. Every command parses the workspace and builds the graph from scratch; `sdp graph --write`
-dumps it as JSONL/TSV for tools that prefer a file. Scenario results are the only persisted state,
-in `.sdp/results.json`, recorded with each scenario's hash and fingerprints of what it ran against,
-so any change to the scenario, the code, the step definitions, the toolchain, the declared inputs
-or (for graph assertions) the specs invalidates them ([[DEC-0011]]).
+Option 3. Every command parses the workspace and builds the graph from scratch. What sdp writes
+under `.sdp/` is derived and can be deleted: the id declarations (`sdp types`) and the exports
+(`sdp graph --write`) are regenerated from the files, and the scenario results
+(`.sdp/results.json`) by running again. Results are the one thing the files alone cannot give
+back, so each records what it ran against and stops counting when that changes ([[DEC-0011]]).
 
 ## Consequences
 
@@ -37,3 +37,27 @@ or (for graph assertions) the specs invalidates them ([[DEC-0011]]).
 - Every command's latency includes reading and parsing; [[NFR-query-performance]] and
   [[NFR-large-workspace]] keep us honest.
 - Provenance is free: every node and edge carries the `file:line` it came from.
+
+~~~gherkin
+Scenario: The next command sees an edit, and a written export is never read back
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    ---
+    # Alpha
+    """
+  When I run "sdp graph --write"
+  And I run "sdp q requirement --ids"
+  Then the output contains "REQ-a"
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-b
+    ---
+    # Beta
+    """
+  When I run "sdp q requirement --ids"
+  Then the output contains "REQ-b"
+  And the output does not contain "REQ-a"
+~~~

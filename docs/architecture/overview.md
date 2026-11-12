@@ -1,5 +1,5 @@
 ---
-id: ARCH-overview
+id: ARCHITECTURE
 kind: view
 title: Architecture overview
 nodes:
@@ -56,7 +56,7 @@ as scenarios.
 
 ## Implementation
 
-TypeScript on Effect 4, run directly by Node.js 24 with no build step ([[DEC-0004]]), one module
+TypeScript on Effect 4, run directly by Node.js 24 with no build step ([[DEC-0004]], [[DEC-0012]]), one module
 per element:
 
 | Module | Responsibility | Element |

@@ -20,7 +20,7 @@ and step definitions that drive the domain code.
 | [docs/DEC-0001-prices-in-cents.md](docs/DEC-0001-prices-in-cents.md) | an accepted architecture decision |
 | [docs/DEC-0002-free-shipping.md](docs/DEC-0002-free-shipping.md) | a proposed product decision |
 | [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp/steps` |
-| [src/pricing.ts](src/pricing.ts), [src/cart.ts](src/cart.ts) | code linked to the graph with typed `annotate()` calls from `sdp/annotations`: `is` anchors ARCH-pricing, `implements` names the requirement |
+| [src/pricing.ts](src/pricing.ts), [src/cart.ts](src/cart.ts) | code linked to the graph with typed `annotate()` calls from `sdp/annotations` |
 | [.sdp/ids.d.ts](.sdp/ids.d.ts) | the ids those calls accept, written by `sdp types`, so a mistyped id fails `tsc` |
 
 From the repository root:
@@ -32,8 +32,11 @@ node src/cli/main.ts -C examples/shop context REQ-guest-checkout
 node src/cli/main.ts -C examples/shop types       # after adding or renaming a spec
 ```
 
-Annotations are ordinary code, not comments: `annotate(vatFor, { implements: "REQ-cart-totals" })`
-puts `vatFor` in the graph as a `code` node linked to the requirement. In languages other than
-TypeScript and JavaScript, an `@sdp implements REQ-cart-totals` comment does the same.
+Annotations are ordinary code, not comments. `annotate(import.meta, { is: "ARCH-pricing" })` says
+which code the element is: that is the architecture. `annotate(vatFor, { implements:
+"REQ-cart-totals" })` is this shop's own relation from code to a requirement — any relation can be
+annotated, and whether a team wants that link is its call. In languages other than TypeScript and
+JavaScript, an `@sdp is ARCH-pricing` comment does the same.
 
-The root [README](../../README.md) runs this suite in a copy of the example with every build.
+The root [README](../../README.md) runs this suite, and shows this architecture, in a copy of the
+example with every build.

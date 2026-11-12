@@ -547,7 +547,7 @@ export const projectOrderings = (vocabulary: Vocabulary): ReadonlyMap<string, La
   new Map([
     ["maturity", maturityLadder(vocabulary)],
     ["stage", stageLadder(vocabulary)],
-    ["verification", ["none", "unrun", "undefined", "pending", "failing", "passing"].map((value) => [value])]
+    ["verification", ["none", "unrun", "undefined", "partial", "failing", "passing"].map((value) => [value])]
   ])
 
 /** How a project's graph is queried: with its ladders and its vocabulary. */

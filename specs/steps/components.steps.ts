@@ -2,7 +2,7 @@
  * Step definitions for component contracts: the spec parser, the code
  * annotation scanner, the graph builder and the query engine
  * (docs/architecture/ARCH-*.md), query paths (REQ-graph-query), and the
- * in-memory file system the pipeline runs on (ARCH-overview). Parser
+ * in-memory file system the pipeline runs on (ARCHITECTURE). Parser
  * and scanner steps call the component on one file of the in-memory
  * workspace; graph and query steps run the whole pipeline. Expectations are
  * data tables whose header names the columns checked, so a scenario states

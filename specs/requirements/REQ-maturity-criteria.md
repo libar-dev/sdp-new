@@ -1,5 +1,5 @@
 ---
-id: REQ-maturity-gates
+id: REQ-maturity-criteria
 kind: requirement
 title: Honest maturity
 maturity: ready
@@ -28,13 +28,13 @@ results ([[REQ-executable-specs]]), and writing a derived fact such as `stage` i
 
 Open questions are written as [[REQ-progressive-specs]] describes.
 
-A node claiming more than its content supports is an error (`maturity-gate`), with a hint naming
+A node claiming more than its content supports is an error (`maturity-criteria`), with a hint naming
 the level it does reach. The criteria apply wherever a maturity is declared: a node declared inline
 or in code has only a title, so it can claim no more than the first level. A maturity that is not
 on the ladder is an error (`maturity-value`). Content ahead of its label is not wrong, only worth
 knowing: when the content reaches `specified` or `ready` above the label, `sdp check` adds an
 informational `maturity-promotable`. Teams can rename or extend the ladder (`vocabulary.maturity`
-in [[REQ-configuration]]); levels of their own have no built-in gate but take part in ordering, so
+in [[REQ-configuration]]); levels of their own have no built-in criteria but take part in ordering, so
 `maturity<ready` keeps working in queries.
 
 ## Stage
@@ -48,7 +48,7 @@ when every scenario passes, `failing` when any fails — a regression is not wor
 
 ## Structural, not a judgement
 
-The gates check the *shape* of a spec, never its quality. `ready` means **structurally ready**:
+The criteria check the *shape* of a spec, never its quality. `ready` means **structurally ready**:
 nothing is left open and every scenario is complete. It does not mean the design behind the spec
 is decided, its quality requirements are measurable, or anyone has reviewed it — sdp cannot know
 that, and a placeholder paragraph with a token scenario passes ([[RISK-0004]]).
@@ -102,10 +102,10 @@ Scenario Outline: A claim is checked against the content
 
   Examples:
     | claimed   | description                  | verdict                                 |
-    | idea      |                              | does not report "maturity-gate"         |
-    | draft     |                              | reports "maturity-gate" for "REQ-csv"   |
-    | draft     | Analysts want data in Excel. | does not report "maturity-gate"         |
-    | specified | Analysts want data in Excel. | reports "maturity-gate" for "REQ-csv"   |
+    | idea      |                              | does not report "maturity-criteria"         |
+    | draft     |                              | reports "maturity-criteria" for "REQ-csv"   |
+    | draft     | Analysts want data in Excel. | does not report "maturity-criteria"         |
+    | specified | Analysts want data in Excel. | reports "maturity-criteria" for "REQ-csv"   |
 
 Scenario: Specified means a scenario states an outcome
   Given a file "specs/REQ-csv.md" containing:
@@ -124,7 +124,7 @@ Scenario: Specified means a scenario states an outcome
     ```
     """
   When the workspace is checked
-  Then the check reports "maturity-gate" for "REQ-csv"
+  Then the check reports "maturity-criteria" for "REQ-csv"
 
 Scenario Outline: A node without a spec of its own can claim no more than the first level
   Given a file "<file>" containing:
@@ -132,7 +132,7 @@ Scenario Outline: A node without a spec of its own can claim no more than the fi
     <content>
     """
   When the workspace is checked
-  Then the check reports "maturity-gate" for "<id>"
+  Then the check reports "maturity-criteria" for "<id>"
 
   Examples:
     | file            | content                                                                                     | id         |
@@ -162,7 +162,7 @@ Scenario: Ready means no open questions
     ```
     """
   When the workspace is checked
-  Then the check reports "maturity-gate" for "REQ-csv"
+  Then the check reports "maturity-criteria" for "REQ-csv"
 
 Scenario: Content ahead of its label can be promoted
   Given a file "specs/REQ-csv.md" containing:
@@ -245,7 +245,7 @@ Scenario Outline: A team's Definition of Ready is a gate of its own
     | accepted |                       | 1         |
     | accepted | reviewed-by: analysts | 0         |
 
-Scenario: Levels a team adds have no built-in gate
+Scenario: Levels a team adds have no built-in criteria
   Given a file "sdp.config.yaml" containing:
     """
     vocabulary: { maturity: [idea, draft, approved, specified, ready] }
@@ -259,7 +259,7 @@ Scenario: Levels a team adds have no built-in gate
     # Export to CSV
     """
   When the workspace is checked
-  Then the check does not report "maturity-gate"
+  Then the check does not report "maturity-criteria"
   And the check does not report "maturity-value"
 
 Scenario Outline: Stage is the declared maturity until scenarios say more

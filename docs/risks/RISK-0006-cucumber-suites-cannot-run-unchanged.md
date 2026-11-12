@@ -7,6 +7,7 @@ exposure: medium
 links:
   affects: [REQ-executable-specs, REQ-progressive-specs]
   mitigated-by: REQ-cucumber-compatibility
+  due: MS-LCA
 ---
 
 # Existing Cucumber suites cannot run unchanged
@@ -16,10 +17,7 @@ sdp does not support. Their `.feature` files join the graph, but their steps nee
 they run — friction exactly where executable specifications already exist, and a reason for such
 teams not to adopt sdp at all.
 
-## Mitigation
-
-Hooks and parameter types ([[REQ-cucumber-compatibility]]) are planned for Elaboration: both
-change the step definition API that every workspace's step modules are written against, so they
-are settled before Construction builds on it.
+Due in Elaboration because hooks and parameter types change the step definition API that every
+workspace's step modules are written against ([[REQ-cucumber-compatibility]]).
 
 **Watch for:** teams that try sdp on an existing suite and give up while adapting its steps.

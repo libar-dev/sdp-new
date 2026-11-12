@@ -8,60 +8,81 @@ links:
 
 # Agent guide
 
-This repository is **sdp**, and it is also specified *with* sdp. Two kinds of work happen here:
-changing the tool (TypeScript in `src/`) and changing its specifications (Markdown in `specs/` and
-`docs/`). Both go through the same loop. This guide is a spec too: the scenarios at the end check
-that its instructions work.
+This repository is **sdp**, and it is specified *with* sdp. Changing the tool (TypeScript in
+`src/`) and changing its specifications (Markdown in `specs/` and `docs/`) go through the same
+loop. This guide is a spec too: the scenarios at the end check that its instructions work. `sdp`
+below is `node src/cli/main.ts`.
 
 ## Find things
 
-- Any node by id: `grep -rn "REQ-graph-query" specs docs src` — ids are literal everywhere.
-- Code linked to the graph: `grep -rn "annotate(" src/` — typed `annotate(target, links)` calls from
-  `sdp/annotations` (`src/annotations.ts` here). After adding or renaming a spec, run
-  `node src/cli/main.ts types` so the compiler knows its id.
-- Graph questions: `node src/cli/main.ts q '<pattern>'` (syntax: `sdp q --help`).
-- Everything about one node before you change it: `node src/cli/main.ts context <id>`.
-- The architecture that matters (and only that): `node src/cli/main.ts arch`.
+- A spec by its id: `grep -rn REQ-graph-query specs docs src`. An id is literal wherever it is
+  declared or linked, and its prefix says its kind and its folder: `REQ-` specs/requirements,
+  `NFR-` specs/quality, `CAP-` specs/capabilities, `DEC-` docs/decisions, `RISK-` docs/risks,
+  `ARCH-` and `PAT-` docs/architecture, `MS-`, `PH-` and the `PLAN` docs/delivery.
+- Two ids are made by sdp, not written: a scenario is `<spec id>#<slug of its name>` and annotated
+  code is `code:<path>#<symbol>`. Find those by the spec id, the name or the path.
+- Graph questions: `sdp q '<pattern>'` (syntax: `sdp q --help`), or `sdp graph | jq …` — one
+  record per line.
+- Everything about one node before you change it: `sdp context <id>`.
+- The architecture: `sdp arch`. The code anchored to it: `grep -rn "annotate(" src`.
+- A step definition that already says what you need: `sdp steps '<text>'`.
+- The words sdp interprets: `sdp vocabulary`. The words this repository uses: [[GLOSSARY]].
 - Every command, flag and exit code: [REQ-cli](specs/requirements/REQ-cli.md).
 
 ## Change behaviour
 
-1. Find or create the spec (`node src/cli/main.ts new requirement "…"`). Write or adjust scenarios
-   first; they are the acceptance tests — there are no other tests, only Gherkin scenarios and
-   their step definitions.
-2. `node src/cli/main.ts context <spec-id>` lists the steps without a definition (no run needed);
-   `node src/cli/main.ts run <spec-id> --snippets` prints one paste-ready module with a suggested
-   definition for each.
-   Step definitions live in `specs/steps/*.steps.ts` and share one world (`specs/steps/world.ts`).
-   They drive the real pipeline against an in-memory workspace (`loadMemoryProject`), or the real
-   CLI in a temporary directory (`cli.steps.ts`). Prefer extending existing steps over adding
-   near-duplicates — `node src/cli/main.ts steps '<text>'` lists the definitions that mention or
-   match a text, with `file:line` — because a step that matches two definitions is ambiguous and fails.
+1. Find the spec that owns the change. What a user of sdp sees — a command, an output, a rule —
+   belongs to a requirement (`REQ-*`). How one element does its part — a parser's edge cases, a
+   limit, a contract between modules — belongs to that element (`ARCH-*`);
+   `sdp q '#REQ-graph-query -realized-by-> element'` leads from one to the other. Something new
+   starts with `sdp new requirement "…"`. Write or adjust the scenarios first: they are the
+   acceptance tests, and there are no other tests.
+2. `sdp context <spec-id>` lists the steps without a definition; `sdp run <spec-id> --snippets`
+   prints one paste-ready module with a suggested definition for each. Step definitions live in
+   `specs/steps/*.steps.ts` and share one world (`specs/steps/world.ts`). They drive the real
+   pipeline against an in-memory workspace, or the real CLI in a temporary directory
+   (`cli.steps.ts`). Extend a definition that `sdp steps` finds before adding one: a step that
+   matches two definitions is ambiguous and fails.
 3. Implement in `src/`.
-4. `npm run verify` must pass: typecheck, `sdp check` (no errors), `sdp run` (no failing
-   scenario). Gates — milestones and `@gate` scenarios — never fail `sdp run`, so the later
-   milestones it reports unmet are expected; `sdp gate <id>` is what enforces one.
+4. `npm run verify` must pass: typecheck, `sdp check` without errors, `sdp run` without a failing
+   scenario, and the gates that are due (`sdp gate --due`). After adding or renaming a spec, run
+   `npm run types` so the compiler knows its id.
+
+Gates — milestones and `@gate` scenarios — never fail `sdp run`, and the later milestones it
+reports unmet are expected. A gate of the current phase or a past one is not: `sdp lifecycle`
+shows it as failing without *not due*, and `sdp gate <id>` exits 1 on it. If your change broke
+it, your change is not done.
+
+## Plan work
+
+- A requirement that has left the idea stage is planned in its own front matter: `iteration:`
+  says when it is written, `activity: { implementation: C1, test: [C1, T1] }` when it is built
+  and tested ([[DEC-0013]]).
+- `sdp lifecycle` marks the current iteration with `*`. Work goes into the iteration in which it
+  will be done, never into one that is over.
+- A risk names what it threatens, the work that retires it and the milestone it is due at
+  ([[DEC-0015]]).
 
 ## Conventions
 
+- A claim that can be checked is a link or a scenario; prose says why, and is short. Every
+  document is a spec, guides like this one included.
+- One word for one thing ([[GLOSSARY]]).
 - Node.js 24 runs `.ts` directly: use erasable syntax only (no enums, namespaces, parameter
-  properties), import with `.ts` extensions.
+  properties), import with `.ts` extensions ([[DEC-0012]]).
 - Effect 4: `Effect.fn`/`Effect.gen` for IO workflows, `Schema` for external data, services at the
-  edge (`FileSystem`, `Path`); keep parsing/graph/query/check pure. Effect docs ship in
-  `node_modules/effect/AGENTS.md` — use those, not memory of Effect 2/3.
+  edge (`FileSystem`, `Path`); keep parsing, graph, query and check pure ([[DEC-0004]]). Effect's
+  documentation ships in `node_modules/effect/AGENTS.md` — use it, not memory of Effect 2 or 3.
 - Kinds, relations and attributes are free-form. The few words sdp interprets are roles of the
-  vocabulary profile (`src/model/Vocabulary.ts`, printed by `sdp vocabulary`): ask it, never compare
-  with one of its words as a literal — a guard in [[DEC-0002]] fails the run if you do.
-- Every document is a spec: guides like this one carry front matter (`kind: guide`) and, where
-  they make claims that can be checked, scenarios.
+  vocabulary profile (`src/model/Vocabulary.ts`): ask it, never compare with one of its words as
+  a literal — a guard in [[DEC-0002]] fails the run if you do.
+- Code is linked to the architecture, not to requirements: an `is` annotation says which code an
+  element is, and a requirement names its element with `realized-by` ([[DEC-0009]]).
 - What belongs in the architecture is the architects' call ([[DEC-0008]]): do not add or remove an
   element, a pattern or an `is` annotation on your own initiative; propose it instead.
-- While the project is in inception, a decision that changes is rewritten or deleted, not
-  superseded — keep the graph free of history noise; git keeps the history ([[DEC-0007]]).
-- Plan work in the spec: `iteration:` for its own discipline's work, `activity:` for the others
-  (`activity: { implementation: C1, test: [C1, T1] }`); `sdp lifecycle` shows the plan
-  ([[REQ-lifecycle-view]]).
-- `.sdp/results.json` is generated by `sdp run`; do not edit it by hand.
+- While the project is in Inception, a decision that changes is rewritten or deleted, not
+  superseded, and the decision numbers stay without gaps ([[DEC-0016]]).
+- `.sdp/results.json` is written by `sdp run`; do not edit it by hand.
 
 ## Scenarios
 
@@ -70,14 +91,23 @@ Scenario: An id leads to its spec with grep
   When I run "grep -rln REQ-graph-query specs src" in the repository
   Then the output contains "specs/requirements/REQ-graph-query.md"
 
-Scenario: Code linked to the graph is one grep away
+Scenario: The ids sdp makes are built from a spec id or a path
+  When I run "sdp q 'scenario[spec=AGENTS]' --ids" in the repository
+  Then the output contains "AGENTS#an-id-leads-to-its-spec-with-grep"
+  When I run "sdp q '#ARCH-graph <-is- code' --ids" in the repository
+  Then the output contains "code:src/model/Graph.ts#Graph"
+
+Scenario: A requirement leads to the element that owns the how
+  When I run "sdp q '#REQ-graph-query -realized-by-> element' --ids" in the repository
+  Then the output contains "ARCH-query-engine"
+
+Scenario: The code anchored to the architecture is one grep away
   When I run "grep -rn annotate( src" in the repository
-  Then the output contains "src/model/Graph.ts"
-  And the output contains 'annotate(Graph, { is: "ARCH-graph"'
+  Then the output contains 'annotate(Graph, { is: "ARCH-graph"'
 
 Scenario: The query syntax is one --help away
   When I run "sdp q --help"
-  Then the output contains "prefix ! keeps nodes WITHOUT such a neighbour"
+  Then the output contains "-rel->"
 
 Scenario: context prints the spec and what surrounds it
   When I run "sdp context REQ-graph-query" in the repository
@@ -110,9 +140,41 @@ Scenario: Snippets show how to automate a new scenario
 
 Scenario: The architecture is one command away
   When I run "sdp arch" in the repository
-  Then the output contains "ARCH-graph — System graph (element)"
+  Then the output contains "ARCH-graph"
 
 Scenario: The words sdp interprets are one command away
   When I run "sdp vocabulary" in the repository
   Then the output contains "anchor             is"
+
+Scenario: A gate that is due and unmet shows in sdp lifecycle, and sdp gate fails on it
+  Given a file "docs/DEC-0001.md" containing:
+    """
+    ---
+    id: DEC-0001
+    status: proposed
+    ---
+    # Pay without an account
+    """
+  And a file "docs/MS-objectives.md" containing:
+    """
+    ---
+    id: MS-objectives
+    kind: milestone
+    phase: PH-inception
+    ---
+    # Objectives
+
+    ```gherkin
+    Scenario: Nothing is left undecided
+      Then the query "decision[status=proposed]" returns no results
+    ```
+    """
+  When I run "sdp new plan 'Plan'"
+  And I run "sdp run"
+  Then the exit code is 0
+  When I run "sdp lifecycle"
+  Then the output line with "MS-objectives" contains "failing"
+  And the output line with "MS-objectives" does not contain "not due"
+  When I run "sdp gate MS-objectives"
+  Then the exit code is 1
 ~~~

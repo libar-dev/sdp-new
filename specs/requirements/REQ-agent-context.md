@@ -18,7 +18,7 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 
 1. the node's kind, maturity, stage, source and attributes;
 2. for a spec below `ready`, why it is not ready: what the ready gate still misses
-   ([[REQ-maturity-gates]]), or that the content already meets it;
+   ([[REQ-maturity-criteria]]), or that the content already meets it;
 3. the spec text;
 4. its relationships, each with the other node's title, status and `file:line`;
 5. the status of each scenario; for each step that failed or is pending in the last run, its error

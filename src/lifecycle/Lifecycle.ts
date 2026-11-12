@@ -7,7 +7,7 @@
  * relations, `activity`, `order`, `start` and `end`):
  *
  *   phase      nodes, ordered by an `order` attribute
- *   iteration  nodes linked to their phase (`phase: elaboration`)
+ *   iteration  nodes linked to their phase (`phase: PH-elaboration`)
  *   milestone  nodes linked to their phase; their scenarios are the gate
  *   work       nodes linked to an iteration (`iteration: E2`): its kind's
  *              discipline is planned there, and `activity:` plans any
@@ -295,11 +295,11 @@ export const emptyPlanHint = `No phases defined yet. \`sdp new plan "Delivery pl
 iteration in each, or declare phases and iterations in any spec's front matter:
 
   nodes:
-    - { id: elaboration, kind: phase, title: Elaboration, order: 2 }
-    - { id: E1, kind: iteration, title: Architecture baseline, phase: elaboration, start: "2026-11-16", end: "2026-11-27" }
+    - { id: PH-elaboration, kind: phase, title: Elaboration, order: 2 }
+    - { id: E1, kind: iteration, title: Architecture baseline, phase: PH-elaboration, start: "2026-11-16", end: "2026-11-27" }
 
 Then plan work with \`iteration: E1\` on a spec — and other disciplines' work on it with
 \`activity: { implementation: C1, test: [C1, T1] }\` — and close each phase with a milestone
-(\`sdp new milestone "Architecture baseline"\`, \`phase: elaboration\`) whose scenarios are its gate.`
+(\`sdp new milestone "Architecture baseline"\`, \`phase: PH-elaboration\`) whose scenarios are its gate.`
 
 const pad = (s: string, n: number) => s.length >= n ? `${s} ` : s + " ".repeat(n - s.length)

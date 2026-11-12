@@ -90,11 +90,11 @@ Background:
     id: PLAN
     kind: plan
     nodes:
-      - { id: inception,    kind: phase, title: Inception,    order: 1 }
-      - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
-      - { id: construction, kind: phase, title: Construction, order: 3 }
-      - { id: transition,   kind: phase, title: Transition,   order: 4 }
-      - { id: C1, kind: iteration, title: Search, phase: construction }
+      - { id: PH-inception,    kind: phase, title: Inception,    order: 1 }
+      - { id: PH-elaboration,  kind: phase, title: Elaboration,  order: 2 }
+      - { id: PH-construction, kind: phase, title: Construction, order: 3 }
+      - { id: PH-transition,   kind: phase, title: Transition,   order: 4 }
+      - { id: C1, kind: iteration, title: Search, phase: PH-construction }
     ---
     # Plan
     """
@@ -104,7 +104,7 @@ Background:
     id: MS-beta
     kind: milestone
     title: Beta
-    phase: construction
+    phase: PH-construction
     ---
     # Beta
 
@@ -202,7 +202,7 @@ Creates a node from a template and prints its id and file. `--maturity` (default
 the generated id and `--dir` the directory chosen by kind — relative to the workspace root, or
 absolute. Requirements, ideas, quality requirements (`nfr`), decisions, elements, patterns,
 milestones and plans have their own templates (`sdp new --help` lists them); any other kind gets the
-generic one. `sdp new idea` writes a requirement at maturity `idea` to `specs/ideas`. Ids come from
+generic one. `sdp new idea` writes a requirement at maturity `idea` to `specs/requirements`. Ids come from
 `ids:` in the config (`REQ-guest-checkout`); decisions and risks are numbered (`DEC-0007`). An id
 that only a link names so far — a dangling link — is free: creating it resolves the link. An
 existing id or file is never overwritten. The front matter is written as YAML data, so a title
@@ -216,11 +216,11 @@ to it with `decided-by`. Removing the `#` of a suggestion leaves valid YAML. Tem
 be replaced — `We will …`, `What is still unknown?`, `Given <context>` — is flagged by `sdp check`
 until it is ([[REQ-check-rules]]). The `ready` template has no open questions — the structural
 difference from a specified spec; whether it is truly ready to build is the team's own Definition of
-Ready, a gate of its own ([[REQ-maturity-gates]]).
+Ready, a gate of its own ([[REQ-maturity-criteria]]).
 
-`sdp new plan` writes the delivery plan: the four phases (`inception`, `elaboration`,
-`construction`, `transition`) and one two-week example iteration in each (`I1`, `E1`, `C1`, `T1`,
-starting today), as inline nodes. Milestones from the template close `phase: elaboration`; work is
+`sdp new plan` writes the delivery plan: the four phases (`PH-inception`, `PH-elaboration`,
+`PH-construction`, `PH-transition`) and one two-week example iteration in each (`I1`, `E1`, `C1`, `T1`,
+starting today), as inline nodes. Milestones from the template close `phase: PH-elaboration`; work is
 planned with `iteration: E1`, and other disciplines' work on it with `activity:`
 ([[REQ-lifecycle-view]]).
 
@@ -287,9 +287,9 @@ Scenario: The maturity must be on the ladder
 
 Scenario: An idea is a requirement at maturity idea
   When I run "sdp new idea 'Gift wrapping'"
-  Then the output contains "REQ-gift-wrapping\tspecs/ideas/REQ-gift-wrapping.md"
-  And the file "specs/ideas/REQ-gift-wrapping.md" contains "kind: requirement"
-  And the file "specs/ideas/REQ-gift-wrapping.md" contains "maturity: idea"
+  Then the output contains "REQ-gift-wrapping\tspecs/requirements/REQ-gift-wrapping.md"
+  And the file "specs/requirements/REQ-gift-wrapping.md" contains "kind: requirement"
+  And the file "specs/requirements/REQ-gift-wrapping.md" contains "maturity: idea"
 
 Scenario: --dir may be absolute
   When I run "sdp new requirement 'Gift cards' --dir $PWD/specs/payments"
@@ -613,7 +613,7 @@ Scenario: A plan from the template puts a milestone from the template under its 
   When I run "sdp -C fresh init"
   And I run "sdp -C fresh lifecycle"
   Then the output contains "sdp new plan"
-  And the output contains "- { id: elaboration, kind: phase"
+  And the output contains "- { id: PH-elaboration, kind: phase"
   When I run "sdp -C fresh new plan 'Delivery plan'"
   And I run "sdp -C fresh new milestone 'Architecture baseline'"
   And I run "sdp -C fresh lifecycle"
@@ -650,7 +650,7 @@ Scenario Outline: Only errors fail the check
   Examples:
     | front matter                                       | rule          | exit code |
     | { id: REQ-a, links: { depends-on: REQ-gone } }     | dangling-link | 1         |
-    | { id: REQ-a, maturity: draft }                     | maturity-gate  | 1        |
+    | { id: REQ-a, maturity: draft }                     | maturity-criteria  | 1        |
     | { id: REQ-a, links: [REQ-b] }                      | link-syntax    | 1        |
     | { id: REQ-a, kind: decision, status: accepted }    | decision-content | 0      |
 

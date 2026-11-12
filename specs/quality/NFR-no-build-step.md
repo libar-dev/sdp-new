@@ -1,29 +1,31 @@
 ---
 id: NFR-no-build-step
 kind: nfr
-title: Runs from source
+title: Runs from source in development
 maturity: ready
 quality: modifiability
 iteration: I1
 activity: { implementation: I1, test: I1 }
 links:
   refines: CAP-agent-collaboration
-  decided-by: DEC-0004
+  decided-by: DEC-0012
 ---
 
-# Runs from source
+# Runs from source in development
 
-The tool runs directly from its TypeScript sources on Node.js 24+, with no build step. An agent
-that edits a source file can run the result immediately; there is no stale `dist/` to forget.
+In this repository the tool runs directly from its TypeScript sources on Node.js 24 or later: an
+agent that edits a source file runs the result with the next command, and there is no stale
+`dist/` to forget. What gets installed is a release, which is built ([[DEC-0012]]).
 
 ## Scenarios
 
 A quality attribute scenario: *Given* is the environment, *When* the stimulus, *Then* the response.
-`sdp` here is `node src/cli/main.ts`.
 
 ~~~gherkin
-Scenario: The command line runs straight from its TypeScript sources
+Scenario: With nothing built, the package's entry points are its TypeScript sources
   Given this repository has no build output
-  When I run "sdp --version" in the repository
+  When a fresh Node process imports "sdp/steps"
+  Then the output contains "/src/steps.ts"
+  When I run "node bin/sdp.js --version" in the repository
   Then the exit code is 0
 ~~~

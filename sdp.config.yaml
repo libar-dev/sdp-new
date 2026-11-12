@@ -3,3 +3,4 @@ specs: ["*.md", "specs/**/*.md", "docs/**/*.md"]
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
+ids: { phase: PH }

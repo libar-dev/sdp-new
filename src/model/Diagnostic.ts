@@ -19,7 +19,7 @@ export const rules = {
   "gherkin-syntax": "error",
   "scenario-empty": "warning",
   "maturity-value": "error",
-  "maturity-gate": "error",
+  "maturity-criteria": "error",
   "maturity-promotable": "info",
   "decision-status": "warning",
   "decision-supersede": "warning",
@@ -38,7 +38,7 @@ export type RuleId = keyof typeof rules
 export const isRuleId = (value: string): value is RuleId => Object.hasOwn(rules, value)
 
 export interface Diagnostic {
-  /** Stable rule id, e.g. `maturity-gate`. Grep for it in specs to learn more. */
+  /** Stable rule id, e.g. `maturity-criteria`. Grep for it in specs to learn more. */
   readonly rule: RuleId
   readonly severity: Severity
   readonly message: string

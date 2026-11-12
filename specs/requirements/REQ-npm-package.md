@@ -11,7 +11,7 @@ activity:
   deployment: [T1, T2]
 links:
   refines: CAP-living-specs
-  decided-by: DEC-0004
+  decided-by: DEC-0012
 ---
 
 # Install sdp from npm
@@ -20,14 +20,16 @@ Teams install sdp the way they install any tool: `npm install --save-dev sdp`, t
 and step definitions `import { defineSteps } from "sdp/steps"`. Today the package is private and runs
 only from a clone of this repository.
 
-Running from TypeScript sources ([[DEC-0004]], [[NFR-no-build-step]]) has a known limit here:
-Node.js does not strip types from files under `node_modules`, so an installed copy cannot run the
-way a clone does. How sdp is published is therefore settled in Elaboration, while the decision it
-may change is still cheap to revisit.
+Running from TypeScript sources ([[NFR-no-build-step]]) stops at `node_modules`: Node.js does not
+strip types from files there, so an installed copy cannot run the way a clone does. A release
+therefore emits JavaScript and declarations ([[DEC-0012]]); this requirement is building and
+publishing it.
 
 ## Open questions
 
-- [ ] Publish compiled JavaScript produced only when packing, and keep running from source in
-  the repository?
+- [x] Publish compiled JavaScript produced only when packing, and keep running from source in
+  the repository? Yes ([[DEC-0012]]).
+- [ ] How is a release shown to behave like the sources that were verified: the scenarios run
+  again against the packed package, or a smoke test of it?
 - [ ] Which Node.js versions does the published package support?
 - [ ] Is the package name `sdp` available on the registry, or does it need a scope?

@@ -23,7 +23,7 @@ on those abstractions already describes them, and that text never reached the gr
 
 1. **Comments only.** Language-agnostic and zero-cost, but untyped and bound by position.
 2. **Decorators.** Typed, but they only apply to classes and members, are not erasable syntax
-   (Node cannot run them from source, [[DEC-0004]]) and execute at run time.
+   (Node cannot run them from source, [[DEC-0012]]) and execute at run time.
 3. **Sidecar files** mapping symbols to ids. Typed if generated, but the link lives away from the
    code and goes stale on renames.
 4. **A typed identity call**, `annotate(target, links)` from `sdp/annotations`, placed next to the
@@ -54,10 +54,20 @@ remain possible in TypeScript and JavaScript too.
 - An `is` annotation declares an element where no spec does, so adding one is the architects' call
   like declaring it in a spec ([[DEC-0008]]); other annotations say where in the code the elements
   and their patterns are.
+- Any relation can be annotated, a link from code straight to a requirement included
+  (`implements`). sdp's own code does not use one. Its annotations name the architecture — `is`
+  an element, `instance-of` a pattern — and a requirement names the element that realizes it, so
+  the way from a requirement to its code is `-realized-by-> element <-is- code`. Annotating
+  every function with what it implements would be bookkeeping, not architecture ([[DEC-0008]]).
 
 ~~~gherkin
-Scenario: This repository's code links to its architecture with typed annotations
-  Then the query "code[symbol] -is-> element|pattern" returns at least 10 results
+Scenario: Every annotation in this repository is read, and its ids are typed
+  Then the query "code -is-> element|pattern" returns at least 1 result
   And there are no diagnostics for rule "annotation-unreadable"
   And there are no diagnostics for rule "types-stale"
+
+Scenario: Code links to the architecture, and a requirement reaches it through its element
+  Then the query "code !-is|instance-of-> element|pattern" returns no results
+  And the query "code ?-*-> requirement|nfr" returns no results
+  And the query "requirement[maturity=ready] !-realized-by-> element" returns no results
 ~~~

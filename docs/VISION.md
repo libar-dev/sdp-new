@@ -15,7 +15,7 @@ nodes:
   - id: PRIN-evidence-over-status
     kind: principle
     title: Evidence over status fields
-    links: { decided-by: [DEC-0005, DEC-0007] }
+    links: { decided-by: [DEC-0005, DEC-0007, DEC-0015] }
   - id: PRIN-free-form-graph
     kind: principle
     title: The graph speaks the team's language
@@ -27,7 +27,7 @@ nodes:
   - id: PRIN-agent-native
     kind: principle
     title: Agent-native
-    links: { decided-by: [DEC-0003, DEC-0004, DEC-0006] }
+    links: { decided-by: [DEC-0003, DEC-0006, DEC-0012] }
 ---
 
 # Vision
@@ -60,66 +60,36 @@ sdp sits where requirements tools, BDD runners and architecture repositories ove
 what each does well in one graph. Unlike a requirements tool, it keeps specifications in the
 repository and runs them. Unlike a BDD runner, it also holds ideas, quality requirements,
 decisions, architecture and the plan. Unlike an architecture repository, it holds only what
-architects declared significant, connected to the decisions and evidence behind it. It is built for
-agents as much as for people.
+architects declared, connected to the decisions and evidence behind it.
 
 ## Principles
 
-1. **Files are the source of truth.** Markdown, `.feature` files and annotations in code; the
-   graph is a derived index, rebuilt on every command. Git, pull requests, grep and editors work on
-   everything ([[DEC-0003]]).
-2. **One format for everything, at every maturity.** An idea and an implemented feature differ in
+1. **Files are the source of truth.** The graph is an index derived from them on every command,
+   so git, pull requests, grep and editors work on everything.
+2. **One format for everything, at every maturity.** An idea and a verified feature differ in
    content, not in format or tool; decisions, the plan, milestones and risks are written the same
-   way ([[DEC-0001]]).
+   way.
 3. **Evidence over status fields.** Authors declare maturity and the tool checks it. Nobody
-   declares a requirement done or a milestone met: scenario results decide ([[DEC-0005]],
-   [[DEC-0007]]).
+   declares a requirement done, a milestone met or a risk retired: scenario results decide.
 4. **The graph speaks the team's language.** Kinds and relations are the authors' words, not a
-   metamodel ([[DEC-0002]]).
-5. **The architecture is what architects declare.** Few abstractions are architecture; what
-   architects declare or anchor in code is, by that act, significant. The tool shows it and never
-   computes, ranks, limits or suggests what belongs in it ([[DEC-0008]]).
-6. **Agent-native.** Everything is reachable with grep and jq, a `--json` CLI and MCP; every fact
-   carries the `file:line` it came from; queries fit on one line; the tool runs from source, so
-   agents run what they edit ([[DEC-0003]], [[DEC-0006]], [[DEC-0004]]).
+   metamodel.
+5. **The architecture is what architects declare.** The tool shows it and never computes, ranks,
+   limits or suggests what belongs in it.
+6. **Agent-native.** Everything is reachable with grep and jq, a CLI and MCP; every fact carries
+   the `file:line` it came from; the tool runs from source, so agents run what they edit.
+
+Each principle is a node that rests on decisions, and a principle holds only as long as a
+scenario says so: `sdp q 'principle -decided-by-> decision' --paths` leads to them.
 
 ## Capabilities
 
-| Capability | What it gives |
-| --- | --- |
-| [[CAP-living-specs]] | Specifications that grow from an idea to executable behaviour, and a plan read from evidence |
-| [[CAP-curated-architecture]] | The significant architecture, justified and linked to its decisions and drivers |
-| [[CAP-agent-collaboration]] | The whole delivery state for agents, through the tools they already use |
-
-`sdp q '#CAP-living-specs <-refines- *'` lists what refines a capability.
-
-## Finding your way
-
-Every spec has a literal id: `grep -rn <ID>` finds it and everything that mentions it, and
-`sdp context <ID>` gathers what is needed to work on it.
-
-| Where | What |
-| --- | --- |
-| `docs/VISION.md` | this vision: problem, principles, capabilities |
-| [[GLOSSARY]] (`docs/GLOSSARY.md`) | the terms used across specs, and the attributes sdp reads or derives |
-| `specs/capabilities/` | capabilities (`CAP-*`) |
-| `specs/requirements/` | functional requirements (`REQ-*`) |
-| `specs/quality/` | quality requirements as quality attribute scenarios (`NFR-*`) |
-| `specs/ideas/` | ideas and drafts, deliberately unfinished |
-| `specs/steps/` | step definitions that run the scenarios against the real pipeline |
-| `docs/decisions/` | decisions of every category (`DEC-*`) |
-| `docs/architecture/` | the curated architecture: elements and patterns (`ARCH-*`, `PAT-*`) |
-| `docs/delivery/` | the [[PLAN]] (phases, iterations) and milestone gates (`MS-*`) |
-| `docs/risks/` | risks (`RISK-*`) |
-| `README.md`, `AGENTS.md` | guides for people and for agents |
-| `examples/shop/` | a conventional product specified with sdp |
+Three capabilities refine this vision, and requirements refine them:
+`sdp q 'capability -refines-> #VISION'`, then `sdp q '#CAP-living-specs <-refines- *'`.
 
 ## Scenarios
 
 ~~~gherkin
-Scenario: Every principle rests on a decision
-  Then the query "principle !-decided-by-> decision" returns no results
-
-Scenario: The vision maps every capability
-  Then the query "capability !<-*|mentions- #VISION" returns no results
+Scenario: Every principle rests on a decision that a scenario guards
+  Then the query "principle" returns at least 1 result
+  And the query "principle !-decided-by-> decision[scenarios>=1]" returns no results
 ~~~

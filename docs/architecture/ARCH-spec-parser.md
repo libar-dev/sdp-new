@@ -43,7 +43,7 @@ the checker and the context bundle never read Markdown themselves.
   string; every other value is kept as YAML parsed it.
 - **Prose** is the paragraphs, lists and quotes of the body, as written. The first paragraph is the
   summary (at most 280 characters) and the description the `draft` gate asks for
-  ([[REQ-maturity-gates]]); each heading's section is the prose under it, up to the next heading
+  ([[REQ-maturity-criteria]]); each heading's section is the prose under it, up to the next heading
   of the same or a higher level.
 - **Open questions** are the list items, nested ones included, under an open-questions heading,
   up to the next heading of the same or a higher level.
@@ -443,7 +443,7 @@ Scenario: Code, comments and an empty fence are not a description
   When "specs/REQ-csv.md" is parsed
   Then the parsed spec has summary ""
   When the workspace is checked
-  Then the check reports "maturity-gate" for "REQ-csv"
+  Then the check reports "maturity-criteria" for "REQ-csv"
 
 Scenario: Open questions are the list items under their heading
   Given a file "specs/REQ-checkout.md" containing:

@@ -11,7 +11,7 @@ import { parseMarkdownSpec } from "../parse/Spec.ts"
 
 export const directoryFor: Record<string, string> = {
   requirement: "specs/requirements",
-  idea: "specs/ideas",
+  idea: "specs/requirements",
   nfr: "specs/quality",
   capability: "specs/capabilities",
   decision: "docs/decisions",
@@ -180,7 +180,7 @@ The problem this pattern solves and how, in a sentence or two. Elements that app
           ["id", id],
           ["kind", "milestone"],
           ["title", title],
-          ["phase", "elaboration", "the phase this milestone closes: inception | elaboration | construction | transition (sdp new plan)"]
+          ["phase", "PH-elaboration", "the phase this milestone closes: PH-inception | PH-elaboration | PH-construction | PH-transition (sdp new plan)"]
         ])
       }
 # ${title}
@@ -196,13 +196,15 @@ Scenario: No errors in the specification graph
       // One phase each, and back-to-back two-week iterations, one per phase, starting today.
       const phases = ["Inception", "Elaboration", "Construction", "Transition"]
       const iterations = [["I1", "Vision and scope"], ["E1", "Architecture baseline"], ["C1", "First increment"], ["T1", "Beta"]]
+      // Prefixed like every other id, so a phase is one grep away and no ordinary word is an id.
+      const phaseId = (name: string) => `PH-${name.toLowerCase()}`
       const nodes = [
-        ...phases.map((name, index) => ({ id: name.toLowerCase(), kind: "phase", title: name, order: index + 1 })),
+        ...phases.map((name, index) => ({ id: phaseId(name), kind: "phase", title: name, order: index + 1 })),
         ...iterations.map(([iteration, name], index) => ({
           id: iteration,
           kind: "iteration",
           title: name,
-          phase: phases[index]!.toLowerCase(),
+          phase: phaseId(phases[index]!),
           start: addDays(today, 14 * index),
           end: addDays(today, 14 * index + 13)
         }))
@@ -214,7 +216,7 @@ Four phases with one example iteration each; add, rename and re-date iterations 
 up. Plan work by setting \`iteration: E1\` on a spec, decision or element — that plans its own
 discipline's work, such as writing a requirement — and the other disciplines' work on it with
 \`activity: { implementation: C1, test: [C1, T1] }\`. Close each phase with a milestone
-(\`sdp new milestone "Lifecycle architecture"\`, \`phase: elaboration\`) whose scenarios are its
+(\`sdp new milestone "Lifecycle architecture"\`, \`phase: PH-elaboration\`) whose scenarios are its
 gate. \`sdp lifecycle\` shows the result.
 `
     }
@@ -319,20 +321,42 @@ title: Working with specs (sdp)
 Specs, decisions, architecture, the delivery plan and guides like this one are Markdown files with
 YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form one graph.
 
-- Find anything by id: \`grep -rn "REQ-guest-checkout" .\`
-- Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\` (syntax: \`sdp q --help\`)
+## Find things
+
+- Anything by its id: \`grep -rn "REQ-guest-checkout" .\` — an id is literal wherever it is
+  declared or linked. Two ids are made by sdp: a scenario is \`<spec id>#<slug of its name>\`,
+  annotated code is \`code:<path>#<symbol>\`.
+- Query the graph: \`sdp q 'requirement[maturity=ready] -realized-by-> element'\` (syntax:
+  \`sdp q --help\`), or \`sdp graph | jq …\` — one record per line.
 - Everything about one node before you change it: \`sdp context REQ-guest-checkout\`
 - The architecture (every element and pattern architects declared): \`sdp arch\`
+- The words sdp interprets, as this workspace configures them: \`sdp vocabulary\`
 - Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
-- Line-oriented dumps for grep/jq: \`sdp graph --write\` → .sdp/graph.jsonl, .sdp/graph.tsv
 
-To change behaviour, change its spec first: the Gherkin scenarios are the acceptance tests.
-\`sdp context <id>\` lists the steps that have no definition yet, \`sdp run <id> --snippets\`
-prints a step definition module for them, and \`sdp steps <text>\` finds the definitions there are.
+## Change behaviour
+
+Change the spec first: its Gherkin scenarios are the acceptance tests. What a user sees belongs
+to a requirement; how one part of the system does it belongs to that element, and
+\`realized-by\` leads from the one to the other. \`sdp context <id>\` lists the steps that have
+no definition yet, \`sdp run <id> --snippets\` prints a step definition module for them, and
+\`sdp steps <text>\` finds a definition that already says it. Extend that one: a step that two
+definitions match fails.
+
+## Plan work, and mind the gates
+
+Work is planned in its own spec: \`iteration: E1\` says when it is written,
+\`activity: { implementation: C1, test: [C1, T1] }\` when it is built and tested.
+\`sdp lifecycle\` shows the plan, marks the current iteration with \`*\` and shows every
+milestone's gate. \`sdp run\` reports gates and never fails on one, and a later milestone is
+expected to be unmet. A gate of the current phase or a past one is not:
+\`sdp gate <milestone>\` exits 1 on it.
+
+## Link
 
 Relations are free-form: name them for what they mean. The templates use ${relationVocabulary}.
-Link code to specs with typed annotations in TypeScript — \`annotate(pay, { implements: "REQ-…" })\`
-from \`sdp/annotations\`, after \`sdp types\` so ids are checked — or \`@sdp implements REQ-…\`
-comments in other languages. What belongs in the architecture is the architects' call: propose an
-element, a pattern or an \`is\` annotation, do not add or remove one yourself.
+Code links to the architecture: \`annotate(Orders, { is: "ARCH-orders" })\` from
+\`sdp/annotations\` says which code an element is (after \`sdp types\` the compiler checks the
+id), and an \`@sdp is ARCH-orders\` comment does the same in other languages. A requirement
+names its element with \`realized-by\`. What belongs in the architecture is the architects' call:
+propose an element, a pattern or an \`is\` annotation, do not add or remove one yourself.
 `

@@ -29,9 +29,13 @@ decision". The question has to fit a shell argument and a single Gherkin step.
 
 Option 3: `requirement[maturity<ready] -realized-by-> element !-decided-by-> decision`. An edge prefixed
 with `!` or `?` keeps the nodes without or with such a neighbour; a trailing `+` follows a
-relation transitively. A query returns nodes or paths, nothing more — aggregation stays with
-`jq`/`awk` over `--json` output, and the JSON/JSONL exports remain for jq users. The language is
-specified in [[REQ-graph-query]].
+relation transitively. A query returns nodes or paths, nothing more. The language is specified in
+[[REQ-graph-query]].
+
+SDPQ is a convenience, never the only door. `sdp graph` hands the same graph over as plain data,
+one record per line ([[REQ-graph-export]]), and whatever a query answers, jq over those records
+answers too — counting and grouping included, which SDPQ leaves to them. The [[README]] runs one
+question all three ways.
 
 ## Consequences
 

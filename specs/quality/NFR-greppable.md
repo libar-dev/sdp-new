@@ -13,27 +13,19 @@ links:
 
 # Grep-first
 
-Agents explore with `grep`, `find`, `sed` and `jq` before anything else. Every fact the tool knows
-must therefore be reachable with those tools: ids are literal text in the files that declare them
-(scenario and code ids are built from a spec id or a path), every node and edge carries the `file:line` it came from, and the exports for grep and jq are
-line-oriented, one fact per line ([[REQ-graph-export]]). Nothing lives only in a database or a
-binary index.
+Agents explore with `grep`, `find`, `sed` and `jq` before anything else, so every fact sdp knows
+must be reachable with those tools. An id is literal text wherever it is declared or linked to;
+every node and edge carries the `file:line` it came from; the exports are one record per line
+([[REQ-graph-export]]). Nothing lives only in a database or a binary index.
 
 ## Scenarios
 
-Quality attribute scenarios: *Given* is the source and environment, *When* the stimulus, *Then*
-the response and its measure.
-
 ~~~gherkin
-Scenario: Grepping for an id finds the file that declares it
+Scenario: Every fact leads back to a line, and a link's line names its target
   Given an agent that explores this repository with grep
-  When it searches each file for the ids of the nodes declared there
-  Then every id is found in the file that declares it
-
-Scenario: Every exported fact names the file and line it came from
-  Given an agent that explores this repository with grep
-  When it exports the graph as tsv
-  Then every line of the export ends with a file and line
+  When it follows every node and link of the graph back to its file and line
+  Then every one of them has a file and a line that exist
+  And the line of every link contains the id it links to
 
 Scenario Outline: Line-oriented exports keep one fact per line, whatever the text
   Given a file "specs/REQ-a.md" containing:
