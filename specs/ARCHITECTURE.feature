@@ -31,13 +31,13 @@ Feature: Architecture
         @id=NOTE-outside
         Feature: Outside the workspace
         """
-      And a file "shop/specs/REQ-cart.feature" containing:
+      And a file "shop/specs/cart.feature" containing:
         """
-        @id=REQ-cart
+        @id=cart
         Feature: Cart
         """
       When the workspace "shop" is loaded from memory and from disk
-      Then both graphs have exactly the nodes "REQ-cart"
+      Then both graphs have exactly the nodes "cart"
 
   Rule: A built graph cannot be changed, through what it was built from or what it returns
 

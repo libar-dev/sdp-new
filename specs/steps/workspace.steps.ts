@@ -129,9 +129,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     for (let i = 0; i < count; i++) {
       setFile(
         world,
-        `specs/REQ-${i}.feature`,
-        `@id=REQ-${i} @maturity=specified @depends-on:REQ-${(i * 7) % count} @refines:REQ-${(i * 3) % count}\nFeature: Requirement ${i}\n\n` +
-          `  Requirement ${i} works.\n\n  Rule: It works\n\n    Scenario: Works\n      Given a thing ${i}\n      When it is used\n      Then it works\n`
+        `specs/feature-${i}.feature`,
+        `@id=feature-${i} @maturity=specified @depends-on:feature-${(i * 7) % count} @refines:feature-${(i * 3) % count}\nFeature: Feature ${i}\n\n` +
+          `  Feature ${i} works.\n\n  Rule: It works\n\n    Scenario: Works\n      Given a thing ${i}\n      When it is used\n      Then it works\n`
       )
     }
   })
