@@ -25,7 +25,7 @@
  */
 import { Predicate } from "effect"
 import { type GraphEdge, type GraphNode, tally } from "../model/Graph.ts"
-import { activityRelation, attribute, dayOf, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
+import { activityRelation, attribute, dayOf, hasKind, hasRelation, isPlanKind, isWork, made, metOn, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
@@ -84,8 +84,9 @@ export interface LifecycleReport {
   /** The phases, in the order of their first iteration. */
   readonly phases: ReadonlyArray<PhaseReport>
   /**
-   * Work still to come, at any maturity, that nothing plans: a spec or a node declared in code, and
-   * a rule still to come whose spec is planned into no iteration either and is not listed itself.
+   * Work still to come, at any maturity, that nothing plans: a spec or a node declared in code of a
+   * kind a discipline names, and a rule still to come whose spec is planned into no iteration either
+   * and is not listed itself.
    */
   readonly unplanned: ReadonlyArray<GraphNode>
   /** Planned activity: for each discipline, the number of nodes with work planned in each iteration. */
@@ -303,9 +304,12 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     discipline,
     activity: iterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))
-  // Only work still to come can be unplanned, at any maturity: what is built needs no plan. A rule
-  // still to come is planned with its spec, and listed with it when neither is planned.
-  const unplanned = graph.nodes().filter((n) => n.attrs.toCome === true && !planned.has(n.id) && !isStructural(vocabulary, n))
+  // Only work still to come can be unplanned, at any maturity: what is built needs no plan, and a
+  // kind no discipline names is no work. A rule still to come is planned with its spec, and listed
+  // with it when neither is planned.
+  const unplanned = graph.nodes().filter((n) =>
+    n.attrs.toCome === true && !planned.has(n.id) && !isStructural(vocabulary, n) && isWork(vocabulary, workKind(project, n))
+  )
   const listed = new Set(unplanned.map((n) => n.id))
   const withSpec = (n: GraphNode) => n.kind === made.kinds.rule && (planned.has(String(n.attrs.spec)) || listed.has(String(n.attrs.spec)))
   const alone = unplanned.filter((n) => !withSpec(n))

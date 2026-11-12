@@ -341,6 +341,57 @@ Feature: Plan delivery
         | IT-prototype | ARCH-x, alpha |
         | IT-baseline  |               |
 
+  Rule: A kind no discipline names is no work: nothing lists it as unplanned, and check reports a maturity on it
+
+    Work is what a discipline takes, and only work is still to come at a maturity, and planned. An
+    activity tag plans a discipline's work on any node, but a risk or a policy is otherwise what it
+    is, its rules with examples, until the team adds its kind to a discipline.
+
+    Scenario: A risk at a maturity, and a rule of a live risk without an example
+      Given these specs:
+        | tags                                 | Feature |
+        | @id=outage @kind=risk @maturity=idea | Outage  |
+      And a file "specs/slow-index.feature" containing:
+        """
+        @id=slow-index @kind=risk
+        Feature: Slow index
+
+          Rule: The index may outgrow memory
+        """
+      When the lifecycle is computed
+      Then the unplanned work is "nothing"
+      When the workspace is checked
+      Then sdp reports:
+        | rule           | node                                    | at                         | message                                                                                       | hint                                                                                                                                                                  |
+        | plan-reference | outage                                  | specs/outage.feature:1     | outage: kind risk belongs to no discipline, so its maturity marks work that nothing can plan | delete the maturity — what is no work is live, and its rules have examples — or add risk to a discipline under vocabulary.disciplines                                 |
+        | untested-rule  | slow-index#the-index-may-outgrow-memory | specs/slow-index.feature:4 | slow-index#the-index-may-outgrow-memory is live, so it needs an example                       | write a Scenario under it; kind risk belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines |
+
+    Scenario: Once a discipline names risk, a risk at a maturity is work to plan
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { disciplines: { risk-management: [risk] } }
+        """
+      And these specs:
+        | tags                                 | Feature |
+        | @id=outage @kind=risk @maturity=idea | Outage  |
+      When the lifecycle is computed
+      Then the unplanned work is "outage"
+      When the workspace is checked
+      Then sdp reports nothing
+
+    Scenario: A risk at a maturity that an activity tag plans is that discipline's work
+      Given these specs:
+        | tags                                                                      | Feature |
+        | @id=outage @kind=risk @maturity=idea @activity.implementation:IT-baseline | Outage  |
+      When the lifecycle is computed
+      Then the iterations are:
+        | id           | plans         |
+        | IT-scope     |               |
+        | IT-prototype | ARCH-x, alpha |
+        | IT-baseline  | outage        |
+      When the workspace is checked
+      Then sdp reports nothing
+
   Rule: A rule is planned on its own, as work of its spec's kind
 
     A change to a built feature is planned rule by rule. Planning a spec plans its rules, and a rule

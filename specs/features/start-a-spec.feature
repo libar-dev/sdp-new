@@ -234,7 +234,7 @@ Feature: Start a spec
     Scenario: Every template, at its first maturity and at others
       Given specs created from the sdp new templates:
         | kind      | title         | maturity |
-        | gizmo     | Sprocket      | idea     |
+        | gizmo     | Sprocket      |          |
         | idea      | Gift wrapping |          |
         | milestone | Launch        |          |
         | phase     | Construction  |          |

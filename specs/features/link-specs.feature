@@ -94,7 +94,7 @@ Feature: Link specs into one graph
     Scenario: constructor, toString and __proto__ are words like any other
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { maturity: [constructor, toString, valueOf] }
+        vocabulary: { maturity: [constructor, toString, valueOf], disciplines: { valueOf: [constructor] } }
         """
       And these specs:
         | tags                                                                                    | Feature |

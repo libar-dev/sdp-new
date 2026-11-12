@@ -181,6 +181,7 @@ Feature: Use the command line
         | new feature Carts --dir ''               | --dir needs a directory                                     | carts.feature                       |
         | new feature Carts --maturity 'not yet'   | a maturity is one word: write it without a space, @, = or : | specs/features/carts.feature        |
         | new feature Carts --maturity implemented | implemented is the retired rung                             | specs/features/carts.feature        |
+        | new risk Outage --maturity draft         | kind risk belongs to no discipline, so it is no work        | specs/risk/outage.feature           |
         | new element Bad --id 'ARCH-bad other'    | would not read back from a tag                              | .sdp/results.json                   |
         | new element Bad --id ' '                 | would not read back from a tag                              | .sdp/results.json                   |
 

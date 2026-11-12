@@ -81,8 +81,9 @@ export interface NewSpec {
  * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
  * `sdp new element` or `sdp new pattern` no file: only the id its code declares, and how.
  * Fails, with the reason, for a change, which is rules of the feature it changes unless the
- * workspace names a kind `change` of its own, and when the content would not read back with its id,
- * kind and title: the id of an element or a pattern is read back too, though it has no file.
+ * workspace names a kind `change` of its own, for a maturity asked of a kind that is no work, and
+ * when the content would not read back with its id, kind and title: the id of an element or a
+ * pattern is read back too, though it has no file.
  */
 export const newSpec = (options: {
   readonly kind: string
@@ -107,6 +108,12 @@ export const newSpec = (options: {
   if (kind === "change" && !vocabularyWords(vocabulary).kinds.includes(kind)) {
     return Result.fail(
       `a change is rules of the ${feature} it changes: write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
+    )
+  }
+  // Only work is still to come at a maturity: one asked for any other kind would not be written.
+  if (options.maturity !== undefined && !isWork(vocabulary, kind)) {
+    return Result.fail(
+      `kind ${kind} belongs to no discipline, so it is no work and is written without a maturity: leave out --maturity, or add ${kind} to a discipline under vocabulary.disciplines`
     )
   }
   const next = guidance({ kind, id, config })

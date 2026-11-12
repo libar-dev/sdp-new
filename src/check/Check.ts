@@ -81,16 +81,20 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const at = (spec: Spec, line = 1) => ({ file: spec.file, line })
-  /** Where an attribute of `node` is written: the line of its tag in a spec, else the node's own line. */
+  /** Where an attribute of `node` is written: the line of its tag in a spec or above a rule, else the node's own line. */
   const writtenAt = (node: GraphNode, key: string): SourceRef | undefined => {
     const spec = project.specById.get(node.id)
-    return spec ? at(spec, spec.attrLines[key] ?? 1) : node.source
+    if (spec) return at(spec, spec.attrLines[key] ?? 1)
+    const owner = node.kind === made.kinds.rule ? project.specById.get(String(node.attrs.spec)) : undefined
+    const rule = owner?.rules.find((candidate) => candidate.id === node.id)
+    return owner && rule ? at(owner, rule.attrLines[key] ?? rule.line) : node.source
   }
   const authored = graph.nodes().filter((node) =>
     node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
   )
 
-  // A live rule is a test, so it has an example: without one, what is built is not tested.
+  // A live rule is a test, so it has an example: without one, what is built is not tested. Only work
+  // is still to come at a maturity, so a rule of any other kind has nothing to wait for.
   for (const spec of project.specs) {
     if (spec.id === suiteId(spec.file) || !isSuite(spec, vocabulary)) continue
     const work = workOf(spec)
@@ -100,7 +104,9 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${rule.id} is live, so it needs an example`,
         node: rule.id,
         source: at(spec, rule.line),
-        hint: "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
+        hint: isWork(vocabulary, spec.kind)
+          ? "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
+          : `write a Scenario under it; kind ${spec.kind} belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines`
       }))
     }
   }
@@ -274,7 +280,9 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         planReference(edge.rel, edge.to, ["iteration"], edge.source)
       }
     }
-    // An `iteration:` plans the work of the node's kind's discipline — a rule's, its spec's; a kind in no discipline has none.
+    // An `iteration:` plans the work of the node's kind's discipline — a rule's, its spec's; a kind in
+    // no discipline has none, and is no work unless an activity tag plans it, so a maturity of its
+    // marks work still to come that nothing plans.
     const planned = graph.out(node.id).find((edge) =>
       hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
     )
@@ -285,6 +293,16 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         node: node.id,
         source: planned.source,
         hint: `plan the work with \`@${activityKey}.<discipline>:<iteration>\`, or add ${kind} to a discipline under vocabulary.disciplines`
+      }))
+    }
+    // Said once: a node its iteration plans is told so above, and one an activity tag plans is work.
+    const unplannable = !planned && plannedDisciplines(project, node).size === 0 && !isWork(vocabulary, kind) && !isPlanKind(vocabulary, kind)
+    if (attribute(node, "maturity") !== undefined && unplannable) {
+      out.push(diagnostic("plan-reference", {
+        message: `${node.id}: kind ${kind} belongs to no discipline, so its maturity marks work that nothing can plan`,
+        node: node.id,
+        source: writtenAt(node, "maturity"),
+        hint: `delete the maturity — what is no work is live, and its rules have examples — or add ${kind} to a discipline under vocabulary.disciplines`
       }))
     }
     for (const [discipline, edge] of plannedDisciplines(project, node)) {
