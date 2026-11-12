@@ -166,7 +166,7 @@ annotate(contextBundle, { is: "ARCH-reports" })
 
 /**
  * What a node declared inside another spec says about itself. It has no text of its own to open, so
- * its text attributes are all there is: a glossary term's `definition`, an iteration's dates.
+ * its text attributes are all there is: a term's `definition`, an iteration's dates.
  */
 const ownWords = (node: GraphNode): ReadonlyArray<string> =>
   attribute(node, "declaredIn") === undefined

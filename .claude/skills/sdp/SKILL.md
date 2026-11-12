@@ -20,7 +20,9 @@ architecture and the delivery plan are plain Markdown files with YAML front matt
 - **The architecture is what architects declared.** An element or pattern is in the graph because
   someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
-  or an `is` annotation, and let the architect decide.
+  or an `is` annotation, and let the architect decide. Code links to the architecture, not to
+  requirements: `annotate(Thing, { is: "ARCH-x" })` from `sdp/annotations`, or an `@sdp is ARCH-x`
+  comment, says which code an element is, and a requirement names its element with `realized-by`.
 - **Specs instead of prose.** A claim that can be structured or checked is a link or a scenario,
   not a paragraph. When you would write "X depends on Y" or "this must never happen", write the
   link or the scenario. A scenario's name is the rule it pins, so write it as the rule — and when
