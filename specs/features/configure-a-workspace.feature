@@ -343,3 +343,4 @@ Feature: Configure a workspace
         | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                 | at ["vocabulary"]["kinds"]["phase"]         |
         | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
         | ids: { component: ARCH }                         | element and component share the prefix ARCH        | at ["ids"]                                  |
+        | ids: { scenario: SC }                            | scenario is a kind sdp makes itself                | at ["ids"]["scenario"]                      |

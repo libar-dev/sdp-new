@@ -238,7 +238,8 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
 /**
  * What a configuration must satisfy beyond its shape, each problem at its path: a vocabulary sdp
  * can work with, a maturity ladder of distinct levels that cannot be mistaken for a derived stage,
- * and id prefixes that kind inference reads back (letters only, one kind each).
+ * and id prefixes that kind inference reads back (letters only, one kind each, none of a kind sdp
+ * makes itself).
  */
 const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => {
   const issues: Array<Schema.FilterIssue> = file.vocabulary === undefined ? [] : [...vocabularyProblems(file.vocabulary)]
@@ -262,6 +263,10 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
         issue: `${retiredMaturity} is the retired rung: what is built declares no maturity, so no rung can say so`
       })
     }
+  }
+  const madeKinds: ReadonlyArray<string> = Object.values(made.kinds)
+  for (const kind of Object.keys(file.ids ?? {}).filter((candidate) => madeKinds.includes(candidate))) {
+    issues.push({ path: ["ids", kind], issue: `${kind} is a kind sdp makes itself, so no id an author writes can be of it` })
   }
   const owners = new Map<string, string>()
   for (const [kind, prefix] of [...defaultIds, ...Object.entries(file.ids ?? {})]) {
