@@ -209,8 +209,11 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       { id: from, kind: "element", title: from, attrs: { owner: { team: "core" }, tags: ["a"] } },
       { id: to, kind: "element", title: to, attrs: {} }
     ]
-    // Declared twice, and the second declaration disagrees: the graph keeps the first and records the conflict.
-    const edges: Array<GraphEdge> = [{ from, rel, to, attrs: { via: "http" } }, { from, rel, to, attrs: { via: "events" } }]
+    // Declared twice: the graph keeps one edge with both declarations.
+    const edges: Array<GraphEdge> = [
+      { from, rel, to, source: { file: "a.feature", line: 1 } },
+      { from, rel, to, source: { file: "a.feature", line: 2 } }
+    ]
     world.scratch.builtGraph = new Graph(nodes, edges)
     world.scratch.inputs = { nodes, edges }
   })
@@ -221,15 +224,15 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     nodes[0]!.attrs.tags.push("b")
     nodes[0]!.kind = "changed"
     edges[0]!.from = edges[0]!.to
-    edges[0]!.attrs.via = "changed"
+    edges[0]!.source.line = 9
     nodes.push({ id: "extra", kind: "element", title: "extra", attrs: {} })
   })
 
-  Then("the graph still has {string} -{word}-> {string} via {string}", ({ args: [from, rel, to, via], world }) => {
+  Then("the graph still has {string} -{word}-> {string}, declared twice", ({ args: [from, rel, to], world }) => {
     const graph = builtGraph(world)
     const edge = graph.out(from).find((e) => e.rel === rel && e.to === to)
     assert.ok(edge, `no edge ${from} -${rel}-> ${to}: ${JSON.stringify(graph.edges())}`)
-    assert.equal(edge.attrs?.via, via)
+    assert.deepEqual(edge.sources?.map(formatSource), ["a.feature:1", "a.feature:2"])
     assert.deepEqual(graph.out(to), [])
     assert.equal(graph.node(from)?.kind, "element")
     assert.deepEqual(graph.node(from)?.attrs, { owner: { team: "core" }, tags: ["a"] })
@@ -240,19 +243,16 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const graph = builtGraph(world)
     const node = graph.nodes()[0] as any
     const edge = graph.edges()[0] as any
-    const conflict = graph.conflicts[0] as any
-    assert.ok(conflict, "the graph records no conflict")
     const attempts: Record<string, () => void> = {
       "a node": () => (node.kind = "x"),
       "a nested attribute": () => (node.attrs.owner.team = "x"),
       "a list attribute": () => node.attrs.tags.push("x"),
       "an edge": () => (edge.to = "x"),
-      "an edge attribute": () => (edge.attrs.via = "x"),
+      "an edge's declaration": () => (edge.sources[0].line = 0),
+      "an edge's declarations": () => edge.sources.push(edge.source),
       "the node list": () => (graph.nodes() as Array<GraphNode>).push(node),
       "the edge list": () => (graph.edges() as Array<GraphEdge>).pop(),
-      "an adjacency list": () => (graph.out(edge.from) as Array<GraphEdge>).pop(),
-      "a conflict": () => (conflict.dropped.value = "x"),
-      "the edge of a conflict": () => (conflict.edge.to = "x")
+      "an adjacency list": () => (graph.out(edge.from) as Array<GraphEdge>).pop()
     }
     const changed = Object.entries(attempts).flatMap(([what, attempt]) => {
       try {

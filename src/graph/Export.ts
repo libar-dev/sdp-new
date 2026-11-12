@@ -28,8 +28,6 @@ export interface EdgeRecord {
   readonly from: string
   readonly rel: string
   readonly to: string
-  /** The attributes its declarations give it; empty when they give none. */
-  readonly attrs: Attrs
   /** Every declaration that states the edge, in the order they were read. */
   readonly declared: ReadonlyArray<SourceRef>
 }
@@ -51,7 +49,6 @@ export const edgeRecord = (edge: GraphEdge): EdgeRecord => ({
   from: edge.from,
   rel: edge.rel,
   to: edge.to,
-  attrs: edge.attrs ?? {},
   declared: edge.sources ?? (edge.source ? [edge.source] : [])
 })
 

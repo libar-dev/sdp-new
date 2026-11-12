@@ -26,7 +26,7 @@ Feature: Link code to specs
         // @sdp is ARCH-billing owner=platform tier=1
 
         // @sdp implements pay
-        // @sdp uses ARCH-ledger via=events
+        // @sdp uses ARCH-ledger
         export class Billing {}
         """
       And a file "src/ledger.ts" containing:
@@ -44,11 +44,11 @@ Feature: Link code to specs
         | code:src/ledger.ts#Ledger   | code    | Ledger         | src/ledger.ts:2              |
         | ARCH-ledger                 | element | Ledger         | src/ledger.ts:1              |
       And the workspace graph has edges:
-        | from                        | rel        | to           | attributes   |
-        | code:src/billing.ts         | is         | ARCH-billing |              |
-        | code:src/billing.ts#Billing | implements | pay          |              |
-        | code:src/billing.ts#Billing | uses       | ARCH-ledger  | via="events" |
-        | code:src/ledger.ts#Ledger   | is         | ARCH-ledger  |              |
+        | from                        | rel        | to           |
+        | code:src/billing.ts         | is         | ARCH-billing |
+        | code:src/billing.ts#Billing | implements | pay          |
+        | code:src/billing.ts#Billing | uses       | ARCH-ledger  |
+        | code:src/ledger.ts#Ledger   | is         | ARCH-ledger  |
       And node "ARCH-billing" has attribute owner = "payments"
       And node "ARCH-billing" has attribute tier = "1"
 
@@ -449,7 +449,6 @@ Feature: Link code to specs
         | rule        | severity | at           | message                                         |
         | return-type | warning  | src/pay.ts:6 | code:src/pay.ts#pay states no return type        |
 
-  @maturity=ready
   Rule: A key=value on an annotation describes only the node it declares; a link has no attributes
 
     A link is a fact between two nodes and nothing more: what would qualify it belongs to one of

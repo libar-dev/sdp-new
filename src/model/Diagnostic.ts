@@ -11,7 +11,6 @@ export const rules = {
   "duplicate-id": "error",
   "dangling-link": "error",
   "link-syntax": "error",
-  "link-conflict": "warning",
   "derived-attribute": "error",
   "gherkin-syntax": "error",
   "not-a-spec": "warning",

@@ -23,7 +23,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices"
 import { newId, newSpec } from "../../src/app/Templates.ts"
 import { findFiles, loadProject } from "../../src/workspace/Workspace.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
-import { assertRows, attrsText, ids, load, newWorld, node, produce, reload, reportRow, setFile, show, type World } from "./world.ts"
+import { assertRows, ids, load, newWorld, node, produce, reload, reportRow, setFile, show, type World } from "./world.ts"
 import { directoryOf, repository, workspace } from "./process.ts"
 
 const reported = (world: World) => {
@@ -212,8 +212,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
           rel: e.rel,
           to: e.to,
           source: formatSource(e.source),
-          sources: (e.sources ?? []).map(formatSource).join(", "),
-          attributes: attrsText(e.attrs)
+          sources: (e.sources ?? []).map(formatSource).join(", ")
         })),
         table,
         "including"

@@ -23,69 +23,35 @@ export interface GraphNode {
   readonly source?: SourceRef | undefined
 }
 
-/** One `(from, rel, to)` fact, however many declarations state it. */
+/** One `(from, rel, to)` fact, however many declarations state it. A link has no attributes: what would qualify it belongs to one of its nodes. */
 export interface GraphEdge {
   readonly from: string
   readonly rel: string
   readonly to: string
-  /** The union of the attributes its declarations give it. */
-  readonly attrs?: Attrs | undefined
   /** Where it is first declared. */
   readonly source?: SourceRef | undefined
   /** Every declaration that states it, in order (`source` is the first). */
   readonly sources?: ReadonlyArray<SourceRef> | undefined
 }
 
-/** Two declarations of one edge that give an attribute different values; the first value is kept. */
-export interface EdgeConflict {
-  readonly edge: GraphEdge
-  readonly key: string
-  readonly kept: { readonly value: unknown; readonly source: SourceRef | undefined }
-  readonly dropped: { readonly value: unknown; readonly source: SourceRef | undefined }
-}
-
 const edgeKey = (edge: Pick<GraphEdge, "from" | "rel" | "to">) => `${edge.from}\u0000${edge.rel}\u0000${edge.to}`
 
-/**
- * Merges the declarations of each `(from, rel, to)` into one edge that keeps every source and the
- * union of their attributes, in first-declared order. Disagreeing attributes are returned as conflicts.
- */
-const mergeEdges = (
-  edges: Iterable<GraphEdge>
-): { readonly edges: ReadonlyArray<GraphEdge>; readonly conflicts: ReadonlyArray<EdgeConflict> } => {
-  // Attributes are kept in maps while they merge: an author's key may be `__proto__` or `constructor`.
-  interface Merging {
-    readonly edge: GraphEdge
-    readonly attrs: Map<string, { readonly value: unknown; readonly source: SourceRef | undefined }>
-    readonly sources: Array<SourceRef>
-  }
-  const merged = new Map<string, Merging>()
-  const conflicts: Array<EdgeConflict> = []
+/** Merges the declarations of each `(from, rel, to)` into one edge that keeps every source, in first-declared order. */
+const mergeEdges = (edges: Iterable<GraphEdge>): ReadonlyArray<GraphEdge> => {
+  const merged = new Map<string, { readonly edge: GraphEdge; readonly sources: Array<SourceRef> }>()
   for (const edge of edges) {
     const key = edgeKey(edge)
-    const declared = edge.sources ?? (edge.source ? [edge.source] : [])
-    const existing: Merging = merged.get(key) ?? { edge, attrs: new Map(), sources: [] }
+    const existing = merged.get(key) ?? { edge, sources: [] }
     merged.set(key, existing)
-    existing.sources.push(...declared)
-    for (const [k, value] of Object.entries(edge.attrs ?? {})) {
-      const kept = existing.attrs.get(k)
-      if (kept === undefined) existing.attrs.set(k, { value, source: edge.source })
-      else if (JSON.stringify(kept.value) !== JSON.stringify(value)) {
-        conflicts.push({ edge: existing.edge, key: k, kept, dropped: { value, source: edge.source } })
-      }
-    }
+    existing.sources.push(...edge.sources ?? (edge.source ? [edge.source] : []))
   }
-  return {
-    edges: [...merged.values()].map(({ attrs, edge, sources }) => ({
-      from: edge.from,
-      rel: edge.rel,
-      to: edge.to,
-      attrs: attrs.size > 0 ? Object.fromEntries([...attrs].map(([k, kept]) => [k, kept.value])) : undefined,
-      source: sources[0] ?? edge.source,
-      sources
-    })),
-    conflicts
-  }
+  return [...merged.values()].map(({ edge, sources }) => ({
+    from: edge.from,
+    rel: edge.rel,
+    to: edge.to,
+    source: sources[0] ?? edge.source,
+    sources
+  }))
 }
 
 /**
@@ -101,15 +67,11 @@ export class Graph {
   readonly #edges: ReadonlyArray<GraphEdge>
   readonly #out = new Map<string, Array<GraphEdge>>()
   readonly #in = new Map<string, Array<GraphEdge>>()
-  /** The declarations of one edge that disagreed on an attribute when the graph was built. */
-  readonly conflicts: ReadonlyArray<EdgeConflict>
 
   constructor(nodes: Iterable<GraphNode>, edges: Iterable<GraphEdge>) {
     for (const node of nodes) this.#nodes.set(node.id, freezeNode(node))
     this.#nodeList = Object.freeze([...this.#nodes.values()])
-    const merged = mergeEdges(edges)
-    this.conflicts = Object.freeze(merged.conflicts.map(freezeConflict))
-    this.#edges = Object.freeze(merged.edges.map(freezeEdge))
+    this.#edges = Object.freeze(mergeEdges(edges).map(freezeEdge))
     for (const edge of this.#edges) {
       push(this.#out, edge.from, edge)
       push(this.#in, edge.to, edge)
@@ -207,17 +169,8 @@ const freezeEdge = (edge: GraphEdge): GraphEdge =>
     from: edge.from,
     rel: edge.rel,
     to: edge.to,
-    attrs: edge.attrs && (frozen(edge.attrs) as Attrs),
     source: freezeSource(edge.source),
     sources: edge.sources && Object.freeze(edge.sources.map((s) => freezeSource(s)!))
-  })
-
-const freezeConflict = (conflict: EdgeConflict): EdgeConflict =>
-  Object.freeze({
-    edge: freezeEdge(conflict.edge),
-    key: conflict.key,
-    kept: Object.freeze({ value: frozen(conflict.kept.value), source: freezeSource(conflict.kept.source) }),
-    dropped: Object.freeze({ value: frozen(conflict.dropped.value), source: freezeSource(conflict.dropped.source) })
   })
 
 /**

@@ -47,7 +47,7 @@ Feature: Architecture
     Scenario: The nodes and edges it was built from are changed afterwards
       Given a graph built from a node "a" linked to "b" by "uses"
       When the nodes and edges it was built from are changed
-      Then the graph still has "a" -uses-> "b" via "http"
+      Then the graph still has "a" -uses-> "b", declared twice
       And nothing read from the graph can be changed
 
     Scenario Outline: An attribute that is not JSON data

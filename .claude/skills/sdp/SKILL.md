@@ -157,9 +157,9 @@ faster than grepping for a guess.
   ```
 
   A node is `{type, id, kind, title, file, line, attrs}`; an edge is
-  `{type, from, rel, to, attrs, declared: [{file, line}]}`. A rule is a node of kind `rule` that
-  is `rule-of` its spec, a scenario `verifies` its rule and its spec, and an element `imports`
-  each element whose code its code imports. `sdp graph -q '<pattern>'` exports only what a query
+  `{type, from, rel, to, declared: [{file, line}]}`, for a link has no attributes. A rule is a
+  node of kind `rule` that is `rule-of` its spec, a scenario `verifies` its rule and its spec, and
+  an element `imports` each element whose code its code imports. `sdp graph -q '<pattern>'` exports only what a query
   matches.
 - **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it and what
   each element imports),

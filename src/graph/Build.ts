@@ -331,17 +331,17 @@ export const buildProject = (input: ProjectInput): Project => {
     }
   }
   for (const annotation of annotations) {
-    const from = codeNodeId(annotation)
-    const { kind: _k, title: _t, ...attrs } = annotation.attrs
-    for (const to of annotation.targets) {
-      written({
-        from,
-        rel: annotation.rel,
-        to,
-        attrs: annotation.rel === vocabulary.relations.anchor || Object.keys(attrs).length === 0 ? undefined : attrs,
-        source: { file: annotation.file, line: annotation.line }
-      })
-    }
+    const source = { file: annotation.file, line: annotation.line }
+    for (const to of annotation.targets) written({ from: codeNodeId(annotation), rel: annotation.rel, to, source })
+    // A key=value describes the node a tag declares; a link has none to describe.
+    const values = Object.entries(annotation.attrs)
+    if (annotation.rel === vocabulary.relations.anchor || values.length === 0) continue
+    const said = values.map(([key, value]) => `${key}=${typeof value === "string" ? value : JSON.stringify(value)}`).join(" ")
+    diagnostics.push(diagnostic("annotation-ignored", {
+      message: `${said} describes no node: a link has no attributes`,
+      source,
+      hint: `delete it, or say it in the comment that describes the code; on an \`@sdp ${vocabulary.relations.anchor}\` tag it describes the node the tag declares`
+    }))
   }
 
   // A link reads as an attribute of the node it starts from. So it cannot carry the name of a fact
@@ -395,17 +395,6 @@ export const buildProject = (input: ProjectInput): Project => {
 
   const codeFiles = new Set(input.codeFiles.map((file) => file.path))
   const graph = new Graph(nodes.values(), [...links, ...importsBetweenElements(annotations, importsOf, codeFiles, nodes, vocabulary)])
-  for (const conflict of graph.conflicts) {
-    const { edge, key } = conflict
-    diagnostics.push(diagnostic("link-conflict", {
-      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${key} is ${JSON.stringify(conflict.dropped.value)} here but ${
-        JSON.stringify(conflict.kept.value)
-      } at ${formatSource(conflict.kept.source) || "?"}, which is kept`,
-      node: edge.from,
-      source: conflict.dropped.source,
-      hint: `give ${key} one value in every declaration of this link, or declare it once`
-    }))
-  }
 
   return {
     root: input.root,
