@@ -57,8 +57,6 @@ export interface CreateInput {
   readonly maturity?: string | undefined
   /** Directory to write to, relative to the workspace root or absolute (default: by kind). */
   readonly dir?: string | undefined
-  /** The id of the feature a change changes. */
-  readonly changes?: string | undefined
 }
 
 /** Why `sdp new` cannot make a file out of this input, or `undefined` when it can. */
@@ -71,14 +69,12 @@ const unusable = (input: CreateInput): string | undefined =>
     ? `the id ${JSON.stringify(input.id)} cannot name a file: write it without a slash, and choose the directory with --dir`
     : input.dir !== undefined && input.dir.trim() === ""
     ? "--dir needs a directory, relative to the workspace root or absolute"
-    : input.changes !== undefined && input.changes.trim() === ""
-    ? "--changes needs the id of the feature the change changes"
     : undefined
 
 /**
  * `sdp new`: a spec from a template, or for an element only its id, since its code declares it.
- * Refuses input it cannot make a file of, a change that names no feature, an id or a file that
- * exists, and a spec that would not read back.
+ * Refuses input it cannot make a file of, a change, which is rules of a feature, an id or a file
+ * that exists, and a spec that would not read back.
  */
 export const create = Effect.fn("create")(function*(root: string, input: CreateInput) {
   const reason = unusable(input)

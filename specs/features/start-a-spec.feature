@@ -82,15 +82,14 @@ Feature: Start a spec
         """
       And the file "specs/architecture/ARCH-orders.feature" does not exist
 
-  Rule: A new feature and a change to one are work still to come: they start in specs/incoming, and the answer says how each is written
+  Rule: A new feature is written where it stays, and a change has no file
 
-    A feature is built when its scenarios pass, and a change once its rules have joined those of the
-    feature it changes; until then neither is what the product does. A change that names no feature
-    has no rules to join, so it is refused.
+    Nothing moves when a feature is built. A change to it is rules of it at the maturity they have
+    reached, so it has no file of its own, unless a team has a kind of that name.
 
-    Scenario: A feature, and a change to it
+    Scenario: A feature, written where it stays
       When I run "sdp new feature 'Saved carts'"
-      Then the file "specs/incoming/saved-carts.feature" is:
+      Then the file "specs/features/saved-carts.feature" is:
         """
         @id=saved-carts @maturity=idea
         Feature: Saved carts
@@ -102,29 +101,21 @@ Feature: Start a spec
         next: a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         """
-      And the output contains "next: once its scenarios pass it is built: move it to specs/features/"
-      When I run "sdp new change 'Shared carts' --changes saved-carts"
-      Then the file "specs/incoming/shared-carts.feature" is:
-        """
-        @id=shared-carts @kind=change @changes:saved-carts @maturity=idea
-        Feature: Shared carts
-        """
-      And the output contains "next: say under the title what changes in saved-carts, for whom, and why"
-      And the output contains "next: once it is built its rules join those of saved-carts, and this file is deleted"
+      And the output contains "next: it stays in this file: once it is built, declare it @maturity=implemented, and a rule still to come after that with a maturity of its own above `Rule:`"
 
-    Scenario Outline: A change that names no feature
-      Given these specs:
-        | tags                                  | Feature            |
-        | @id=search-in-postgres @kind=decision | Search in Postgres |
-      When I run "sdp new change 'Voice search' <arguments>"
-      Then the exit code is 1
-      And the output contains "a change names the feature it changes, and <found>"
+    Scenario Outline: A change, <where>
+      Given a file "sdp.config.yaml" containing:
+        """
+        <config>
+        """
+      When I run "sdp new change 'Shared carts'"
+      Then the exit code is <exit code>
+      And the output contains "<answer>"
 
       Examples:
-        | arguments                    | found                            |
-        |                              | it names none                    |
-        | --changes search-in-postgres | search-in-postgres is a decision |
-        | --changes voice              | no spec has the id voice         |
+        | where                                   | config                                     | exit code | answer                                                                                      |
+        | as sdp has it                           | # every key at its default                 | 1         | a change is rules of the feature it changes: write each as a `Rule:` in that feature's file |
+        | in a workspace with a kind of that name | vocabulary: { words: { kinds: [change] } } | 0         | specs/change/shared-carts.feature                                                           |
 
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 
@@ -133,8 +124,8 @@ Feature: Start a spec
 
     Scenario: A kind without a template
       When I run "sdp new --help"
-      Then the output contains "feature, idea, change, decision, element, pattern, milestone, plan, phase, iteration, risk"
-      And the output contains "idea (default), draft, specified or ready"
+      Then the output contains "feature, idea, decision, element, pattern, milestone, plan, phase, iteration, risk"
+      And the output contains "idea (default), draft, specified, ready or implemented"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
@@ -155,8 +146,8 @@ Feature: Start a spec
         | arguments                                               | id                 | file                                      |
         | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/delivery/MS-kasse-fur-gaste.feature |
         | milestone 'Корзина'                                     | MS-0001            | specs/delivery/MS-0001.feature            |
-        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/incoming/gift-wrapping.feature      |
-        | feature 'Корзина'                                       | feature-0001       | specs/incoming/feature-0001.feature       |
+        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature      |
+        | feature 'Корзина'                                       | feature-0001       | specs/features/feature-0001.feature       |
         | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature     |
         | milestone 'Go-live'                                     | MS-go-live         | specs/delivery/MS-go-live.feature         |
         | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature           |
@@ -178,7 +169,7 @@ Feature: Start a spec
         features: ["requirements/**/*.feature"]
         """
       When I run "sdp -C shop new feature 'Gift cards'"
-      Then the output contains "specs/incoming/gift-cards.feature is matched by no features glob (requirements/**/*.feature)"
+      Then the output contains "specs/features/gift-cards.feature is matched by no features glob (requirements/**/*.feature)"
       When I run "sdp -C shop new feature 'Gift cards' --dir $PWD/elsewhere"
       Then the output contains "/elsewhere/gift-cards.feature is outside the workspace"
       When I run "sdp -C shop new feature 'Gift cards' --dir requirements"
@@ -188,31 +179,33 @@ Feature: Start a spec
 
     Scenario: Every template, at its first maturity level and above it
       Given specs created from the sdp new templates:
-        | kind      | title         | maturity  | changes       |
-        | gizmo     | Sprocket      | idea      |               |
-        | idea      | Gift wrapping |           |               |
-        | change    | Gift messages |           | gift-wrapping |
-        | pattern   | Outbox        |           |               |
-        | phase     | Elaboration   |           |               |
-        | milestone | Launch        |           |               |
-        | risk      | Outage        |           |               |
-        | feature   | Gift cards    | draft     |               |
-        | feature   | Returns       | specified |               |
-        | feature   | Wishlist      | ready     |               |
-        | decision  | Use Postgres  |           |               |
+        | kind      | title         | maturity    |
+        | gizmo     | Sprocket      | idea        |
+        | idea      | Gift wrapping |             |
+        | pattern   | Outbox        |             |
+        | phase     | Elaboration   |             |
+        | milestone | Launch        |             |
+        | risk      | Outage        |             |
+        | feature   | Gift cards    | draft       |
+        | feature   | Returns       | specified   |
+        | feature   | Wishlist      | ready       |
+        | feature   | Exports       | implemented |
+        | decision  | Use Postgres  |             |
       When the workspace is checked
       Then sdp reports:
         | rule                 | node         | line |
         | maturity-criteria    | gift-cards   | 1    |
         | maturity-criteria    | returns      | 1    |
         | maturity-criteria    | wishlist     | 1    |
+        | maturity-criteria    | exports      | 1    |
         | template-placeholder | returns      | 4    |
         | template-placeholder | wishlist     | 4    |
+        | template-placeholder | exports      | 4    |
         | template-placeholder | use-postgres | 4    |
 
     Scenario: From specified on, the file has a rule with a scenario to fill in
       When I run "sdp new feature 'Saved carts' --maturity specified"
-      Then the file "specs/incoming/saved-carts.feature" is:
+      Then the file "specs/features/saved-carts.feature" is:
         """
         @id=saved-carts @maturity=specified
         Feature: Saved carts
@@ -262,20 +255,20 @@ Feature: Start a spec
       When I run "sdp new feature Search"
       Then the exit code is 1
       And the output contains "id search already exists at specs/search.feature:1"
-      Given a file "specs/incoming/carts.feature" containing:
+      Given a file "specs/features/carts.feature" containing:
         """
         Notes on carts, not a spec.
         """
       When I run "sdp new feature Carts"
       Then the exit code is 1
-      And the output contains "specs/incoming/carts.feature already exists"
+      And the output contains "specs/features/carts.feature already exists"
 
     Scenario: An id that only a dangling link names is free: creating it resolves the link
       Given these specs:
         | tags                           | Feature |
         | @id=filters @depends-on:facets | Filters |
       When I run "sdp new feature Facets"
-      Then the output contains "facets\tspecs/incoming/facets.feature"
+      Then the output contains "facets\tspecs/features/facets.feature"
       When I run "sdp check"
       Then the exit code is 0
 

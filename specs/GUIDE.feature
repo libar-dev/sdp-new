@@ -139,7 +139,7 @@ Feature: sdp, shown by running it
       When I run "sdp init"
       Then the output contains "created sdp.config.yaml"
       When I run "sdp new idea 'Gift wrapping'"
-      Then the output lines are "gift-wrapping\tspecs/incoming/gift-wrapping.feature"
+      Then the output lines are "gift-wrapping\tspecs/features/gift-wrapping.feature"
       When I run "sdp new decision 'Use Postgres for orders'"
       Then the output lines are "use-postgres-for-orders\tspecs/decisions/use-postgres-for-orders.feature"
       When I run "sdp check"

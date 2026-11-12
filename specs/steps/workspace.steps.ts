@@ -70,7 +70,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
           kind: cell("kind"),
           title: cell("title"),
           maturity: cell("maturity") || undefined,
-          changes: cell("changes") || undefined,
           today: "2026-11-12",
           config: project.config,
           graph: project.graph

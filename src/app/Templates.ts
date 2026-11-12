@@ -9,16 +9,15 @@ import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, criteria, dayOf, hasKind, hasRelation, made, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
+import { attribute, criteria, criteriaOf, dayOf, hasKind, hasRelation, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
 
-/** Where a new spec goes, by the template it is written from, then by its kind. A feature or a change is not built yet. */
+/** Where a new spec goes, by the template it is written from, then by its kind. A feature stays where it is written, built or not. */
 const directoryFor: Record<string, string> = {
-  feature: "specs/incoming",
-  change: "specs/incoming",
+  feature: "specs/features",
   decision: "specs/decisions",
   pattern: "specs/architecture",
   milestone: "specs/delivery",
@@ -28,16 +27,13 @@ const directoryFor: Record<string, string> = {
   risk: "specs/risks"
 }
 
-/** Where a feature is once its scenarios pass. */
-const builtFeatures = "specs/features"
-
 /**
  * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
  * maturity idea, and an element is no file: its code declares it.
  */
-export const templateKinds = ["feature", "idea", "change", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
+export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
 
-type Template = "feature" | "change" | "decision" | "element" | "pattern" | "milestone" | "plan" | "phase" | "iteration" | "risk" | "generic"
+type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "plan" | "phase" | "iteration" | "risk" | "generic"
 
 /**
  * The template for a kind: the one of the role it plays in the workspace's vocabulary, so a team
@@ -46,8 +42,6 @@ type Template = "feature" | "change" | "decision" | "element" | "pattern" | "mil
 const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
   hasKind(vocabulary, "feature", kind)
     ? "feature"
-    : kind === "change"
-    ? "change"
     : hasKind(vocabulary, "decision", kind)
     ? "decision"
     : hasKind(vocabulary, "milestone", kind)
@@ -94,8 +88,9 @@ export interface NewSpec {
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
  * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
  * `sdp new element` no file: only the id its code declares, and how.
- * Fails, with the reason, when a change names no feature it changes, or when the content would not
- * read back with its id, kind and title: an element's id is read back too, though it has no file.
+ * Fails, with the reason, for a change, which is rules of the feature it changes unless the
+ * workspace names a kind `change` of its own, and when the content would not read back with its id,
+ * kind and title: an element's id is read back too, though it has no file.
  */
 export const newSpec = (options: {
   readonly kind: string
@@ -108,35 +103,25 @@ export const newSpec = (options: {
   readonly graph: Graph
   readonly id?: string | undefined
   readonly dir?: string | undefined
-  /** The id of the feature a change changes. */
-  readonly changes?: string | undefined
 }): Result.Result<NewSpec, string> => {
-  const { changes, config, dir, graph, title } = options
+  const { config, dir, graph, title } = options
   const { vocabulary } = config
   const feature = wordFor(vocabulary.kinds.feature)
   const kind = options.kind === "idea" ? feature : options.kind
   const maturity = options.maturity ?? vocabulary.maturity[0]!
   const id = options.id ?? newId(kind, title, config, graph.nodes().map((node) => node.id))
   const template = templateOf(kind, vocabulary)
-  if (template !== "change" && changes !== undefined) {
-    return Result.fail(`only a change names the ${feature} it changes: sdp new change "<title>" --changes ${changes}`)
-  }
-  const changed = changes === undefined ? undefined : graph.node(changes)
-  if (template === "change" && (changed === undefined || !hasKind(vocabulary, "feature", changed.kind))) {
-    const found = changes === undefined
-      ? "it names none"
-      : changed === undefined || changed.kind === made.kinds.missing
-      ? `no spec has the id ${changes}`
-      : `${changes} is a ${changed.kind}`
+  // A change to a feature is no spec of its own, unless the workspace names a kind `change`.
+  if (kind === "change" && !vocabularyWords(vocabulary).kinds.includes(kind)) {
     return Result.fail(
-      `a ${kind} names the ${feature} it changes, and ${found}: sdp new ${kind} "<title>" --changes <id>, where sdp q ${feature} --ids lists the ids`
+      `a change is rules of the ${feature} it changes: write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
     )
   }
-  const next = guidance({ kind, id, maturity, config, changes })
+  const next = guidance({ kind, id, maturity, config })
   const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
   const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")
   const file = `${directory}/${id}.feature`
-  const content = specTemplate({ kind, id, title, maturity, today: options.today, config, graph, changes })
+  const content = specTemplate({ kind, id, title, maturity, today: options.today, config, graph })
   const back = parseFeatureSpec(file, content, config).spec
   // An element is no file, but its id is written in tags all the same, so it is read back as any other.
   if (template === "element") {
@@ -197,11 +182,10 @@ const specTemplate = (options: {
   readonly today: string
   readonly config: Config
   readonly graph: Graph
-  readonly changes: string | undefined
 }): string => {
-  const { changes, config, graph, id, kind, maturity, title, today } = options
+  const { config, graph, id, kind, maturity, title, today } = options
   const { vocabulary } = config
-  const level = Math.max(0, levels.indexOf(maturity))
+  const level = Math.max(0, levels.indexOf(criteriaOf(vocabulary, maturity) ?? ""))
   // The kind is written only when the id's prefix does not give it.
   const identity = [`@id=${id}`, ...(inferKind(id, config) === kind ? [] : [`@kind=${kind}`])]
   const feature = (tags: ReadonlyArray<string>, ...body: ReadonlyArray<string>) =>
@@ -229,7 +213,7 @@ const specTemplate = (options: {
       return feature([...identity, ...inPhase, `@${startKey}=${start}`, `@${endKey}=${addDays(start, 13)}`])
     }
   }
-  const tags = [...identity, ...(changes === undefined ? [] : [`@changes:${changes}`]), `@maturity=${maturity}`]
+  const tags = [...identity, `@maturity=${maturity}`]
   if (level < 2) return feature(tags)
   // From specified on the criteria ask for a scenario that states an outcome: a rule and its first example, to fill in.
   return feature(
@@ -254,9 +238,8 @@ const guidance = (options: {
   readonly id: string
   readonly maturity: string
   readonly config: Config
-  readonly changes: string | undefined
 }): ReadonlyArray<string> => {
-  const { changes, config, id, kind, maturity } = options
+  const { config, id, kind, maturity } = options
   const { vocabulary } = config
   const { anchor } = vocabulary.relations
   const activity = vocabulary.attributes.activity
@@ -273,14 +256,7 @@ const guidance = (options: {
         "a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users",
         "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         `plan it: ${plan}`,
-        `once its scenarios pass it is built: move it to ${builtFeatures}/`
-      ]
-    case "change":
-      return [
-        `say under the title what changes in ${changes}, for whom, and why`,
-        "write each rule it adds or changes as a `Rule:` with its reason and its examples, and what is still unknown as a `Rule:` tagged `@open`",
-        `plan it: ${plan}`,
-        `once it is built its rules join those of ${changes}, and this file is deleted`
+        `it stays in this file: once it is built, declare it @maturity=${vocabulary.implemented}, and a rule still to come after that with a maturity of its own above \`Rule:\``
       ]
     case "decision":
       return [
@@ -327,7 +303,7 @@ const guidance = (options: {
         `elements that apply it link \`@instance-of:${id}\`; what decided it, \`@decided-by:<decision>\``
       ]
     case "generic": {
-      const level = levels.indexOf(maturity)
+      const level = levels.indexOf(criteriaOf(vocabulary, maturity) ?? "")
       return [
         level <= 0
           ? "write the idea in a sentence under the title"
@@ -360,6 +336,7 @@ export const configTemplate = [
   `# types: ${defaults.types}         # written by \`sdp types\`: types the ids annotate() accepts`,
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
   `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]`,
+  `#   implemented: ${defaults.vocabulary.implemented}     # the rung that says built: below it, work is still to come`,
   `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,
   `#   relations: { plan: [${defaults.vocabulary.relations.plan.join(", ")}] }    # relations that plan a node into an iteration`,
   "#   disciplines: {}            # merged with the RUP disciplines, e.g. { operations: [runbook] }",

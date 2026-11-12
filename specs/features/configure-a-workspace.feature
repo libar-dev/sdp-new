@@ -221,13 +221,11 @@ Feature: Configure a workspace
         sdp new sprint Baseline --id IT-baseline
         sdp new checkpoint Launch
         sdp new story Wishlist
-        sdp new change 'Shared wishlists' --changes wishlist
         """
       Then the exit code is 0
       And the file "specs/delivery/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
       And the file "specs/delivery/launch.feature" contains "@id=launch @kind=checkpoint @ends:ERA-elaboration"
-      And the file "specs/incoming/wishlist.feature" contains "@id=wishlist @maturity=idea"
-      And the file "specs/incoming/shared-wishlists.feature" contains "@changes:wishlist"
+      And the file "specs/features/wishlist.feature" contains "@id=wishlist @maturity=idea"
       When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
       Then the output lines are "IT-baseline"
       When I run "sdp check --json"
