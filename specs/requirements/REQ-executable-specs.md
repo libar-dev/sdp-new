@@ -310,14 +310,16 @@ Scenario: Changing what step definitions import leaves their results stale, and 
     """
     export const lamps = 1
     """
-  When I run "sdp run"
-  Then the output contains "1 gate scenario(s): 1 passed"
+  When I run "sdp run --json"
+  Then the JSON output has:
+    | data.gates.passed | 1 |
   Given a file "specs/steps/lamps.ts" containing:
     """
     export const lamps = 2
     """
-  When I run "sdp status"
-  Then the output contains "stale         code-changed 2"
+  When I run "sdp status --json"
+  Then the JSON output has:
+    | data.stale.code-changed | 2 |
   When I run "sdp gate MS-beta"
   Then the exit code is 1
   And the output contains 'REQ-cart.stage is "ready", expected "verified"'
@@ -343,16 +345,19 @@ Scenario: A file a handler imports only while it runs is part of what the result
     """
     export const lamps = 1
     """
-  When I run "sdp run"
-  Then the output contains "1 scenario(s): 1 passed"
-  When I run "sdp status"
-  Then the output does not contain "stale"
+  When I run "sdp run --json"
+  Then the JSON output has:
+    | data.summary.passed | 1 |
+  When I run "sdp status --json"
+  Then the JSON output has:
+    | data.stale | {} |
   Given a file "specs/steps/lamps.ts" containing:
     """
     export const lamps = 2
     """
-  When I run "sdp status"
-  Then the output contains "stale         code-changed 1"
+  When I run "sdp status --json"
+  Then the JSON output has:
+    | data.stale.code-changed | 1 |
 
 Scenario: A file the step definitions no longer import no longer counts
   Given a file "specs/steps/cart.steps.ts" containing:
@@ -392,9 +397,10 @@ Scenario: A file the step definitions no longer import no longer counts
     """
     export const lamps = 2
     """
-  When I run "sdp status"
+  When I run "sdp status --json"
   Then the exit code is 0
-  And the output does not contain "stale"
+  And the JSON output has:
+    | data.stale | {} |
 
 Scenario: Each result is compared with the files its own run imported
   Given a file "specs/REQ-wishlist.md" containing:
@@ -426,11 +432,13 @@ Scenario: Each result is compared with the files its own run imported
     """
     export const lamps = 1
     """
-  When I run "sdp run REQ-cart"
-  Then the output contains "1 scenario(s): 1 passed"
-  When I run "sdp run REQ-wishlist"
-  Then the output contains "1 scenario(s): 1 passed"
-  And the output does not contain "stale"
+  When I run "sdp run REQ-cart --json"
+  Then the JSON output has:
+    | data.summary.passed | 1 |
+  When I run "sdp run REQ-wishlist --json"
+  Then the JSON output has:
+    | data.summary.passed | 1  |
+    | data.stale          | {} |
   Given a file "specs/steps/lamps.ts" containing:
     """
     export const lamps = 2
@@ -492,10 +500,12 @@ Scenario: A declared environment variable is part of the evidence, and only its 
   When I run "SHOP_REGION=atlantis sdp run"
   Then the output contains "1 scenario(s): 1 passed"
   And the file ".sdp/results.json" does not contain "atlantis"
-  When I run "SHOP_REGION=atlantis sdp status"
-  Then the output does not contain "stale"
-  When I run "SHOP_REGION=lemuria sdp status"
-  Then the output contains "stale         inputs-changed 1"
+  When I run "SHOP_REGION=atlantis sdp status --json"
+  Then the JSON output has:
+    | data.stale | {} |
+  When I run "SHOP_REGION=lemuria sdp status --json"
+  Then the JSON output has:
+    | data.stale.inputs-changed | 1 |
 ~~~
 
 ### Step definitions
@@ -694,8 +704,9 @@ Scenario: A step module imports sdp without installing it
       })
     })
     """
-  When I run "sdp run"
-  Then the output contains "1 scenario(s): 1 passed"
+  When I run "sdp run --json"
+  Then the JSON output has:
+    | data.summary.passed | 1 |
 
 Scenario: Annotated application code under test imports sdp/annotations without installing it
   Given a file "src/cart.ts" containing:
@@ -720,8 +731,9 @@ Scenario: Annotated application code under test imports sdp/annotations without 
       })
     })
     """
-  When I run "sdp run"
-  Then the output contains "1 scenario(s): 1 passed"
+  When I run "sdp run --json"
+  Then the JSON output has:
+    | data.summary.passed | 1 |
 
 Scenario: The step API loads no parser and reads no workspace
   When a fresh Node process imports "sdp/steps"
@@ -777,8 +789,9 @@ Scenario: A step definition is read whether its registrar is destructured, renam
   Then the exit code is 0
   And the output contains "specs/steps/cart.steps.ts:4\tGiven\tan empty cart"
   And the output contains "specs/steps/more.steps.ts:4\tStep\t/^the cart holds [0-9]+ items?$/"
-  When I run "sdp run"
-  Then the output contains "1 scenario(s): 1 passed"
+  When I run "sdp run --json"
+  Then the JSON output has:
+    | data.summary.passed | 1 |
 
 Scenario: A step registered other than by a statement of its own is reported, never guessed
   Given a file "specs/steps/cart.steps.ts" containing:
@@ -801,8 +814,9 @@ Scenario: A step registered other than by a statement of its own is reported, ne
   And the output contains "1 step definition(s)"
   And the output contains "not read: specs/steps/cart.steps.ts:8: this statement registers steps under a condition, in a loop or through another name"
   And the output contains "not read: specs/steps/cart.steps.ts:9:"
-  When I run "sdp run"
-  Then the output contains "1 scenario(s): 1 passed"
+  When I run "sdp run --json"
+  Then the JSON output has:
+    | data.summary.passed | 1 |
 
 Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
   Given a file "specs/steps/cart.steps.ts" containing:

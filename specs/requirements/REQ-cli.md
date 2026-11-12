@@ -915,10 +915,12 @@ What a run executes, records and leaves stale is [[REQ-executable-specs]]'s.
 
 ~~~gherkin
 Scenario: An unmet gate does not fail the run, sdp gate enforces it
-  When I run "sdp run"
+  When I run "sdp run --json"
   Then the exit code is 0
-  And the output contains "2 scenario(s): 1 passed, 1 undefined"
-  And the output contains "1 gate scenario(s): 1 failed"
+  And the JSON output has:
+    | data.summary.passed    | 1 |
+    | data.summary.undefined | 1 |
+    | data.gates.failed      | 1 |
   When I run "sdp gate MS-beta"
   Then the exit code is 1
 

@@ -80,9 +80,9 @@ Rule: A result cut short says so and names the limit, unless the limit could not
     And the result is <completeness>
 
     Examples:
-      | query              | result  | completeness |
-      | #N1 ?-next+-> #N2  | N1      | complete     |
-      | #N1 !-next+-> #N2  | nothing | complete     |
-      | #N1 ?-next+-> #N15 | nothing | truncated    |
-      | #N1 !-next+-> #N15 | N1      | truncated    |
+      | query              | result  | completeness                                               |
+      | #N1 ?-next+-> #N2  | N1      | complete                                                   |
+      | #N1 !-next+-> #N2  | nothing | complete                                                   |
+      | #N1 ?-next+-> #N15 | nothing | truncated because "a + edge reaches further than 12 hops" |
+      | #N1 !-next+-> #N15 | N1      | truncated because "a + edge reaches further than 12 hops" |
 ~~~
