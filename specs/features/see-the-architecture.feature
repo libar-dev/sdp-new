@@ -12,15 +12,15 @@ Feature: See the architecture
 
   Background:
     Given these specs:
-      | tags                                                                                                       | Feature                                 |
-      | @id=ARCH-orders @decided-by:publish-through-an-outbox @instance-of:PAT-outbox @constrained-by:order-latency | Orders                                  |
-      | @id=PAT-outbox                                                                                             | Transactional outbox                    |
-      | @id=publish-through-an-outbox @kind=decision                                                               | Orders publish events through an outbox |
-      | @id=json-logs @kind=decision                                                                               | Logs are JSON                           |
-      | @id=order-latency @kind=nfr                                                                                | Order latency                           |
-      | @id=numbered-receipts @kind=decision                                                                       | Receipts are numbered without gaps      |
-      | @id=refunds @depends-on:receipts @decided-by:credit-notes                                                  | Refunds                                 |
-      | @id=credit-notes @kind=decision                                                                            | A refund is a credit note               |
+      | tags                                                                                                                       | Feature                                 |
+      | @id=ARCH-orders @maturity=idea @decided-by:publish-through-an-outbox @instance-of:PAT-outbox @constrained-by:order-latency | Orders                                  |
+      | @id=PAT-outbox @maturity=idea                                                                                              | Transactional outbox                    |
+      | @id=publish-through-an-outbox @kind=decision                                                                               | Orders publish events through an outbox |
+      | @id=json-logs @kind=decision                                                                                               | Logs are JSON                           |
+      | @id=order-latency @maturity=idea @kind=nfr                                                                                 | Order latency                           |
+      | @id=numbered-receipts @kind=decision                                                                                       | Receipts are numbered without gaps      |
+      | @id=refunds @maturity=idea @depends-on:receipts @decided-by:credit-notes                                                   | Refunds                                 |
+      | @id=credit-notes @kind=decision                                                                                            | A refund is a credit note               |
     And a file "specs/receipts.feature" containing:
       """
       @id=receipts @maturity=idea @realized-by:ARCH-orders
@@ -34,7 +34,7 @@ Feature: See the architecture
       """
     And a file "specs/ARCH-billing.feature" containing:
       """
-      @id=ARCH-billing
+      @id=ARCH-billing @maturity=idea
       Feature: Billing
 
         Owns invoices; tax rules are regulated and costly to change. It writes logs as json-logs says.

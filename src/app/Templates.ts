@@ -195,8 +195,6 @@ const specTemplate = (options: {
   switch (templateOf(kind, vocabulary)) {
     case "decision":
       return feature(identity, `  ${decisionPlaceholder}`)
-    case "pattern":
-    case "risk":
     case "plan":
     case "phase":
       return feature(identity)

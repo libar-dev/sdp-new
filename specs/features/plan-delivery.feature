@@ -21,7 +21,7 @@ Feature: Plan delivery
       | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 @end=2026-02-13 | Prototype   |
       | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-27  | Baseline    |
       | @id=alpha @maturity=idea @iteration:IT-prototype                         | Alpha       |
-      | @id=ARCH-x @iteration:IT-prototype                                       | An element  |
+      | @id=ARCH-x @maturity=idea @iteration:IT-prototype                        | An element  |
     And a file "specs/MS-objectives.feature" containing:
       """
       @id=MS-objectives @closes:PH-inception
@@ -66,7 +66,7 @@ Feature: Plan delivery
         | data.phases                    | PH-inception, PH-elaboration        |
         | data.iterations                | IT-scope, IT-prototype, IT-baseline |
         | data.disciplines.requirements  | 0, 1, 0                             |
-        | data.work.evidence.stages.idea | 1                                   |
+        | data.work.evidence.stages.idea | 2                                   |
 
   Rule: Before there is a plan, sdp lifecycle says how to write one, and the templates write a plan it shows
 
@@ -329,7 +329,7 @@ Feature: Plan delivery
       Then the iterations are:
         | id           | plans                          | stages  |
         | IT-scope     |                                |         |
-        | IT-prototype | ARCH-x, alpha                  | idea:1  |
+        | IT-prototype | ARCH-x, alpha                  | idea:2  |
         | IT-baseline  | cart#a-cart-is-kept-for-a-week | draft:1 |
       And the planned activity is:
         | discipline   | IT-prototype | IT-baseline |
@@ -463,7 +463,7 @@ Feature: Plan delivery
       And the iterations are:
         | id           | stages     |
         | IT-scope     |            |
-        | IT-prototype | idea:1     |
+        | IT-prototype | idea:2     |
         | IT-baseline  | verified:1 |
 
   Rule: The next milestone shows its gate one scenario at a time, as last run
@@ -530,7 +530,7 @@ Feature: Plan delivery
         | @id=beta @maturity=idea | Beta    |
       When the workspace is run
       Then node "MS-objectives#every-feature-is-in-an-iteration" has attribute status = "failed"
-      And sdp status counts the stages "idea:2"
+      And sdp status counts the stages "idea:3"
 
   Rule: sdp gate --record writes @met on a milestone whose gate passes as the workspace is when it is written, and on no other
 
@@ -718,8 +718,8 @@ Feature: Plan delivery
 
     Scenario Outline: What is wrong with each reference
       Given these specs:
-        | tags            | Feature |
-        | @id=beta <tags> | Beta    |
+        | tags                           | Feature |
+        | @id=beta @maturity=idea <tags> | Beta    |
       When the workspace is checked
       Then sdp reports:
         | rule           | severity | node | at                   | message   |
@@ -737,8 +737,8 @@ Feature: Plan delivery
 
     Scenario: A feature planned into what the plan declares
       Given these specs:
-        | tags                                                                                                                                               | Feature |
-        | @id=beta @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline | Beta    |
+        | tags                                                                                                                                                              | Feature |
+        | @id=beta @maturity=idea @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline | Beta    |
       When the workspace is checked
       Then sdp reports nothing
 

@@ -250,6 +250,22 @@ Feature: Check specs
         | that is still to come | @id=export-to-csv @maturity=ready | nothing          | 0         |
         | named by its path     |                                   | nothing          | 1         |
 
+    Scenario Outline: A spec <declaring>, before its first rule
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        <tags>
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | declaring             | tags              | reported         |
+        | that declares nothing | @id=export-to-csv | maturity-missing |
+        | named by its path     |                   | nothing          |
+
   Rule: Content ahead of its label is no error, only an info that the spec can be promoted
 
     Maturity is the team's judgement of how well a thing is understood: a claim below what the
@@ -360,9 +376,9 @@ Feature: Check specs
 
     Scenario Outline: A planning link written as a value, an activity without its discipline, a tag without a value
       Given these specs:
-        | tags                        | Feature |
-        | @id=IT-beta @kind=iteration | Beta    |
-        | @id=reports <tags>          | Reports |
+        | tags                              | Feature |
+        | @id=IT-beta @kind=iteration       | Beta    |
+        | @id=reports @maturity=idea <tags> | Reports |
       When the workspace is checked
       Then sdp reports:
         | rule   | at                      | message   | hint   |
@@ -380,8 +396,8 @@ Feature: Check specs
 
     Scenario: A spec written as Markdown beside the feature files, and a README elsewhere
       Given these specs:
-        | tags        | Feature |
-        | @id=reports | Reports |
+        | tags                       | Feature |
+        | @id=reports @maturity=idea | Reports |
       And a file "specs/checkout.md" containing:
         """
         # Checkout

@@ -231,13 +231,13 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  // A spec that declares no maturity is implemented: check asks for it, and holds each of its rules
-  // to what ready asks, as a run holds their examples. A decision and the plan's nodes are no such work.
+  // A spec that declares no maturity is implemented, from the day it is written: check asks for it,
+  // and holds each of its rules to what ready asks, as a run holds their examples. A decision and
+  // the plan's nodes are no such work.
   const { implemented } = vocabulary
   for (const spec of project.specs) {
     if (spec.id === suiteId(spec.file) || attribute(spec, "maturity") !== undefined) continue
     if (hasKind(vocabulary, "decision", spec.kind) || isPlanKind(vocabulary, spec.kind)) continue
-    if (spec.rules.length === 0 && spec.scenarios.length === 0) continue
     out.push(diagnostic("maturity-missing", {
       message: `${spec.id} declares no maturity, so it is ${implemented}: its examples fail a run that they do not pass`,
       node: spec.id,
