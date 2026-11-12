@@ -3,7 +3,6 @@
 
 declare module "sdp/annotations" {
   interface Ids {
-    "AGENTS": "guide"
     "ARCH-architecture-view": "element"
     "ARCH-checker": "element"
     "ARCH-cli": "element"
@@ -38,6 +37,7 @@ declare module "sdp/annotations" {
     "DEC-0010": "decision"
     "E1": "iteration"
     "E2": "iteration"
+    "GUIDE": "guide"
     "I1": "iteration"
     "MS-beta": "milestone"
     "MS-IOC": "milestone"
@@ -55,7 +55,6 @@ declare module "sdp/annotations" {
     "PH-inception": "phase"
     "PH-transition": "phase"
     "PLAN": "plan"
-    "README": "guide"
     "REQ-agent-context": "requirement"
     "REQ-builtin-steps": "requirement"
     "REQ-check-rules": "requirement"

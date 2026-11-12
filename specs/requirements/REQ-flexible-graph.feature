@@ -1,0 +1,159 @@
+@id=REQ-flexible-graph @maturity=ready @graph
+@refines:CAP-living-specs @realized-by:ARCH-graph @realized-by:ARCH-graph-builder @realized-by:ARCH-code-annotations @realized-by:ARCH-vocabulary @decided-by:DEC-0002 @decided-by:DEC-0003
+@iteration:I1 @activity.implementation:I1 @activity.test:I1
+Feature: A free-form system graph
+
+  The full state of the system — specs, scenarios, decisions, architecture, plan, code links — is
+  one graph. Node kinds, relation names and attributes are whatever the authors write
+  (DEC-0002), so teams model what matters to them and agents can follow any edge. Authors link
+  nodes where they write — in front matter, in prose, in code — and every node and edge records the
+  `file:line` it came from.
+
+  Scenario: Kinds and relations are named by their author
+    Given a file "specs/ARCH-orders.md" containing:
+      """
+      ---
+      id: ARCH-orders
+      kind: bounded-context
+      links:
+        publishes-to: ARCH-event-bus
+        guarded-by: { to: DEC-0001, since: "2026-03" }
+      ---
+      # Orders
+      """
+    And a file "specs/ARCH-event-bus.md" containing:
+      """
+      ---
+      id: ARCH-event-bus
+      kind: element
+      ---
+      # Event bus
+      """
+    And a file "specs/DEC-0001.md" containing:
+      """
+      ---
+      id: DEC-0001
+      ---
+      # Events over calls
+      """
+    When the workspace is loaded
+    Then node "ARCH-orders" has attribute kind = "bounded-context"
+    And the workspace graph has edges:
+      | from        | rel          | to             |
+      | ARCH-orders | publishes-to | ARCH-event-bus |
+      | ARCH-orders | guarded-by   | DEC-0001       |
+
+  Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] links
+    Given a file "specs/REQ-refunds.md" containing:
+      """
+      ---
+      id: REQ-refunds
+      maturity: draft
+      ---
+      # Refunds
+
+      Follows the policy in [[DEC-0001]].
+
+      realized-by:: [[ARCH-orders]]
+      """
+    And a file "specs/ARCH-orders.md" containing:
+      """
+      ---
+      id: ARCH-orders
+      kind: element
+      ---
+      # Orders
+      """
+    And a file "specs/DEC-0001.md" containing:
+      """
+      ---
+      id: DEC-0001
+      ---
+      # Refund policy
+      """
+    When the workspace is loaded
+    Then the workspace graph has edges:
+      | from        | rel         | to          |
+      | REQ-refunds | mentions    | DEC-0001    |
+      | REQ-refunds | realized-by | ARCH-orders |
+
+  Scenario Outline: A link reads the same whichever way it is written, as an edge and as an attribute of the node it starts from
+    Given a file "specs/plan.md" containing:
+      """
+      ---
+      id: PLAN
+      nodes:
+        - { id: I1, kind: iteration }
+        - { id: I2, kind: iteration }
+      ---
+      # Plan
+      """
+    And a file "specs/REQ-a.md" containing:
+      """
+      ---
+      id: REQ-a
+      <plan>
+      ---
+      # A
+      """
+    When I query "*[<key>=I1]"
+    Then the result is "REQ-a"
+    When I query "* ?-<key>-> #I1"
+    Then the result is "REQ-a"
+
+    Examples:
+      | plan                                    | key                     |
+      | iteration: I1                           | iteration               |
+      | iteration: [I2, I1]                     | iteration               |
+      | iteration: I2, I1                       | iteration               |
+      | links: { iteration: I1 }                | iteration               |
+      | links: { iteration: { to: I1, why: x } } | iteration              |
+      | activity: { implementation: [I1] }      | activity.implementation |
+
+  Scenario: A link key holds its targets, not the text they were written as
+    Given a file "specs/REQ-a.md" containing:
+      """
+      ---
+      id: REQ-a
+      iteration: I1, I2
+      nodes:
+        - { id: I1, kind: iteration }
+        - { id: I2, kind: iteration }
+      ---
+      # A
+      """
+    When I query '*[iteration="I1, I2"]'
+    Then the result is "nothing"
+    When I query "*[iteration=I2]"
+    Then the result is "REQ-a"
+
+  Scenario: Any word is just a word: constructor is a kind, a relation and an attribute like any other
+    Given a file "sdp.config.yaml" containing:
+      """
+      vocabulary: { maturity: [constructor, toString] }
+      """
+    And a file "specs/REQ-a.md" containing:
+      """
+      ---
+      id: REQ-a
+      kind: constructor
+      maturity: toString
+      __proto__: { valueOf: 1 }
+      links: { hasOwnProperty: { to: REQ-a, __proto__: yes } }
+      ---
+      # A
+      """
+    When the workspace is checked
+    Then sdp reports nothing
+    And sdp status counts the stages "toString:1"
+    When I query "constructor[maturity>constructor]"
+    Then the result is "REQ-a"
+    When I query "*[__proto__.valueOf=1, hasOwnProperty=REQ-a]"
+    Then the result is "REQ-a"
+    When I query "*[toString]"
+    Then the result is "nothing"
+    When the graph is exported
+    Then the output contains '"__proto__":{"valueOf":1}'
+    And the output contains '"rel":"hasOwnProperty","to":"REQ-a","attrs":{"__proto__":"yes"}'
+    When I run "sdp new constructor 'Odd one'"
+    Then the exit code is 0
