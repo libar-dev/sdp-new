@@ -7,82 +7,79 @@ Feature: Decision records
   force because its file exists: what is undecided is an open question on the spec it blocks, what
   changed is rewritten, and git keeps the rest. Record one only for a choice that is hard to
   reverse, surprising without context and a real trade-off; any other choice is a sentence, or a
-  resolved open question, in the spec it concerns.
+  rule, in the spec it concerns.
 
-  Scenario: A decision is a title and a sentence
-    Given a file "specs/DEC-0001.md" containing:
-      """
-      ---
-      id: DEC-0001
-      ---
-      # Retire legacy billing
+  Rule: A decision is a title and one to three sentences
 
-      Not a wrapper around it, because every new caller would keep it alive.
-      """
-    When the workspace is checked
-    Then sdp reports nothing
-    And node "DEC-0001" has attribute kind = "decision"
+    Scenario: A title and a sentence
+      Given a file "specs/DEC-0001.feature" containing:
+        """
+        @id=DEC-0001
+        Feature: Retire legacy billing
 
-  Scenario Outline: A decision that grows a section or a scenario is reported
-    Given a file "specs/DEC-0001.md" containing:
-      """
-      ---
-      id: DEC-0001
-      ---
-      # Retire legacy billing
+          Not a wrapper around it, because every new caller would keep it alive.
+        """
+      When the workspace is checked
+      Then sdp reports nothing
+      And node "DEC-0001" has attribute kind = "decision"
 
-      Not a wrapper around it, because every new caller would keep it alive.
+    Scenario Outline: A decision that grows a rule or a scenario is reported
+      Given a file "specs/DEC-0001.feature" containing:
+        """
+        @id=DEC-0001
+        Feature: Retire legacy billing
 
-      <more>
-      """
-    When the workspace is checked
-    Then sdp reports at least:
-      | rule           | node     | at                       |
-      | decision-shape | DEC-0001 | specs/DEC-0001.md:<line> |
+          Not a wrapper around it, because every new caller would keep it alive.
 
-    Examples:
-      | more                                                                              | line |
-      | ## Consequences\n\nInvoices move to the new module.                               | 8    |
-      | ```gherkin\nScenario: Nothing calls legacy billing\n  Then nothing calls it\n```  | 9    |
+          <more>
+        """
+      When the workspace is checked
+      Then sdp reports at least:
+        | rule           | node     | at                       |
+        | decision-shape | DEC-0001 | specs/DEC-0001.feature:6 |
 
-  Scenario: The rule a decision leads to is a scenario of what it constrains, which links back
-    Given a file "specs/DEC-0001.md" containing:
-      """
-      ---
-      id: DEC-0001
-      ---
-      # Retire legacy billing
+      Examples:
+        | more                                                            |
+        | Rule: Nothing calls legacy billing                              |
+        | Scenario: Nothing calls legacy billing\n  Then nothing calls it |
 
-      Not a wrapper around it, because every new caller would keep it alive.
-      """
-    And a file "specs/ARCH-legacy-billing.md" containing:
-      """
-      ---
-      id: ARCH-legacy-billing
-      links:
-        decided-by: DEC-0001
-      ---
-      # Legacy billing
+    Scenario: A new decision asks what was chosen over what, and why
+      When I run "sdp new decision 'Use Postgres for orders' --dir specs"
+      Then the file "specs/DEC-0001.feature" contains "Not <what a reasonable person would have chosen>, because <why>."
+      When I run "sdp check --json"
+      Then the JSON output has:
+        | data.rule | template-placeholder |
+        | data.node | DEC-0001             |
 
-      ```gherkin
-      Scenario: Nothing new calls legacy billing
-        Then the query "code -uses-> #ARCH-legacy-billing" returns no results
-      ```
-      """
-    And a file "src/invoices.ts" containing:
-      """
-      // @sdp uses ARCH-legacy-billing
-      export function invoice() {}
-      """
-    When the workspace is checked
-    Then sdp reports nothing
-    When the workspace is run
-    Then node "ARCH-legacy-billing#nothing-new-calls-legacy-billing" has attribute status = "failed"
+  Rule: The rule a decision leads to is a rule of what it constrains, which links back to the decision
 
-  Scenario: A new decision asks what was chosen over what, and why
-    When I run "sdp new decision 'Use Postgres for orders' --dir specs"
-    Then the file "specs/DEC-0001.feature" contains "Not <what a reasonable person would have chosen>, because <why>."
-    When I run "sdp check --json"
-    Then the JSON output has:
-      | data.rule | template-placeholder |
-      | data.node | DEC-0001             |
+    Scenario: A rule of legacy billing rests on the decision to retire it, and fails while code still calls it
+      Given a file "specs/DEC-0001.feature" containing:
+        """
+        @id=DEC-0001
+        Feature: Retire legacy billing
+
+          Not a wrapper around it, because every new caller would keep it alive.
+        """
+      And a file "specs/ARCH-legacy-billing.feature" containing:
+        """
+        @id=ARCH-legacy-billing
+        Feature: Legacy billing
+
+          @decided-by:DEC-0001
+          Rule: Nothing new calls legacy billing
+
+            Scenario: No code uses it
+              Then the query "code -uses-> #ARCH-legacy-billing" returns no results
+        """
+      And a file "src/invoices.ts" containing:
+        """
+        // @sdp uses ARCH-legacy-billing
+        export function invoice() {}
+        """
+      When the workspace is checked
+      Then sdp reports nothing
+      When I query "#DEC-0001 <-decided-by- rule"
+      Then the result is "ARCH-legacy-billing#nothing-new-calls-legacy-billing"
+      When the workspace is run
+      Then node "ARCH-legacy-billing#no-code-uses-it" has attribute status = "failed"

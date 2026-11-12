@@ -3,14 +3,20 @@
 @iteration:C1 @activity.analysis-design:C2 @activity.implementation:C3 @activity.test:C3 @activity.test:T1
 Feature: Interactive graph explorer
 
-  Stakeholders who do not live in a terminal need to browse the curated architecture, follow a
-  requirement to its decisions and code, and see the lifecycle chart (RISK-0005). A static page
-  generated from the graph would cover reading; editing stays in the files.
+  Stakeholders who do not live in a terminal have nowhere to read the graph: the curated
+  architecture, the way from a requirement to its decisions and code, the lifecycle chart.
+
+  Rule: A reader browses the architecture as sdp arch shows it
+
+  Rule: A reader follows a requirement to its decisions and its code
+
+  Rule: A reader sees the lifecycle chart
+
+  @decided-by:DEC-0003
+  Rule: The explorer only reads: an edit is made in the files
 
   @open
-  Rule: Static HTML export or a local server that watches files?
+  Rule: A static HTML export, or a local server that watches the files?
 
   @open
-  Rule: Should the explorer show the code nodes behind each element at all, or only on demand?
-
-  # TODO(convert): resolved, make it a rule or delete it: Editing in the browser? No — files stay the source of truth (DEC-0003).
+  Rule: Is the code behind an element shown always, or only on demand?
