@@ -11,4 +11,5 @@ Feature: Plan as a sequence
   Rule: Does sdp plan by a plain sequence of iterations and milestones by default, with phases and disciplines optional?
 
     A timeline needs no phases today, but all planned work counts in a discipline, and
-    `sdp lifecycle` charts all six whether a team uses them or not.
+    `sdp lifecycle` charts all six whether a team uses them or not. The case for phases: a backlog
+    or sprints say nothing about the architecture being proven before features are built on it.
