@@ -1,6 +1,6 @@
 @id=questions-stay-interactive-on-disk @kind=change @maturity=draft
 @changes:ask-the-graph
-@iteration:IT-scale-and-compatibility
+@iteration:IT-scale
 Feature: Questions stay interactive on large repositories on disk
 
   Ask the graph promises interactive answers on large workspaces, but measures only the graph in
