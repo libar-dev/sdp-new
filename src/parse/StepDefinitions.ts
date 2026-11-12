@@ -82,7 +82,10 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
   /** One `Given("…", handler)` call inside a `defineSteps` callback. */
   const register = (keyword: StepKeyword, call: Node) => {
     const line = lineOf(call.start)
-    const expression = literalExpression((call.arguments as ReadonlyArray<Node>)[0])
+    const argument = (call.arguments as ReadonlyArray<Node>)[0]
+    const invalid = regexProblem(argument)
+    if (invalid) return problems.push({ rule: "step-expression", line, message: `invalid step expression: ${invalid}` })
+    const expression = literalExpression(argument)
     if (expression === undefined) {
       return unreadable(
         call,
@@ -154,6 +157,18 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
   return { definitions, problems }
 }
 annotate(scanStepDefinitions, { is: "ARCH-spec-parser" })
+
+/** Why a RegExp literal is no regular expression — the parser reads it without checking — or `undefined`. */
+const regexProblem = (node: Node | undefined): string | undefined => {
+  const regex = node?.regex as { readonly pattern: string; readonly flags: string } | undefined
+  if (!regex) return undefined
+  try {
+    new RegExp(regex.pattern, regex.flags)
+    return undefined
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+}
 
 /** A string, a template without placeholders, or a RegExp literal; undefined for anything computed. */
 const literalExpression = (node: Node | undefined): string | RegExp | undefined => {

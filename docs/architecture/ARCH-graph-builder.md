@@ -5,7 +5,7 @@ title: Graph builder
 links:
   decided-by: [DEC-0003, DEC-0010]
   instance-of: { to: PAT-pipes-and-filters, role: filter }
-  feeds: ARCH-graph
+  uses: [ARCH-spec-parser, ARCH-code-annotations, ARCH-graph, ARCH-vocabulary]
 ---
 
 # Graph builder

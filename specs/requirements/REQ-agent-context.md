@@ -20,7 +20,9 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 2. for a spec below `ready`, why it is not ready: what the ready gate still misses
    ([[REQ-maturity-criteria]]), or that the content already meets it;
 3. the spec text;
-4. its relationships, each with the other node's title, status and `file:line`;
+4. its relationships, each with the other node's title, status and `file:line`. A node declared
+   inside another spec — a glossary term, an iteration — has no text of its own to open, so its
+   text attributes come along: a term is listed with its `definition`;
 5. the status of each scenario; for each step that failed or is pending in the last run, its error
    and the `file:line` of its definition; and each step that no step definition — or more than one —
    matches, with a suggested definition. Steps are matched against the step definitions as read
@@ -38,6 +40,11 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
 
 What is within reach is reached through links. A prose mention is listed among the relationships
 but leads no further: it is not a link ([[DEC-0010]]).
+
+A bundle made from a workspace that could not be fully read — a spec that does not parse, or,
+when the node has scenarios, a step registration sdp cannot read — is still the whole document,
+marked incomplete the way every answer is ([[REQ-cli]], *Answers*): the notes name what is
+missing, and the command exits with 2.
 
 ## Scenarios
 
@@ -124,6 +131,35 @@ Scenario: The architecture within two hops is included, reached through links
   And the output section "Architecture within" does not contain "ARCH-cache"
   And the output section "Architecture within" does not contain "PAT-memo"
   And the output section "Relationships" contains "-mentions-> ARCH-cache"
+
+Scenario: A glossary term among the relationships comes with its definition
+  Given a file "specs/REQ-checkout.md" containing:
+    """
+    ---
+    id: REQ-checkout
+    iteration: C1
+    ---
+    # Checkout
+    """
+  And a file "docs/GLOSSARY.md" containing:
+    """
+    ---
+    id: GLOSSARY
+    kind: glossary
+    nodes:
+      - id: TERM-cart
+        kind: term
+        title: Cart
+        definition: The items a shopper has chosen and not yet paid for.
+        links: { specified-by: REQ-checkout }
+      - { id: C1, kind: iteration, title: Checkout, start: "2026-11-16", end: "2026-11-27" }
+    ---
+    # Glossary
+    """
+  When I ask for the context of "REQ-checkout"
+  Then the output section "Relationships" contains "REQ-checkout <-specified-by- TERM-cart — Cart (term) docs/GLOSSARY.md:5"
+  And the line after the output line with "TERM-cart — Cart" contains "  definition: The items a shopper has chosen and not yet paid for."
+  And the line after the output line with "REQ-checkout -iteration-> C1" contains "  start: 2026-11-16"
 
 Scenario: Only decisions that still apply are included
   Given a file "specs/REQ-checkout.md" containing:
@@ -327,8 +363,10 @@ Scenario: A registration that cannot be read is named, so its step is not mistak
     })
     """
   When I run "sdp context REQ-cart"
-  Then the output section "Scenarios" contains "undefined: Given an empty cart"
+  Then the exit code is 2
+  And the output section "Scenarios" contains "undefined: Given an empty cart"
   And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: the expression of this Given definition is computed"
   When I run "sdp steps cart"
-  Then the output contains "not read: specs/steps/cart.steps.ts:5"
+  Then the exit code is 2
+  And the output contains "note: not read: specs/steps/cart.steps.ts:5"
 ~~~

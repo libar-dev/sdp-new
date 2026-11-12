@@ -61,8 +61,7 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
   a step file needs: importing it loads no parser and reads no workspace (`sdp` is the
   programmatic API).
 - A step file must export its module (`export default defineSteps(…)`); one that exports none is
-  reported as a warning, and one that fails to load stops the run with one line naming the file
-  ([[REQ-cli]]).
+  noted, and one that fails to load stops the run with one line naming the file ([[REQ-cli]]).
 
 ### Reading step definitions never runs them
 
@@ -811,7 +810,7 @@ Scenario Outline: Reading a workspace runs none of its step files
     | sdp status           | does not exist                 |
     | sdp run              | contains "this step file ran"  |
 
-Scenario: A malformed step expression stops the run in one line that names the definition, and costs a reader nothing
+Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
   Given a file "specs/steps/cart.steps.ts" containing:
     """
     import { defineSteps } from "sdp/steps"
@@ -825,7 +824,8 @@ Scenario: A malformed step expression stops the run in one line that names the d
   And the output contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}": Undefined parameter type'
   And the output does not contain "    at "
   When I run "sdp context REQ-cart"
-  Then the exit code is 0
+  Then the exit code is 2
+  And the output contains "incomplete: this answer may miss something"
   And the output section "Scenarios" contains "undefined: Given an empty cart"
   And the output section "Step definitions" contains 'specs/steps/cart.steps.ts:4: invalid step expression "a cart of {items}"'
 

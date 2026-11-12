@@ -49,6 +49,7 @@ replaces its default; `disciplines` merge one by one.
 | `maturity` | the authoring ladder, lowest first ([[REQ-maturity-criteria]]) |
 | `disciplines` | the kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
 | `links` | keys of the workspace's own that link like `links:` entries ([[DEC-0010]]) |
+| `words` | `kinds`, `relations` and `attributes` of the workspace's own that nothing in its graph has yet, so that a rule can assert there is none of them without its query being taken for a typo ([[REQ-builtin-steps]]) |
 
 A profile that cannot work is an error naming its path: an empty ladder, a level listed twice, or a
 level named like a stage sdp derives (`failing`, `in-progress`, `verified`).
@@ -366,8 +367,8 @@ Scenario: sdp vocabulary prints the profile in force
     """
   When I run "sdp vocabulary --json"
   Then the output is valid JSON
-  And the output field "links" holds "owner"
-  And the output field "maturity" holds "idea, draft, specified, ready"
+  And the output field "data.links" holds "owner"
+  And the output field "data.maturity" holds "idea, draft, specified, ready"
   When I run "sdp vocabulary"
   Then the output line with "decision" contains "adr"
 

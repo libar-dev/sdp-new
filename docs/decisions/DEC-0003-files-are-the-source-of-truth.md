@@ -25,11 +25,12 @@ second copy of the truth, migrations, and invisibility to grep and git.
 
 ## Decision
 
-Option 3. Every command parses the workspace and builds the graph from scratch. What sdp writes
-under `.sdp/` is derived and can be deleted: the id declarations (`sdp types`) and the exports
-(`sdp graph --write`) are regenerated from the files, and the scenario results
-(`.sdp/results.json`) by running again. Results are the one thing the files alone cannot give
-back, so each records what it ran against and stops counting when that changes ([[DEC-0011]]).
+Option 3. Every command parses the workspace and builds the graph from scratch; `sdp graph` prints
+it as one record per line for tools that prefer plain data. What sdp writes under `.sdp/` is
+derived and can be deleted: the id declarations (`sdp types`) are regenerated from the files, and
+the scenario results (`.sdp/results.json`) by running again. Results are the one thing the files
+alone cannot give back, so each records what it ran against and stops counting when that changes
+([[DEC-0011]]).
 
 ## Consequences
 

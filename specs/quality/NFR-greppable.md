@@ -27,7 +27,7 @@ Scenario: Every fact leads back to a line, and a link's line names its target
   Then every one of them has a file and a line that exist
   And the line of every link contains the id it links to
 
-Scenario Outline: Line-oriented exports keep one fact per line, whatever the text
+Scenario: The export keeps one fact per line, whatever the text
   Given a file "specs/REQ-a.md" containing:
     """
     ---
@@ -46,11 +46,6 @@ Scenario Outline: Line-oriented exports keep one fact per line, whatever the tex
     ---
     # X
     """
-  When the graph is exported as <format>
+  When the graph is exported
   Then the output has one line per node and edge
-
-  Examples:
-    | format |
-    | jsonl  |
-    | tsv    |
 ~~~

@@ -3,11 +3,14 @@
  * matter is built as data and written by the YAML library, so a title is always a title, whatever
  * it looks like to YAML; only fixed text — suggestions to uncomment — is written as is.
  */
+import { annotate } from "sdp/annotations"
 import { Result } from "effect"
 import { Document, isMap, isNode, isSeq } from "yaml"
 import { type Config, defaults } from "../model/Config.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { parseMarkdownSpec } from "../parse/Spec.ts"
+
+annotate(import.meta, { is: "ARCH-reports" })
 
 export const directoryFor: Record<string, string> = {
   requirement: "specs/requirements",
@@ -303,6 +306,7 @@ export const configTemplate = [
   `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,
   `#   relations: { plan: [${defaults.vocabulary.relations.plan.join(", ")}] }    # relations that plan a node into an iteration`,
   "#   disciplines: {}            # merged with the RUP disciplines, e.g. { operations: [runbook] }",
+  "#   words: { relations: [] }   # words of your own that nothing uses yet, so a rule can assert there are none: kinds, relations, attributes",
   ""
 ].join("\n")
 
@@ -332,6 +336,8 @@ YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form o
 - The architecture (every element and pattern architects declared): \`sdp arch\`
 - The words sdp interprets, as this workspace configures them: \`sdp vocabulary\`
 - Validate: \`sdp check\` · Execute scenarios: \`sdp run\` · Status: \`sdp status\`
+- Every read command answers as JSON with \`--json\`: \`{ complete, notes, data }\`. Exit code 2
+  and \`complete: false\` mean sdp could not read everything: do not conclude that something is absent
 
 ## Change behaviour
 

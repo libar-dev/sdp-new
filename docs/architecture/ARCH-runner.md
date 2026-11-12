@@ -5,8 +5,7 @@ title: Scenario runner
 iteration: I1
 links:
   decided-by: [DEC-0005, DEC-0004]
-  reads: ARCH-graph
-  uses: [ARCH-query-engine, ARCH-checker]
+  uses: [ARCH-spec-parser, ARCH-graph, ARCH-vocabulary, ARCH-query-engine, ARCH-checker]
 ---
 
 # Scenario runner
@@ -26,7 +25,6 @@ derived from its results (DEC-0005), so its semantics (undefined vs. failed) are
 | `src/run/Runner.ts` | executing the selected examples; one publisher reports results in order |
 | `src/run/Evidence.ts` | what a result ran against (fingerprints), whether it still counts (staleness), and which results each layer sees: none for ordinary scenarios, the ordinary ones for gates |
 | `src/run/Store.ts` | the results file: read, and commit under a lock what one run executed |
-| `src/run/Session.ts` | one `sdp run`: ordinary scenarios, commit, gates, commit |
 | `src/run/Builtin.ts` | steps that assert against the graph through the query engine and the checker, which is how gates and guards execute |
 
 The runner reads the graph; the graph builder never imports the runner: it is handed what the

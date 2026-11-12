@@ -20,7 +20,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p examples/shop",
     "test": "node src/cli/main.ts run --concurrency 8",
     "check": "node src/cli/main.ts check",
-    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8",
+    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts gate --due",
     "types": "node src/cli/main.ts types && node src/cli/main.ts -C examples/shop types"
   },
   "dependencies": {

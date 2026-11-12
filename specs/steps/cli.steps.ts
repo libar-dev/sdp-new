@@ -16,10 +16,10 @@ import { access, cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { newSpec } from "../../src/cli/templates.ts"
+import { newSpec } from "../../src/app/Templates.ts"
 import { registrations } from "../../src/mcp/Server.ts"
-import { defineSteps } from "sdp/steps"
-import { load, newWorld, setFile, type World } from "./world.ts"
+import { defineSteps, Pending } from "sdp/steps"
+import { ids, load, newWorld, setFile, type World } from "./world.ts"
 
 const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)))
 const cli = join(repository, "src/cli/main.ts")
@@ -112,6 +112,21 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     record(world, await exec(command, await workspace(world)))
   })
 
+  // A shell pipeline, for what sdp's output is piped into; `sdp` is this repository's command line.
+  When("I run the pipeline:", async ({ doc, world }) => {
+    const script = `sdp() { "${process.execPath}" "${cli}" "$@"; }\n${doc ?? ""}`
+    const cwd = await workspace(world)
+    const result = await new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
+      execFile("sh", ["-c", script], { cwd, env }, (error, stdout, stderr) => {
+        if (error && typeof error.code !== "number") reject(error)
+        else done({ code: error ? Number(error.code) : 0, stdout, stderr })
+      })
+    })
+    // What the pipeline shows cannot be judged on a machine that lacks one of its tools.
+    if (result.code === 127) throw new Pending({ reason: `a command of the pipeline is not installed: ${result.stderr.trim()}` })
+    record(world, result)
+  })
+
   When("I run {string} in the repository", async ({ args: [command], project, world }) => {
     record(world, await exec(command, project.root))
   })
@@ -146,6 +161,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(reply?.result, `no reply to tools/call:\n${result.stdout}${result.stderr}`)
     record(world, result)
     world.output = reply.result.content.map((c: { text?: string }) => c.text ?? "").join("\n")
+    world.scratch.stdout = world.output
   })
 
   // A server in this very process, on the files on disk: like a long-running `sdp mcp`, every call
@@ -156,10 +172,17 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const client = yield* McpTest.makeClient(registrations(directory), { protocols: [McpProtocol.v2025_11_25] })
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
       world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
+      world.scratch.stdout = world.output
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)))
 
   Then("the exit code is {int}", ({ args: [code], world }) => {
     assert.equal(world.exitCode, code, `exit code ${world.exitCode}, output:\n${world.output}`)
+  })
+
+  // What a command hands to the next one in a pipe: the lines of its stdout, in any order.
+  Then("the output lines are {string}", ({ args: [expected], world }) => {
+    const lines = String(world.scratch.stdout ?? world.output).split("\n").filter((line) => line !== "")
+    assert.deepEqual(lines.sort(), ids(expected), `stdout:\n${String(world.scratch.stdout)}\noutput:\n${world.output}`)
   })
 
   Then("the output is valid JSON", ({ world }) => {

@@ -18,7 +18,8 @@
  *
  * Edge step: `-rel->` (out), `<-rel-` (in), `-rel-` (either), `*` or empty for
  * any relation but a prose mention, `a|b` for alternatives (`*|mentions` adds
- * mentions), a trailing `+` for one-or-more hops.
+ * mentions), a trailing `+` for one-or-more hops (back to the start node too,
+ * when a cycle leads there).
  * Prefix `!` keeps nodes WITHOUT such a neighbour, `?` keeps nodes WITH one;
  * both filter without moving.
  */
@@ -26,6 +27,7 @@ import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import {
+  activityRelation,
   defaultVocabulary,
   isMention,
   made,
@@ -44,6 +46,7 @@ export const querySyntax = `node (edge node)*
         < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < failing = in-progress < verified
         a key also holds the targets of the node's links of that relation: [iteration=E1] agrees with -iteration-> #E1
   edge  -rel-> | <-rel- | -rel-   rel: * or empty for any but mentions, a|b alternatives (*|mentions for all), trailing + for one or more hops
+        + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
         prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
 examples
   requirement[maturity<ready]
@@ -87,15 +90,20 @@ export interface Query {
   readonly steps: ReadonlyArray<{ readonly edge: EdgeStep; readonly node: NodeSelector }>
 }
 
-export interface PathStep {
+/** An edge of the graph, as it points. */
+export interface PathEdge {
+  readonly from: string
   readonly rel: string
-  readonly direction: "out" | "in"
-  readonly node: string
+  readonly to: string
 }
 
+/**
+ * A route that exists in the graph: the nodes it visits, in order, and the edge walked between
+ * each two of them — `edges[i]` joins `nodes[i]` and `nodes[i + 1]`, in whichever direction it points.
+ */
 export interface QueryPath {
-  readonly start: string
-  readonly steps: ReadonlyArray<PathStep>
+  readonly nodes: ReadonlyArray<string>
+  readonly edges: ReadonlyArray<PathEdge>
 }
 
 export interface QueryResult {
@@ -151,9 +159,7 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
   const limits = new Set<string>()
   const hopLimit = `a + edge reaches further than ${maxDepth} hops`
   const pathLimit = `a step has more than ${maxPaths} paths`
-  let paths: Array<{ readonly path: QueryPath; readonly end: string }> = startNodes(context, query.start).map((
-    node
-  ) => ({ path: { start: node.id, steps: [] }, end: node.id }))
+  let paths: Array<QueryPath> = startNodes(context, query.start).map((node) => ({ nodes: [node.id], edges: [] }))
 
   for (const { edge, node } of query.steps) {
     const accept = (id: string) => {
@@ -161,30 +167,34 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
       return candidate !== undefined && matchesNode(context, candidate, node)
     }
     if (edge.mode !== "move") {
-      paths = paths.filter(({ end }) => {
-        const reached = reachable(context, end, edge, maxDepth)
-        const found = reached.hops.some((hop) => accept(hop.node))
+      paths = paths.filter((path) => {
+        const reached = reachable(context, endOf(path), edge, maxDepth)
+        const found = reached.routes.some((route) => accept(route.at(-1)!.node))
         // A neighbour found within the limit settles the filter; only a search cut short leaves it open.
         if (!found && reached.cut) limits.add(hopLimit)
         return edge.mode === "exists" ? found : !found
       })
       continue
     }
-    const next: Array<{ path: QueryPath; end: string }> = []
+    const next: Array<QueryPath> = []
     const seen = new Set<string>()
-    for (const { path, end } of paths) {
-      const reached = reachable(context, end, edge, maxDepth)
+    for (const path of paths) {
+      const reached = reachable(context, endOf(path), edge, maxDepth)
       if (reached.cut) limits.add(hopLimit)
-      for (const hop of reached.hops) {
-        if (!accept(hop.node)) continue
-        const key = `${pathKey(path)}>${hop.rel}>${hop.node}`
+      for (const route of reached.routes) {
+        if (!accept(route.at(-1)!.node)) continue
+        const extended: QueryPath = {
+          nodes: [...path.nodes, ...route.map((hop) => hop.node)],
+          edges: [...path.edges, ...route.map((hop) => hop.edge)]
+        }
+        const key = pathKey(extended)
         if (seen.has(key)) continue
         seen.add(key)
         if (next.length >= maxPaths) {
           limits.add(pathLimit)
           break
         }
-        next.push({ path: { start: path.start, steps: [...path.steps, hop] }, end: hop.node })
+        next.push(extended)
       }
     }
     paths = next
@@ -192,20 +202,26 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
 
   const nodes: Array<GraphNode> = []
   const emitted = new Set<string>()
-  for (const { end } of paths) {
+  for (const path of paths) {
+    const end = endOf(path)
     if (emitted.has(end)) continue
     emitted.add(end)
     nodes.push(graph.node(end)!)
   }
-  return { nodes, paths: paths.map((p) => p.path), truncated: limits.size > 0, limits: [...limits] }
+  return { nodes, paths, truncated: limits.size > 0, limits: [...limits] }
 }
 
 /** Parse and run in one go; the convenient form for steps, the CLI and the MCP server. */
 export const query = (graph: Graph, source: string, options?: QueryOptions): Result.Result<QueryResult, QueryError> =>
   Result.map(parseQuery(source), (q) => runQuery(graph, q, options))
 
+/** A path on one line, each edge drawn as it points: `A -uses-> B <-uses- C`. */
 export const formatPath = (path: QueryPath): string =>
-  [path.start, ...path.steps.map((s) => s.direction === "out" ? ` -${s.rel}-> ${s.node}` : ` <-${s.rel}- ${s.node}`)].join("")
+  path.nodes.map((node, index) => {
+    const edge = path.edges[index - 1]
+    if (edge === undefined) return node
+    return edge.from === path.nodes[index - 1] && edge.to === node ? ` -${edge.rel}-> ${node}` : ` <-${edge.rel}- ${node}`
+  }).join("")
 
 // ---------------------------------------------------------------------------
 
@@ -489,46 +505,60 @@ const compare = (value: unknown, expected: string, ladder: Ladder | undefined, o
 const relMatches = (vocabulary: Vocabulary, edge: GraphEdge, rels: EdgeStep["rels"]) =>
   rels.includes(edge.rel) || (rels.includes(anyRelation) && !isMention(vocabulary, edge))
 
-const hops = (context: Context, id: string, step: EdgeStep): Array<PathStep> => {
+/** One edge walked from a node, to `node` at its other end. */
+interface Hop {
+  readonly edge: PathEdge
+  readonly node: string
+}
+
+const hops = (context: Context, id: string, step: EdgeStep): Array<Hop> => {
   const { graph, vocabulary } = context
-  const result: Array<PathStep> = []
-  if (step.direction !== "in") {
-    for (const e of graph.out(id)) if (relMatches(vocabulary, e, step.rels)) result.push({ rel: e.rel, direction: "out", node: e.to })
+  const result: Array<Hop> = []
+  const walk = (edge: GraphEdge, node: string) => {
+    if (relMatches(vocabulary, edge, step.rels)) result.push({ edge: { from: edge.from, rel: edge.rel, to: edge.to }, node })
   }
-  if (step.direction !== "out") {
-    for (const e of graph.in(id)) if (relMatches(vocabulary, e, step.rels)) result.push({ rel: e.rel, direction: "in", node: e.from })
-  }
+  if (step.direction !== "in") for (const edge of graph.out(id)) walk(edge, edge.to)
+  if (step.direction !== "out") for (const edge of graph.in(id)) walk(edge, edge.from)
   return result
 }
 
-/** Hops for one edge step; `cut` when a transitive step stopped at `maxDepth` with nodes left to visit. */
+/**
+ * The routes one edge step opens from a node. A plain step has one route per matching edge. A `+`
+ * step has one per node it reaches, a shortest one, found breadth-first: a node is walked on from
+ * once, and the start is reached like any other node when a cycle leads back to it. `cut` when
+ * the walk stopped at `maxDepth` with nodes left to reach.
+ */
 const reachable = (
   context: Context,
   from: string,
   step: EdgeStep,
   maxDepth: number
-): { readonly hops: ReadonlyArray<PathStep>; readonly cut: boolean } => {
-  if (!step.transitive) return { hops: hops(context, from, step), cut: false }
-  const result: Array<PathStep> = []
-  const visited = new Set<string>([from])
-  let frontier = [from]
+): { readonly routes: ReadonlyArray<ReadonlyArray<Hop>>; readonly cut: boolean } => {
+  if (!step.transitive) return { routes: hops(context, from, step).map((hop) => [hop]), cut: false }
+  const routes = new Map<string, ReadonlyArray<Hop>>()
+  let frontier: Array<{ readonly id: string; readonly route: ReadonlyArray<Hop> }> = [{ id: from, route: [] }]
   for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
-    const next: Array<string> = []
-    for (const id of frontier) {
+    const next: typeof frontier = []
+    for (const { id, route } of frontier) {
       for (const hop of hops(context, id, step)) {
-        if (visited.has(hop.node)) continue
-        visited.add(hop.node)
-        result.push({ ...hop, rel: `${hop.rel}+` })
-        next.push(hop.node)
+        if (routes.has(hop.node)) continue
+        const extended = [...route, hop]
+        routes.set(hop.node, extended)
+        // The start was walked on from in the first round.
+        if (hop.node !== from) next.push({ id: hop.node, route: extended })
       }
     }
     frontier = next
   }
-  const cut = frontier.some((id) => hops(context, id, step).some((hop) => !visited.has(hop.node)))
-  return { hops: result, cut }
+  const cut = frontier.some(({ id }) => hops(context, id, step).some((hop) => !routes.has(hop.node)))
+  return { routes: [...routes.values()], cut }
 }
 
-const pathKey = (path: QueryPath) => [path.start, ...path.steps.map((s) => `${s.rel}>${s.node}`)].join(">")
+const endOf = (path: QueryPath): string => path.nodes.at(-1)!
+
+/** Two paths are the same route when they visit the same nodes over the same edges. */
+const pathKey = (path: QueryPath) =>
+  [path.nodes.join("\u0000"), ...path.edges.map((edge) => `${edge.from}\u0000${edge.rel}\u0000${edge.to}`)].join("\u0001")
 
 /**
  * The stage ladder: the maturity levels, then `failing` and `in-progress` as one rung — a failing
@@ -560,35 +590,77 @@ export const projectQueryOptions = (project: Project): QueryOptions => ({
 export const queryProject = (project: Project, source: string): Result.Result<QueryResult, QueryError> =>
   query(project.graph, source, projectQueryOptions(project))
 
-/**
- * Kinds and relations a query names that nothing in the project uses — almost
- * always a typo, and a typo in a negative assertion would otherwise pass. The
- * kinds and relations sdp makes, and those the vocabulary names, count as known.
- */
-export const unknownNames = (project: Project, parsed: Query): { readonly kinds: ReadonlyArray<string>; readonly relations: ReadonlyArray<string> } => {
-  const { config, graph } = project
-  const words = vocabularyWords(config.vocabulary)
-  const knownKinds = new Set([...graph.kinds().keys(), ...Object.values(made.kinds), ...Object.keys(config.ids), ...words.kinds])
-  const knownRelations = new Set([...graph.relations().keys(), ...words.relations, anyRelation])
-  const selectors = [parsed.start, ...parsed.steps.map((step) => step.node)]
-  const kinds = selectors.flatMap((selector) => selector.kinds === "*" ? [] : selector.kinds).filter((kind) => !knownKinds.has(kind))
-  const relations = parsed.steps.flatMap((step) => step.edge.rels).filter((rel) => !knownRelations.has(rel))
-  return { kinds: [...new Set(kinds)], relations: [...new Set(relations)] }
-}
+/** Keys every node answers to, whatever it declares: what it is, and the two attributes sdp reads on any kind. */
+const universalKeys = ["id", "kind", "title", "source", "maturity", "status"]
 
 /**
- * Why a query that matched nothing may have: it names a kind or relation nothing in the project
- * uses, listed with those in use. Undefined when every name is in use (or the query is invalid).
+ * What a query names that the workspace does not know, one line each with the closest word it does
+ * know: an id no node has, a kind or relation it neither uses nor names in its vocabulary, an
+ * attribute that no node its selector could match carries. Almost always a typo — and a typo in
+ * an assertion that there is none of something would pass. Empty when every word is known.
  */
-export const unusedNamesNote = (project: Project, source: string): string | undefined => {
-  const parsed = parseQuery(source)
-  if (Result.isFailure(parsed)) return undefined
-  const { kinds, relations } = unknownNames(project, parsed.success)
-  const notes = [
-    kinds.length > 0 ? `no kind ${kinds.join(", ")}; kinds in use: ${[...project.graph.kinds().keys()].sort().join(", ")}` : undefined,
-    relations.length > 0
-      ? `no relation ${relations.join(", ")}; relations in use: ${[...project.graph.relations().keys()].sort().join(", ")}`
-      : undefined
-  ].filter(Predicate.isString)
-  return notes.length > 0 ? notes.join("\n") : undefined
+export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<string> => {
+  const { config, graph } = project
+  const vocabulary = config.vocabulary
+  const words = vocabularyWords(vocabulary)
+  const declared = graph.nodes().filter((node) => node.kind !== made.kinds.missing)
+  const ids = new Set(declared.map((node) => node.id))
+  const kinds = new Set([...graph.kinds().keys(), ...Object.values(made.kinds), ...Object.keys(config.ids), ...words.kinds])
+  const relations = new Set([
+    ...graph.relations().keys(),
+    ...words.relations,
+    ...words.disciplines.map((discipline) => activityRelation(vocabulary, discipline))
+  ])
+  const everywhere = new Set([...universalKeys, ...made.attributes, ...made.scenarioAttributes, ...words.attributes, ...relations])
+  const found: Array<string> = []
+  const unknown = (what: string, word: string, known: Iterable<string>) => {
+    const nearest = closest(word, known)
+    found.push(`${what} ${word}${nearest === undefined ? "" : `; closest: ${nearest}`}`)
+  }
+  for (const selector of [parsed.start, ...parsed.steps.map((step) => step.node)]) {
+    const unknownIds = (selector.ids ?? []).filter((id) => !ids.has(id))
+    const unknownKinds = selector.kinds === "*" ? [] : selector.kinds.filter((kind) => !kinds.has(kind))
+    for (const id of unknownIds) unknown("no node has the id", id, ids)
+    for (const kind of unknownKinds) unknown("no kind", kind, kinds)
+    // The attributes of an unknown id or kind are unknown for the same reason: one line is enough.
+    if (unknownIds.length + unknownKinds.length > 0) continue
+    const candidates = declared.filter((node) =>
+      selector.ids ? selector.ids.includes(node.id) : selector.kinds === "*" || selector.kinds.includes(node.kind)
+    )
+    const carried = new Set([...everywhere, ...candidates.flatMap((node) => Object.keys(node.attrs))])
+    const selected = selector.ids ? `#${selector.ids.join("|")}` : selector.kinds === "*" ? "*" : selector.kinds.join("|")
+    for (const { key } of selector.conditions) {
+      if (!carried.has(key) && !carried.has(key.split(".")[0]!)) unknown(`${selected} has no attribute`, key, carried)
+    }
+  }
+  for (const rel of parsed.steps.flatMap((step) => step.edge.rels)) {
+    if (rel !== anyRelation && !relations.has(rel)) unknown("no relation", rel, relations)
+  }
+  return [...new Set(found)]
+}
+
+/** The known word nearest to `word` by edit distance, if any is near enough to be what was meant. */
+export const closest = (word: string, known: Iterable<string>): string | undefined => {
+  let best: string | undefined
+  let bestDistance = Math.max(2, Math.ceil(word.length / 2)) + 1
+  for (const candidate of [...known].sort()) {
+    const distance = editDistance(word.toLowerCase(), candidate.toLowerCase())
+    if (distance < bestDistance) {
+      best = candidate
+      bestDistance = distance
+    }
+  }
+  return best
+}
+
+const editDistance = (a: string, b: string): number => {
+  let previous = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i]
+    for (let j = 1; j <= b.length; j++) {
+      current.push(Math.min(previous[j]! + 1, current[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1)))
+    }
+    previous = current
+  }
+  return previous[b.length]!
 }

@@ -83,9 +83,10 @@ Scenario: The view shows every declared element and pattern with what shaped it
 Scenario: A mention pulls nothing into the view
   When an agent calls the MCP tool "sdp_architecture" with:
     """
-    {}
+    { "json": true }
     """
-  Then the output field "nodes" holds "ARCH-billing, ARCH-mailer, ARCH-orders, DEC-1, NFR-latency, PAT-outbox"
+  Then the output field "data.architecture" holds "ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox"
+  And the output field "data.drivers" holds "DEC-1, NFR-latency"
 
 Scenario: An element anchored in code is part of the architecture
   Given a file "src/quiet.ts" containing:

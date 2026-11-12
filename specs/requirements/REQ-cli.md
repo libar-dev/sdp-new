@@ -13,26 +13,17 @@ links:
 
 # Command line
 
-`sdp` is one command for people, scripts and agents. Read commands print greppable text by
-default and JSON with `--json`; every command re-reads the workspace, so it always reflects the
-files as they are. This is the reference: each command with its purpose, main flags and an
-example, verified by scenarios that run the real CLI as a process in a temporary directory.
+`sdp` is one command for people, scripts and agents. Every command re-reads the workspace, so it
+always reflects the files as they are. This is the reference: each command with its purpose, main
+flags and an example, verified by scenarios that run the real CLI as a process in a temporary
+directory. Each command is one use case of the application layer, the same one the MCP server
+calls ([[REQ-mcp-server]]), so the two cannot answer differently.
 
 | Flag | Applies to | Meaning |
 | --- | --- | --- |
 | `-C`, `--root <dir>` | every command | workspace root; without it, the nearest directory — the current one or above — holding an `sdp.config.*` file, else the current directory |
-| `--json` | `status`, `q`, `show`, `check`, `steps`, `run`, `gate`, `lifecycle` | machine-readable output on stdout |
+| `--json` | `status`, `q`, `show`, `check`, `steps`, `arch`, `lifecycle`, `vocabulary`, `run`, `gate` | the answer as one JSON object on stdout: `{ complete, notes, data }` |
 | `--help`, `--version` | every command | usage with examples; the version |
-
-| Command | Exits with 1 when |
-| --- | --- |
-| `check` | there is at least one error diagnostic |
-| `run` | an ordinary scenario failed or is ambiguous; an unmet milestone gate does **not** count |
-| `gate` | the milestone's gate scenarios are not all met |
-| `run`, `gate` | a spec cannot be read — Gherkin or front matter that does not parse, a spec without an id, an id declared twice; nothing runs then |
-| `run`, `gate` | a step definition module does not load or has a malformed expression, `--tags` is not a tag expression, or another run holds the lock on the results for more than two seconds |
-| `q`, `show`, `context`, `new` | the query is invalid, the id is unknown, the id already exists, or `--maturity` is not on the ladder |
-| every command | the workspace cannot be read: no such directory, an invalid configuration |
 
 ## The example workspace
 
@@ -115,6 +106,89 @@ Background:
     """
 ~~~
 
+## Answers
+
+A command that reads the graph prints its answer on stdout and everything about the answer on
+stderr, so stdout can always be piped.
+
+- **Text.** A command that lists things prints one per line, so its output pipes into grep, cut
+  and jq: the nodes of `sdp q` and the definitions of `sdp steps` with their fields separated by
+  tabs (on a terminal the same fields are aligned in columns), the records of `sdp graph` as JSON,
+  the diagnostics of `sdp check` each on a line that starts with its severity and rule.
+- **JSON.** `--json` prints one envelope, the same for every command:
+
+  | Field | Holds |
+  | --- | --- |
+  | `complete` | `false` when the answer may miss something |
+  | `notes` | what the reader should know before relying on it, one sentence each: what was not read (`not read: <file>:<line> [<rule>] …`), what was not followed (`cut short: …`), and observations such as a word the workspace does not know |
+  | `data` | the answer itself, made of the records of [[REQ-graph-export]]: a node is `{ type, id, kind, title, file, line, attrs }`, an edge `{ type, from, rel, to, attrs, declared }`, a place is always a `file` and a `line` |
+
+- **Complete or not.** An answer is incomplete when something that could change it was not read —
+  a spec whose front matter or Gherkin does not parse, a file meant as a spec without an id, an id
+  declared twice, a code annotation sdp cannot read statically and, for an answer about steps, a
+  step registration it cannot read — or not followed: a query stopped by a limit
+  ([[ARCH-query-engine]]). sdp still answers from what it has,
+  says `incomplete:` and each note on stderr, and exits with 2 — in every output mode, because the
+  reader of `--ids` or `--json` is the one most likely to conclude that something is absent.
+
+| Exit code | Meaning |
+| --- | --- |
+| 0 | the command did what it was asked, and its answer is complete |
+| 1 | it did not: `check` found an error diagnostic; `run` had a scenario that failed or is ambiguous (an unmet milestone gate does **not** count); `gate` found a gate unmet; the input was refused — an invalid query, an unknown id, an id that exists, a `--maturity` off the ladder, a `--tags` filter that is no tag expression; the workspace cannot be used — no such directory, an invalid configuration, a step module that does not load, specs that cannot be read (`run` and `gate` then run nothing), the results locked by another run for more than two seconds |
+| 2 | it answered, but the answer is incomplete |
+
+~~~gherkin
+Scenario Outline: A spec that cannot be read makes every answer incomplete, in every output mode
+  Given a file "specs/REQ-broken.md" containing:
+    """
+    ---
+    id: REQ-broken
+    links: [REQ-search
+    ---
+    # A requirement sdp cannot read
+    """
+  When I run "<command>"
+  Then the exit code is <exit code>
+  And the output contains "<stderr>"
+  And the output contains "specs/REQ-broken.md:3 [front-matter]"
+
+  Examples:
+    | command                  | exit code | stderr                                     |
+    | sdp q requirement        | 2         | incomplete: this answer may miss something |
+    | sdp q requirement --ids  | 2         | incomplete: this answer may miss something |
+    | sdp q requirement --json | 2         | incomplete: this answer may miss something |
+    | sdp graph -q requirement | 2         | incomplete: this answer may miss something |
+    | sdp show REQ-search      | 2         | incomplete: this answer may miss something |
+    | sdp context REQ-search   | 2         | incomplete: this answer may miss something |
+    | sdp status               | 2         | incomplete: this answer may miss something |
+    | sdp arch --json          | 2         | incomplete: this answer may miss something |
+    | sdp lifecycle            | 2         | incomplete: this answer may miss something |
+    | sdp check                | 1         | error [front-matter]                       |
+    | sdp run                  | 1         | cannot run: 1 problem(s)                   |
+
+Scenario: The envelope says the same in its fields, and stdout stays JSON
+  Given a file "specs/REQ-broken.md" containing:
+    """
+    ---
+    id: REQ-broken
+    links: [REQ-search
+    ---
+    # A requirement sdp cannot read
+    """
+  When I run "sdp q requirement --json"
+  Then the output is valid JSON
+  And the output contains '"complete": false'
+  And the output contains '"not read: specs/REQ-broken.md:3 [front-matter]'
+  And the output field "data.nodes" holds "REQ-search"
+
+Scenario: A complete answer has no notes and exits with 0
+  When I run "sdp q requirement --json"
+  Then the exit code is 0
+  And the output contains '"complete": true'
+  And the output contains '"notes": []'
+  And the output field "data.nodes" holds "REQ-search"
+~~~
+
 ## Choosing the workspace
 
 Like git, commands work on the nearest directory — the current one or above — that holds an
@@ -177,8 +251,8 @@ Scenario: A step definition module that does not load is reported in one line th
 
 ### `sdp init`
 
-Creates `sdp.config.yaml` (every key optional, defaults shown), `.sdp/.gitignore` and an agent
-guide, `AGENTS.sdp.md`, for your `AGENTS.md` or `CLAUDE.md` to point at, in the current directory
+Creates `sdp.config.yaml` (every key optional, defaults shown) and an agent guide,
+`AGENTS.sdp.md`, for your `AGENTS.md` or `CLAUDE.md` to point at, in the current directory
 (or `-C`) — never in a workspace further up. Like every document sdp writes, the guide is a spec: a
 node of kind `guide`. Existing files are left alone.
 
@@ -397,7 +471,7 @@ stale results by what changed since they ran ([[REQ-executable-specs]]), how man
 architectural kind, and diagnostics by severity.
 
 ```sh
-sdp status --json | jq .scenarios
+sdp status --json | jq .data.scenarios
 ```
 
 ~~~gherkin
@@ -405,6 +479,7 @@ Scenario: status summarises the delivery state
   When I run "sdp status --json"
   Then the output is valid JSON
   And the output contains '"requirement": 1'
+  And the output contains '"stages": {'
 
 Scenario: status counts gate scenarios apart from the others
   When I run "sdp status"
@@ -415,24 +490,42 @@ Scenario: status counts gate scenarios apart from the others
 
 ### `sdp query <pattern>`, `sdp q`
 
-Answers a path pattern with the matching nodes: a table by default, `--ids` for one id per line,
-`--paths` for whole paths, `--json`. `sdp q --help` prints the syntax. When nothing matches because
-the pattern names a kind or relation no node or edge has — usually a typo — a note on stderr says
-so and lists those in use. When a limit cut the search short ([[REQ-graph-query]]), stderr says
-which, even if nothing was found: the answer may be incomplete.
+Answers a path pattern ([[REQ-graph-query]]; `sdp q --help` prints the syntax) with the nodes it
+leads to, one per line: id, kind, the status the node declares — or was given by a run — else its
+stage, title and `file:line`. `--ids` prints only the ids, `--paths` the paths that led to the
+nodes instead, and `--json` the envelope, whose `data` holds the `nodes` and, with `--paths`, the
+`paths`. The number of nodes goes to stderr.
+
+A query explores, so it is never refused for naming a word the workspace does not know — an id,
+a kind, a relation, an attribute; usually a typo. A note says so and names the closest word it
+does know ([[REQ-builtin-steps]] lists what counts as known, and fails an assertion for the same).
+When a limit cut the search short, the answer is incomplete and a note names the limit, even if
+nothing was found.
 
 ```sh
 sdp q 'requirement[maturity<ready]'
 sdp q 'requirement -realized-by-> element -decided-by-> decision' --paths
+sdp q 'element !-*- decision' --json | jq -r '.data.nodes[].id'
 ```
 
 ~~~gherkin
-Scenario: q answers a path pattern
-  When I run "sdp q 'requirement -realized-by-> element[declaredIn=ARCHITECTURE]' --json"
-  Then the output is valid JSON
-  And the output contains '"id": "ARCH-index"'
+Scenario: q answers a path pattern with one node per line
+  When I run "sdp q 'requirement -realized-by-> element[declaredIn=ARCHITECTURE]'"
+  Then the output contains "ARCH-index\telement\t\tSearch index\tdocs/architecture.md:5"
+  And the output contains "1 node(s)"
 
-Scenario: q lists a decision by its status and a spec by its stage
+Scenario: q --json answers with the node records, and with the paths when asked
+  When I run "sdp q 'requirement -realized-by-> element' --paths --json"
+  Then the output is valid JSON
+  And the output field "data.nodes" holds "ARCH-index"
+  And the output contains '"paths": ['
+  And the output contains '"from": "REQ-search"'
+
+Scenario: q --paths prints each path on one line, every edge as it points
+  When I run "sdp q '#ARCH-index <-realized-by- requirement' --paths"
+  Then the output lines are "ARCH-index <-realized-by- REQ-search"
+
+Scenario: q lists a node by the status it declares, else by its stage
   Given a file "docs/DEC-0002.md" containing:
     """
     ---
@@ -444,22 +537,23 @@ Scenario: q lists a decision by its status and a spec by its stage
     # Shard the index
     """
   When I run "sdp q decision"
-  Then the output contains "DEC-0002  decision  proposed"
+  Then the output contains "DEC-0002\tdecision\tproposed"
   When I run "sdp q requirement"
-  Then the output contains "REQ-search  requirement  specified"
+  Then the output contains "REQ-search\trequirement\tspecified"
 
 Scenario: An invalid query is an error
   When I run "sdp q 'requirement[maturity<'"
   Then the exit code is 1
   And the output contains "query error"
 
-Scenario: An empty result names the kinds and relations in use when the pattern uses others
-  When I run "sdp q 'requirement -implemented-by-> element'"
+Scenario: A word the workspace does not know is noted, with the closest one it does
+  When I run "sdp q 'requirement -realised-by-> element[titel]'"
   Then the exit code is 0
   And the output contains "0 node(s)"
-  And the output contains "no relation implemented-by; relations in use: decided-by, iteration, phase, realized-by, verifies"
+  And the output contains "note: no relation realised-by; closest: realized-by"
+  And the output contains "note: element has no attribute titel; closest: title"
 
-Scenario: A result cut short by a limit says which, even when it is empty
+Scenario Outline: A result cut short by a limit is incomplete and says which, even when it is empty
   Given a file "docs/chain.md" containing:
     """
     ---
@@ -483,14 +577,24 @@ Scenario: A result cut short by a limit says which, even when it is empty
     ---
     # A long chain
     """
-  When I run "sdp q '#N0 -next+-> element[bad]'"
-  Then the output contains "0 node(s)"
-  And the output contains "result cut short: a + edge reaches further than 12 hops"
+  When I run "<command>"
+  Then the exit code is 2
+  And the output contains "cut short: a + edge reaches further than 12 hops"
+
+  Examples:
+    | command                                      |
+    | sdp q '#N0 -next+-> element[bad]'            |
+    | sdp q '#N0 -next+-> element[bad]' --ids      |
+    | sdp q '#N0 -next+-> element[bad]' --json     |
+    | sdp graph -q '#N0 -next+-> element[bad]'     |
 ~~~
 
 ### `sdp show <id>`
 
-One node with its attributes and its outgoing (`-rel->`) and incoming (`<-rel-`) edges.
+One node with its attributes and its outgoing (`-rel->`) and incoming (`<-rel-`) edges, each with
+the title of the node at its other end. `--json` gives the `node`, its edges as `out` and `in`,
+each with every place that declares it, and the `neighbours` they lead to, as records. An id no
+node has is an error that names the closest one.
 
 ```sh
 sdp show ARCH-index
@@ -500,8 +604,20 @@ sdp show ARCH-index
 Scenario: show prints a node with its edges
   When I run "sdp show ARCH-index"
   Then the output contains 'declaredIn: "ARCHITECTURE"'
-  And the output contains "-decided-by-> DEC-0001"
-  And the output contains "<-realized-by- REQ-search"
+  And the output contains "-decided-by-> DEC-0001  Use an inverted index"
+  And the output contains "<-realized-by- REQ-search  Search the catalogue"
+
+Scenario: show --json is the node, its edges and its neighbours as records
+  When I run "sdp show ARCH-index --json"
+  Then the output is valid JSON
+  And the output field "data.neighbours" holds "DEC-0001, REQ-search"
+  And the output contains '"declared": ['
+  And the output contains '"file": "specs/REQ-search.md"'
+
+Scenario: An id no node has is an error that names the closest one
+  When I run "sdp show ARCH-indx"
+  Then the exit code is 1
+  And the output contains "no node ARCH-indx; closest: ARCH-index"
 ~~~
 
 ### `sdp context <id>`
@@ -509,7 +625,7 @@ Scenario: show prints a node with its edges
 Everything needed to work on one node, as one Markdown document ([[REQ-agent-context]]): the spec,
 why it is not ready yet, its relationships, scenario results with a suggested definition for each
 step that has none (matched against the step definitions, so no run is needed), the step files,
-the architecture, quality requirements and decisions within reach (`--depth`,
+the architecture, quality requirements and decisions within reach (`--depth`, 1 to 6 hops,
 default 2), and linked code. The usual first call before changing a spec.
 
 ```sh
@@ -524,37 +640,51 @@ Scenario: context bundles what is needed to work on a node
   And the output contains "DEC-0001"
   And the output contains "1 open question(s)"
   And the output contains 'suggested: `When("a shopper searches for {string}", ({ world, args: [string] }) => pending())`'
+
+Scenario Outline: The reach of a context bundle is 1 to 6 hops
+  When I run "sdp context REQ-search --depth <depth>"
+  Then the exit code is 1
+  And the output contains "depth must be a whole number from 1 to 6"
+
+  Examples:
+    | depth |
+    | 0     |
+    | -1    |
+    | 7     |
 ~~~
 
 ### `sdp graph`
 
-Exports the graph: `-f jsonl|json|tsv|dot|mermaid` (default `jsonl`), `-q <pattern>` to export
-only what a query matches, `--write` to write `.sdp/graph.jsonl` and `.sdp/graph.tsv` — one fact
-per line, for grep, awk and jq.
+The graph as plain data ([[REQ-graph-export]]): one JSON record per line, every node and then
+every edge, for grep, jq and scripts. `-q <pattern>` prints only the nodes along the paths a
+query matches and the edges among them; `--mermaid` prints a Mermaid flowchart instead.
 
 ```sh
-sdp graph --write && grep -P '^edge\t[^\t]*\trealized-by\t' .sdp/graph.tsv
-sdp graph -f mermaid -q 'element -decided-by-> decision'
+sdp graph | grep '"rel":"realized-by"'
+sdp graph | jq -r 'select(.type == "node" and .attrs.maturity == "ready") | .id'
+sdp graph --mermaid -q 'element -decided-by-> decision'
 ```
 
 ~~~gherkin
-Scenario: graph --write leaves the graph on disk for grep and jq
-  When I run "sdp graph --write"
-  Then the output contains "wrote .sdp/graph.jsonl and .sdp/graph.tsv"
-  And the file ".sdp/graph.jsonl" contains '"id":"REQ-search"'
-  And the file ".sdp/graph.tsv" contains "edge\tREQ-search\trealized-by\tARCH-index"
+Scenario: graph prints one record per line for grep and jq
+  When I run the pipeline:
+    """
+    sdp graph | grep '"rel":"realized-by"' | jq -r '"\(.from) \(.to) \(.declared[0].file):\(.declared[0].line)"'
+    """
+  Then the output lines are "REQ-search ARCH-index specs/REQ-search.md:7"
 ~~~
 
 ### `sdp arch`
 
 The architecture: every element and pattern architects declared, each with what its spec says it is
 for and its links, among them the decisions and quality requirements that shaped it
-([[REQ-curated-architecture]]). sdp never computes, ranks or suggests what belongs in it;
-`-f`, `--format mermaid|dot|json` for diagrams and scripts.
+([[REQ-curated-architecture]]). sdp never computes, ranks or suggests what belongs in it.
+`--json` gives the `kinds` that are the architecture here, the `architecture` nodes, the `drivers`
+linked to them and the `edges` among all of these; `--mermaid` draws them.
 
 ```sh
 sdp arch
-sdp arch -f mermaid
+sdp arch --mermaid
 ```
 
 ~~~gherkin
@@ -564,10 +694,16 @@ Scenario: arch shows every declared element with its decisions
   And the output contains "ARCH-index -decided-by-> DEC-0001"
   And the output contains "ARCH-cache — Page cache (element)"
 
-Scenario: arch -f json is for scripts
-  When I run "sdp arch -f json"
+Scenario: arch --json tells the architecture from what shaped it
+  When I run "sdp arch --json"
   Then the output is valid JSON
-  And the output field "nodes" holds "ARCH-cache, ARCH-index, DEC-0001"
+  And the output field "data.architecture" holds "ARCH-cache, ARCH-index"
+  And the output field "data.drivers" holds "DEC-0001"
+
+Scenario: arch --mermaid draws it
+  When I run "sdp arch --mermaid"
+  Then the output contains "flowchart LR"
+  And the output contains "-->|decided-by|"
 ~~~
 
 ### `sdp vocabulary`
@@ -580,7 +716,7 @@ configuration ([[REQ-configuration]]); `--json` for scripts.
 Scenario: vocabulary prints the words sdp interprets
   When I run "sdp vocabulary --json"
   Then the output is valid JSON
-  And the output field "maturity" holds "idea, draft, specified, ready"
+  And the output field "data.maturity" holds "idea, draft, specified, ready"
 ~~~
 
 ### `sdp lifecycle`
@@ -626,9 +762,10 @@ Scenario: A plan from the template puts a milestone from the template under its 
 ### `sdp check`
 
 Validates front matter, links, Gherkin, maturity claims, decision records, plan references, code
-annotations and leftover template text ([[REQ-check-rules]]). Each diagnostic has a rule id, a
-`file:line` and a hint; `--severity error|warning|info` sets the minimum shown. Only errors fail
-the check.
+annotations and leftover template text ([[REQ-check-rules]]). Each diagnostic is one line — its
+severity, rule id, message and `file:line` — with a hint beneath; `--severity error|warning|info`
+sets the minimum shown, and the last line counts them. Only errors fail the check. With `--json`,
+`data` is the list of diagnostics, each `{ rule, severity, message, node, file, line, hint }`.
 
 ```sh
 sdp check --severity warning
@@ -654,10 +791,21 @@ Scenario Outline: Only errors fail the check
     | { id: REQ-a, links: [REQ-b] }                      | link-syntax    | 1        |
     | { id: REQ-a, kind: decision, status: accepted }    | decision-content | 0      |
 
-Scenario: check --json prints the diagnostics as JSON
+Scenario: check --json prints the diagnostics as data
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    links: { depends-on: REQ-gone }
+    ---
+    # Example
+    """
   When I run "sdp check --json"
-  Then the exit code is 0
+  Then the exit code is 1
   And the output is valid JSON
+  And the output contains '"rule": "dangling-link"'
+  And the output contains '"file": "specs/REQ-a.md"'
+  And the output contains '"line": 3'
 ~~~
 
 ### `sdp steps [text]`
@@ -666,12 +814,13 @@ Lists every step definition a run would know — sdp's built-in steps first, the
 files — one per line: `file:line`, keyword and expression, separated by tabs. With `text`, only
 the definitions whose expression contains it or that match it as a step, which answers "is there
 a step for this already?" before a near-duplicate is written. The step files are read, not run
-([[REQ-executable-specs]]). `--json` prints the same as a list of objects with `file`, `line`,
-`keyword` and `expression`.
+([[REQ-executable-specs]]); a registration that cannot be read that way — its expression is
+computed — is noted and leaves the listing incomplete, since a step may be defined there. With
+`--json`, `data` is the same list as objects with `file`, `line`, `keyword` and `expression`.
 
 ```sh
 sdp steps catalogue
-sdp steps --json | jq -r '.[] | select(.keyword == "Then") | .expression'
+sdp steps --json | jq -r '.data[] | select(.keyword == "Then") | .expression'
 ```
 
 ~~~gherkin
@@ -723,9 +872,12 @@ selects examples with a Cucumber tag expression, `--verbose` shows passed steps,
 runs up to `n` scenarios at once (`@serial` ones alone; [[REQ-executable-specs]]). A step that did
 not pass is shown with the `file:line` of its definition. `--snippets` ends the output with one
 step definition module for every undefined step, ready to save as a `.steps.ts` file. A step file
-that exports no step module is reported as a warning. Milestone gates run last, against the fresh
+that exports no step module is noted. Milestone gates run last, against the fresh
 results; an unmet gate is reported but does not fail the run, because a later milestone is expected
 to be unmet. The run ends with how many earlier results it did not refresh are stale, and why.
+With `--json`, `data` holds `passed` — what the exit code says — the counts of ordinary scenarios
+(`summary`) and of `gates` by status, the `stale` counts, every scenario's result and, when asked
+for, the `snippets` module.
 
 Specs that cannot be read stop `run` and `gate` before anything executes or is recorded: Gherkin
 or front matter that does not parse, a file meant as a spec that has no id, or an id declared
@@ -789,7 +941,7 @@ Scenario: A step file that defines nothing is reported
     """
   When I run "sdp run"
   Then the exit code is 0
-  And the output contains "warning: specs/steps/search.steps.ts defines no steps"
+  And the output contains "note: specs/steps/search.steps.ts defines no steps"
 
 Scenario: --tags runs only the examples it selects and names those it left out
   Given a file "specs/REQ-sort.md" containing:
@@ -844,14 +996,21 @@ Scenario: A --tags filter that is not a tag expression is an error that says so
   And the output does not contain "    at "
 ~~~
 
-### `sdp gate <milestone>`
+### `sdp gate <milestone>`, `sdp gate --due`
 
 Runs one milestone's gate scenarios against the current graph and exits 0 only when the milestone
 has gate scenarios and every one of them passed — an undefined or pending step leaves the milestone
-unmet. It is the command a release pipeline calls. An id without gate scenarios is an error.
+unmet. An id without gate scenarios is an error.
+
+`sdp gate --due` evaluates the milestones the calendar says are due: those of the current phase
+and of every phase before it, dated exactly as `sdp lifecycle` dates them
+([[REQ-lifecycle-view]]). It is the command a build calls: the milestones of later phases may
+stay unmet, the due ones may not. A due milestone without gate scenarios is not met; before any
+phase with a milestone has begun, nothing is due and the command exits 0, saying so.
 
 ```sh
 sdp gate MS-beta
+sdp gate --due
 ```
 
 ~~~gherkin
@@ -881,14 +1040,97 @@ Scenario: Only milestones and @gate scenarios can be gates
 Scenario: gate --json prints nothing but JSON
   When I run "sdp gate MS-beta --json"
   Then the output is valid JSON
+  And the output contains '"passed": false'
+
+Scenario: gate names one milestone, or the due ones
+  When I run "sdp gate"
+  Then the exit code is 1
+  And the output contains "name one milestone, or pass --due"
+
+Scenario Outline: gate --due asks about the milestones of the current phase and of those before it
+  Given a file "due/docs/plan.md" containing:
+    """
+    ---
+    id: PLAN
+    kind: plan
+    nodes:
+      - { id: inception,    kind: phase, title: Inception,    order: 1 }
+      - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
+      - { id: construction, kind: phase, title: Construction, order: 3 }
+      - { id: I1, kind: iteration, phase: inception,   start: "2020-01-06", end: "2020-01-17" }
+      - { id: E1, kind: iteration, phase: elaboration, start: "2020-01-20", end: "2999-12-31" }
+    ---
+    # Plan
+    """
+  And a file "due/docs/MS-scope.md" containing:
+    """
+    ---
+    id: MS-scope
+    kind: milestone
+    phase: inception
+    ---
+    # Scope agreed
+
+    ```gherkin
+    Scenario: There is a plan
+      Then the query "plan" returns 1 result
+    ```
+    """
+  And a file "due/docs/MS-baseline.md" containing:
+    """
+    ---
+    id: MS-baseline
+    kind: milestone
+    phase: elaboration
+    ---
+    # Architecture baseline
+
+    ```gherkin
+    <gate of the current phase>
+    ```
+    """
+  And a file "due/docs/MS-launch.md" containing:
+    """
+    ---
+    id: MS-launch
+    kind: milestone
+    phase: construction
+    ---
+    # Launch
+
+    ```gherkin
+    Scenario: Nothing is left to do
+      Then the query "plan" returns no results
+    ```
+    """
+  When I run "sdp -C due gate --due"
+  Then the exit code is <exit code>
+  And the output contains "<outcome>"
+  And the output does not contain "MS-launch"
+
+  Examples:
+    | gate of the current phase                                          | exit code | outcome                                                           |
+    | Scenario: Baselined\n  Then the query "plan" returns 1 result      | 0         | 2 gate scenario(s) of MS-scope, MS-baseline: 2 passed             |
+    | Scenario: Baselined\n  Then the query "plan" returns no results    | 1         | 2 gate scenario(s) of MS-scope, MS-baseline: 1 passed, 1 failed   |
+    | # no scenario yet                                                  | 1         | note: MS-baseline has no gate scenarios, so it is not met         |
+
+Scenario: Before any phase with a milestone has begun, nothing is due
+  When I run "sdp gate --due"
+  Then the exit code is 0
+  And the output contains "note: no milestone is due"
+
+Scenario: The build of sdp itself enforces the milestones that are due
+  When I run "grep verify package.json" in the repository
+  Then the output contains "&& node src/cli/main.ts gate --due"
 ~~~
 
 ## Agents
 
 ### `sdp mcp`
 
-Serves the graph over MCP on stdio: `sdp_query`, `sdp_show`, `sdp_context`, `sdp_snippets`,
-`sdp_check`, `sdp_architecture`, `sdp_lifecycle` and `sdp_status` ([[REQ-mcp-server]]). Every call
+Serves the graph over MCP on stdio: `sdp_status`, `sdp_query`, `sdp_show`, `sdp_context`,
+`sdp_steps`, `sdp_snippets`, `sdp_check`, `sdp_architecture` and `sdp_lifecycle`
+([[REQ-mcp-server]]). Each is the use case of the command of the same name, and every call
 re-reads the workspace and the step definitions.
 
 ```json

@@ -35,6 +35,17 @@ export const rules = {
 
 export type RuleId = keyof typeof rules
 
+/**
+ * The rules that report part of the workspace as not read — a spec that does not parse or has no
+ * usable id, an annotation that is computed. What they name is missing from the graph, so no
+ * answer drawn from the graph is known to be complete while one of them is reported.
+ */
+export const unreadRules: ReadonlySet<RuleId> = new Set(["front-matter", "gherkin-syntax", "missing-id", "duplicate-id", "annotation-unreadable"])
+
+/** A diagnostic on one line: `file:line [rule] message`. */
+export const problemLine = (diagnostic: Diagnostic): string =>
+  `${diagnostic.source ? `${diagnostic.source.file}:${diagnostic.source.line}` : "?"} [${diagnostic.rule}] ${diagnostic.message.replace(/\s*\n\s*/g, " ")}`
+
 export const isRuleId = (value: string): value is RuleId => Object.hasOwn(rules, value)
 
 export interface Diagnostic {
