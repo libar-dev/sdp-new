@@ -5,7 +5,7 @@ export type Severity = "error" | "warning" | "info"
 /**
  * Every rule sdp can report, with its severity. Diagnostics can only name a
  * rule listed here, so this is the complete catalogue (specified, with an
- * example per rule, in REQ-check-rules).
+ * example per rule, in check-specs).
  */
 export const rules = {
   "duplicate-id": "error",
