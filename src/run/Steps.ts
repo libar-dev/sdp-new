@@ -75,6 +75,7 @@ export interface StepDefinition {
 
 export interface StepModule<W = unknown> {
   readonly _tag: "StepModule"
+  /** The file that defines the module: where its first definition is registered. */
   readonly name: string
   readonly world: () => W
   readonly definitions: ReadonlyArray<StepDefinition>
@@ -95,11 +96,7 @@ export interface StepRegistrar<W> {
 }
 
 /** Declares a step module: a world factory (shared by modules that pass the same one) and its step definitions. */
-export const defineSteps = <W>(
-  world: () => W,
-  register: (registrar: StepRegistrar<W>) => void,
-  options: { readonly name?: string } = {}
-): StepModule<W> => {
+export const defineSteps = <W>(world: () => W, register: (registrar: StepRegistrar<W>) => void): StepModule<W> => {
   const definitions: Array<StepDefinition> = []
   const make = (keyword: StepDefinition["keyword"]): Register<W> =>
     ((expression: string | RegExp, handler: (context: StepContext<W, any>) => StepOutcome) => {
@@ -107,7 +104,7 @@ export const defineSteps = <W>(
     }) as Register<W>
   register({ Given: make("Given"), When: make("When"), Then: make("Then"), Step: make("Step") })
   const location = definitions[0]?.location.replace(/:\d+$/, "")
-  return { _tag: "StepModule", name: options.name ?? location ?? "steps", world, definitions }
+  return { _tag: "StepModule", name: location ?? "steps", world, definitions }
 }
 annotate(defineSteps, { is: "ARCH-runner" })
 

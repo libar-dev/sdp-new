@@ -94,6 +94,13 @@ const behaviours: Record<string, Behaviour> = {
     assert.deepEqual([...new Set(statuses)], ["unrun"], "scenario statuses in the graph")
     assert.equal(project.results, undefined, "stored results")
   },
+  // What a gate sees: the ordinary scenarios by status, none of the records behind them.
+  "finds statuses without run details": ({ project }) => {
+    const scenarios = project.graph.ofKind(["scenario"])
+    assert.equal(project.results, undefined, "stored results")
+    assert.deepEqual(scenarios.filter((node) => node.attrs.lastRun !== undefined).map((node) => node.id), [], "scenarios that show when they ran")
+    assert.ok(scenarios.some((node) => node.attrs.status === "passed"), "no ordinary scenario shows as passed")
+  },
   "adds an item to its world": ({ world }) => {
     world.items = (world.items ?? 0) + 1
   },
@@ -119,7 +126,7 @@ const scriptedSteps = (
     return factories.get(name)!
   }
   const byModule = Map.groupBy(definitions, (d) => d.module)
-  return [...byModule].map(([name, list]) =>
+  return [...byModule.values()].map((list) =>
     defineSteps(factory(list[0]!.world), ({ Step }) => {
       for (const { behaviour, expression } of list) {
         const handler = (context: StepContext<Record<string, number>, ReadonlyArray<unknown>>) => behaviours[behaviour]!(context, expression, log)
@@ -128,7 +135,7 @@ const scriptedSteps = (
         if (regexp) Step(new RegExp(regexp[1]!), handler)
         else Step(expression, handler)
       }
-    }, { name })
+    })
   )
 }
 
@@ -397,6 +404,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   // --- this repository ------------------------------------------------------
+
+  // A row of the table: | `rule` | severity | …
+  Then("the rules table gives every rule the severity sdp reports it with", ({ project, scenario }) => {
+    const body = project.specById.get(scenario.specId)?.body ?? ""
+    const listed = Object.fromEntries([...body.matchAll(/^\| `([a-z-]+)` \| (\w+) \|/gm)].map((row) => [row[1]!, row[2]!]))
+    assert.deepEqual(listed, { ...rules })
+  })
 
   Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
     const spec = project.specById.get(scenario.specId)

@@ -53,7 +53,7 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
 - **Worlds.** The first argument of `defineSteps` is a world factory. Every scenario gets a fresh
   world per factory; modules passing the same factory share that world, so a step library can be
   split across files (sdp's own steps share `specs/steps/world.ts`). A world is made as part of the
-  first step that needs it: a factory that throws fails that step, naming the module.
+  first step that needs it: a factory that throws fails that step, naming the module's file.
 - Steps match by text, not keyword: `Given`, `When`, `Then` and `Step` register alike.
 - **`import … from "sdp/steps"`** — and `"sdp/annotations"` in the application code the steps
   exercise — always resolve to the sdp that runs the steps, so a workspace needs no package
@@ -62,6 +62,11 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
   programmatic API).
 - A step file must export its module (`export default defineSteps(…)`); one that exports none is
   noted, and one that fails to load stops the run with one line naming the file ([[REQ-cli]]).
+- **A process imports step modules once**, and Node.js keeps a module for as long as the process
+  lives. `sdp run` is a new process every time. A program that runs a workspace again through the
+  API runs the modules it already imported: when a step file or a file it imported has changed
+  since, the run is refused before anything is recorded, naming the files — its results would be
+  evidence about code that did not run.
 
 ### Reading step definitions never runs them
 
@@ -73,8 +78,9 @@ executes none of its code:
 | In a step file | Read as |
 | --- | --- |
 | `defineSteps(world, ({ Given, When, Then, Step }) => { … })` at the top level, `defineSteps` imported from `sdp/steps` | a step module; the registrar may be destructured, renamed (`{ Given: given }`) or taken whole (`(steps) => steps.Given(…)`) |
-| `Given("a cart with {int} items", …)`, a template without placeholders, or `Given(/^a cart$/, …)` anywhere in that callback | a step definition, with its keyword, expression and `file:line` |
-| a registration whose expression is computed, or a step file without such a `defineSteps` call | `step-unreadable` ([[REQ-check-rules]]): only a run knows that step |
+| `Given("a cart with {int} items", …)`, a template without placeholders, or `Given(/^a cart$/, …)` as a statement of that callback | a step definition, with its keyword, expression and `file:line` |
+| a registration under a condition, in a loop, through another name for the registrar or a helper, or with a computed expression; a step file without such a `defineSteps` call | `step-unreadable` ([[REQ-check-rules]]): only a run knows that step |
+| anything inside a handler | not read: a handler registers nothing |
 | a Cucumber Expression that is malformed | `step-expression`, an error: `sdp run` refuses to start, naming its `file:line` |
 
 `sdp steps [text]` lists what was read, sdp's built-in steps included ([[REQ-cli]]). What could
@@ -150,18 +156,20 @@ fingerprint that differs.
 | Recorded | Covers | `staleBecause` |
 | --- | --- | --- |
 | `hash` | what a handler can observe of the scenario: each example's name, its tags — those inherited from the spec, the feature, the rule and the Examples block too — step text, doc strings and tables | `scenario-changed` |
-| `evidence.sources` | the configuration file, the code (`code` globs), the step definition files (`steps` globs) and every workspace file they imported up to the end of the run, one that a handler imports only while it runs included; a file added or removed counts | `code-changed` |
+| `evidence.sources` | the configuration file, the code (`code` globs), the step definition files (`steps` globs) and every workspace file they imported up to the end of the run, one that a handler imports only while it runs included — as the process loaded them; a file added or removed counts | `code-changed` |
 | `evidence.toolchain` | the sdp version, the Node.js major version, and the lockfile at the workspace root (`package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`) | `toolchain-changed` |
 | `evidence.inputs` | what the configuration declares ([[REQ-configuration]]): the files matching `evidence.inputs` — fixtures, data — and the environment variables named in `evidence.env`, set or not; only a digest is stored, never a value | `inputs-changed` |
-| `evidence.specs` | the spec and feature files; recorded when a step read the graph (`project`), as the built-in steps do | `specs-changed` |
-| `evidence.results` | the statuses of the ordinary scenarios; recorded when a gate read the graph | `results-changed` |
+| `evidence.specs` | the spec and feature files and the id declarations (`types`, which `sdp check` reads); recorded when a step read the graph (`project`), as the built-in steps do | `specs-changed` |
+| `evidence.results` | what the graph shows a gate of the ordinary scenarios' results: for each its status, or why it is stale; recorded when a gate read the graph | `results-changed` |
 
 A spec whose scenarios are all stale is back at its declared maturity, so nothing stays `verified`
 on evidence about other code, and a gate that requires verified work is unmet until the scenarios
-run again. Invalidation is deliberately coarse: any change to the code invalidates every result,
-and the first run that reaches a lazily imported file leaves results recorded before it stale
-once. `sdp status` counts stale results by reason; `sdp run` says how many earlier results it
-left stale — those it did not select.
+run again. Invalidation is deliberately coarse: any change to the code invalidates every result.
+The imported files are the exception, because which they are is a fact about one run: each result
+is compared with the files its own run imported, so a partial run that reaches another file
+leaves earlier results standing, and a file that step definitions no longer import stops counting
+once the results that ran with it are replaced. `sdp status` counts stale results by reason;
+`sdp run` says how many earlier results it left stale — those it did not select.
 
 ### Layers
 
@@ -170,13 +178,19 @@ Evidence is layered so that no scenario reads the layer it belongs to:
 | Scenario | The graph it sees (`project`) |
 | --- | --- |
 | ordinary | no results: every scenario `unrun`, every spec at its declared maturity |
-| gate | the results of the ordinary scenarios, those of this run included; never the result of a gate, its own included |
+| gate | what the results of the ordinary scenarios say, those of this run included: each scenario's `status`, `staleBecause` when it is stale, and the `verification` and `stage` they roll up to. Never the result of a gate, its own included |
 
 An ordinary scenario therefore cannot depend on another scenario's outcome, nor a gate on a
-gate's. A scenario that asserts on delivery state is a gate — tag it `@gate` or put it in a
-milestone — and a built-in step that reads `stage`, `verification`, `staleBecause`, `lastRun` or a
-scenario's `status` in an ordinary scenario fails and says so ([[REQ-builtin-steps]]). Every other
-reader — `sdp status`, `sdp q`, context bundles — sees all results that still count.
+gate's. A gate sees exactly what its `evidence.results` fingerprint covers: not when a scenario
+ran (`lastRun`), how long it took or what a step reported — those change with every run, and a
+gate that read them would be stale the moment it was recorded. A scenario that asserts on delivery
+state is a gate — tag it `@gate` or put it in a milestone — and a built-in step that reads `stage`,
+`verification`, `staleBecause` or a scenario's `status` in an ordinary scenario fails and says so
+([[REQ-builtin-steps]]). Every other reader — `sdp status`, `sdp q`, context bundles — sees all
+results that still count, with their details.
+
+The layers are what sdp hands a step as `project`. A step that reads the workspace or the results
+file by itself is outside them, like anything else sdp was not told of.
 
 ### The results file
 
@@ -191,7 +205,7 @@ It is plain JSON, one flat record per scenario, made to be taken apart with `jq`
 
 | Where | Fields |
 | --- | --- |
-| top level | `version`; `runAt`; `imports`, the workspace files step definitions imported in any run; `scenarios`, keyed by scenario id |
+| top level | `version`; `imports`, for each `evidence.sources` fingerprint of a stored result the workspace files its run's step definitions had imported; `scenarios`, keyed by scenario id |
 | `scenarios.<id>` | `id`, `spec`, `name`, `file`, `line`, `status`, `runAt`, `durationMs`, `hash`, `evidence` (the fingerprints above), `examples` |
 | `examples[]` | `name`, `status`, `exampleLine` for a row of an outline, `steps` |
 | `steps[]` | `keyword`, `text`, `line`, `status`, `durationMs`, and where they apply `error`, `definition` (`file:line`), `snippet` |
@@ -538,6 +552,123 @@ Scenario: A file a handler imports only while it runs is part of what the result
   When I run "sdp status"
   Then the output contains "stale         code-changed 1"
 
+Scenario: A file the step definitions no longer import no longer counts
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+    import { lamps } from "./lamps.ts"
+
+    export default defineSteps(() => ({}), ({ Step }) => {
+      Step("an empty cart", () => {})
+      Step("I add a lamp", () => {})
+      Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+        if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+      })
+    })
+    """
+  And a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 1
+    """
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
+  And the file ".sdp/results.json" contains '"specs/steps/lamps.ts"'
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), ({ Step }) => {
+      Step("an empty cart", () => {})
+      Step("I add a lamp", () => {})
+      Step("the cart holds {int} item(s)", () => {})
+    })
+    """
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
+  And the file ".sdp/results.json" does not contain "lamps.ts"
+  Given a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 2
+    """
+  When I run "sdp status"
+  Then the exit code is 0
+  And the output does not contain "stale"
+
+Scenario: Each result is compared with the files its own run imported
+  Given a file "specs/REQ-wishlist.md" containing:
+    """
+    ---
+    id: REQ-wishlist
+    ---
+    # Wishlist
+
+    ```gherkin
+    Scenario: Keep a lamp
+      Given a lamp to keep
+    ```
+    """
+  And a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), ({ Step }) => {
+      Step("an empty cart", () => {})
+      Step("I add a lamp", () => {})
+      Step("the cart holds {int} item(s)", () => {})
+      Step("a lamp to keep", async () => {
+        await import("./lamps.ts")
+      })
+    })
+    """
+  And a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 1
+    """
+  When I run "sdp run REQ-cart"
+  Then the output contains "1 scenario(s): 1 passed"
+  When I run "sdp run REQ-wishlist"
+  Then the output contains "1 scenario(s): 1 passed"
+  And the output does not contain "stale"
+  Given a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 2
+    """
+  When I run "sdp q scenario[status=stale] --ids"
+  Then the output lines are "REQ-wishlist#keep-a-lamp"
+
+Scenario: A process that imported the step modules refuses to record a run once they changed
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+    import { lamps } from "./lamps.ts"
+
+    export default defineSteps(() => ({}), ({ Step }) => {
+      Step("an empty cart", () => {})
+      Step("I add a lamp", () => {})
+      Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+        if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+      })
+    })
+    """
+  And a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 1
+    """
+  When this process runs the workspace through the API
+  Then the output contains "1 scenario(s): 1 passed"
+  Given a file "specs/steps/lamps.ts" containing:
+    """
+    export const lamps = 2
+    """
+  When this process runs the workspace through the API
+  Then the output contains "specs/steps/lamps.ts changed after this process imported it"
+  And the output contains "Run again in a new process"
+  When I run "sdp q scenario[status=stale] --ids"
+  Then the output lines are "REQ-cart#add-an-item"
+  When I run "sdp run"
+  Then the exit code is 1
+  And the output contains "the cart holds 2"
+
 Scenario: A declared environment variable is part of the evidence, and only its digest is stored
   Given a file "sdp.config.yaml" containing:
     """
@@ -691,7 +822,8 @@ Scenario: A world factory that throws fails the step that needs the world
   And a step definition "I add a lamp" that passes
   When the scenarios are run
   Then the step "an empty cart" has status "failed"
-  And the step "an empty cart" reports "could not create the world of cart: deliberate failure in the world factory"
+  And the step "an empty cart" reports "could not create the world of"
+  And the step "an empty cart" reports "execution.steps.ts: deliberate failure in the world factory"
   And the step "I add a lamp" has status "skipped"
 ~~~
 
@@ -809,6 +941,30 @@ Scenario Outline: Reading a workspace runs none of its step files
     | sdp check            | does not exist                 |
     | sdp status           | does not exist                 |
     | sdp run              | contains "this step file ran"  |
+
+Scenario: A step registered other than by a statement of its own is reported, never guessed
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), ({ Given, When, Then }) => {
+      Given("an empty cart", () => {
+        const When = (text: string) => text
+        When("a phantom step")
+      })
+      if (process.env.NO_LAMPS === undefined) When("I add a lamp", () => {})
+      const outcome = Then
+      outcome("the cart holds {int} item(s)", () => {})
+    })
+    """
+  When I run "sdp steps cart"
+  Then the exit code is 2
+  And the output contains "specs/steps/cart.steps.ts:4\tGiven\tan empty cart"
+  And the output contains "1 step definition(s)"
+  And the output contains "not read: specs/steps/cart.steps.ts:8: this statement registers steps under a condition, in a loop or through another name"
+  And the output contains "not read: specs/steps/cart.steps.ts:9:"
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
 
 Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
   Given a file "specs/steps/cart.steps.ts" containing:
@@ -953,6 +1109,7 @@ Scenario: The results file holds one plain record per scenario, with what it ran
   Then the file ".sdp/results.json" contains '"REQ-cart#add-an-item": {'
   And the file ".sdp/results.json" contains '"status": "undefined"'
   And the file ".sdp/results.json" contains '"hash": "'
+  And the file ".sdp/results.json" contains '"imports": {'
   And the file ".sdp/results.json" contains '"sources": "'
   And the file ".sdp/results.json" contains '"toolchain": "'
   And the file ".sdp/results.json" contains '"inputs": "'
@@ -1164,8 +1321,36 @@ Rule: Gates run last
       | step                                                        |
       | the query "requirement[stage=verified]" returns no results  |
       | the query "scenario[status=failed]" returns no results      |
+      | the query "*[status=failed]" returns no results             |
       | the node "REQ-cart" has verification "passing"              |
       | the node "REQ-cart#add-an-item" has status "unrun"          |
+
+  Scenario: A gate sees what the ordinary results say, not when or how they ran
+    Given a step definition "an empty cart" that passes
+    And a step definition "I add a lamp" that passes
+    And a step definition "the cart holds {int} item(s)" that passes
+    And a file "docs/MS-audit.md" containing:
+      """
+      ---
+      id: MS-audit
+      kind: milestone
+      ---
+      # Audit
+
+      ```gherkin
+      Scenario: Look at the results
+        Then the graph shows what the results say and no more
+
+      Scenario: Ask when the cart last ran
+        Then the query "scenario[lastRun]" returns at least 1 result
+      ```
+      """
+    And a step definition "the graph shows what the results say and no more" that finds statuses without run details
+    When the workspace is run
+    And the workspace is run for "REQ-cart"
+    Then scenario "MS-audit#look-at-the-results" has status "passed"
+    And node "MS-audit#look-at-the-results" has attribute status = "passed"
+    And the step 'the query "scenario[lastRun]" returns at least 1 result' reports "which no scenario sees"
 
   Scenario: A gate never sees the result of a gate, so none depends on another or on itself
     Given a file "docs/MS-alpha.md" containing:

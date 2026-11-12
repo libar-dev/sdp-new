@@ -16,7 +16,7 @@
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
+import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
   attribute,
@@ -38,7 +38,7 @@ import type { Spec } from "../parse/Spec.ts"
 const builtinLevels: ReadonlyArray<string> = Object.values(criteria)
 
 /** What the maturity criteria look at: a spec has all of it, an inline or code-declared node none. */
-export interface Content {
+interface Content {
   readonly summary: string
   readonly body: string
   readonly scenarios: ReadonlyArray<Scenario>
@@ -48,7 +48,7 @@ export interface Content {
 const noContent: Content = { summary: "", body: "", scenarios: [], openQuestions: [] }
 
 /** Why `content` does not meet `level` (empty when it does). Custom levels have no criteria. */
-export const gateReasons = (content: Content, level: string): ReadonlyArray<string> => {
+export const unmetCriteria = (content: Content, level: string): ReadonlyArray<string> => {
   const reasons: Array<string> = []
   const index = builtinLevels.indexOf(level)
   if (index >= 1 && content.summary === "") {
@@ -70,10 +70,10 @@ export const gateReasons = (content: Content, level: string): ReadonlyArray<stri
 }
 
 /** The highest built-in level whose criteria the content meets. */
-export const achievableMaturity = (content: Content): string => {
+const achievableMaturity = (content: Content): string => {
   let best: string = builtinLevels[0]!
   for (const level of builtinLevels) {
-    if (gateReasons(content, level).length === 0) best = level
+    if (unmetCriteria(content, level).length === 0) best = level
     else break
   }
   return best
@@ -129,35 +129,31 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
   )
 
-  for (const node of authored) {
+  for (const node of graph.nodes()) {
     const maturity = attribute(node, "maturity")
     if (maturity === undefined) continue
     const spec = project.specById.get(node.id)
     const source = spec ? at(spec) : node.source
     if (!Predicate.isString(maturity) || !vocabulary.maturity.includes(maturity)) {
-      out.push({
-        rule: "maturity-value",
-        severity: "error",
+      out.push(diagnostic("maturity-value", {
         message: `${node.id}: unknown maturity "${String(maturity)}"`,
         node: node.id,
         source,
         hint: `use one of: ${vocabulary.maturity.join(", ")}`
-      })
+      }))
       continue
     }
     const content = spec ?? noContent
-    const reasons = gateReasons(content, maturity)
+    const reasons = unmetCriteria(content, maturity)
     if (reasons.length > 0) {
-      out.push({
-        rule: "maturity-criteria",
-        severity: "error",
+      out.push(diagnostic("maturity-criteria", {
         message: `${node.id} claims maturity "${maturity}" but ${reasons.join("; ")}`,
         node: node.id,
         source,
         hint: spec
           ? `fix the content or lower maturity to "${achievableMaturity(content)}"`
           : `give it a spec file of its own for content beyond a title, or lower maturity to "${achievableMaturity(content)}"`
-      })
+      }))
     } else {
       // Only worth mentioning once there is behaviour to look at; idea → draft is noise.
       const achievable = achievableMaturity(content)
@@ -165,14 +161,12 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         vocabulary.maturity.indexOf(achievable) > vocabulary.maturity.indexOf(maturity) &&
         builtinLevels.indexOf(achievable) >= builtinLevels.indexOf(criteria.specified)
       ) {
-        out.push({
-          rule: "maturity-promotable",
-          severity: "info",
-          message: `${node.id} meets the "${achievable}" gate but is marked "${maturity}"`,
+        out.push(diagnostic("maturity-promotable", {
+          message: `${node.id} meets the criteria of "${achievable}" but is marked "${maturity}"`,
           node: node.id,
           source,
           hint: `set maturity: ${achievable} if the team agrees`
-        })
+        }))
       }
     }
   }
@@ -182,47 +176,39 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const status = attribute(node, "status")
     const statuses = vocabulary.statuses
     if (!Predicate.isString(status) || !statuses.decision.includes(status)) {
-      out.push({
-        rule: "decision-status",
-        severity: "warning",
+      out.push(diagnostic("decision-status", {
         message: `${node.id}: decision status should be one of ${statuses.decision.join(", ")} (got ${String(status)})`,
         node: node.id,
         source: node.source,
         hint: "set `status:` in the front matter"
-      })
+      }))
     }
     for (const edge of graph.out(node.id).filter((e) => vocabulary.relations.supersedes.includes(e.rel))) {
       const old = graph.node(edge.to)
       if (old && hasKind(vocabulary, "decision", old.kind) && attribute(old, "status") !== statuses.superseded) {
-        out.push({
-          rule: "decision-supersede",
-          severity: "warning",
+        out.push(diagnostic("decision-supersede", {
           message: `${node.id} supersedes ${old.id}, but ${old.id} has status ${String(attribute(old, "status"))}`,
           node: old.id,
           source: old.source,
           hint: `set status: ${statuses.superseded} on ${old.id}`
-        })
+        }))
       }
     }
     if (status === statuses.superseded && !graph.in(node.id).some((e) => vocabulary.relations.supersedes.includes(e.rel))) {
-      out.push({
-        rule: "decision-supersede",
-        severity: "warning",
+      out.push(diagnostic("decision-supersede", {
         message: `${node.id} is ${statuses.superseded} but no decision supersedes it`,
         node: node.id,
         source: node.source,
         hint: `add \`links: { ${vocabulary.relations.supersedes[0] ?? "supersedes"}: <old id> }\` to the newer decision`
-      })
+      }))
     }
     if (status === statuses.accepted && spec && !spec.sections.some((s) => /decision|outcome/i.test(s.heading))) {
-      out.push({
-        rule: "decision-content",
-        severity: "info",
+      out.push(diagnostic("decision-content", {
         message: `${node.id} is ${statuses.accepted} but has no "Decision" section`,
         node: node.id,
         source: node.source,
         hint: "state the decision under a `## Decision` heading"
-      })
+      }))
     }
   }
 
@@ -230,14 +216,12 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const placeholders = templatePlaceholders(spec)
     if (placeholders.length === 0) continue
     const [first] = placeholders
-    out.push({
-      rule: "template-placeholder",
-      severity: "warning",
+    out.push(diagnostic("template-placeholder", {
       message: `${spec.id} still has template text: "${first!.text}"${placeholders.length > 1 ? ` (and ${placeholders.length - 1} more)` : ""}`,
       node: spec.id,
       source: at(spec, first!.line),
       hint: "replace the template's text with your own, or delete it"
-    })
+    }))
   }
 
   // Plans: what a plan or phase relation names must be an iteration or a phase (a target that does
@@ -246,16 +230,14 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const planReference = (rel: string, target: string, role: KindRole, key: string) => {
       const known = graph.ofKind(vocabulary.kinds[role]).map((n) => n.id)
       const what = vocabulary.kinds[role][0] ?? role
-      out.push({
-        rule: "plan-reference",
-        severity: "warning",
+      out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${rel} "${target}" names no ${what}`,
         node: node.id,
         source: written(node, key),
         hint: known.length > 0
           ? `use one of the declared ${what} ids: ${known.join(", ")}`
           : `declare the ${what} in a plan (sdp new plan) or remove \`${rel}: ${target}\``
-      })
+      }))
     }
     const activityKey = vocabulary.attributes.activity
     for (const edge of graph.out(node.id)) {
@@ -276,62 +258,52 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     )
     const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(node.kind))
     if (planned && !disciplined && !isLifecycleKind(vocabulary, node.kind)) {
-      out.push({
-        rule: "plan-reference",
-        severity: "warning",
+      out.push(diagnostic("plan-reference", {
         message: `${node.id}: kind ${node.kind} belongs to no discipline, so its iteration plans no discipline's work`,
         node: node.id,
         source: planned.source,
         hint: `plan the work with \`${activityKey}: { <discipline>: <iteration> }\`, or add ${node.kind} to a discipline under vocabulary.disciplines`
-      })
+      }))
     }
     if (attribute(node, activityKey) === undefined) continue
     const activity = declaredActivity(vocabulary, node.attrs)
     if (activity === undefined) {
-      out.push({
-        rule: "plan-reference",
-        severity: "warning",
+      out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${activityKey} should map disciplines to iterations`,
         node: node.id,
         source: written(node, activityKey),
         hint: `write \`${activityKey}: { implementation: C1, test: [C1, T1] }\``
-      })
+      }))
       continue
     }
     for (const discipline of activity.keys()) {
       if (vocabulary.disciplines.has(discipline)) continue
-      out.push({
-        rule: "plan-reference",
-        severity: "warning",
+      out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${activityKey} names "${discipline}", which is not a discipline`,
         node: node.id,
         source: written(node, activityKey),
         hint: `use one of: ${[...vocabulary.disciplines.keys()].join(", ")}, or add it under vocabulary.disciplines in the configuration`
-      })
+      }))
     }
   }
 
   if (project.types !== undefined && project.types !== idsDeclaration(project)) {
-    out.push({
-      rule: "types-stale",
-      severity: "warning",
+    out.push(diagnostic("types-stale", {
       message: `${project.config.types} no longer matches the graph, so annotate() may accept removed ids or reject new ones`,
       source: { file: project.config.types, line: 1 },
       hint: "run `sdp types` to regenerate it"
-    })
+    }))
   }
 
   for (const spec of project.specs) {
     for (const scenario of spec.scenarios) {
       if (scenario.steps.length === 0) {
-        out.push({
-          rule: "scenario-empty",
-          severity: "warning",
+        out.push(diagnostic("scenario-empty", {
           message: `${scenario.id} has no steps`,
           node: scenario.id,
           source: { file: spec.file, line: scenario.line },
           hint: "write its Given/When/Then steps or delete the scenario"
-        })
+        }))
       }
     }
   }

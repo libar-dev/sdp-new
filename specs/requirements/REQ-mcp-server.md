@@ -55,10 +55,15 @@ Mistakes come back as tool errors that an agent can read and act on, not as prot
 malformed query returns the parser's message together with the query syntax, an unknown id says
 so and names the closest one, a depth out of range says what the range is. Arguments are checked
 against each tool's schema before it runs: a misspelt argument, or one of the wrong type, is
-rejected as invalid parameters, naming the argument, instead of being silently ignored. The server's instructions suggest where to
-start: `sdp_status`, then `sdp_query`, and `sdp_context` before working on a spec. They say how
-code links to the graph: typed `annotate` calls in TypeScript and JavaScript first, `@sdp`
-comments in other languages ([[ARCH-code-annotations]]).
+rejected as invalid parameters, naming the argument, instead of being silently ignored.
+
+The server's instructions suggest where to start: `sdp_status`, then `sdp_query`, and
+`sdp_context` before working on a spec. They say how code links to the graph ([[DEC-0009]]): to
+the architecture, with an `is` annotation that says which code an element is — a typed `annotate`
+call in TypeScript and JavaScript, an `@sdp` comment in other languages
+([[ARCH-code-annotations]]) — while a requirement names its element with `realized-by`. And they
+say whose call the architecture is ([[DEC-0008]]): an agent proposes an element, a pattern or an
+`is` annotation, and adds or removes none on its own.
 
 ## Scenarios
 
@@ -160,10 +165,14 @@ Scenario: As JSON, the envelope says that the answer may miss something
   And the output contains '"complete": false'
   And the output contains '"cut short: a + edge reaches further than 12 hops"'
 
-Scenario: The instructions describe typed annotations first, comments for other languages
+Scenario: The instructions teach that code links to the architecture, and that the architecture is the architects' call
   When an agent reads the MCP server's instructions
-  Then the output contains 'TypeScript and JavaScript link code with typed calls, `annotate(target, { implements: "REQ-x" })` imported from "sdp/annotations"'
-  And the output contains "other languages use comment lines, `// @sdp implements REQ-x`"
+  Then the output contains 'Code links to the architecture, not to requirements'
+  And the output contains '`annotate(Orders, { is: "ARCH-orders" })` imported from "sdp/annotations"'
+  And the output contains "other languages use a comment line, `// @sdp is ARCH-orders`"
+  And the output contains "`requirement -realized-by-> element <-is- code`"
+  And the output contains "propose an element, a pattern or an `is` annotation, do not add or remove one yourself"
+  And the output does not contain "implements"
 
 Scenario: A malformed query comes back as a tool error that teaches the syntax
   When an agent calls the MCP tool "sdp_query" with:
@@ -264,14 +273,16 @@ Scenario: Every call sees the files as they are now
     """
     { "expression": "requirement" }
     """
-  And a file "specs/REQ-b.md" containing:
+  Then the output contains "REQ-a\t"
+  And the output does not contain "REQ-b"
+  Given a file "specs/REQ-b.md" containing:
     """
     ---
     id: REQ-b
     ---
     # Beta
     """
-  And an agent calls the MCP tool "sdp_query" with:
+  When an agent calls the MCP tool "sdp_query" with:
     """
     { "expression": "requirement" }
     """

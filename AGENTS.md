@@ -170,7 +170,8 @@ Scenario: A gate that is due and unmet shows in sdp lifecycle, and sdp gate fail
     ```
     """
   When I run "sdp new plan 'Plan'"
-  And I run "sdp run"
+  Then the exit code is 0
+  When I run "sdp run"
   Then the exit code is 0
   When I run "sdp lifecycle"
   Then the output line with "MS-objectives" contains "failing"

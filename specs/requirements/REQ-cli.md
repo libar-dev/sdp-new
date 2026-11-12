@@ -134,7 +134,7 @@ stderr, so stdout can always be piped.
 | Exit code | Meaning |
 | --- | --- |
 | 0 | the command did what it was asked, and its answer is complete |
-| 1 | it did not: `check` found an error diagnostic; `run` had a scenario that failed or is ambiguous (an unmet milestone gate does **not** count); `gate` found a gate unmet; the input was refused — an invalid query, an unknown id, an id that exists, a `--maturity` off the ladder, a `--tags` filter that is no tag expression; the workspace cannot be used — no such directory, an invalid configuration, a step module that does not load, specs that cannot be read (`run` and `gate` then run nothing), the results locked by another run for more than two seconds |
+| 1 | it did not: `check` found an error diagnostic; `run` had a scenario that failed or is ambiguous (an unmet milestone gate does **not** count); `gate` found a gate unmet; the input was refused — an invalid query, an unknown id, an id that exists, a `--maturity` off the ladder, a `--tags` filter that is no tag expression, a `--concurrency` below 1, a kind, title, id or directory `sdp new` cannot make a file of; the workspace cannot be used — no such directory, a file where a directory is meant, an invalid configuration, a step module that does not load, specs that cannot be read (`run` and `gate` then run nothing), the results locked by another run for more than two seconds |
 | 2 | it answered, but the answer is incomplete |
 
 ~~~gherkin
@@ -216,6 +216,24 @@ Scenario: A workspace that does not exist is an error
   Then the exit code is 1
   And the output contains "no such directory"
 
+Scenario Outline: Input sdp cannot use is refused in one line that says what it takes
+  When I run "sdp <command>"
+  Then the exit code is 1
+  And the output contains "<refusal>"
+  And the output does not contain "FileSystem"
+  And the file "<not written>" does not exist
+
+  Examples:
+    | command                               | refusal                                               | not written                  |
+    | -C specs/REQ-search.md status         | a workspace is a directory, and this is a file        | .sdp/results.json            |
+    | -C specs/REQ-search.md init           | a workspace is a directory, and this is a file        | sdp.config.yaml              |
+    | run --concurrency 0                   | the number of scenarios to run at once is 1 or more   | .sdp/results.json            |
+    | new requirement ''                    | a requirement needs a title                           | specs/requirements/REQ-0001.md |
+    | new a/b Carts                         | is not a kind: a kind is one word                     | specs/a/b/AB-carts.md        |
+    | new ../x Carts                        | is not a kind: a kind is one word                     | x/X-carts.md                 |
+    | new requirement Carts --id a/b        | cannot name a file: write it without a slash          | specs/requirements/a/b.md    |
+    | new requirement Carts --dir ''        | --dir needs a directory                               | REQ-carts.md                 |
+
 Scenario: From a subdirectory, commands work on the workspace above it
   Given a file "sdp.config.yaml" containing:
     """
@@ -271,10 +289,12 @@ Scenario: init writes a configuration and an agent guide that is itself a spec
 
 ### `sdp new <kind> <title>`
 
-Creates a node from a template and prints its id and file. `--maturity` (default: the lowest level,
-`idea`) grows the template with the level and must be on the configured ladder; `--id` overrides
-the generated id and `--dir` the directory chosen by kind — relative to the workspace root, or
-absolute. Requirements, ideas, quality requirements (`nfr`), decisions, elements, patterns,
+Creates a node from a template and prints its id and file. The kind is one word — letters, digits,
+`-` and `_` — and the title is not empty. `--maturity` (default: the lowest level, `idea`) grows
+the template with the level and must be on the configured ladder; `--id` overrides the generated
+id — it names the file, so it has no slash — and `--dir` the directory chosen by kind, relative to
+the workspace root or absolute. A kind that plays a role of the vocabulary gets that role's
+template and words ([[REQ-configuration]]). Requirements, ideas, quality requirements (`nfr`), decisions, elements, patterns,
 milestones and plans have their own templates (`sdp new --help` lists them); any other kind gets the
 generic one. `sdp new idea` writes a requirement at maturity `idea` to `specs/requirements`. Ids come from
 `ids:` in the config (`REQ-guest-checkout`); decisions and risks are numbered (`DEC-0007`). An id
@@ -290,7 +310,7 @@ to it with `decided-by`. Removing the `#` of a suggestion leaves valid YAML. Tem
 be replaced — `We will …`, `What is still unknown?`, `Given <context>` — is flagged by `sdp check`
 until it is ([[REQ-check-rules]]). The `ready` template has no open questions — the structural
 difference from a specified spec; whether it is truly ready to build is the team's own Definition of
-Ready, a gate of its own ([[REQ-maturity-criteria]]).
+Ready, which a team writes as a gate ([[REQ-maturity-criteria]]).
 
 `sdp new plan` writes the delivery plan: the four phases (`PH-inception`, `PH-elaboration`,
 `PH-construction`, `PH-transition`) and one two-week example iteration in each (`I1`, `E1`, `C1`, `T1`,
@@ -709,14 +729,20 @@ Scenario: arch --mermaid draws it
 ### `sdp vocabulary`
 
 The words sdp interprets — kinds, relations, attributes, statuses, the maturity ladder and the
-disciplines — as the workspace configures them, in the shape of the `vocabulary:` section of the
-configuration ([[REQ-configuration]]); `--json` for scripts.
+disciplines — as the workspace configures them, one role per line, and then the words sdp makes
+itself, which no workspace configures: the kinds of its own nodes, the attributes it derives, the
+stages beyond the ladder and the names no link can have. With `--json`, `data.vocabulary` is the
+profile in the shape of the `vocabulary:` section of the configuration ([[REQ-configuration]]) and
+`data.made` the fixed words.
 
 ~~~gherkin
-Scenario: vocabulary prints the words sdp interprets
+Scenario: vocabulary prints the words sdp interprets and the words it makes
   When I run "sdp vocabulary --json"
   Then the output is valid JSON
-  And the output field "data.maturity" holds "idea, draft, specified, ready"
+  And the output field "data.vocabulary.maturity" holds "idea, draft, specified, ready"
+  And the output field "data.made.attributes" holds "stage, verification, scenarios, summary, file, openQuestions, declaredIn"
+  When I run "sdp vocabulary"
+  Then the output line with "stages" under "made by sdp, not configurable" contains "failing, in-progress, verified"
 ~~~
 
 ### `sdp lifecycle`
@@ -747,12 +773,15 @@ Scenario: lifecycle --json keeps the plan and the evidence apart
 
 Scenario: A plan from the template puts a milestone from the template under its phase
   When I run "sdp -C fresh init"
-  And I run "sdp -C fresh lifecycle"
+  Then the output contains "created sdp.config.yaml"
+  When I run "sdp -C fresh lifecycle"
   Then the output contains "sdp new plan"
   And the output contains "- { id: PH-elaboration, kind: phase"
   When I run "sdp -C fresh new plan 'Delivery plan'"
-  And I run "sdp -C fresh new milestone 'Architecture baseline'"
-  And I run "sdp -C fresh lifecycle"
+  Then the output contains "PLAN-delivery-plan\tdocs/delivery/PLAN-delivery-plan.md"
+  When I run "sdp -C fresh new milestone 'Architecture baseline'"
+  Then the output contains "MS-architecture-baseline\tdocs/delivery/milestones/MS-architecture-baseline.md"
+  When I run "sdp -C fresh lifecycle"
   Then the line after the output line with "Elaboration" contains "◆ MS-architecture-baseline"
   And the output line with "Inception" contains "I1*"
 ~~~
@@ -815,8 +844,8 @@ files — one per line: `file:line`, keyword and expression, separated by tabs. 
 the definitions whose expression contains it or that match it as a step, which answers "is there
 a step for this already?" before a near-duplicate is written. The step files are read, not run
 ([[REQ-executable-specs]]); a registration that cannot be read that way — its expression is
-computed — is noted and leaves the listing incomplete, since a step may be defined there. With
-`--json`, `data` is the same list as objects with `file`, `line`, `keyword` and `expression`.
+computed, or it is not a statement of its own — is noted and leaves the listing incomplete,
+since a step may be defined there. With `--json`, `data` is the same list as objects with `file`, `line`, `keyword` and `expression`.
 
 ```sh
 sdp steps catalogue

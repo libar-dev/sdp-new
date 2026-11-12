@@ -6,8 +6,9 @@
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
-import type { Diagnostic } from "../model/Diagnostic.ts"
+import { type Diagnostic, diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
+import { activityRelation, linkKeys, made, type Vocabulary } from "../model/Vocabulary.ts"
 import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
 import { type Json, type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
 
@@ -44,7 +45,7 @@ export interface Spec {
   readonly inlineNodes: ReadonlyArray<InlineNode>
   readonly scenarios: ReadonlyArray<Scenario>
   readonly openQuestions: ReadonlyArray<OpenQuestion>
-  /** The first paragraph: the description the draft gate asks for. */
+  /** The first paragraph: the description the criteria of draft ask for. */
   readonly summary: string
   /** Paragraphs, lists and quotes, as written. */
   readonly prose: ReadonlyArray<Prose>
@@ -71,13 +72,11 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
   const md = parseMarkdown(content)
   const diagnostics: Array<Diagnostic> = []
   if (md.frontMatterError) {
-    diagnostics.push({
-      rule: "front-matter",
-      severity: "error",
+    diagnostics.push(diagnostic("front-matter", {
       message: `invalid front matter: ${md.frontMatterError.message}`,
       source: { file, line: md.frontMatterError.line },
       hint: "fix the YAML between the --- lines; until then the file is not part of the graph"
-    })
+    }))
     return { spec: undefined, diagnostics }
   }
   const front = md.frontMatter
@@ -90,18 +89,16 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       ? "the file has a Gherkin block"
       : undefined
     if (meant) {
-      diagnostics.push({
-        rule: "missing-id",
-        severity: "error",
+      diagnostics.push(diagnostic("missing-id", {
         message: `${meant} but no id, so the file is not part of the graph`,
         source: { file, line: 1 },
         hint: "add `id: <PREFIX>-<slug>` to the front matter; a document that only shows Gherkin as an example belongs under `exclude`"
-      })
+      }))
     }
     return { spec: undefined, diagnostics }
   }
   const fm = front.data
-  const kind = Predicate.isString(fm.kind) ? fm.kind : inferKind(id, config)
+  const kind = writtenKind(fm.kind, { file, owner: id, line: field(front, "kind")?.line ?? 1 }, diagnostics) ?? inferKind(id, config)
   const title = Predicate.isString(fm.title) ? fm.title : md.title ?? id
   const tags = normalizeTags(fm.tags)
   const attrs = attributesOf(front)
@@ -111,14 +108,12 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
   // Parse errors cascade; the first one is what needs fixing.
   for (const error of gherkin.errors.slice(0, 1)) {
     const more = gherkin.errors.length > 1 ? ` (and ${gherkin.errors.length - 1} follow-on errors)` : ""
-    diagnostics.push({
-      rule: "gherkin-syntax",
-      severity: "error",
+    diagnostics.push(diagnostic("gherkin-syntax", {
       message: `${error.message}${more}`,
       node: id,
       source: { file, line: error.line },
       hint: gherkinHint
-    })
+    }))
   }
 
   return {
@@ -130,7 +125,7 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       title,
       attrs,
       tags,
-      links: readLinks(field(front, "links"), { file, owner: id }, diagnostics),
+      links: readLinks(front, config.vocabulary, { file, owner: id }, diagnostics),
       references: md.references,
       inlineNodes: readInlineNodes(field(front, "nodes"), config, file, diagnostics),
       scenarios: gherkin.scenarios,
@@ -161,29 +156,26 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
   }
   const id = meta.id ?? fallbackId
   const parsed = id === fallbackId ? firstPass : parseFeatureFile(id, content)
-  const diagnostics: Array<Diagnostic> = parsed.errors.map((error) => ({
-    rule: "gherkin-syntax",
-    severity: "error" as const,
-    message: error.message,
-    node: id,
-    source: { file, line: error.line },
-    hint: gherkinHint
-  }))
+  const diagnostics: Array<Diagnostic> = parsed.errors.map((error) =>
+    diagnostic("gherkin-syntax", { message: error.message, node: id, source: { file, line: error.line }, hint: gherkinHint })
+  )
   if (!parsed.featureName && parsed.errors.length === 0) return { spec: undefined, diagnostics }
   const plainTags = parsed.featureTags.filter((tag) => !tagValue.test(tag)).map((tag) => tag.slice(1))
   const { id: _id, kind: rawKind, title: rawTitle, ...rest } = meta
   const attrs: Record<string, unknown> = { ...rest }
   if (plainTags.length > 0) attrs.tags = plainTags
+  // Tags sit on the lines above `Feature:`; the first line is where to look.
+  const at = { file, owner: id, line: 1 }
   return {
     spec: {
       file,
       format: "feature",
       id,
-      kind: rawKind ?? (meta.id ? inferKind(id, config) : "feature"),
+      kind: writtenKind(rawKind, at, diagnostics) ?? (meta.id ? inferKind(id, config) : "feature"),
       title: rawTitle ?? parsed.featureName ?? id,
       attrs,
       tags: plainTags,
-      links: [],
+      links: linksOfKeys(rest, config.vocabulary, at, diagnostics),
       references: [],
       inlineNodes: [],
       scenarios: parsed.scenarios,
@@ -198,6 +190,26 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
   }
 }
 annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
+
+/**
+ * The kind an author gives a node, if any. The kinds sdp makes itself are not an author's to give:
+ * one written is an error, and the node is of the kind its id says.
+ */
+export const writtenKind = (
+  written: unknown,
+  at: { readonly file: string; readonly owner: string; readonly line: number },
+  diagnostics: Array<Diagnostic>
+): string | undefined => {
+  if (!Predicate.isString(written)) return undefined
+  if (!Object.values<string>(made.kinds).includes(written)) return written
+  diagnostics.push(diagnostic("derived-attribute", {
+    message: `${at.owner}: sdp makes the nodes of kind ${written} itself, so the kind written here is ignored`,
+    node: at.owner,
+    source: { file: at.file, line: at.line },
+    hint: "give it a kind of your own; `sdp vocabulary` lists the kinds sdp makes"
+  }))
+  return undefined
+}
 
 /** `REQ-foo` → `requirement` when the config maps that prefix; otherwise `spec`. */
 export const inferKind = (id: string, config: Config): string => {
@@ -237,38 +249,63 @@ const attributeLines = (map: Located): Record<string, number> =>
 
 const linkHint = "use `links: { <rel>: <ID> | [<ID>, ...] | { to: <ID>, ...attrs } }`"
 
-/**
- * Accepts every shape people naturally write, each link at the line of its target:
- *   links: { refines: CAP-x, uses: [A, B], calls: { to: C, via: http } }
- *   links: [ { rel: uses, to: A, note: sync } ]
- * An empty `links:` declares none; anything else is an error where it is written.
- */
-const readLinks = (
-  value: Located | undefined,
-  at: { readonly file: string; readonly owner: string },
-  diagnostics: Array<Diagnostic>
-): ReadonlyArray<LinkDecl> => {
-  if (value === undefined || value.data === null) return []
+/** Collects links in every shape a link key takes, each at the line of its target; a value without a target is an error there. */
+const collectLinks = (at: { readonly file: string; readonly owner: string }, diagnostics: Array<Diagnostic>) => {
   const links: Array<LinkDecl> = []
   const invalid = (message: string, line: number) =>
-    diagnostics.push({ rule: "link-syntax", severity: "error", message, node: at.owner, source: { file: at.file, line }, hint: linkHint })
+    diagnostics.push(diagnostic("link-syntax", { message, node: at.owner, source: { file: at.file, line }, hint: linkHint }))
   const add = (rel: string, target: Located) => {
     const { data } = target
-    const to = target.entries ? field(target, "to")?.data : undefined
+    const to = target.entries ? field(target, "to") : undefined
     if (Predicate.isString(data)) {
       for (const id of data.split(",").map((t) => t.trim()).filter(Boolean)) links.push({ rel, to: id, line: target.line })
     } else if (Predicate.isNumber(data)) {
       links.push({ rel, to: String(data), line: target.line })
     } else if (target.items) {
       for (const item of target.items) add(rel, item)
-    } else if (Predicate.isString(to)) {
+    } else if (to !== undefined && Predicate.isString(to.data)) {
       const attrs = Object.fromEntries((target.entries ?? []).filter((e) => e.key !== "to" && e.key !== "rel").map((e) => [e.key, e.value.data]))
-      links.push({ rel, to, attrs, line: target.line })
+      links.push({ rel, to: to.data, attrs, line: to.line })
     } else {
       invalid(`${rel}: ${JSON.stringify(data)} has no target`, target.line)
     }
   }
-  if (value.items) {
+  return { links, add, invalid }
+}
+
+/**
+ * The keys the vocabulary names as links — the plan and phase relations, a workspace's own link
+ * keys, and each discipline of `activity` under `activity.<discipline>`.
+ */
+const addKeyLinks = (map: Located, vocabulary: Vocabulary, add: (rel: string, target: Located) => void) => {
+  for (const key of linkKeys(vocabulary)) {
+    const value = field(map, key)
+    if (value !== undefined) add(key, value)
+  }
+  const activity = field(map, vocabulary.attributes.activity)
+  for (const entry of activity?.entries ?? []) add(activityRelation(vocabulary, entry.key), entry.value)
+}
+
+/**
+ * The links a spec or an inline node declares ([[DEC-0010]]): everything under `links:`, in every
+ * shape people naturally write, and the keys the vocabulary names as links, each link at the line
+ * of its target:
+ *   links: { refines: CAP-x, uses: [A, B], calls: { to: C, via: http } }
+ *   links: [ { rel: uses, to: A, note: sync } ]
+ *   iteration: E1
+ * An empty `links:` declares none; anything else is an error where it is written.
+ */
+const readLinks = (
+  map: Located,
+  vocabulary: Vocabulary,
+  at: { readonly file: string; readonly owner: string },
+  diagnostics: Array<Diagnostic>
+): ReadonlyArray<LinkDecl> => {
+  const { add, invalid, links } = collectLinks(at, diagnostics)
+  const value = field(map, "links")
+  if (value === undefined || value.data === null) {
+    // No links under `links:`.
+  } else if (value.items) {
     for (const item of value.items) {
       const rel = item.entries ? field(item, "rel")?.data : undefined
       if (Predicate.isString(rel) && Predicate.isString(field(item, "to")?.data)) add(rel, item)
@@ -279,6 +316,7 @@ const readLinks = (
   } else {
     invalid(`links must be a map or a list, not ${JSON.stringify(value.data)}`, value.line)
   }
+  addKeyLinks(map, vocabulary, add)
   return links
 }
 
@@ -290,13 +328,17 @@ const locatedAt = (value: unknown, line: number): Located => {
   return { line, data, entries: Object.entries(value).map(([key, entry]) => ({ key, line, value: locatedAt(entry, line) })) }
 }
 
-/** The links one link key declares outside `links:` (`iteration: E1`), in every shape `links:` accepts, at the key's line. */
-export const linksOfKey = (
-  rel: string,
-  value: unknown,
+/** The links of attributes that are written on one line — feature tags, a code annotation — where they name link keys. */
+export const linksOfKeys = (
+  attrs: Attrs,
+  vocabulary: Vocabulary,
   at: { readonly file: string; readonly owner: string; readonly line: number },
   diagnostics: Array<Diagnostic>
-): ReadonlyArray<LinkDecl> => readLinks(locatedAt({ [rel]: value }, at.line), at, diagnostics)
+): ReadonlyArray<LinkDecl> => {
+  const { add, links } = collectLinks(at, diagnostics)
+  addKeyLinks(locatedAt(attrs, at.line), vocabulary, add)
+  return links
+}
 
 /** `nodes:` is a list of maps, each with an id; an empty `nodes:` declares none. */
 const readInlineNodes = (
@@ -307,7 +349,7 @@ const readInlineNodes = (
 ): ReadonlyArray<InlineNode> => {
   if (value === undefined || value.data === null) return []
   const invalid = (message: string, line: number) =>
-    diagnostics.push({ rule: "inline-node", severity: "error", message, source: { file, line }, hint: "write `nodes: [{ id: <ID>, kind: <kind>, ... }]`" })
+    diagnostics.push(diagnostic("inline-node", { message, source: { file, line }, hint: "write `nodes: [{ id: <ID>, kind: <kind>, ... }]`" }))
   if (!value.items) {
     invalid(`nodes must be a list, not ${JSON.stringify(value.data)}`, value.line)
     return []
@@ -319,16 +361,16 @@ const readInlineNodes = (
       invalid(`an entry under nodes needs an id: ${JSON.stringify(item.data)}`, item.line)
       continue
     }
-    const kind = field(item, "kind")?.data
+    const kind = field(item, "kind")
     const title = field(item, "title")?.data
     const line = item.entries!.find((entry) => entry.key === "id")!.line
     nodes.push({
       id,
-      kind: Predicate.isString(kind) ? kind : inferKind(id, config),
+      kind: writtenKind(kind?.data, { file, owner: id, line: kind?.line ?? line }, diagnostics) ?? inferKind(id, config),
       title: Predicate.isString(title) ? title : id,
       attrs: attributesOf(item),
       attrLines: attributeLines(item),
-      links: readLinks(field(item, "links"), { file, owner: id }, diagnostics),
+      links: readLinks(item, config.vocabulary, { file, owner: id }, diagnostics),
       line
     })
   }

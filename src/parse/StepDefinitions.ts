@@ -2,14 +2,16 @@
  * Reads step definitions out of step files statically: the file is parsed,
  * never run, so reading a workspace executes none of its code. A step file
  * registers its definitions in `defineSteps(world, ({ Given, When, Then }) => { … })`
- * calls at its top level, imported from "sdp/steps"; each registration is read
- * with its expression — a string or RegExp literal — and its `file:line`.
- * What cannot be read this way is reported, never guessed: only `sdp run`,
- * which imports the module, knows a registration whose expression is computed.
+ * calls at its top level, imported from "sdp/steps", one call per step as a
+ * statement of that callback: `Given("…", handler)`, with its expression a
+ * string or RegExp literal. That form is read, with each `file:line`. What is
+ * registered any other way — under a condition, in a loop, through another
+ * name or a helper, with a computed expression — is reported, never guessed:
+ * only `sdp run`, which imports the module, knows it.
  */
 import { annotate } from "sdp/annotations"
 import { CucumberExpression, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
-import { parseSync } from "oxc-parser"
+import { isNode, type Node, parseScript } from "./Script.ts"
 
 export type StepKeyword = "Given" | "When" | "Then" | "Step"
 
@@ -37,33 +39,22 @@ const stepsModule = "sdp/steps"
 
 const keywords: ReadonlySet<string> = new Set<StepKeyword>(["Given", "When", "Then", "Step"])
 
-type Node = { readonly type: string; readonly start: number; readonly [key: string]: unknown }
+const isKeyword = (name: unknown): name is StepKeyword => typeof name === "string" && keywords.has(name)
 
-const isNode = (value: unknown): value is Node =>
-  typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string"
+const nameOf = (node: unknown): string | undefined => isNode(node) && node.type === "Identifier" ? node.name as string : undefined
 
-const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" =>
-  /\.[cm]?tsx$/.test(file) ? "tsx" : /\.[cm]?jsx$/.test(file) ? "jsx" : /\.[cm]?ts$/.test(file) ? "ts" : "js"
+/** Whether `node` names one of `names` anywhere inside it. */
+const mentions = (node: Node, names: ReadonlySet<string>): boolean =>
+  names.has(nameOf(node) ?? "") ||
+  Object.values(node).some((value) => (Array.isArray(value) ? value : [value]).some((child) => isNode(child) && mentions(child, names)))
 
 /** Reads the step definitions of one step file without running it. */
 export const scanStepDefinitions = (file: string, content: string): StepScan => {
-  const lineStarts = [0]
-  for (let i = 0; i < content.length; i++) if (content[i] === "\n") lineStarts.push(i + 1)
-  const lineOf = (offset: number) => lineStarts.findLastIndex((start) => start <= offset) + 1
-
-  const parsed = parseSync(file, content, { lang: languageOf(file), sourceType: "module" })
-  if (parsed.errors.length > 0) {
-    const error = parsed.errors[0]!
-    return {
-      definitions: [],
-      problems: [{
-        rule: "step-unreadable",
-        line: lineOf(error.labels[0]?.start ?? 0),
-        message: `the file does not parse, so its step definitions cannot be read: ${error.message}`
-      }]
-    }
-  }
-  const program = parsed.program as unknown as { readonly body: ReadonlyArray<Node> }
+  const script = parseScript(file, content)
+  const unread = (line: number, message: string): StepScan => ({ definitions: [], problems: [{ rule: "step-unreadable", line, message }] })
+  if (script === undefined) return unread(1, "the file is not TypeScript or JavaScript, so its step definitions cannot be read")
+  if (script.error) return unread(script.error.line, `the file does not parse, so its step definitions cannot be read: ${script.error.message}`)
+  const { lineOf, program } = script
 
   // Local names of `defineSteps`, as imported from the steps module.
   const defineSteps = new Set<string>()
@@ -79,7 +70,7 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
   const problems: Array<StepProblem> = []
   const unreadable = (node: Node, message: string) => problems.push({ rule: "step-unreadable", line: lineOf(node.start), message })
 
-  /** One `Given("…", handler)` call inside a `defineSteps` callback. */
+  /** One `Given("…", handler)` statement of a `defineSteps` callback. */
   const register = (keyword: StepKeyword, call: Node) => {
     const line = lineOf(call.start)
     const argument = (call.arguments as ReadonlyArray<Node>)[0]
@@ -97,7 +88,11 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
     definitions.push({ keyword, expression, location: `${file}:${line}` })
   }
 
-  /** `defineSteps(world, (registrar) => { … })`: reads every registration in the callback. */
+  /**
+   * `defineSteps(world, (registrar) => { … })`: reads the registrations that are statements of the
+   * callback. Handlers are not looked into, and a statement that uses the registrar any other way
+   * registers what only a run knows.
+   */
   const readModule = (call: Node) => {
     const callback = (call.arguments as ReadonlyArray<Node>)[1]
     const registrar = callback && /^(Arrow)?FunctionExpression$/.test(callback.type) ? (callback.params as ReadonlyArray<Node>)[0] : undefined
@@ -106,28 +101,38 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
     }
     // `({ Given, When: when })` binds registrars to local names; `(steps)` is used as `steps.Given(…)`.
     const local = new Map<string, StepKeyword>()
-    if (registrar.type === "ObjectPattern") {
-      for (const property of registrar.properties as ReadonlyArray<Node>) {
-        const key = (property.key as { name?: string } | undefined)?.name
-        const value = property.value as { name?: string } | undefined
-        if (key !== undefined && keywords.has(key) && value?.name !== undefined) local.set(value.name, key as StepKeyword)
+    const whole = nameOf(registrar)
+    for (const property of registrar.type === "ObjectPattern" ? registrar.properties as ReadonlyArray<Node> : []) {
+      const key = nameOf(property.key)
+      const bound = nameOf(property.value)
+      if (property.type !== "Property" || property.computed || key === undefined || bound === undefined) {
+        return unreadable(registrar, "the registrar of this defineSteps is taken apart in a way that cannot be read: write ({ Given, When, Then }) or (steps)")
+      }
+      if (isKeyword(key)) local.set(bound, key)
+    }
+    if (registrar.type !== "ObjectPattern" && whole === undefined) {
+      return unreadable(registrar, "the registrar of this defineSteps is neither ({ Given, When, Then }) nor one name, so its step definitions cannot be read")
+    }
+    const keywordOf = (callee: Node): StepKeyword | undefined => {
+      if (callee.type === "Identifier") return local.get(callee.name as string)
+      const member = callee.type === "MemberExpression" && !callee.computed ? nameOf(callee.property) : undefined
+      return whole !== undefined && nameOf(callee.object) === whole && isKeyword(member) ? member : undefined
+    }
+    const names = new Set([...local.keys(), ...(whole === undefined ? [] : [whole])])
+    const body = callback.body as Node
+    // `(steps) => steps.Given(…)` is a callback of one statement.
+    const statements = body.type === "BlockStatement" ? body.body as ReadonlyArray<Node> : [body]
+    for (const statement of statements) {
+      const expression = statement.type === "ExpressionStatement" ? statement.expression as Node : statement
+      const keyword = expression.type === "CallExpression" ? keywordOf(expression.callee as Node) : undefined
+      if (keyword !== undefined) register(keyword, expression)
+      else if (mentions(statement, names)) {
+        unreadable(
+          statement,
+          "this statement registers steps under a condition, in a loop or through another name, so they cannot be read without running the file"
+        )
       }
     }
-    const object = registrar.type === "Identifier" ? registrar.name as string : undefined
-    const visit = (node: Node) => {
-      if (node.type === "CallExpression") {
-        const callee = node.callee as Node
-        if (callee.type === "Identifier" && local.has(callee.name as string)) register(local.get(callee.name as string)!, node)
-        const member = callee.type === "MemberExpression" && !callee.computed ? (callee.property as { name?: string }).name : undefined
-        if (member !== undefined && keywords.has(member) && (callee.object as { name?: string }).name === object) {
-          register(member as StepKeyword, node)
-        }
-      }
-      for (const value of Object.values(node)) {
-        for (const child of Array.isArray(value) ? value : [value]) if (isNode(child)) visit(child)
-      }
-    }
-    visit(callback.body as Node)
   }
 
   let modules = 0

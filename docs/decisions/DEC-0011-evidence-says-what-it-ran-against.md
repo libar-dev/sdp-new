@@ -58,10 +58,10 @@ One fingerprint per kind of input; one file under a lock; two layers.
 | Fingerprinted | Not fingerprinted |
 | --- | --- |
 | the scenario as a handler can observe it, tags included | prose around the scenario |
-| the configuration, the code, the step files and every workspace file they import until the run ends | packages, except through the lockfile; files outside the workspace |
+| the configuration, the code, the step files and every workspace file they import until the run ends, as the process loaded them | packages, except through the lockfile; files outside the workspace |
 | the sdp version, the Node.js major version, the lockfile | the operating system, the Node.js minor version |
 | the files and environment variables the workspace declares (`evidence.inputs`, `evidence.env`) | anything else a step reads while it runs: services, the clock, undeclared files |
-| the specs, for a scenario that read the graph; the ordinary results, for a gate that did | |
+| the specs, for a scenario that read the graph; what the ordinary results say — each scenario's status, or why it is stale — for a gate that did | when and how the ordinary scenarios ran: a gate is not shown it |
 
 `verified` promises that every scenario passed against the left column and that none of it has
 changed, nothing wider ([[REQ-executable-specs]]). What a team cannot declare, it cannot claim.
@@ -71,6 +71,13 @@ changed, nothing wider ([[REQ-executable-specs]]). What a team cannot declare, i
 - A scenario that asserts on delivery state is a gate; sdp says so when an ordinary scenario
   tries. Gates cannot build on gates: a milestone that needs another milestone's conditions states
   them itself.
+- A scenario is shown no more than its fingerprints cover. A gate reads the status of an ordinary
+  result, not its time or its duration, so an ordinary scenario that passes again leaves the gate's
+  result standing.
+- A result is evidence about the code that ran. Node.js keeps a module for the life of a process,
+  so a process imports step modules once, and a run in a process whose modules no longer match
+  the files is refused instead of recorded. Which files the modules imported is recorded with the
+  results of that run, not accumulated across runs.
 - Every code change makes every result stale. That is the price of the cheap, safe fingerprint,
   and acceptable while a full run takes seconds; if it stops being so, per-scenario dependencies
   are the next option, not a finer hash.

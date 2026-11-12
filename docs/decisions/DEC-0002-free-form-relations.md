@@ -43,7 +43,9 @@ relation names as data (`-a|b->`, `-*->`).
 
 ## Consequences
 
-- Renaming a role's word renames what sdp reads; nothing silently stops working.
+- Renaming a role's word renames what sdp reads and what `sdp new` writes; nothing silently stops
+  working. A profile whose roles contradict each other is refused where it is configured
+  ([[REQ-configuration]]).
 - Typos create new kinds and relations instead of errors. `sdp status` lists those in use with
   counts, which makes outliers easy to spot. A link key, though, always links ([[DEC-0010]]), so
   `sdp check` reports every reference to a missing node.

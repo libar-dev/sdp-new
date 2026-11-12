@@ -9,7 +9,7 @@
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
-import { gateReasons } from "../check/Check.ts"
+import { unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, criteria, hasKind, isDerived, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Spec } from "../parse/Spec.ts"
@@ -171,20 +171,20 @@ const ownWords = (node: GraphNode): ReadonlyArray<string> =>
       .filter(([key, value]) => Predicate.isString(value) && !isDerived(node.kind, key))
       .map(([key, value]) => `  ${key}: ${String(value)}`)
 
-/** Why a spec below `ready` is not ready: the ready gate's reasons, or that its content already meets it. */
+/** Why a spec below `ready` is not ready: what the criteria of ready still miss, or that its content already meets them. */
 const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
   const { maturity: ladder } = project.config.vocabulary
   const { ready } = criteria
   const maturity = spec.attrs.maturity
   if (!Predicate.isString(maturity) || !ladder.includes(ready) || ladder.indexOf(maturity) < 0) return []
   if (ladder.indexOf(maturity) >= ladder.indexOf(ready)) return []
-  const reasons = gateReasons(spec, ready)
+  const reasons = unmetCriteria(spec, ready)
   return [
     "## Not ready yet",
     "",
     ...(reasons.length > 0
       ? [`Maturity is ${maturity}; for ready:`, ...reasons.map((reason) => `- ${reason}`)]
-      : [`Maturity is ${maturity}, but the content already meets the ${ready} gate: set \`maturity: ${ready}\` if the team agrees.`]),
+      : [`Maturity is ${maturity}, but the content already meets the criteria of ${ready}: set \`maturity: ${ready}\` if the team agrees.`]),
     ""
   ]
 }

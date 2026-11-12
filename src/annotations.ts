@@ -6,7 +6,7 @@
  *
  *   export class Graph { ... }
  *   annotate(Graph, { is: "ARCH-graph", "instance-of": "PAT-derived-index" })
- *   annotate(import.meta, { implements: ["REQ-graph-query"] })   // the whole module
+ *   annotate(import.meta, { is: "ARCH-query-engine" })   // the whole module
  *
  * The target is a real symbol, so renaming it or finding its references includes
  * the annotation. Once `sdp types` has written the workspace's id declarations,

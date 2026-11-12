@@ -54,9 +54,11 @@ notes ([[REQ-cli]]): exploring is not asserting. Known everywhere are `id`, `kin
 and the kinds with an id prefix. An unknown severity or rule fails its step the same way.
 
 The steps assert against the graph their scenario sees ([[REQ-executable-specs]], *Layers*): an
-ordinary scenario sees no results, a gate the results of the ordinary scenarios. A step that reads
-a result-derived attribute — `stage`, `verification`, `staleBecause`, `lastRun`, or a scenario's
-`status` — in an ordinary scenario therefore fails, saying that the scenario is a gate.
+ordinary scenario sees no results, a gate what the results of the ordinary scenarios say. A step
+that reads a result-derived attribute — `stage`, `verification`, `staleBecause`, or `status`
+wherever its selector can match a scenario, `*` included — in an ordinary scenario therefore
+fails, saying that the scenario is a gate. When a result was recorded (`lastRun`) is shown to no
+scenario, so a step that reads it fails in a gate too.
 Like any step, they match by text, whatever the keyword.
 
 This repository uses them for its decision guards ([[DEC-0001]], [[DEC-0002]], [[DEC-0007]]) and its

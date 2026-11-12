@@ -21,8 +21,14 @@ annotate(import.meta, { is: "ARCH-runner" })
 type Asserting = Pick<StepContext<unknown, ReadonlyArray<unknown>>, "project" | "scenario">
 
 /** Attributes a node has only through results; `status` is one on scenarios, while decisions and risks declare theirs. */
-const resultAttributes: ReadonlySet<string> = new Set(["stage", "verification", "staleBecause", "lastRun"])
+const resultAttributes: ReadonlySet<string> = new Set(made.resultAttributes)
 const isResult = (key: string, onScenario: boolean) => resultAttributes.has(key) || (key === "status" && onScenario)
+
+/** When a result was recorded is shown to no scenario, a gate included: what it found would change with every run. */
+const unseen = (attribute: string, key: string) => {
+  if (key !== made.recordedAt) return
+  throw new Error(`${attribute} is when a result was recorded, which no scenario sees: assert on status, which says whether the result counts`)
+}
 
 /** An ordinary scenario sees the graph without results, so asserting on them could only mislead: such a scenario is a gate. */
 const gatesOnly = ({ scenario }: Asserting, attribute: string) => {
@@ -32,11 +38,15 @@ const gatesOnly = ({ scenario }: Asserting, attribute: string) => {
   )
 }
 
-/** The result-derived attributes a query's conditions name. */
+/**
+ * The result-derived attributes a query's conditions name. `status` is one wherever the selector
+ * can match a scenario: by its id, by its kind, or by `*`, which matches every kind.
+ */
 const resultsRead = (project: Project, query: Query): ReadonlyArray<string> =>
   [query.start, ...query.steps.map((step) => step.node)].flatMap((selector) => {
-    const onScenario = (selector.kinds !== "*" && selector.kinds.includes(made.kinds.scenario)) ||
-      (selector.ids ?? []).some((id) => project.graph.node(id)?.kind === made.kinds.scenario)
+    const onScenario = selector.ids
+      ? selector.ids.some((id) => project.graph.node(id)?.kind === made.kinds.scenario)
+      : selector.kinds === "*" || selector.kinds.includes(made.kinds.scenario)
     return selector.conditions.map((condition) => condition.key).filter((key) => isResult(key, onScenario))
   })
 
@@ -50,7 +60,10 @@ const run = (context: Asserting, source: string): ReadonlyArray<GraphNode> => {
   const { project } = context
   const parsed = parseQuery(source)
   if (Result.isFailure(parsed)) throw new Error(`invalid query: ${parsed.failure.message}`)
-  for (const attribute of resultsRead(project, parsed.success)) gatesOnly(context, `${attribute} in query "${source}"`)
+  for (const attribute of resultsRead(project, parsed.success)) {
+    unseen(`${attribute} in query "${source}"`, attribute)
+    gatesOnly(context, `${attribute} in query "${source}"`)
+  }
   const unread = project.diagnostics.filter((diagnostic) => unreadRules.has(diagnostic.rule))
   if (unread.length > 0) {
     throw new Error(
@@ -139,8 +152,9 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
   Then("the node {string} has {word} {string}", ({ args: [id, key, value], ...context }) => {
     const node = context.project.graph.node(id)
     if (!node || node.kind === made.kinds.missing) throw new Error(`no node ${id}`)
+    unseen(`${id}.${key}`, key)
     if (isResult(key, node.kind === made.kinds.scenario)) gatesOnly(context, `${id}.${key}`)
     const actual = key === "kind" ? node.kind : key === "title" ? node.title : attribute(node, key)
     if (String(actual) !== value) throw new Error(`${id}.${key} is ${JSON.stringify(actual)}, expected ${JSON.stringify(value)}`)
   })
-}, { name: "sdp/builtin" })
+})

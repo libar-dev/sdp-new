@@ -143,14 +143,28 @@ export const made = {
   attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", "tags", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
+  resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
+  /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
+  recordedAt: "lastRun",
   /** Where a node is in delivery, beyond its declared maturity (DEC-0005). */
   stages: { failing: "failing", inProgress: "in-progress", verified: "verified" },
   /** `declaredIn` of a node an anchor annotation declares. */
   declaredInCode: "code"
 } as const
 
+/**
+ * Names no link may have. A link reads as an attribute of the node it starts from (DEC-0010), so
+ * one named like a fact sdp derives, or like the maturity or the status it checks, would pass for
+ * that fact.
+ */
+export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
+
 /** The maturity levels whose criteria are built in; levels a workspace adds have none. */
 export const criteria = { idea: "idea", draft: "draft", specified: "specified", ready: "ready" } as const
+
+/** The word a role is written with — its first; a valid profile gives every role one. */
+export const wordFor = (words: Words): string => words[0]!
 
 export type KindRole = Exclude<keyof Vocabulary["kinds"], "anchored">
 export type RelationRole = "supersedes" | "plan" | "phase"
@@ -201,5 +215,22 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
   disciplines: [...vocabulary.disciplines.keys()]
 })
 
-/** The profile as plain data, in the shape of the `vocabulary:` configuration section. */
-export const vocabularyJson = (vocabulary: Vocabulary) => ({ ...vocabulary, disciplines: Object.fromEntries(vocabulary.disciplines) })
+/**
+ * The words sdp interprets, as plain data: `vocabulary`, the profile in the shape of the
+ * configuration section of that name, and `made`, the words sdp makes itself, which nothing configures.
+ */
+export const vocabularyJson = (vocabulary: Vocabulary) => ({
+  vocabulary: { ...vocabulary, disciplines: Object.fromEntries(vocabulary.disciplines) },
+  made: {
+    /** The kinds of the nodes sdp makes; no author's node has one. */
+    kinds: Object.values(made.kinds),
+    /** The attributes sdp derives on the nodes authors declare. */
+    attributes: made.attributes,
+    /** The attributes of a scenario node. */
+    scenarioAttributes: made.scenarioAttributes,
+    /** The stages beyond the maturity ladder. */
+    stages: Object.values(made.stages),
+    /** The names no link can have. */
+    reservedRelations
+  }
+})

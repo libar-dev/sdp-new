@@ -16,7 +16,8 @@
  * is an annotation, even inside a multi-line string — best effort.
  */
 import { annotate } from "sdp/annotations"
-import { parseScript, readTypedAnnotations, type Script, type TypedAnnotationProblem } from "./TypedAnnotations.ts"
+import { parseScript, type Script } from "./Script.ts"
+import { readTypedAnnotations, type TypedAnnotationProblem } from "./TypedAnnotations.ts"
 
 annotate(import.meta, { is: "ARCH-code-annotations" })
 

@@ -204,6 +204,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.deepEqual(changed, [], `these could be changed: ${changed.join(", ")}`)
   })
 
+  Then("no graph can be built from a node whose attribute is a {word}", ({ args: [what] }) => {
+    const values: Record<string, unknown> = { Date: new Date(0), Map: new Map(), function: () => 1 }
+    assert.ok(Object.hasOwn(values, what), `no example of a ${what}; there are: ${Object.keys(values).join(", ")}`)
+    const node: GraphNode = { id: "a", kind: "element", title: "a", attrs: { nested: { value: values[what] } } }
+    assert.throws(() => new Graph([node], []), new RegExp(`an attribute is JSON data, not a ${what}`))
+  })
+
   // --- stages (REQ-maturity-criteria) ------------------------------------------
 
   Then("sdp status counts the stages {string}", ({ args: [expected], world }) =>

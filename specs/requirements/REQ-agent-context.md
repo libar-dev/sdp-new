@@ -17,8 +17,8 @@ Before changing anything, an agent asks for one node's context — `sdp context 
 tool `sdp_context` — and gets a single Markdown document with everything needed to work on it:
 
 1. the node's kind, maturity, stage, source and attributes;
-2. for a spec below `ready`, why it is not ready: what the ready gate still misses
-   ([[REQ-maturity-criteria]]), or that the content already meets it;
+2. for a spec below `ready`, why it is not ready: what the criteria of `ready` still miss
+   ([[REQ-maturity-criteria]]), or that the content already meets them;
 3. the spec text;
 4. its relationships, each with the other node's title, status and `file:line`. A node declared
    inside another spec — a glossary term, an iteration — has no text of its own to open, so its
@@ -365,7 +365,7 @@ Scenario: A registration that cannot be read is named, so its step is not mistak
   When I run "sdp context REQ-cart"
   Then the exit code is 2
   And the output section "Scenarios" contains "undefined: Given an empty cart"
-  And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: the expression of this Given definition is computed"
+  And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: this statement registers steps under a condition, in a loop or through another name"
   When I run "sdp steps cart"
   Then the exit code is 2
   And the output contains "note: not read: specs/steps/cart.steps.ts:5"

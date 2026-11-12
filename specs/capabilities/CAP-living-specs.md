@@ -63,6 +63,7 @@ Scenario: A milestone is met by what ran, not by a status or a date
     })
     """
   When I run "sdp run"
-  And I run "sdp gate MS-beta"
+  Then the exit code is 0
+  When I run "sdp gate MS-beta"
   Then the exit code is 0
 ~~~

@@ -33,7 +33,10 @@ into plain text with no diagnostic. Milestone gates passed for the wrong reason.
 
 Option 3. A link key always yields an edge, and its target must resolve: every unresolved reference
 is a `dangling-link` error where it is written. A link is also readable as an attribute of the node
-it starts from, so `[iteration=E1]` and `-iteration-> #E1` agree whichever way the author wrote it.
+it starts from — the key holds its targets — so `[iteration=E1]` and `-iteration-> #E1` agree
+whichever way the author wrote it. A key is therefore a link or a value on a node, never both: no
+link has the name of an attribute its node has, or of a fact sdp derives or checks (`stage`,
+`verification`, `maturity`, `status`, …), which it would otherwise pass for.
 An edge is one `(from, rel, to)` fact that keeps every declaration stating it, with the union of
 their attributes; declarations that disagree on an attribute are a `link-conflict`. A prose mention
 of two nodes that a link already joins adds no `mentions` edge, and a mention is never a link:
@@ -67,4 +70,35 @@ Scenario: A value that happens to be an id does not link, and a link key that na
   When the workspace is checked
   Then the workspace graph has no "owner" edges
   And the check reports "dangling-link" for "REQ-a"
+
+Scenario: A link named like a fact sdp derives does not pass for that fact
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    links: { stage: verified, verification: passing }
+    nodes:
+      - { id: verified, kind: label }
+      - { id: passing, kind: label }
+    ---
+    # Alpha
+    """
+  And a file "docs/MS-done.md" containing:
+    """
+    ---
+    id: MS-done
+    kind: milestone
+    ---
+    # Done
+
+    ```gherkin
+    Scenario: Everything is verified
+      Then every node matching "requirement" also matches "requirement[stage=verified]"
+    ```
+    """
+  When the workspace is run
+  Then scenario "MS-done#everything-is-verified" has status "failed"
+  When the workspace is checked
+  Then the check reports "link-syntax" for "REQ-a -stage-> verified"
+  And the check reports "link-syntax" for "REQ-a -verification-> passing"
 ~~~

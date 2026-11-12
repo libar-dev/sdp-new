@@ -31,26 +31,26 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 
 | Rule | Severity | Reported when | Fix |
 | --- | --- | --- | --- |
-| `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping, is not closed or holds what is not JSON data — an alias inside itself, a tag such as `!!set`, `.inf`, a key that is not text ([[ARCH-spec-parser]]); the file stays out of the graph | fix the YAML |
+| `front-matter` | error | the YAML between the `---` lines does not parse, is not a mapping, is not closed or holds what is not JSON data — an alias inside itself or to no anchor, a tag such as `!!set`, `.inf`, a key that is not text ([[ARCH-spec-parser]]); the file stays out of the graph | fix the YAML |
 | `missing-id` | error | a file declares a `kind` in its front matter, or has a Gherkin block, but no `id`: it is plainly meant as a spec, yet it is not part of the graph and its scenarios would not run | add `id: <PREFIX>-<slug>`, or `exclude` a document that only shows Gherkin |
 | `duplicate-id` | error | a spec or inline node reuses an id declared elsewhere; the later one is left out | rename one of them |
 | `dangling-link` | error | a link key ([[DEC-0010]]), a `[[ID]]` mention or a code annotation names an id no node has — each reference is reported; the target stays queryable as a `missing` node | create the node (`sdp new`) or fix the reference; for a plan or phase relation, the hint lists the declared ones |
-| `link-syntax` | error | `links:` is not a map or a list, or the value of a link key has a shape sdp does not understand; it is ignored | write `<rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes }` |
+| `link-syntax` | error | `links:` is not a map or a list, the value of a link key has a shape sdp does not understand, or a link is named like an attribute — of the node it starts from, or one sdp derives or checks (`stage`, `verification`, `maturity`, `status`, …), which it would pass for ([[DEC-0010]]); it is ignored | write `<rel>: <ID> \| [<ID>, …] \| { to: <ID>, …attributes }`; give the relation a name no attribute has |
 | `link-conflict` | warning | two declarations of the same link give one of its attributes different values; the first is kept | give the attribute one value, or declare the link once |
-| `derived-attribute` | error | a spec, an inline node or a code annotation writes an attribute sdp derives (`stage`, `verification`, …); the value is ignored | delete it |
+| `derived-attribute` | error | a spec, an inline node or a code annotation writes an attribute sdp derives (`stage`, `verification`, …) or a kind sdp makes itself (`scenario`, `code`, `missing`); the value is ignored | delete it |
 | `inline-node` | error | `nodes:` is not a list, or an entry under it is not a map with an `id`; it is ignored | write `nodes: [{ id: <ID>, … }]` |
 | `gherkin-syntax` | error | a gherkin block does not parse; the first error is reported, with the number of follow-on errors | fix the Gherkin at that line |
 | `scenario-empty` | warning | a scenario has no steps | write its steps or delete it |
 | `maturity-value` | error | `maturity` is not on the configured ladder; the node gets no stage from it | use one of the configured levels |
 | `maturity-criteria` | error | the content does not support the declared maturity — of a spec, an inline node or a node declared in code ([[REQ-maturity-criteria]]) | complete the content or lower the maturity |
-| `maturity-promotable` | info | the content meets the `specified` or `ready` gate, above the declared maturity | raise the maturity if the team agrees |
+| `maturity-promotable` | info | the content meets the criteria of `specified` or `ready`, above the declared maturity | raise the maturity if the team agrees |
 | `decision-status` | warning | a decision has no `status`, or one other than `proposed`, `accepted`, `rejected`, `deprecated`, `superseded` | set `status` |
 | `decision-supersede` | warning | a decision supersedes one whose status is not `superseded`, or a superseded decision has no successor | make both records agree |
 | `decision-content` | info | an accepted decision has no "Decision" or "Outcome" section ([[REQ-decision-records]]) | state the decision under `## Decision` |
 | `plan-reference` | warning | a plan or phase relation, or an entry of `activity:`, names a node that is not an iteration or a phase; `activity:` is not a mapping or names a discipline that is not configured; or a node whose kind belongs to no discipline is planned into an iteration, which plans no discipline's work ([[REQ-lifecycle-view]]) | name a declared iteration, phase or discipline, plan the work with `activity:`, or add the kind to a discipline |
 | `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
 | `annotation-unreadable` | warning | a typed annotation (`annotate(target, links)` from `sdp/annotations`) whose target is not a module-level declaration or `import.meta`, or whose ids or attributes are computed rather than literal — sdp reads annotations without running code; or a file that annotates but does not parse ([[ARCH-code-annotations]]) | write the target as a name declared at the top of the module and the ids as string literals |
-| `step-unreadable` | warning | a step file has no top-level `defineSteps(…)` call imported from `sdp/steps`, or registers a step whose expression is computed: sdp reads step definitions without running them, so context, snippets and `sdp steps` do not know that step ([[REQ-executable-specs]]) | write the expression as a string or RegExp literal |
+| `step-unreadable` | warning | a step file has no top-level `defineSteps(…)` call imported from `sdp/steps`, or registers a step other than with a statement of its own in that callback — under a condition, in a loop, through another name — or with a computed expression: sdp reads step definitions without running them, so context, snippets and `sdp steps` do not know that step ([[REQ-executable-specs]]) | register each step with its own `Given("…", …)` statement and a string or RegExp literal |
 | `step-expression` | error | a step definition's Cucumber Expression is malformed, or its RegExp literal is no regular expression, so it can match nothing and `sdp run` refuses to start | fix the expression |
 | `types-stale` | warning | the id declarations at the `types` path no longer match the graph, so `annotate()` may accept removed ids or reject new ones ([[REQ-configuration]]) | run `sdp types` |
 | `template-placeholder` | warning | text an `sdp new` template asks the author to replace is still there — a prompt such as "We will …" or "What is still unknown?", or a scenario or step written as `<…>`; one diagnostic per spec, at the first | write your own text, or delete it |
@@ -250,4 +250,5 @@ Scenario: Id declarations that no longer match the graph are reported
 
 Scenario: The catalogue covers every rule
   Then every rule sdp reports has an example in this spec
+  And the rules table gives every rule the severity sdp reports it with
 ~~~

@@ -15,9 +15,9 @@ their own: `sdp vocabulary` prints them ([[ARCH-vocabulary]]).
 | Word | Means |
 | --- | --- |
 | **spec** | A Markdown file whose front matter has an `id`, or a `.feature` file. Every artifact of delivery is one, and each is a node ([[REQ-progressive-specs]]). |
-| **kind** | What a node is, in its authors' words. Read from the id prefix when `kind:` is omitted ([[DEC-0018]]). |
+| **kind** | What a node is, in its authors' words. Read from the id prefix when `kind:` is omitted ([[DEC-0018]]). `scenario`, `code` and `missing` are the kinds sdp makes itself; no author writes them. |
 | **inline node** | A node declared in another spec's `nodes:` list, for things too small for a file: phases, iterations, principles ([[ARCH-graph-builder]]). |
-| **link**, **link key** | A front matter key whose values always link: every key under `links:`, the plan and phase relations, each discipline of `activity`, and a workspace's own `vocabulary.links`. Its target must exist, and it reads as an attribute too. Any other key is a value ([[DEC-0010]]). |
+| **link**, **link key** | A front matter key whose values always link: every key under `links:`, the plan and phase relations, each discipline of `activity`, and a workspace's own `vocabulary.links`. Its target must exist, and it reads as an attribute too — the key holds its targets — so no link is named like an attribute. Any other key is a value ([[DEC-0010]]). |
 | **relation** | The name of a link, chosen by its author: `refines`, `realized-by`, `decided-by` ([[REQ-flexible-graph]]). |
 | **mention** | A `[[ID]]` in prose. It is recorded, and it is not a link: the `*` of a query does not follow it ([[REQ-flexible-graph]]). |
 | **annotation**, **anchor** | A link written in code: `annotate(target, { relation: "ID" })`, or an `@sdp relation ID` comment. The anchor is the `is` annotation: it says which code an element is ([[ARCH-code-annotations]]). |

@@ -11,7 +11,7 @@ import type { StatusSummary } from "../graph/Status.ts"
 import type { ScenarioResult, StepStatus } from "../model/Results.ts"
 import type { ListedStep } from "../run/Match.ts"
 import type { Answer } from "./Answer.ts"
-import type { ArchitectureData, DiagnosticRecord, QueryData, ShowData } from "./Reading.ts"
+import type { ArchitectureData, DiagnosticRecord, QueryData, ShowData, VocabularyData } from "./Reading.ts"
 import type { GateReport, RunReport } from "./Running.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
@@ -118,14 +118,17 @@ export const architecture = ({ architecture, drivers, edges, kinds }: Architectu
   return lines.join("\n")
 }
 
-/** The vocabulary profile, one line per role: `role  word, word`. */
-export const vocabulary = (profile: Readonly<Record<string, unknown>>): string => {
+/** The vocabulary profile, one line per role — `role  word, word` — then the words sdp makes itself. */
+export const vocabulary = (data: VocabularyData): string => {
   const words = (value: unknown) => Array.isArray(value) ? value.join(", ") || "—" : String(value)
-  return Object.entries(profile).flatMap(([section, value]) =>
-    Array.isArray(value) || typeof value !== "object" || value === null
-      ? [`${pad(section, 20)} ${words(value)}`]
-      : [section, ...Object.entries(value).map(([role, its]) => `  ${pad(role, 18)} ${words(its)}`)]
-  ).join("\n")
+  const roles = (section: object) => Object.entries(section).map(([role, its]) => `  ${pad(role, 18)} ${words(its)}`)
+  return [
+    ...Object.entries(data.vocabulary).flatMap(([section, value]) =>
+      Array.isArray(value) || typeof value !== "object" || value === null ? [`${pad(section, 20)} ${words(value)}`] : [section, ...roles(value)]
+    ),
+    "made by sdp, not configurable",
+    ...roles(data.made)
+  ].join("\n")
 }
 
 const statusIcon: Record<StepStatus, string> = {

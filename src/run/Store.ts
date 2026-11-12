@@ -6,7 +6,7 @@
  * and publishes the new file with a rename.
  */
 import { annotate } from "sdp/annotations"
-import { DateTime, Effect, FileSystem, Path, Schema } from "effect"
+import { Effect, FileSystem, Path, Schema } from "effect"
 import type { Config } from "../model/Config.ts"
 import { RunResults, type ScenarioResult } from "../model/Results.ts"
 
@@ -42,7 +42,7 @@ export interface Commit {
   readonly executed: ReadonlyArray<ScenarioResult>
   /** The ids of the scenarios that exist now: results of any other scenario are dropped. */
   readonly live: ReadonlySet<string>
-  /** Workspace files the step definitions imported in this run. */
+  /** The workspace files the step definitions of this run had imported when it ended: what its results ran against besides the globs. */
   readonly imports: ReadonlyArray<string>
 }
 
@@ -68,11 +68,17 @@ export const commitResults = Effect.fn("commitResults")(function*(root: string, 
   const merge = Effect.gen(function*() {
     const stored = yield* readResults(root, config)
     const kept = Object.entries(stored?.scenarios ?? {}).filter(([id]) => commit.live.has(id))
+    const scenarios = Object.fromEntries([...kept, ...commit.executed.map((result) => [result.id, result] as const)])
+    // Each result names its imports through its sources fingerprint; a list no result names any more is dropped.
+    const recorded = new Set(Object.values(scenarios).map((result) => result.evidence.sources))
+    const imports = [
+      ...Object.entries(stored?.imports ?? {}),
+      ...commit.executed.map((result) => [result.evidence.sources, [...commit.imports].sort()] as const)
+    ]
     const results: RunResults = {
-      version: 3,
-      runAt: DateTime.formatIso(yield* DateTime.now),
-      imports: [...new Set([...(stored?.imports ?? []), ...commit.imports])].sort(),
-      scenarios: Object.fromEntries([...kept, ...commit.executed.map((result) => [result.id, result] as const)])
+      version: 4,
+      imports: Object.fromEntries(imports.filter(([sources]) => recorded.has(sources))),
+      scenarios
     }
     // Readers never see a half-written file: the new one replaces the old in one step.
     const temporary = `${file}.${process.pid}.tmp`

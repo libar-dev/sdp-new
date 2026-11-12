@@ -21,12 +21,13 @@ as nodes. The words it interprets come from the vocabulary profile ([[ARCH-vocab
 | a spec | A node of its kind at `file:1`, with its attributes and derived facts: `file`, `summary`, `scenarios`, `openQuestions` (unresolved only), and `verification` and `stage` from the results. |
 | a scenario | A `scenario` node at its line that `-verifies->` its spec. |
 | an inline node | A node at the line of its `id`; `declaredIn` names its spec and is an attribute, not an edge. |
-| a link key: an entry of `links:`, a plan or phase relation, an entry of `activity`, a key under `vocabulary.links` | An edge named by its relation (`activity.implementation` for an entry of `activity`), at the line the key is written, with the link's attributes ([[DEC-0010]]). Every other key is a value and never links. |
+| a link key: an entry of `links:`, a plan or phase relation, an entry of `activity`, a key under `vocabulary.links` | An edge named by its relation (`activity.implementation` for an entry of `activity`), at the line of its target, with the link's attributes ([[DEC-0010]]). Every other key is a value and never links. |
+| a link named like an attribute: one of `stage`, `verification`, `scenarios`, `summary`, `file`, `openQuestions`, `declaredIn`, `maturity`, `status`, or an attribute the node it starts from has | A `link-syntax` error where it is written, and no edge: a link reads as an attribute of its node, so it would pass for that fact. In front matter, in prose (`stage:: [[ID]]`) and in code alike. |
 | a prose link | `-mentions->`, or the typed relation. A spec mentioning itself, or a node a link already joins it to, adds nothing. |
 | an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`) — at the declaration's line, with its JSDoc as `doc` for typed annotations — with an edge to each target carrying the annotation's attributes. |
-| `@sdp is <ID>` | Anchors the node in code. Declares it (kind `element` unless given) when no spec does; otherwise adds only the attributes the spec does not set. |
+| `@sdp is <ID>` | Anchors the node in code. Declares it (kind `element` unless given) when no spec does; otherwise adds only the attributes the spec does not set. Either way the node's stage follows from all its attributes, a `maturity` given in code included. |
 | a link stated more than once | One edge with every declaration (`sources`) and the union of their attributes; declarations that give an attribute different values are a `link-conflict`. |
-| a derived attribute written by an author | A `derived-attribute` error where it is written; the value is ignored, on a spec, an inline node or a node declared in code alike. |
+| a derived attribute written by an author, or a kind sdp makes itself (`scenario`, `code`, `missing`) | A `derived-attribute` error where it is written; the value is ignored, on a spec, an inline node or a node declared in code alike. |
 | an id declared again | A `duplicate-id` error at the later declaration; the first, in path order, is kept. |
 | a reference to an unknown id | A `missing` node without a source, and a `dangling-link` error at every reference. |
 
@@ -193,6 +194,81 @@ Scenario Outline: What sdp derives cannot be written, wherever a node is declare
     | docs/plan.md      | ---\nid: PLAN\nnodes:\n  - { id: REQ-b, kind: requirement, stage: verified }\n---\n# Plan | docs/plan.md:4      |
     | src/pay.py        | # @sdp is REQ-pay kind=requirement stage=verified\ndef pay(): pass               | src/pay.py:1        |
     | specs/pay.feature | @id:REQ-f @stage:verified\nFeature: Pay                                         | specs/pay.feature:1 |
+
+Scenario Outline: A link cannot take the name of an attribute, wherever it is declared
+  Given a file "docs/model.md" containing:
+    """
+    ---
+    id: MODEL
+    nodes:
+      - { id: verified, kind: label }
+    ---
+    # Model
+    """
+  And a file "<file>" containing:
+    """
+    <content>
+    """
+  When the workspace is loaded
+  Then building the graph reports:
+    | rule        | severity | at   | message   |
+    | link-syntax | error    | <at> | <message> |
+  And the workspace graph has no "<name>" edges
+  When I query "*[<name>=verified]"
+  Then the result is "nothing"
+
+  Examples:
+    | file           | content                                                                | at               | name     | message                           |
+    | specs/REQ-a.md | ---\nid: REQ-a\nlinks: { stage: verified }\n---\n# A                   | specs/REQ-a.md:3 | stage    | no link can be named stage        |
+    | specs/REQ-a.md | ---\nid: REQ-a\nnodes:\n  - id: REQ-b\n    links:\n      verification: verified\n---\n# A | specs/REQ-a.md:6 | verification | no link can be named verification |
+    | specs/REQ-a.md | ---\nid: REQ-a\n---\n# A\n\nmaturity:: [[verified]]                     | specs/REQ-a.md:6 | maturity | no link can be named maturity     |
+    | src/a.py       | # @sdp status verified\ndef a(): pass                                  | src/a.py:1       | status   | no link can be named status       |
+    | specs/REQ-a.md | ---\nid: REQ-a\nowner: payments\nlinks: { owner: verified }\n---\n# A   | specs/REQ-a.md:4 | owner    | owner is already an attribute of REQ-a |
+
+Scenario: A kind sdp makes itself cannot be written; the node has the kind its id says
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    kind: missing
+    maturity: ready
+    nodes:
+      - { id: REQ-b, kind: scenario }
+    ---
+    # A
+    """
+  And a file "src/pay.py" containing:
+    """
+    # @sdp is REQ-pay kind=code
+    def pay(): pass
+    """
+  When the workspace is checked
+  Then building the graph reports:
+    | rule              | at               | message                                    |
+    | derived-attribute | specs/REQ-a.md:3 | sdp makes the nodes of kind missing itself  |
+    | derived-attribute | specs/REQ-a.md:6 | sdp makes the nodes of kind scenario itself |
+    | derived-attribute | src/pay.py:1     | sdp makes the nodes of kind code itself     |
+  And the workspace graph has node "REQ-a" of kind "requirement"
+  And the workspace graph has node "REQ-b" of kind "requirement"
+  And the workspace graph has node "REQ-pay" of kind "element"
+  And the check reports "maturity-criteria" for "REQ-a"
+
+Scenario: A maturity given in code decides the stage like one written in the spec
+  Given a file "specs/REQ-pay.md" containing:
+    """
+    ---
+    id: REQ-pay
+    ---
+    # Pay
+    """
+  And a file "src/pay.py" containing:
+    """
+    # @sdp is REQ-pay maturity=idea
+    def pay(): pass
+    """
+  When the workspace is loaded
+  Then node "REQ-pay" has attribute maturity = "idea"
+  And node "REQ-pay" has attribute stage = "idea"
 
 Scenario: Annotated code becomes code nodes linked to what it names
   Given a file "specs/REQ-pay.md" containing:
