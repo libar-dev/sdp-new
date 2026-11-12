@@ -2,7 +2,6 @@
 id: RISK-0005
 kind: risk
 title: Gherkin feels heavy for non-developers
-status: open
 exposure: medium
 links:
   affects: REQ-progressive-specs

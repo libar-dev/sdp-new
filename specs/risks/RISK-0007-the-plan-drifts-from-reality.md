@@ -2,7 +2,6 @@
 id: RISK-0007
 kind: risk
 title: The plan drifts from what happened
-status: open
 exposure: low
 links:
   affects: REQ-lifecycle-view

@@ -57,11 +57,9 @@ export interface LifecycleReport {
   readonly current: GraphNode | undefined
   /**
    * The phase of the latest iteration that has started by `today` (so a gap between iterations
-   * stays in the phase just worked on). Milestones of later phases are not due yet.
+   * stays in the phase just worked on).
    */
   readonly currentPhase: GraphNode | undefined
-  /** Whether the report was computed for a date; without one, every gate counts as due. */
-  readonly dated: boolean
   /** The words the plan was read with, so the rendering can name them. */
   readonly vocabulary: Vocabulary
 }
@@ -222,20 +220,10 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     work: orderedIterations.map((it) => reports.get(it.id)!),
     current,
     currentPhase,
-    dated: today !== undefined,
     vocabulary
   }
 }
 annotate(lifecycle, { is: "ARCH-lifecycle" })
-
-/**
- * The milestones that are due: those of the current phase and of every phase before it. The
- * calendar decides, never achievement; a report without a date treats every milestone as due.
- */
-export const dueMilestones = (report: LifecycleReport): ReadonlyArray<GraphNode> => {
-  const current = report.phases.findIndex((phase) => phase.node.id === report.currentPhase?.id)
-  return report.phases.filter((_, index) => !report.dated || index <= current).flatMap((phase) => phase.milestones)
-}
 
 const shades = [" ", "░", "▒", "▓", "█"]
 
@@ -253,19 +241,15 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   }
   const currentIndex = report.phases.findIndex((p) => p.node.id === report.currentPhase?.id)
   const label = (it: GraphNode) => it.id === report.current?.id ? `${it.id}*` : it.id
-  const dueIds = new Set(dueMilestones(report).map((milestone) => milestone.id))
   out.push("PHASES  (◀ now and * are where today falls; a milestone is met only when its gate passes)")
   report.phases.forEach((phase, index) => {
     const its = phase.iterations.map((i) => label(i.node)).join(" ") || "—"
     const now = index === currentIndex ? "◀ now" : ""
     out.push(`  ${pad(phase.node.title, 14)} ${pad(its, 14)}${now}`)
     for (const m of phase.milestones) {
-      const due = dueIds.has(m.id)
       const v = String(m.attrs.verification ?? "none")
-      const mark = !due ? "·" : v === "passing" ? "✔" : v === "failing" ? "✘" : "…"
-      // The calendar has moved past the phase; that does not make its milestone met.
-      const overdue = index < currentIndex && v !== "passing" ? "  overdue: its phase is over, the gate is not met" : ""
-      out.push(`    ◆ ${pad(m.id, 6)} ${pad(m.title, 31)} gate ${mark} ${due ? v : `not due (${v})`}${overdue}`)
+      const mark = v === "passing" ? "✔" : v === "failing" ? "✘" : "…"
+      out.push(`    ◆ ${pad(m.id, 6)} ${pad(m.title, 31)} gate ${mark} ${v}`)
     }
   })
   out.push("", "PLANNED WORK  (nodes planned into each iteration, by kind)")

@@ -70,8 +70,6 @@ declare module "sdp/annotations" {
     "PRIN-free-form-graph": "principle"
     "PRIN-one-format": "principle"
     "README": "guide"
-    "REL-0.9": "release"
-    "REL-1.0": "release"
     "REQ-agent-context": "requirement"
     "REQ-builtin-steps": "requirement"
     "REQ-check-rules": "requirement"

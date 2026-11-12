@@ -1025,21 +1025,14 @@ Scenario: A --tags filter that is not a tag expression is an error that says so
   And the output does not contain "    at "
 ~~~
 
-### `sdp gate <milestone>`, `sdp gate --due`
+### `sdp gate <milestone>`
 
-Runs one milestone's gate scenarios against the current graph and exits 0 only when the milestone
-has gate scenarios and every one of them passed — an undefined or pending step leaves the milestone
-unmet. An id without gate scenarios is an error.
-
-`sdp gate --due` evaluates the milestones the calendar says are due: those of the current phase
-and of every phase before it, dated exactly as `sdp lifecycle` dates them
-([[REQ-lifecycle-view]]). It is the command a build calls: the milestones of later phases may
-stay unmet, the due ones may not. A due milestone without gate scenarios is not met; before any
-phase with a milestone has begun, nothing is due and the command exits 0, saying so.
+Runs one milestone's gate scenarios against the current graph and exits 0 only when every one of
+them passed. No command enforces a gate by the calendar: the same commit would pass today and fail
+tomorrow.
 
 ```sh
 sdp gate MS-beta
-sdp gate --due
 ```
 
 ~~~gherkin
@@ -1071,86 +1064,9 @@ Scenario: gate --json prints nothing but JSON
   Then the output is valid JSON
   And the output contains '"passed": false'
 
-Scenario: gate names one milestone, or the due ones
-  When I run "sdp gate"
-  Then the exit code is 1
-  And the output contains "name one milestone, or pass --due"
-
-Scenario Outline: gate --due asks about the milestones of the current phase and of those before it
-  Given a file "due/docs/plan.md" containing:
-    """
-    ---
-    id: PLAN
-    kind: plan
-    nodes:
-      - { id: inception,    kind: phase, title: Inception,    order: 1 }
-      - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
-      - { id: construction, kind: phase, title: Construction, order: 3 }
-      - { id: I1, kind: iteration, phase: inception,   start: "2020-01-06", end: "2020-01-17" }
-      - { id: E1, kind: iteration, phase: elaboration, start: "2020-01-20", end: "2999-12-31" }
-    ---
-    # Plan
-    """
-  And a file "due/docs/MS-scope.md" containing:
-    """
-    ---
-    id: MS-scope
-    kind: milestone
-    phase: inception
-    ---
-    # Scope agreed
-
-    ```gherkin
-    Scenario: There is a plan
-      Then the query "plan" returns 1 result
-    ```
-    """
-  And a file "due/docs/MS-baseline.md" containing:
-    """
-    ---
-    id: MS-baseline
-    kind: milestone
-    phase: elaboration
-    ---
-    # Architecture baseline
-
-    ```gherkin
-    <gate of the current phase>
-    ```
-    """
-  And a file "due/docs/MS-launch.md" containing:
-    """
-    ---
-    id: MS-launch
-    kind: milestone
-    phase: construction
-    ---
-    # Launch
-
-    ```gherkin
-    Scenario: Nothing is left to do
-      Then the query "plan" returns no results
-    ```
-    """
-  When I run "sdp -C due gate --due"
-  Then the exit code is <exit code>
-  And the output contains "<outcome>"
-  And the output does not contain "MS-launch"
-
-  Examples:
-    | gate of the current phase                                          | exit code | outcome                                                           |
-    | Scenario: Baselined\n  Then the query "plan" returns 1 result      | 0         | 2 gate scenario(s) of MS-scope, MS-baseline: 2 passed             |
-    | Scenario: Baselined\n  Then the query "plan" returns no results    | 1         | 2 gate scenario(s) of MS-scope, MS-baseline: 1 passed, 1 failed   |
-    | # no scenario yet                                                  | 1         | note: MS-baseline has no gate scenarios, so it is not met         |
-
-Scenario: Before any phase with a milestone has begun, nothing is due
-  When I run "sdp gate --due"
-  Then the exit code is 0
-  And the output contains "note: no milestone is due"
-
-Scenario: The build of sdp itself enforces the milestones that are due
+Scenario: The build of sdp itself enforces no gate
   When I run "grep verify package.json" in the repository
-  Then the output contains "&& node src/cli/main.ts gate --due"
+  Then the output does not contain "gate"
 ~~~
 
 ## Agents

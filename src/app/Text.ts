@@ -170,8 +170,8 @@ const total = (counts: Readonly<Record<string, number>>) => Object.values(counts
 export const runSummary = (report: RunReport | GateReport): string => {
   const scenarios = total(report.summary)
   const gates = total(report.gates)
-  const gated = "milestones" in report
-  const of = gated && report.milestones.length > 0 ? ` of ${report.milestones.join(", ")}` : ""
+  const gated = "milestone" in report
+  const of = gated ? ` of ${report.milestone}` : ""
   const unselected = report.scenarios.flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
   const stale = total(report.stale)
   const undefinedSteps = report.scenarios.some((r) => r.examples.some((p) => p.steps.some((s) => s.snippet !== undefined)))

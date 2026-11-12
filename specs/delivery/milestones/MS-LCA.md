@@ -9,11 +9,6 @@ links:
 
 # Lifecycle Architecture
 
-End of Elaboration: the requirements written in it are ready, what it set out to build runs, the
-risks due here are retired, and the architecture baseline is curated — every element and pattern
-rests on a decision or a quality requirement. Which elements, and how many, is the architects'
-call ([[DEC-0008]]); the gate checks only that each one is justified.
-
 ~~~gherkin
 Scenario: Requirements written in Elaboration are ready
   Then the query "requirement|nfr ?-iteration-> iteration[phase=PH-elaboration]" returns at least 1 result
@@ -25,7 +20,6 @@ Scenario: What Elaboration builds is verified
 
 Scenario: The risks due at this milestone are retired, by verified work
   Then the query "risk ?-due-> #MS-LCA" returns at least 1 result
-  And the query "risk[status!=retired] ?-due-> #MS-LCA" returns no results
   And the query "risk ?-due-> #MS-LCA -mitigated-by-> *[stage!=verified]" returns no results
 
 Scenario: The architecture baseline is curated

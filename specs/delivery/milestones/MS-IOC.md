@@ -9,9 +9,6 @@ links:
 
 # Initial Operational Capability
 
-End of Construction: the requirements written in it are ready, everything planned to be built by
-now runs, the risks due here are retired, and the specification graph is consistent.
-
 ~~~gherkin
 Scenario: Requirements written in Construction are ready
   Then the query "requirement|nfr ?-iteration-> iteration[phase=PH-construction]" returns at least 1 result
@@ -23,7 +20,6 @@ Scenario: Everything built up to the end of Construction is verified
 
 Scenario: The risks due at this milestone are retired, by verified work
   Then the query "risk ?-due-> #MS-IOC" returns at least 1 result
-  And the query "risk[status!=retired] ?-due-> #MS-IOC" returns no results
   And the query "risk ?-due-> #MS-IOC -mitigated-by-> *[stage!=verified]" returns no results
 
 Scenario: The specification graph is consistent

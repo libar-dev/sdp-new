@@ -11,9 +11,8 @@
  */
 import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
-import { DateTime, type Duration, Effect } from "effect"
+import { type Duration, Effect } from "effect"
 import type { Project } from "../graph/Build.ts"
-import { dueMilestones, lifecycle } from "../lifecycle/Lifecycle.ts"
 import { problemLine } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import type { RunResults, ScenarioResult, StepStatus } from "../model/Results.ts"
@@ -226,51 +225,31 @@ export const run = Effect.fn("run")(function*(root: string, input: RunInput = {}
 
 export interface GateInput {
   /** The milestone whose gate to evaluate — or any spec with scenarios tagged `@gate`. */
-  readonly milestone?: string | undefined
-  /** Instead: the milestones of the current phase and of every phase before it, as `sdp lifecycle` dates them. */
-  readonly due?: boolean | undefined
+  readonly milestone: string
   readonly onScenario?: RunInput["onScenario"]
 }
 
 export interface GateReport extends RunReport {
-  /** The specs whose gates were evaluated. */
-  readonly milestones: ReadonlyArray<string>
+  /** The spec whose gate was evaluated. */
+  readonly milestone: string
 }
 
 /**
- * `sdp gate`: evaluates gate scenarios against the current graph, and passes only when each
- * milestone asked for has gate scenarios and every one of them passed.
+ * `sdp gate`: evaluates one spec's gate scenarios against the current graph, and passes only when
+ * every one of them passed.
  */
 export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) {
   const project = yield* loadProject(root)
   yield* ensureReadable(project)
-  const vocabulary = project.config.vocabulary
-  const hasGates = (id: string) => {
-    const spec = project.specById.get(id)
-    return spec !== undefined && spec.scenarios.some((scenario) => isGate(scenario, spec, vocabulary))
+  const { milestone } = input
+  if (!project.graph.node(milestone)) return yield* new UnknownNode({ id: milestone })
+  const spec = project.specById.get(milestone)
+  if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, project.config.vocabulary))) {
+    return yield* new Refused({
+      reason: `${milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`
+    })
   }
-  if ((input.due === true) === (input.milestone !== undefined)) {
-    return yield* new Refused({ reason: "name one milestone, or pass --due for the milestones of the current and earlier phases" })
-  }
-  if (input.milestone !== undefined) {
-    if (!project.graph.node(input.milestone)) return yield* new UnknownNode({ id: input.milestone })
-    if (!hasGates(input.milestone)) {
-      return yield* new Refused({
-        reason: `${input.milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`
-      })
-    }
-  }
-  const milestones = input.milestone !== undefined
-    ? [input.milestone]
-    : dueMilestones(lifecycle(project, DateTime.formatIsoDate(yield* DateTime.now))).map((milestone) => milestone.id)
-  const gated = milestones.filter(hasGates)
-  const notes = milestones.length === 0
-    ? ["no milestone is due: no phase with a milestone has begun"]
-    : milestones.filter((id) => !hasGates(id)).map((id) => `${id} has no gate scenarios, so it is not met`)
-  // No targets would select every scenario, so a run needs at least one milestone with a gate.
-  const ran = gated.length === 0
-    ? { complete: true, notes: [], data: { passed: true, summary: summarize([]), gates: summarize([]), stale: {}, scenarios: [] } }
-    : yield* execute(root, { targets: gated, onScenario: input.onScenario }, "gates")
-  const report: GateReport = { ...ran.data, passed: ran.data.passed && gated.length === milestones.length, milestones }
-  return { complete: true, notes: [...ran.notes, ...notes], data: report } satisfies Answer<GateReport>
+  const ran = yield* execute(root, { targets: [milestone], onScenario: input.onScenario }, "gates")
+  const report: GateReport = { ...ran.data, milestone }
+  return { ...ran, data: report } satisfies Answer<GateReport>
 })

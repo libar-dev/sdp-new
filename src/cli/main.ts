@@ -293,24 +293,16 @@ const runCommand = Command.make(
 const gateCommand = Command.make(
   "gate",
   {
-    milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta"), Argument.optional),
-    due: Flag.Boolean("due").pipe(
-      Flag.withDescription("Instead of one milestone: those of the current phase and of every phase before it"),
-      Flag.withDefault(false)
-    ),
+    milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta, or a spec with @gate scenarios")),
     json
   },
-  Effect.fn(function*({ due, json, milestone }) {
+  Effect.fn(function*({ json, milestone }) {
     const root = yield* workspaceRoot
-    const input = { milestone: Option.getOrUndefined(milestone), due }
-    yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
+    yield* printRun((onScenario) => Running.gate(root, { milestone, onScenario }), { json, verbose: false })
   })
 ).pipe(
-  Command.withDescription("Evaluate gate scenarios against the current graph; exit 0 only when every one of them passed"),
-  Command.withExamples([
-    { command: "sdp gate MS-beta", description: "Is this milestone met?" },
-    { command: "sdp gate --due", description: "Are the milestones met that the calendar says are due? (for CI)" }
-  ])
+  Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),
+  Command.withExamples([{ command: "sdp gate MS-beta", description: "Does this milestone's gate pass?" }])
 )
 
 // --- authoring --------------------------------------------------------------

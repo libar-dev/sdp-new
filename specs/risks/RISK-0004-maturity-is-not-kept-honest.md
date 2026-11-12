@@ -2,7 +2,6 @@
 id: RISK-0004
 kind: risk
 title: Teams do not keep maturity honest
-status: open
 exposure: medium
 links:
   affects: REQ-maturity-criteria

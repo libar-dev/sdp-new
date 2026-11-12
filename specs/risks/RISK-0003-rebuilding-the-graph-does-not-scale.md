@@ -2,7 +2,6 @@
 id: RISK-0003
 kind: risk
 title: Rebuilding the graph on every command does not scale
-status: open
 exposure: low
 links:
   affects: CAP-agent-collaboration

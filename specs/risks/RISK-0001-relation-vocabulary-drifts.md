@@ -2,7 +2,6 @@
 id: RISK-0001
 kind: risk
 title: Relation vocabulary drifts
-status: open
 exposure: medium
 links:
   affects: [REQ-flexible-graph, REQ-graph-query]

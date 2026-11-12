@@ -2,7 +2,6 @@
 id: RISK-0006
 kind: risk
 title: Existing Cucumber suites cannot run unchanged
-status: open
 exposure: medium
 links:
   affects: [REQ-executable-specs, REQ-progressive-specs]

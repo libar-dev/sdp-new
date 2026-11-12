@@ -72,10 +72,7 @@ the status of their last run.
 **Where we are.** The iteration whose `start…end` contains today is the current one; it is marked
 `*`. The current phase, marked `◀ now`, is the phase of the latest iteration that has started, so a
 break between iterations stays in the phase just worked on. Both are the calendar, not progress: a
-milestone is met only when its gate passes. A gate of a later phase is shown as *not due* next to
-its status, since a future milestone is expected to be unmet; before the first iteration starts,
-no gate is due. A gate whose phase the calendar has left behind and that does not pass is
-*overdue* — never met by the passing of time. `sdp lifecycle` prints all of it for this
+milestone is met only when its gate passes. `sdp lifecycle` prints all of it for this
 repository's [[PLAN]].
 
 ## Scenarios
@@ -130,30 +127,16 @@ Scenario: Iterations and milestones hang off their phase
   Then phase "PH-elaboration" has iterations "E1, E2"
   And phase "PH-elaboration" has milestone "LCA"
 
-Scenario: The current iteration is marked and later gates are not due
-  When the lifecycle is computed on "2026-01-20"
-  Then the current iteration is "I1"
-  And the output line with "PH-inception" contains "◀ now"
-  And the output line with "◆ LCA" contains "not due"
-
-Scenario: A gate falls due when its phase starts
+Scenario: The current iteration is marked
   When the lifecycle is computed on "2026-02-20"
   Then the current iteration is "E2"
   And the output line with "PH-elaboration" contains "E2*"
   And the output line with "PH-elaboration" contains "◀ now"
-  And the output line with "◆ LCA" does not contain "not due"
-  And the output line with "◆ LCA" does not contain "overdue"
 
 Scenario: A break between iterations stays in the phase just worked on
   When the lifecycle is computed on "2026-01-31"
   Then the current iteration is "none"
   And the output line with "PH-inception" contains "◀ now"
-  And the output line with "◆ LCA" contains "not due"
-
-Scenario: Before the plan starts no gate is due
-  When the lifecycle is computed on "2025-12-15"
-  Then the current iteration is "none"
-  And the output line with "◆ LCA" contains "not due"
 
 Scenario: The calendar never marks a milestone met
   Given a file "LCO.md" containing:
@@ -171,8 +154,7 @@ Scenario: The calendar never marks a milestone met
     ```
     """
   When the lifecycle is computed on "2026-02-20"
-  Then the output line with "◆ LCO" contains "overdue"
-  And the output line with "◆ LCO" does not contain "✔"
+  Then the output line with "◆ LCO" does not contain "✔"
 
 Scenario: An iteration plans each node once, and mentions and the plan's own nodes are no work
   Given a file "specs/REQ-m.md" containing:
