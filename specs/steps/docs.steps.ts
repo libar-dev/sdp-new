@@ -177,15 +177,18 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // What `I run {string}` cannot say: a pipeline. The given files are written to the scenario's
   // directory and the script runs there under `sh`, with `sdp` on the PATH as this repository's CLI.
   When("I run in a shell:", async ({ doc, project, world }) => {
-    const directory = world.directory ??= await mkdtemp(join(await shellBase(project.root), "workspace-"))
+    const base = await shellBase(project.root)
+    const directory = world.directory ??= await mkdtemp(join(base, "workspace-"))
     for (const [file, content] of world.files) {
       await mkdir(dirname(join(directory, file)), { recursive: true })
       await writeFile(join(directory, file), content)
     }
-    const env = { ...process.env, NO_COLOR: "1", PATH: `${join(await shellBase(project.root), "bin")}${delimiter}${process.env.PATH ?? ""}` }
+    const path = `${join(base, "bin")}${delimiter}${process.env.PATH ?? ""}`
     const result = await new Promise<{ code: number; output: string }>((done) => {
-      execFile("sh", ["-c", doc ?? ""], { cwd: directory, env }, (error, stdout, stderr) =>
-        done({ code: error ? Number(error.code ?? 1) : 0, output: stdout + stderr }))
+      execFile("sh", ["-c", doc ?? ""], { cwd: directory, env: { ...process.env, NO_COLOR: "1", PATH: path } }, (error, stdout, stderr) => {
+        const code = error === null ? 0 : typeof error.code === "number" ? error.code : 1
+        done({ code, output: stdout + stderr })
+      })
     })
     world.exitCode = result.code
     world.output = result.output
