@@ -23,7 +23,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices"
 import { newId, newSpec } from "../../src/app/Templates.ts"
 import { findFiles, loadProject } from "../../src/workspace/Workspace.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
-import { assertRows, attrsText, ids, load, newWorld, node, produce, reload, reportRow, setFile, type World } from "./world.ts"
+import { assertRows, attrsText, ids, load, newWorld, node, produce, reload, reportRow, setFile, show, type World } from "./world.ts"
 import { directoryOf, repository, workspace } from "./process.ts"
 
 const reported = (world: World) => {
@@ -184,6 +184,21 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const n = node(project, id)
       const actual = key === "title" ? n.title : key === "kind" ? n.kind : key === "source" ? formatSource(n.source) : n.attrs[key]
       assert.equal(String(actual), value, `${id}.${key}`)
+    }))
+
+  // The nodes the table names, each with what every node has and any attribute as a column of its
+  // own; an attribute a node does not have reads as an empty cell.
+  Then("the workspace graph has nodes:", ({ table, world }) =>
+    Effect.map(load(world), (project) => {
+      const columns = (table?.[0] ?? []).map((cell) => cell.trim())
+      const rows = project.graph.nodes().map((n) => ({
+        ...Object.fromEntries(columns.map((column) => [column, show(n.attrs[column])])),
+        id: n.id,
+        kind: n.kind,
+        title: n.title,
+        source: formatSource(n.source)
+      }))
+      assertRows("nodes", rows, table, "including")
     }))
 
   Then("the workspace graph has exactly these nodes:", ({ table, world }) =>

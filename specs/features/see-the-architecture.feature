@@ -232,24 +232,268 @@ Feature: See the architecture
       When the workspace is checked
       Then sdp reports nothing
 
-  @maturity=draft
+  @maturity=ready
   Rule: Every anchor of an element declares it, and two that disagree on an attribute are reported
 
-    Today the anchor in the first file by path does, and what the others declare is dropped without
-    a word, so renaming a file can change an element's title, kind or line.
+    An element anchored in several places is one element whichever file is read first: what each
+    anchor declares holds, and where two disagree the spec's value, or else the first file's, is
+    kept.
 
-  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+    Scenario Outline: Two anchors that agree, each with what it adds
+      Given a file "src/courier/retry.ts" containing:
+        """
+        /**
+         * Retries while the provider is down.
+         *
+         * @sdp is ARCH-courier <first>
+         */
+        export const retry = (): number => 3
+        """
+      And a file "src/courier/send.ts" containing:
+        """
+        /**
+         * Sends receipts.
+         *
+         * @sdp is ARCH-courier <second>
+         */
+        export const send = (): number => 0
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id          | kind    | title   | source              | owner | tier |
+        | ARCH-courier | element | <title> | src/courier/retry.ts:4 | post  | 2    |
+      And sdp reports nothing
+
+      Examples:
+        | first             | second                    | title       |
+        | owner=post        | tier=2                    | ARCH-courier |
+        | owner=post tier=2 | owner=post                | ARCH-courier |
+        | owner=post        | tier=2 title="Post room"  | Post room    |
+
+    Scenario Outline: Two anchors that disagree
+      Given a file "src/courier/retry.ts" containing:
+        """
+        /**
+         * Retries while the provider is down.
+         *
+         * @sdp is ARCH-courier <first>
+         */
+        export const retry = (): number => 3
+        """
+      And a file "src/courier/send.ts" containing:
+        """
+        /**
+         * Sends receipts.
+         *
+         * @sdp is ARCH-courier <second>
+         */
+        export const send = (): number => 0
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id          | kind   | title   | owner   |
+        | ARCH-courier | <kind> | <title> | <owner> |
+      And sdp reports:
+        | rule                 | severity | at                 | message   |
+        | declaration-conflict | warning  | src/courier/send.ts:4 | <message> |
+
+      Examples:
+        | first          | second           | kind    | title       | owner | message                                                                         |
+        | owner=post     | owner=billing    | element | ARCH-courier | post  | ARCH-courier: owner is "billing" here but "post" at src/courier/retry.ts:4, which is kept |
+        | title=Courier  | title=Post       | element | Courier      |       | ARCH-courier: title is "Post" here but "Courier" at src/courier/retry.ts:4, which is kept  |
+        | kind=component |                  | component | ARCH-courier |     | ARCH-courier: kind is "element" here but "component" at src/courier/retry.ts:4, which is kept |
+
+    Scenario: An anchor that disagrees with the spec
+      Given these specs:
+        | tags                           | Feature |
+        | @id=ARCH-ledger @owner=finance | Ledger  |
+      And a file "src/ledger.ts" containing:
+        """
+        /**
+         * Books every payment.
+         *
+         * @sdp is ARCH-ledger owner=payments tier=1
+         */
+        export class Ledger {}
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id          | title  | source                      | owner   | tier |
+        | ARCH-ledger | Ledger | specs/ARCH-ledger.feature:1 | finance | 1    |
+      And sdp reports:
+        | rule                 | severity | at              | message                                                                                      |
+        | declaration-conflict | warning  | src/ledger.ts:4 | ARCH-ledger: owner is "payments" here but "finance" at specs/ARCH-ledger.feature:1, which is kept |
+
+  @maturity=ready @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp plays`
 
-  @maturity=draft
+    The code every instance goes through is the pattern's, and its comment says what the pattern
+    is; an anchor declares a node of the kind its id's prefix names. `plays` is the team's word:
+    the view shows every link from code to a pattern, and the elements that code is. Elements
+    import elements: a pattern imports nothing, and nothing imports it.
+
+    Scenario: A retry pattern, declared by its code and played by billing
+      Given a file "src/retry.ts" containing:
+        """
+        /**
+         * Calls again while the provider is down, waiting longer each time.
+         *
+         * @sdp is PAT-retry
+         */
+        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { retry } from "./retry.ts"
+
+        /**
+         * Charges the card on file.
+         *
+         * @sdp is ARCH-billing
+         * @sdp plays PAT-retry
+         */
+        export const charge = (): Promise<number> => retry(async () => 0)
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id        | kind    | title     | source         |
+        | PAT-retry | pattern | PAT-retry | src/retry.ts:4 |
+      When I query "#PAT-retry <-plays- code -is-> element"
+      Then the result is "ARCH-billing"
+      When I query "#ARCH-billing -imports-> *"
+      Then the result is "nothing"
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains:
+        """
+        PAT-retry (pattern)
+        Calls again while the provider is down, waiting longer each time.
+        """
+      And the output contains "PAT-retry <-is- code:src/retry.ts#retry  retry"
+      And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
+      And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
+
+  @maturity=ready
   Rule: Each element is shown with its public surface: the shape of what its code exports
 
-  @maturity=draft
+    Scenario: Billing, anchored by the file that holds its code
+      Given a file "src/billing.ts" containing:
+        """
+        /**
+         * Charges cards and keeps the invoices.
+         *
+         * @sdp is ARCH-billing
+         */
+        export interface Invoice {
+          readonly number: string
+          readonly cents: number
+        }
+
+        export const charge = (invoice: Invoice): Promise<boolean> => Promise.resolve(invoice.cents > 0)
+
+        const audit = (): void => {}
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains:
+        """
+        ARCH-billing <-is- code:src/billing.ts
+        interface Invoice { readonly number: string; readonly cents: number }
+        function charge(invoice: Invoice): Promise<boolean>
+        """
+      And the output does not contain "audit"
+      When I run "sdp context ARCH-billing"
+      Then the exit code is 0
+      And the output contains:
+        """
+        - src/billing.ts:1 — is ARCH-billing
+        interface Invoice { readonly number: string; readonly cents: number }
+        function charge(invoice: Invoice): Promise<boolean>
+        """
+
+  @maturity=ready
   Rule: Each element is shown with the work implemented on it and the work still to come, ready first
 
-    Ready is designed and all but final: it weighs nearly what implemented does.
+    The work on an element is each feature that names it, and each rule still to come of a feature
+    built on it. Ready is designed and all but final: it weighs nearly what implemented does.
 
-  @maturity=draft
+    Scenario: The work on orders
+      Given a file "specs/returns.feature" containing:
+        """
+        @id=returns @maturity=draft @realized-by:ARCH-orders
+        Feature: Returns
+        """
+      And a file "specs/checkout.feature" containing:
+        """
+        @id=checkout @realized-by:ARCH-orders
+        Feature: Checkout
+
+          Shoppers pay for their cart.
+
+          Rule: A paid cart is an order
+
+            Scenario: Pay
+              Then an order is placed
+
+          @maturity=ready
+          Rule: An order can be paid in instalments
+
+            Scenario: Three instalments
+              Then three payments are planned
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains:
+        """
+        implemented: checkout  Checkout
+        still to come: checkout#an-order-can-be-paid-in-instalments (ready)  An order can be paid in instalments
+        still to come: returns (draft)  Returns
+        still to come: receipts (idea)  Receipts
+        """
+      When I run "sdp context ARCH-orders"
+      Then the exit code is 0
+      And the output contains:
+        """
+        ## Work
+
+        - implemented: checkout — Checkout
+        - still to come: checkout#an-order-can-be-paid-in-instalments (ready) — An order can be paid in instalments
+        - still to come: returns (draft) — Returns
+        - still to come: receipts (idea) — Receipts
+        """
+
+  @maturity=ready
   Rule: An element that work still to come names, and no code declares yet, is shown as planned
 
     Once that work is implemented, the element must be in the code.
+
+    Scenario Outline: Exports, named by work <named by>
+      Given a file "specs/export.feature" containing:
+        """
+        @id=export <maturity> @realized-by:ARCH-exports
+        Feature: Export
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id           | kind   | source |
+        | ARCH-exports | <kind> |        |
+      And sdp reports "<reported>"
+
+      Examples:
+        | named by          | maturity        | kind    | reported      |
+        | still to come     | @maturity=ready | element | nothing       |
+        | that is built     |                 | missing | dangling-link |
+
+    Scenario: A planned element in the view
+      Given a file "specs/export.feature" containing:
+        """
+        @id=export @maturity=ready @realized-by:ARCH-exports
+        Feature: Export
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains:
+        """
+        ARCH-exports (element)  planned by export: no code declares it yet
+        still to come: export (ready)  Export
+        """

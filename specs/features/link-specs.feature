@@ -209,6 +209,35 @@ Feature: Link specs into one graph
         | rule          | at               | message                                             |
         | link-conflict | src/billing.ts:2 | via is "http" here but "events" at src/billing.ts:1 |
 
+  @maturity=ready @replaces:link-specs#a-link-stated-more-than-once-is-one-edge-that-keeps-every
+  Rule: Stating a link again adds a declaration to its one edge
+
+    So every place that states it is found from the edge, and stating a link again is no error.
+
+    Scenario: The same link in two tags, and in two annotations
+      Given a file "specs/a.feature" containing:
+        """
+        @id=a @iteration:IT-beta
+        @iteration:IT-beta
+        Feature: A
+        """
+      And these specs:
+        | tags                        | Feature |
+        | @id=IT-beta @kind=iteration | Beta    |
+        | @id=ARCH-ledger             | Ledger  |
+      And a file "src/billing.ts" containing:
+        """
+        // @sdp uses ARCH-ledger
+        // @sdp uses ARCH-ledger
+        export class Billing {}
+        """
+      When the workspace is loaded
+      Then the workspace graph has edges:
+        | from                        | rel       | to          | sources                              |
+        | a                           | iteration | IT-beta     | specs/a.feature:1, specs/a.feature:2 |
+        | code:src/billing.ts#Billing | uses      | ARCH-ledger | src/billing.ts:1, src/billing.ts:2   |
+      And sdp reports nothing
+
   Rule: An id is declared once: a second declaration is an error, and the first holds
 
     So a link always reaches one node.

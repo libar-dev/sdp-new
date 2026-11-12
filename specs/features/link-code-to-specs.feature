@@ -474,24 +474,141 @@ Feature: Link code to specs
       Then the output contains "/src/annotations.ts"
       And the output contains "/src/" 1 time
 
-  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+  @maturity=ready @decided-by:architecture-is-declared-in-doc-comments
   @replaces:link-code-to-specs#in-typescript-and-javascript-an-annotation-can-be-a-call-to-the
   @replaces:link-code-to-specs#a-target-is-a-module-level-declaration-a-property-of-one-or
   @replaces:link-code-to-specs#annotating-costs-nothing-at-run-time-importing-sdp-annotations
+  @replaces:link-code-to-specs#an-annotation-links-its-target-to-each-id-it-names-at-the-target
+  @replaces:link-code-to-specs#a-comment-line-sdp-relation-id-id-key-value-annotates-the
   Rule: A tag in a doc comment is the one form of annotation, in every language
 
     The tag annotates the declaration the comment documents, or the file when the comment opens it,
-    and the rest of the comment is that code's description.
+    and the rest of the comment is that code's description. A code node is named by its file and
+    its declaration, and only a module-level name is unique there.
 
-  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+    Scenario: A file and a declaration, each tagged in the comment that describes it
+      Given a file "src/pricing.ts" containing:
+        """
+        /**
+         * Prices and VAT.
+         *
+         * @sdp is ARCH-pricing
+         */
+        import { round } from "./round.ts"
+
+        /**
+         * A cart's total, rounded once.
+         *
+         * @sdp implements pay
+         */
+        export const total = (net: number): number => round(net)
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                        | source            | doc                           |
+        | code:src/pricing.ts       | src/pricing.ts:1  | Prices and VAT.               |
+        | code:src/pricing.ts#total | src/pricing.ts:13 | A cart's total, rounded once. |
+      And the workspace graph has edges:
+        | from                      | rel        | to           | source            |
+        | code:src/pricing.ts       | is         | ARCH-pricing | src/pricing.ts:4  |
+        | code:src/pricing.ts#total | implements | pay          | src/pricing.ts:11 |
+      And sdp reports nothing
+
+    Scenario Outline: The words of the comment around the tag describe the code
+      Given a file "src/pay.ts" containing:
+        """
+        <comment>
+        export const pay = (): number => 0
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                  | source            | doc                       |
+        | code:src/pay.ts#pay | src/pay.ts:<line> | Charges the card on file. |
+
+      Examples:
+        | written as                         | comment                                                                       | line |
+        | the tag after the words            | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */            | 6    |
+        | the tag before the words           | /**\n * @sdp implements pay\n *\n * Charges the card on file.\n */            | 6    |
+        | a JSDoc tag of its own after them  | /**\n * Charges the card on file.\n *\n * @internal\n * @sdp implements pay\n */ | 7    |
+        | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
+        | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
+
+    Scenario Outline: A tag in a comment that documents no module-level declaration and opens no file links nothing, and is reported
+      Given a file "src/items.ts" containing:
+        """
+        import { Cart } from "./cart.ts"
+
+        export const item = 0
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule               | at                  | message                                                       |
+        | annotation-ignored | src/items.ts:<line> | documents no module-level declaration and does not open the file |
+      When I query "code"
+      Then the result is "nothing"
+
+      Examples:
+        | in                                | code                                                                       | line |
+        | a function                        | export function first() {\n  /** @sdp is ARCH-a */\n  const local = 1\n}  | 5    |
+        | a class                           | export class Cart {\n  /** @sdp is ARCH-b */\n  total(): number {\n    return 0\n  }\n} | 5    |
+        | a comment above a statement       | // @sdp is ARCH-c\nconsole.log(item)                                       | 4    |
+        | a comment apart from what follows | // @sdp is ARCH-d\n\nexport const other = 1                                | 4    |
+
+    Scenario: A call named annotate is code like any other
+      Given a file "src/pay.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+
+        export const pay = (): number => 0
+        annotate(pay, { implements: "pay" })
+        """
+      When the workspace is loaded
+      Then sdp reports nothing
+      When I query "code"
+      Then the result is "nothing"
+
+  @maturity=ready @decided-by:architecture-is-declared-in-doc-comments
   @replaces:link-code-to-specs#sdp-types-declares-every-id-with-its-kind-for-annotate-to-accept
   Rule: An id that no node declares is reported by sdp check where the tag names it
+
+    Scenario Outline: A tag that names refund, which nothing declares
+      Given a file "<file>" containing:
+        """
+        <content>
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule          | severity | at   | message                                   |
+        | dangling-link | error    | <at> | -implements-> refund: no node has id refund |
+
+      Examples:
+        | file          | content                                                                                     | at              |
+        | src/refund.ts | /**\n * Pays back.\n *\n * @sdp implements pay, refund\n */\nexport const back = (): number => 0 | src/refund.ts:4 |
+        | src/refund.py | # @sdp implements refund\ndef back(): pass                                                  | src/refund.py:1 |
+
+    Scenario: An id that a spec or a tag declares is not reported
+      Given a file "src/pay.ts" containing:
+        """
+        /** @sdp is ARCH-payments */
+
+        /**
+         * Charges the card on file.
+         *
+         * @sdp implements pay
+         * @sdp uses ARCH-payments
+         */
+        export const pay = (): number => 0
+        """
+      When the workspace is checked
+      Then sdp reports nothing
 
   @maturity=ready
   Rule: Annotated code carries its shape: a declaration's signature, members or type, and a file's exports
 
     So the graph explains the code the architect annotated without the code being read. The shape
-    is read as written: a type the compiler would infer is not.
+    is read as written, and leads with what the declaration is: a type the compiler would infer is
+    not.
 
     Scenario: An interface and a function, each tagged in the comment that describes it
       Given a file "src/pricing.ts" containing:
@@ -513,14 +630,131 @@ Feature: Link code to specs
          */
         export const total = (lines: ReadonlyArray<Priced>): number => lines.reduce((sum, line) => sum + line.net + line.vat, 0)
         """
-      When "src/pricing.ts" is scanned for annotations
-      Then the annotations are:
-        | relation | targets      | binds to | described as                           | shape                                                          |
-        | is       | ARCH-pricing | Priced   | A cart line's price, in integer cents. | interface Priced { readonly net: number; readonly vat: number } |
-        | is       | ARCH-pricing | total    | Totals a cart, rounding once.          | total(lines: ReadonlyArray<Priced>): number                    |
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                         | doc                                    | shape                                                           |
+        | code:src/pricing.ts#Priced | A cart line's price, in integer cents. | interface Priced { readonly net: number; readonly vat: number } |
+        | code:src/pricing.ts#total  | Totals a cart, rounding once.          | function total(lines: ReadonlyArray<Priced>): number            |
 
-  @maturity=draft
+    Scenario Outline: The shape of each kind of declaration
+      Given a file "src/cart.ts" containing:
+        """
+        import { Effect } from "effect"
+
+        /** @sdp is ARCH-cart */
+        <declaration>
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                     | shape   |
+        | code:src/cart.ts#<name> | <shape> |
+
+      Examples:
+        | name   | declaration                                                                                                                                        | shape                                                                                         |
+        | total  | export function total(lines: ReadonlyArray<number>): number {\n  return lines.length\n}                                                            | function total(lines: ReadonlyArray<number>): number                                          |
+        | first  | export const first = <T>(lines: ReadonlyArray<T>): T \| undefined => lines[0]                                                                      | function first<T>(lines: ReadonlyArray<T>): T \| undefined                                    |
+        | load   | export const load = Effect.fn("load")(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n})                                    | function load(id: string): Effect.fn.Return<number>                                           |
+        | Cart   | export class Cart {\n  readonly lines: Array<number> = []\n  #secret = 1\n  private hidden = 2\n  constructor(readonly owner: string) {}\n  add(line: number): void {\n    this.lines.push(line)\n  }\n} | class Cart { readonly lines: Array<number>; constructor(readonly owner: string); add(line: number): void } |
+        | Cents  | export type Cents = number                                                                                                                         | type Cents = number                                                                           |
+        | rates  | export const rates: Readonly<Record<string, number>> = { DE: 19 }                                                                                  | const rates: Readonly<Record<string, number>>                                                 |
+        | limit  | export const limit = 3                                                                                                                             | const limit                                                                                   |
+        | Side   | export enum Side { Buy, Sell }                                                                                                                     | enum Side { Buy, Sell }                                                                       |
+
+    Scenario: A tag that opens a file gives the shapes of what the file exports
+      Given a file "src/pricing.ts" containing:
+        """
+        /**
+         * Prices, VAT rates and rounding.
+         *
+         * @sdp is ARCH-pricing
+         */
+        import { round } from "./round.ts"
+
+        export type Cents = number
+
+        /** The VAT on a net amount, rounded once. */
+        export const vatFor = (net: Cents, rate: number): Cents => round((net * rate) / 100)
+
+        const audit = (): void => {}
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                  | doc                             | exports                                                       |
+        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents |
+
+  @maturity=ready
   Rule: sdp check asks an annotated function to state its return type
 
-  @maturity=draft
+    Without it the shape says nothing of what the function gives back, and sdp infers no type.
+
+    Scenario Outline: A tagged function, with and without a return type
+      Given a file "src/pay.ts" containing:
+        """
+        import { Effect } from "effect"
+
+        /**
+         * Charges the card on file.
+         *
+         * @sdp implements pay
+         */
+        <declaration>
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | declaration                                                                                    | reported    |
+        | export const pay = (amount: number): number => amount                                          | nothing     |
+        | export const pay = (amount: number) => amount                                                  | return-type |
+        | export function pay(amount: number) {\n  return amount\n}                                      | return-type |
+        | export const pay = Effect.fn("pay")(function*(amount: number) {\n  return amount\n})           | return-type |
+        | export const pay = Effect.fn("pay")(function*(amount: number): Effect.fn.Return<number> {\n  return amount\n}) | nothing     |
+        | export const pay = 0.2                                                                         | nothing     |
+        | export class Pay {\n  amount() {\n    return 0\n  }\n}                                         | nothing     |
+
+    Scenario: Reported at the function, as a warning
+      Given a file "src/pay.ts" containing:
+        """
+        /**
+         * Charges the card on file.
+         *
+         * @sdp implements pay
+         */
+        export const pay = (amount: number) => amount
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule        | severity | at           | message                                         |
+        | return-type | warning  | src/pay.ts:6 | code:src/pay.ts#pay states no return type        |
+
+  @maturity=ready
   Rule: A key=value on an annotation describes only the node it declares; a link has no attributes
+
+    A link is a fact between two nodes and nothing more: what would qualify it belongs to one of
+    them, or to the comment that describes the code.
+
+    Scenario: An element declared with attributes, and a link written with one
+      Given a file "src/billing.ts" containing:
+        """
+        /**
+         * Charges cards.
+         *
+         * @sdp is ARCH-billing owner=payments tier=1
+         * @sdp uses ARCH-ledger via=events
+         */
+        export class Billing {}
+        """
+      And a file "src/ledger.ts" containing:
+        """
+        /** @sdp is ARCH-ledger */
+        export class Ledger {}
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id           | owner    | tier |
+        | ARCH-billing | payments | 1    |
+      And sdp reports:
+        | rule               | severity | at               | message                                                 |
+        | annotation-ignored | warning  | src/billing.ts:5 | via=events describes no node: a link has no attributes |
+      When the graph is exported
+      Then the output contains '{"type":"edge","from":"code:src/billing.ts#Billing","rel":"uses","to":"ARCH-ledger","declared":[{"file":"src/billing.ts","line":5}]}'
