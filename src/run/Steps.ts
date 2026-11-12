@@ -2,7 +2,10 @@
  * Step definitions bind Gherkin step text to code. Expressions are standard
  * Cucumber Expressions; their parameters are typed from the expression string
  * (`{int}` → number, `{string}` → string), and handlers may return nothing, a
- * Promise, or an Effect.
+ * Promise, or an Effect. A regular expression passes its captures on as the
+ * text they matched.
+ *
+ *   import { defineSteps } from "sdp/steps"
  *
  *   export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, Then }) => {
  *     Given("a cart with {int} items", ({ world, args: [n] }) => { ... })
@@ -35,6 +38,8 @@ export interface ScenarioInfo {
   readonly name: string
   readonly specId: string
   readonly tags: ReadonlyArray<string>
+  /** Whether the scenario runs as a gate: after the ordinary scenarios, against a graph that shows their results. */
+  readonly gate: boolean
 }
 
 export interface StepContext<W, A extends ReadonlyArray<unknown>> {
@@ -45,12 +50,16 @@ export interface StepContext<W, A extends ReadonlyArray<unknown>> {
   /** The step's data table argument, as rows of cells, if any. */
   readonly table: ReadonlyArray<ReadonlyArray<string>> | undefined
   /**
-   * The project the scenarios belong to — what built-in graph steps assert against. A step that
-   * reads it depends on the specs: its result goes stale when a spec or feature file changes.
+   * The project the scenarios belong to — what built-in graph steps assert against. An ordinary
+   * scenario sees it without any results; a gate sees the results of the ordinary scenarios. A
+   * step that reads it depends on the specs: its result goes stale when a spec or feature file changes.
    */
   readonly project: Project
   readonly scenario: ScenarioInfo
-  /** Aborted when the step times out or the run is interrupted: pass it on (fetch, child processes, timers) to stop the work. */
+  /**
+   * Aborted when the step times out or the run is interrupted: pass it on (fetch, child processes,
+   * timers) to stop the work. The timeout is cooperative: sdp cannot stop code that never yields.
+   */
   readonly signal: AbortSignal
 }
 
@@ -73,7 +82,8 @@ export interface StepModule<W = unknown> {
 
 type Register<W> = {
   <const E extends string>(expression: E, handler: (context: StepContext<W, ExpressionArgs<E>>) => StepOutcome): void
-  (expression: RegExp, handler: (context: StepContext<W, ReadonlyArray<string>>) => StepOutcome): void
+  /** A regular expression's captures arrive as the text they matched; a group that took no part is `undefined`. */
+  (expression: RegExp, handler: (context: StepContext<W, ReadonlyArray<string | undefined>>) => StepOutcome): void
 }
 
 export interface StepRegistrar<W> {

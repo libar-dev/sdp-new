@@ -61,14 +61,15 @@ per element:
 
 | Module | Responsibility | Element |
 | --- | --- | --- |
-| `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, imports step modules with `import "sdp"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
-| `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts` | CommonMark and YAML parsing, Gherkin through the official parser with every line mapped back, spec assembly | ARCH-spec-parser |
+| `src/workspace/` | Finds the workspace root (walking up to `sdp.config.*`), reads config and files through Effect `FileSystem`, computes the fingerprints results are recorded against, imports step modules for `sdp run` with `import "sdp/steps"` resolved to the running sdp; an in-memory file system for executable specs | ARCH-workspace |
+| `src/parse/Markdown.ts`, `Gherkin.ts`, `Spec.ts`, `StepDefinitions.ts` | CommonMark and YAML parsing, Gherkin through the official parser with every line mapped back, spec assembly, step definitions read from step files without running them | ARCH-spec-parser |
 | `src/annotations.ts`, `src/parse/TypedAnnotations.ts`, `src/parse/Annotations.ts`, `src/graph/Types.ts` | typed `annotate()` calls (the API, the static reader, the generated id declarations) and `@sdp` comments in any language | ARCH-code-annotations |
-| `src/graph/Build.ts` | Pure graph construction, link keys, results merge, stage derivation | ARCH-graph-builder |
+| `src/graph/Build.ts` | Pure graph construction, link keys, stage derivation from the results it is handed | ARCH-graph-builder |
 | `src/model/Graph.ts` | Immutable graph with adjacency indexes | ARCH-graph |
 | `src/model/Vocabulary.ts`, `Config.ts` | The vocabulary profile: the words sdp interprets, and the configuration that renames them | ARCH-vocabulary |
+| `src/model/Results.ts` | The results a run records, as data: statuses, evidence, the roll-up into verification | — |
 | `src/graph/Query.ts` | SDPQ parser and evaluator | ARCH-query-engine |
-| `src/run/` | Step API, runner (Effect, timeouts), built-in graph steps, results schema | ARCH-runner |
+| `src/steps.ts`, `src/run/` | Step API (`sdp/steps`), matching, runner (Effect, cooperative timeouts), evidence and its layers, the results store, built-in graph steps | ARCH-runner |
 | `src/check/` | Rules over the built project | ARCH-checker |
 | `src/arch/` | The architecture view | ARCH-architecture-view |
 | `src/lifecycle/` | Phases, iterations, gates and discipline activity | ARCH-lifecycle |

@@ -63,6 +63,7 @@ Scenario: No decision is kept only as history
 Scenario: Work is planned only into declared iterations and disciplines
   Then there are no diagnostics for rule "plan-reference"
 
+@gate
 Scenario: A risk is mitigated only by verified work
   Then the query "risk[status=mitigated] -mitigated-by-> requirement|nfr[stage!=verified]" returns no results
 ~~~

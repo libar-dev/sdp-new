@@ -10,7 +10,6 @@ import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "eff
 import { Argument, Command, Flag } from "effect/cli"
 import { architectureJson, architectureView, renderArchitecture } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
-import { isGate } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
 import { formatPath, queryProject, querySyntax, stageLadder, unusedNamesNote } from "../graph/Query.ts"
@@ -21,8 +20,9 @@ import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
 import { renderVocabulary, vocabularyJson } from "../model/Vocabulary.ts"
 import { builtinSteps } from "../run/Builtin.ts"
-import { makeMatcher, snippetModule } from "../run/Match.ts"
-import type { ScenarioResult } from "../run/Results.ts"
+import { isGate } from "../run/Evidence.ts"
+import { listSteps, readSteps, snippetModule, stepProblems } from "../run/Match.ts"
+import type { ScenarioResult } from "../model/Results.ts"
 import { summarize } from "../run/Runner.ts"
 import { ensureReadable, runWorkspace } from "../run/Session.ts"
 import { findWorkspaceRoot, loadConfig, loadProject, loadSteps } from "../workspace/Workspace.ts"
@@ -170,17 +170,10 @@ const contextCommand = Command.make(
     )
   },
   Effect.fn(function*({ depth, id }) {
-    const root = yield* workspaceRoot
-    const project = yield* loadProject(root)
+    const project = yield* loadProject(yield* workspaceRoot)
     if (!project.graph.node(id)) return yield* fail(`no node ${id}`)
-    // Step definitions show which steps are not automated yet without a run; a broken step file
-    // must not keep anyone from reading the context, so it only costs that part.
-    const steps = yield* loadSteps(root, project.config).pipe(
-      Effect.map((loaded) => ({ matcher: makeMatcher([builtinSteps, ...loaded.modules]), files: loaded.files })),
-      Effect.catchTag("StepLoadError", (e) =>
-        Effect.as(Console.error(c.yellow(`${e.file}: could not load step definitions: ${e.message}`)), undefined))
-    )
-    yield* Console.log(contextBundle(project, id, depth, steps))
+    // The step definitions as read from the step files show which steps are not automated yet: nothing runs.
+    yield* Console.log(contextBundle(project, id, depth, readSteps(project)))
   })
 ).pipe(
   Command.withDescription(
@@ -245,7 +238,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
     ? gates.length === 0 || gateCounts.passed < gates.length
     : counts.failed + counts.ambiguous > 0
   if (failed) process.exitCode = 1
-  const snippets = [...scenarios, ...gates].flatMap((r) => r.pickles.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
+  const snippets = [...scenarios, ...gates].flatMap((r) => r.examples.flatMap((p) => p.steps.flatMap((s) => s.snippet ? [s.snippet] : [])))
   const module = options.snippets && snippets.length > 0 ? snippetModule(snippets, steps.files) : undefined
   if (options.json) {
     return yield* printJson({
@@ -260,7 +253,7 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
     Object.entries(c).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s}`).join(", ") || "none"
   if (scenarios.length > 0 || gates.length === 0) yield* Console.log(`\n${scenarios.length} scenario(s): ${describe(counts)}`)
   if (gates.length > 0) yield* Console.log(`${gates.length} gate scenario(s): ${describe(gateCounts)}`)
-  const unselected = [...scenarios, ...gates].flatMap((r) => r.pickles.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
+  const unselected = [...scenarios, ...gates].flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
   if (unselected > 0) {
     yield* Console.log(c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`))
   }
@@ -328,6 +321,36 @@ const gateCommand = Command.make(
     yield* executeRun({ targets: [milestone], tags: Option.none(), json, snippets: false, verbose: false, enforceGates: true })
   })
 ).pipe(Command.withDescription("Evaluate a milestone's gate scenarios against the current graph"))
+
+// --- steps ------------------------------------------------------------------
+
+const stepsCommand = Command.make(
+  "steps",
+  {
+    text: Argument.String("text").pipe(
+      Argument.withDescription("Only definitions whose expression contains this text, or that match it as a step"),
+      Argument.optional
+    ),
+    json
+  },
+  Effect.fn(function*({ json, text }) {
+    const project = yield* loadProject(yield* workspaceRoot, { withResults: false })
+    const steps = listSteps(project, Option.getOrUndefined(text))
+    if (json) return yield* printJson(steps)
+    for (const step of steps) yield* Console.log(`${step.file}:${step.line}\t${step.keyword}\t${step.expression}`)
+    yield* Console.error(c.dim(`${steps.length} step definition(s)`))
+    for (const problem of stepProblems(project)) yield* Console.error(c.yellow(`not read: ${problem}`))
+  })
+).pipe(
+  Command.withDescription(
+    "List step definitions, built-in ones included, one per line: file:line, keyword, expression. Read from the step files without running them"
+  ),
+  Command.withExamples([
+    { command: "sdp steps", description: "Every step definition" },
+    { command: "sdp steps cart", description: "Definitions that mention the cart: extend one instead of adding a near-duplicate" },
+    { command: "sdp steps 'the cart holds 3 items'", description: "The definition this step would run" }
+  ])
+)
 
 // --- arch / lifecycle / status ----------------------------------------------
 
@@ -555,6 +578,7 @@ sdp.pipe(
     checkCommand,
     runCommand,
     gateCommand,
+    stepsCommand,
     archCommand,
     lifecycleCommand,
     vocabularyCommand,
@@ -566,6 +590,9 @@ sdp.pipe(
   Effect.catchTags({
     ConfigError: (e) => fail(`${e.file}: invalid configuration: ${e.message.replace(/\s*\n\s*/g, " ")}`),
     StepLoadError: (e) => fail(`${e.file}: could not load step definitions: ${e.message}`),
+    InvalidStepExpressions: (e) => fail(e.message),
+    InvalidTags: (e) => fail(e.message),
+    ResultsLocked: (e) => fail(e.message),
     UnknownTargets: (e) => fail(e.message),
     UnreadableSpecs: (e) => fail(e.message),
     WorkspaceNotFound: (e) => fail(e.message),

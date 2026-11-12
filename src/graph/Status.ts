@@ -3,7 +3,8 @@ import { Predicate } from "effect"
 import { check } from "../check/Check.ts"
 import { tally } from "../model/Graph.ts"
 import { hasKind, made } from "../model/Vocabulary.ts"
-import { isGate, type Project } from "./Build.ts"
+import { isGate } from "../run/Evidence.ts"
+import type { Project } from "./Build.ts"
 
 /** One-screen summary of the delivery state, shared by `sdp status` and the MCP server. */
 export const statusSummary = (project: Project) => {

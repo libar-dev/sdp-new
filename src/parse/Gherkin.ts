@@ -48,7 +48,7 @@ export interface Scenario {
   readonly rule?: string | undefined
   readonly steps: ReadonlyArray<ScenarioStep>
   readonly pickles: ReadonlyArray<Pickle>
-  /** Stable hash of the executable content; results recorded for another hash are stale. */
+  /** Stable hash of what a handler can observe — names, tags, steps and their arguments; results recorded for another hash are stale. */
   readonly hash: string
   /** True when the scenario states an observable outcome (has a `Then`). */
   readonly hasOutcome: boolean
@@ -229,8 +229,9 @@ export const slugify = (text: string): string =>
   text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
     .slice(0, 64).replace(/-+$/, "")
 
+/** Everything a step handler can observe of a scenario: each example's name, tags (inherited ones too) and steps with their arguments. */
 const hashPickles = (pickles: ReadonlyArray<Pickle>): string =>
   createHash("sha1")
-    .update(JSON.stringify(pickles.map((p) => [p.name, p.steps.map((s) => [s.text, s.docString ?? null, s.dataTable ?? null])])))
+    .update(JSON.stringify(pickles.map((p) => [p.name, p.tags, p.steps.map((s) => [s.text, s.docString ?? null, s.dataTable ?? null])])))
     .digest("hex")
     .slice(0, 12)

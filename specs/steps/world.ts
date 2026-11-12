@@ -14,7 +14,7 @@ import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
 import type { Graph, GraphNode } from "../../src/model/Graph.ts"
-import type { RunResults } from "../../src/run/Results.ts"
+import type { RunResults } from "../../src/model/Results.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
 
 export interface World {

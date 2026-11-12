@@ -21,7 +21,7 @@ example, verified by scenarios that run the real CLI as a process in a temporary
 | Flag | Applies to | Meaning |
 | --- | --- | --- |
 | `-C`, `--root <dir>` | every command | workspace root; without it, the nearest directory — the current one or above — holding an `sdp.config.*` file, else the current directory |
-| `--json` | `status`, `q`, `show`, `check`, `run`, `gate`, `lifecycle` | machine-readable output on stdout |
+| `--json` | `status`, `q`, `show`, `check`, `steps`, `run`, `gate`, `lifecycle` | machine-readable output on stdout |
 | `--help`, `--version` | every command | usage with examples; the version |
 
 | Command | Exits with 1 when |
@@ -29,9 +29,10 @@ example, verified by scenarios that run the real CLI as a process in a temporary
 | `check` | there is at least one error diagnostic |
 | `run` | an ordinary scenario failed or is ambiguous; an unmet milestone gate does **not** count |
 | `gate` | the milestone's gate scenarios are not all met |
-| `run`, `gate` | a spec cannot be read — Gherkin or front matter that does not parse, an id declared twice; nothing runs then |
+| `run`, `gate` | a spec cannot be read — Gherkin or front matter that does not parse, a spec without an id, an id declared twice; nothing runs then |
+| `run`, `gate` | a step definition module does not load or has a malformed expression, `--tags` is not a tag expression, or another run holds the lock on the results for more than two seconds |
 | `q`, `show`, `context`, `new` | the query is invalid, the id is unknown, the id already exists, or `--maturity` is not on the ladder |
-| every command | the workspace cannot be read: no such directory, an invalid configuration, a step definition module that does not load |
+| every command | the workspace cannot be read: no such directory, an invalid configuration |
 
 ## The example workspace
 
@@ -659,6 +660,61 @@ Scenario: check --json prints the diagnostics as JSON
   And the output is valid JSON
 ~~~
 
+### `sdp steps [text]`
+
+Lists every step definition a run would know — sdp's built-in steps first, then those of the step
+files — one per line: `file:line`, keyword and expression, separated by tabs. With `text`, only
+the definitions whose expression contains it or that match it as a step, which answers "is there
+a step for this already?" before a near-duplicate is written. The step files are read, not run
+([[REQ-executable-specs]]). `--json` prints the same as a list of objects with `file`, `line`,
+`keyword` and `expression`.
+
+```sh
+sdp steps catalogue
+sdp steps --json | jq -r '.[] | select(.keyword == "Then") | .expression'
+```
+
+~~~gherkin
+Rule: sdp steps
+
+  Background:
+    Given a file "specs/steps/search.steps.ts" containing:
+      """
+      import { defineSteps } from "sdp/steps"
+
+      export default defineSteps(() => ({}), ({ Given, When }) => {
+        Given("a catalogue with a desk lamp", () => {})
+        When(/^a shopper searches for "(.*)"$/, () => {})
+      })
+      """
+
+  Scenario: steps lists every definition with where it is, built-in ones included
+    When I run "sdp steps"
+    Then the output contains "specs/steps/search.steps.ts:4\tGiven\ta catalogue with a desk lamp"
+    And the output contains 'specs/steps/search.steps.ts:5\tWhen\t/^a shopper searches for "(.*)"$/'
+    And the output contains "\tThen\tthe query {string} returns no results"
+    And the output contains "11 step definition(s)"
+
+  Scenario Outline: steps <text> finds the definitions that mention the text or match it as a step
+    When I run "sdp steps '<text>'"
+    Then the output contains "<found>"
+    And the output contains "1 step definition(s)"
+
+    Examples:
+      | text                             | found                          |
+      | desk lamp                        | specs/steps/search.steps.ts:4  |
+      | a shopper searches for \"lamp\"  | specs/steps/search.steps.ts:5  |
+      | there are no warning diagnostics | there are no {word} diagnostics |
+
+  Scenario: steps --json is plain data
+    When I run "sdp steps catalogue --json"
+    Then the output is valid JSON
+    And the output contains '"file": "specs/steps/search.steps.ts"'
+    And the output contains '"line": 4'
+    And the output contains '"keyword": "Given"'
+    And the output contains '"expression": "a catalogue with a desk lamp"'
+~~~
+
 ### `sdp run [targets]`
 
 Executes scenarios — all, or those of the given spec ids, scenario ids, files or directories (paths
@@ -672,8 +728,10 @@ results; an unmet gate is reported but does not fail the run, because a later mi
 to be unmet. The run ends with how many earlier results it did not refresh are stale, and why.
 
 Specs that cannot be read stop `run` and `gate` before anything executes or is recorded: Gherkin
-or front matter that does not parse, or an id declared twice. Each such error is one line,
-`file:line [rule] message`; `sdp check` explains them.
+or front matter that does not parse, a file meant as a spec that has no id, or an id declared
+twice. Each such error is one line, `file:line [rule] message`; `sdp check` explains them. So do a
+step definition whose expression is malformed and a `--tags` filter that is not a tag expression:
+one line that names the definition or the filter, never a stack trace.
 
 ```sh
 sdp run REQ-search --snippets
@@ -709,7 +767,7 @@ Scenario: A target that matches nothing is an error, not an empty run
 Scenario: A step that fails shows where it is defined
   Given a file "specs/steps/search.steps.ts" containing:
     """
-    import { defineSteps } from "sdp"
+    import { defineSteps } from "sdp/steps"
 
     export default defineSteps(() => ({}), ({ Given, When, Then }) => {
       Given("a catalogue with a desk lamp", () => {})
@@ -776,6 +834,14 @@ Scenario Outline: Specs that cannot be read stop run and gate before anything ru
     | sdp run          | specs/broken.feature | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed | 6    | gherkin-syntax |
     | sdp gate MS-beta | specs/REQ-c.md       | ---\nid: [REQ-c\n---\n# C                                                                   | 2    | front-matter   |
     | sdp run          | specs/search-copy.md | ---\nid: REQ-search\n---\n# Search again                                                    | 1    | duplicate-id   |
+    | sdp run          | specs/REQ-sort.md    | ---\nkind: requirement\n---\n# Sort\n\n```gherkin\nScenario: By name\n  Then a comes first\n``` | 1    | missing-id     |
+    | sdp gate MS-beta | docs/sorting.md      | # Sorting\n\n```gherkin\nScenario: By name\n  Then a comes first\n```                        | 1    | missing-id     |
+
+Scenario: A --tags filter that is not a tag expression is an error that says so
+  When I run "sdp run --tags '(@fast'"
+  Then the exit code is 1
+  And the output contains 'invalid --tags "(@fast"'
+  And the output does not contain "    at "
 ~~~
 
 ### `sdp gate <milestone>`

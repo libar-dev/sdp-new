@@ -13,7 +13,7 @@ import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defaultVocabulary, made, vocabularyWords } from "../../src/model/Vocabulary.ts"
-import { defineSteps } from "../../src/run/Steps.ts"
+import { defineSteps } from "sdp/steps"
 import { load, newWorld, type World } from "./world.ts"
 
 type Node = { readonly type: string; readonly start: number; readonly [key: string]: unknown }

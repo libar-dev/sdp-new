@@ -17,7 +17,7 @@ links:
 # Install sdp from npm
 
 Teams install sdp the way they install any tool: `npm install --save-dev sdp`, then `npx sdp`,
-and step definitions `import { defineSteps } from "sdp"`. Today the package is private and runs
+and step definitions `import { defineSteps } from "sdp/steps"`. Today the package is private and runs
 only from a clone of this repository.
 
 Running from TypeScript sources ([[DEC-0004]], [[NFR-no-build-step]]) has a known limit here:

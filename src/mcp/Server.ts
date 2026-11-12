@@ -1,7 +1,8 @@
 /**
- * MCP server exposing the graph to AI agents. Every call reloads the
- * workspace — and the step definitions, where a tool uses them — so agents
- * always see the files as they are now, including edits they just made.
+ * MCP server exposing the graph to AI agents. Every call reads the workspace
+ * again, so agents always see the files as they are now, including edits they
+ * just made. No tool runs workspace code: step definitions are read from the
+ * step files, never imported.
  */
 import { annotate } from "sdp/annotations"
 import { NodeStdio } from "@effect/platform-node"
@@ -10,16 +11,15 @@ import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
 import { architectureJson } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { relationVocabulary } from "../cli/templates.ts"
-import { type ContextSteps, contextBundle } from "../graph/Context.ts"
+import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
 import { formatPath, queryProject, querySyntax, unusedNamesNote } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
-import { builtinSteps } from "../run/Builtin.ts"
-import { makeMatcher, snippetModule, unmatchedSteps } from "../run/Match.ts"
-import { loadProject, loadSteps } from "../workspace/Workspace.ts"
+import { readSteps, snippetModule, unmatchedSteps } from "../run/Match.ts"
+import { loadProject } from "../workspace/Workspace.ts"
 
 annotate(import.meta, { is: "ARCH-mcp" })
 
@@ -33,8 +33,9 @@ const toolError = (message: string) => Effect.fail(new SdpToolError({ message })
 const text = { success: Schema.String, failure: SdpToolError, failureMode: "error" as const }
 
 /**
- * Every tool only reads the workspace, and asking twice gives the same answer. Strict tools reject
- * arguments they do not know, so a misspelt one is an error instead of being silently ignored.
+ * Every tool only reads the workspace's files — none imports or runs its code — and asking twice
+ * gives the same answer. Strict tools reject arguments they do not know, so a misspelt one is an
+ * error instead of being silently ignored.
  */
 const readOnly = <T extends Tool.Any>(tool: T): T =>
   tool
@@ -73,7 +74,7 @@ const SdpContext = readOnly(Tool.make("sdp_context", {
 
 const SdpSnippets = readOnly(Tool.make("sdp_snippets", {
   description:
-    "The steps of one spec's scenarios that no step definition matches yet (or more than one), and a step definition module with a suggested definition for each, ready to save as a .steps.ts file. Reads the step files afresh on every call.",
+    "The steps of one spec's scenarios that no step definition matches yet (or more than one), and a step definition module with a suggested definition for each, ready to save as a .steps.ts file. Step definitions are read from the step files without running them.",
   parameters: Schema.Struct({ id: Schema.String.annotate({ description: "Spec id" }) }),
   ...text
 }))
@@ -121,13 +122,6 @@ const handlers = (root: string) =>
     const unreadable = (e: { readonly message: string }) =>
       new SdpToolError({ message: `could not load workspace: ${"file" in e ? `${String(e.file)}: ` : ""}${e.message}` })
     const load = loadProject(root).pipe(Effect.provide(services), Effect.mapError(unreadable))
-    // Imported afresh on every call, so edits to step files show up without restarting the server.
-    const steps = (project: { readonly config: Parameters<typeof loadSteps>[1] }) =>
-      loadSteps(root, project.config, { fresh: true }).pipe(
-        Effect.provide(services),
-        Effect.mapError(unreadable),
-        Effect.map((loaded): ContextSteps => ({ matcher: makeMatcher([builtinSteps, ...loaded.modules]), files: loaded.files }))
-      )
     return SdpToolkit.of({
       sdp_query: ({ expression, paths }) =>
         Effect.flatMap(load, (project) => {
@@ -161,7 +155,7 @@ const handlers = (root: string) =>
         Effect.gen(function*() {
           const project = yield* load
           if (!project.graph.node(id)) return yield* toolError(`no node ${id}`)
-          return contextBundle(project, id, depth ?? 2, yield* steps(project))!
+          return contextBundle(project, id, depth ?? 2, readSteps(project))!
         }),
       sdp_snippets: ({ id }) =>
         Effect.gen(function*() {
@@ -169,7 +163,7 @@ const handlers = (root: string) =>
           if (!project.graph.node(id)) return yield* toolError(`no node ${id}`)
           const spec = project.specById.get(id)
           if (!spec || spec.scenarios.length === 0) return `${id} has no scenarios`
-          const { files, matcher } = yield* steps(project)
+          const { files, matcher, problems } = readSteps(project)
           const unmatched = unmatchedSteps(project, matcher, (_, s) => s.id === id)
           const where = files.length > 0 ? `step files: ${files.join(", ")}` : "no step files yet"
           if (unmatched.length === 0) return `every step of ${id} has exactly one definition (${where})`
@@ -182,6 +176,7 @@ const handlers = (root: string) =>
           return [
             `${id}: ${unmatched.length} step(s) without exactly one definition (${where})`,
             ...lines,
+            ...problems.map((problem) => `- not read, so possibly defined there: ${problem}`),
             ...(snippets.length > 0 ? ["", "```ts", snippetModule(snippets, files).trimEnd(), "```"] : [])
           ].join("\n")
         }),

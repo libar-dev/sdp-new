@@ -13,14 +13,18 @@ import { gateReasons } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, criteria, hasKind, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Spec } from "../parse/Spec.ts"
+import type { StepSignature } from "../parse/StepDefinitions.ts"
+import { isActive } from "../run/Evidence.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
-import { isActive, type Project } from "./Build.ts"
+import type { Project } from "./Build.ts"
 
 /** The step definitions of the workspace, so the bundle can show what is not automated yet before any run. */
 export interface ContextSteps {
-  readonly matcher: Matcher
+  readonly matcher: Matcher<StepSignature>
   /** Step definition files, relative to the workspace root. */
   readonly files: ReadonlyArray<string>
+  /** Registrations in those files that could not be read or cannot match, one `file:line: message` each. */
+  readonly problems: ReadonlyArray<string>
 }
 
 /** Everything needed to work on one node, as one Markdown document: spec, links, readiness, scenarios, curated architecture, decisions, code. */
@@ -68,7 +72,7 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
       const result = project.results?.scenarios[s.id]
       const shown = new Set<string>()
       if (result && result.hash === s.hash && graph.node(s.id)?.attrs.status !== "stale") {
-        for (const step of result.pickles.flatMap((pickle) => pickle.steps)) {
+        for (const step of result.examples.flatMap((example) => example.steps)) {
           const executed = step.status === "failed" || step.status === "pending"
           if (!executed && (steps || step.status === "passed" || step.status === "skipped")) continue
           if (shown.has(step.text)) continue
@@ -98,6 +102,9 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
           ? `Step files: ${steps.files.join(", ")}. Modules that pass the same world factory share one world per scenario.`
           : `No step files yet (the \`steps\` globs: ${project.config.steps.join(", ")}).`,
         `\`sdp run ${id} --snippets\` prints one module with every suggested definition.`,
+        ...(steps.problems.length > 0
+          ? ["", "Not read from the step files, so a step shown as undefined may be defined there:", ...steps.problems.map((p) => `- ${p}`)]
+          : []),
         ""
       )
     }

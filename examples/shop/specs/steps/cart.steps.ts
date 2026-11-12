@@ -1,5 +1,5 @@
 import { strict as assert } from "node:assert"
-import { defineSteps } from "sdp"
+import { defineSteps } from "sdp/steps"
 import { Cart } from "../../src/cart.ts"
 
 export default defineSteps(

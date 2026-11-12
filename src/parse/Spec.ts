@@ -8,7 +8,7 @@ import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
-import { parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
+import { gherkinLangs, parseFeatureFile, parseGherkinFences, type Scenario } from "./Gherkin.ts"
 import { type Json, type Located, type OpenQuestion, parseMarkdown, type Prose, type Reference, type Section } from "./Markdown.ts"
 
 export interface LinkDecl {
@@ -81,21 +81,26 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     return { spec: undefined, diagnostics }
   }
   const front = md.frontMatter
-  if (!front) return { spec: undefined, diagnostics }
-  const fm = front.data
-  const id = usableId(field(front, "id"))
-  if (id === undefined) {
-    if (fm.kind !== undefined) {
+  const id = front && usableId(field(front, "id"))
+  if (!front || id === undefined) {
+    // Plainly meant as a spec: without an id its scenarios would be dropped silently.
+    const meant = front?.data.kind !== undefined
+      ? `front matter declares kind "${String(front.data.kind)}"`
+      : md.fences.some((fence) => gherkinLangs.has(fence.lang))
+      ? "the file has a Gherkin block"
+      : undefined
+    if (meant) {
       diagnostics.push({
         rule: "missing-id",
-        severity: "warning",
-        message: `front matter declares kind "${String(fm.kind)}" but no id, so the file is not part of the graph`,
+        severity: "error",
+        message: `${meant} but no id, so the file is not part of the graph`,
         source: { file, line: 1 },
-        hint: "add `id: <PREFIX>-<slug>` to the front matter"
+        hint: "add `id: <PREFIX>-<slug>` to the front matter; a document that only shows Gherkin as an example belongs under `exclude`"
       })
     }
     return { spec: undefined, diagnostics }
   }
+  const fm = front.data
   const kind = Predicate.isString(fm.kind) ? fm.kind : inferKind(id, config)
   const title = Predicate.isString(fm.title) ? fm.title : md.title ?? id
   const tags = normalizeTags(fm.tags)

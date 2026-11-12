@@ -143,7 +143,8 @@ nodes:
     title: Step definition
     definition: >-
       Code that gives a step its behaviour, matched by a Cucumber Expression or a regular
-      expression, in a step module (`*.steps.ts` by default).
+      expression, in a step module (`*.steps.ts` by default) that imports `sdp/steps`. Only a run
+      imports step modules; every other command reads the definitions from the files.
     links: { specified-by: REQ-executable-specs }
   - id: TERM-world
     kind: term
@@ -171,11 +172,20 @@ nodes:
     title: Verification
     definition: >-
       The roll-up of a spec's scenario results: none, unrun, undefined, pending, failing or passing.
-      A result is evidence only while what it ran against is unchanged — the scenario, the
-      configuration, the code, the step definitions and the files they import; for scenarios that
-      read the graph also the specs, and for gates the results they read. Otherwise it is stale
-      (`staleBecause` says why) and counts as unrun.
+      Passing — the stage `verified` — promises that every scenario of the spec passed against its
+      evidence and that none of that has changed since; nothing wider.
     links: { specified-by: REQ-executable-specs }
+  - id: TERM-evidence
+    kind: term
+    title: Evidence
+    definition: >-
+      What a scenario result ran against, recorded with it as fingerprints: the scenario as a
+      handler sees it, tags included; the configuration, the code, the step files and every
+      workspace file they imported; the sdp version, Node.js major version and lockfile; the files
+      and environment variables the workspace declares under `evidence`; for a scenario that read
+      the graph the specs, and for a gate the ordinary results. A result whose evidence no longer
+      matches the workspace is stale (`staleBecause` names what changed) and counts as unrun.
+    links: { specified-by: REQ-executable-specs, decided-by: DEC-0011 }
   - id: TERM-stage
     kind: term
     title: Stage
@@ -281,10 +291,11 @@ nodes:
     kind: term
     title: Gate
     definition: >-
-      The scenarios that run after all others, against their fresh results: a milestone's, which
-      decide whether it is met, and any tagged `@gate`. No gate fails `sdp run`, whatever its
-      phase or the date; `sdp gate <id>` exits with 1 while that milestone's or spec's gate is
-      unmet.
+      The scenarios that run after all others: a milestone's, which decide whether it is met,
+      and any tagged `@gate`. Only a gate sees results — those of the ordinary scenarios, never a
+      gate's — so a scenario that asserts on delivery state is a gate. No gate fails `sdp run`,
+      whatever its phase or the date; `sdp gate <id>` exits with 1 while that milestone's or
+      spec's gate is unmet.
     links: { specified-by: REQ-executable-specs }
   - id: TERM-discipline
     kind: term

@@ -293,6 +293,7 @@ export const configTemplate = [
   "#   (scanned for annotate() calls and @sdp comments that link code to the graph)",
   `# steps: ${yamlList(defaults.steps)}    # step definition modules`,
   `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
+  "# evidence: { inputs: [], env: [] }   # files (globs) and environment variables the steps read: results go stale when they change",
   `# results: ${defaults.results}`,
   `# types: ${defaults.types}         # written by \`sdp types\`: types the ids annotate() accepts`,
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
@@ -326,8 +327,8 @@ YAML front matter (\`id\`, \`kind\`, \`title\`, \`links\`). Together they form o
 - Line-oriented dumps for grep/jq: \`sdp graph --write\` → .sdp/graph.jsonl, .sdp/graph.tsv
 
 To change behaviour, change its spec first: the Gherkin scenarios are the acceptance tests.
-\`sdp context <id>\` lists the steps that have no definition yet, and \`sdp run <id> --snippets\`
-prints a step definition module for them.
+\`sdp context <id>\` lists the steps that have no definition yet, \`sdp run <id> --snippets\`
+prints a step definition module for them, and \`sdp steps <text>\` finds the definitions there are.
 
 Relations are free-form: name them for what they mean. The templates use ${relationVocabulary}.
 Link code to specs with typed annotations in TypeScript — \`annotate(pay, { implements: "REQ-…" })\`

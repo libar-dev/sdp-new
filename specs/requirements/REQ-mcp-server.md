@@ -14,8 +14,8 @@ links:
 # Graph access over MCP
 
 Agents that speak the Model Context Protocol get the graph as tools by running `sdp mcp`, a server
-on stdio. Each call reads the workspace afresh — and the step definition modules, where a tool uses
-them — so an agent sees its own edits immediately. Agents with a shell can do everything through
+on stdio. Each call reads the workspace afresh — the step files too, where a tool uses them — so
+an agent sees its own edits immediately. Agents with a shell can do everything through
 the CLI or plain grep instead; MCP is optional.
 
 | Tool | Arguments | Answers with |
@@ -29,9 +29,11 @@ the CLI or plain grep instead; MCP is optional.
 | `sdp_architecture` | — | the architecture as JSON: every element and pattern with the decisions and quality requirements linked to it, as the view's nodes and edges ([[REQ-curated-architecture]]) |
 | `sdp_lifecycle` | — | phases with their milestone gates, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
 
-Every tool only reads, and answers the same when asked twice: the tools are annotated read-only,
-idempotent, non-destructive and closed-world, so clients can call them without asking for
-permission.
+Every tool only reads files, and answers the same when asked twice: the tools are annotated
+read-only, idempotent, non-destructive and closed-world, so clients can call them without asking
+for permission. None of them imports or runs code of the workspace: step definitions are read from
+the step files statically ([[REQ-executable-specs]]), so inspecting a checkout an agent does not
+trust yet executes nothing of it. Running scenarios is `sdp run`, on the command line.
 
 Mistakes come back as tool errors that an agent can read and act on, not as protocol failures: a
 malformed query returns the parser's message together with the query syntax, and an unknown id
@@ -216,6 +218,44 @@ Scenario: Every call sees the files as they are now
   Then the output contains "2 node(s)"
   And the output contains "REQ-b"
 
+Scenario Outline: A tool that matches steps reads the step files and runs nothing of them
+  Given a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    ---
+    # Beta
+
+    ```gherkin
+    Scenario: Beta follows alpha
+      Given alpha is done
+      When beta starts
+    ```
+    """
+  And a file "specs/steps/beta.steps.ts" containing:
+    """
+    import { writeFileSync } from "node:fs"
+    import { defineSteps } from "sdp/steps"
+
+    writeFileSync("executed.txt", "this step file ran")
+
+    export default defineSteps(() => ({}), ({ Given }) => {
+      Given("alpha is done", () => {})
+    })
+    """
+  When an MCP client of "sdp mcp" calls "<tool>" with:
+    """
+    { "id": "REQ-b" }
+    """
+  Then the output contains "undefined: When beta starts"
+  And the output does not contain "undefined: Given alpha is done"
+  And the file "executed.txt" does not exist
+
+  Examples:
+    | tool         |
+    | sdp_context  |
+    | sdp_snippets |
+
 Scenario: A running server sees edits to step definitions
   Given a file "specs/REQ-b.md" containing:
     """
@@ -232,7 +272,7 @@ Scenario: A running server sees edits to step definitions
     """
   And a file "specs/steps/beta.steps.ts" containing:
     """
-    import { defineSteps } from "sdp"
+    import { defineSteps } from "sdp/steps"
 
     export default defineSteps(() => ({}), ({ Given }) => {
       Given("alpha is done", () => {})
@@ -245,7 +285,7 @@ Scenario: A running server sees edits to step definitions
   Then the output contains "undefined: When beta starts"
   When a file "specs/steps/beta.steps.ts" containing:
     """
-    import { defineSteps } from "sdp"
+    import { defineSteps } from "sdp/steps"
 
     export default defineSteps(() => ({}), ({ Given, When }) => {
       Given("alpha is done", () => {})

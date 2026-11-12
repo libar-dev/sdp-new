@@ -35,7 +35,8 @@ that its instructions work.
    Step definitions live in `specs/steps/*.steps.ts` and share one world (`specs/steps/world.ts`).
    They drive the real pipeline against an in-memory workspace (`loadMemoryProject`), or the real
    CLI in a temporary directory (`cli.steps.ts`). Prefer extending existing steps over adding
-   near-duplicates: a step that matches two definitions is ambiguous and fails.
+   near-duplicates — `node src/cli/main.ts steps '<text>'` lists the definitions that mention or
+   match a text, with `file:line` — because a step that matches two definitions is ambiguous and fails.
 3. Implement in `src/`.
 4. `npm run verify` must pass: typecheck, `sdp check` (no errors), `sdp run` (no failing
    scenario). Gates — milestones and `@gate` scenarios — never fail `sdp run`, so the later
@@ -82,6 +83,11 @@ Scenario: context prints the spec and what surrounds it
   When I run "sdp context REQ-graph-query" in the repository
   Then the output contains "# REQ-graph-query"
   And the output contains "ARCH-query-engine"
+
+Scenario: An existing step definition is one command away
+  When I run "sdp steps 'the output contains'" in the repository
+  Then the output contains "specs/steps/sdp.steps.ts:"
+  And the output contains "the output contains {string}"
 
 Scenario: Snippets show how to automate a new scenario
   Given a file "specs/REQ-export.md" containing:
