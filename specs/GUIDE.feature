@@ -125,6 +125,18 @@ Feature: sdp, shown by running it
       When I run "sdp q 'requirement[maturity=idea]' --ids"
       Then the output contains "REQ-gift-wrapping"
 
+  Rule: The sources run as they are, with no build step
+
+    Node.js 24 or later runs the TypeScript sources of this repository: an agent that edits one
+    runs the result with the next command, and there is no stale `dist/` to forget.
+
+    Scenario: The entry points of a checkout with no build output
+      Given this repository has no build output
+      When a fresh Node process imports "sdp/steps"
+      Then the output contains "/src/steps.ts"
+      When I run "node bin/sdp.js --version" in the repository
+      Then the exit code is 0
+
   Rule: In this repository a word means one thing, and so does an id's prefix
 
     So grep finds a thing under one name, and an id says what kind of thing it is.

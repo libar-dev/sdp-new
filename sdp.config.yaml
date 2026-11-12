@@ -1,4 +1,4 @@
-# sdp specifies itself; every key is described in specs/features/REQ-configuration.feature.
+# sdp specifies itself; every key is described in specs/features/configure-a-workspace.feature.
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
