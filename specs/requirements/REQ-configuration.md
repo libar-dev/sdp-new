@@ -46,7 +46,7 @@ replaces its default; `disciplines` merge one by one.
 | `relations` | superseding a decision, planning work into an iteration, putting an iteration or milestone into its phase, the prose mention, a scenario's link to its spec, and the code anchor |
 | `attributes` | `activity`, a phase's `order`, an iteration's `start` and `end`, and the attribute whose value in `qualities` marks a quality requirement |
 | `statuses` | the statuses a decision may have, which of them are `accepted` and `superseded`, and those that make a record inactive |
-| `maturity` | the authoring ladder, lowest first ([[REQ-maturity-gates]]) |
+| `maturity` | the authoring ladder, lowest first ([[REQ-maturity-criteria]]) |
 | `disciplines` | the kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
 | `links` | keys of the workspace's own that link like `links:` entries ([[DEC-0010]]) |
 

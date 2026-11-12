@@ -1,18 +1,21 @@
 /**
  * Step definitions for the specs that replace the design document: lifecycle
- * on a given date, configuration, graph build time, and the quality attribute
- * scenarios that look at this repository itself. Shares its world with every
- * other module (world.ts); module-local state lives in `world.scratch`.
+ * on a given date, configuration, graph build time, the quality attribute
+ * scenarios that look at this repository itself, and shell pipelines. Shares
+ * its world with every other module (world.ts); module-local state lives in
+ * `world.scratch`.
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
-import { existsSync } from "node:fs"
-import { readFile } from "node:fs/promises"
-import { join } from "node:path"
+import { execFile } from "node:child_process"
+import { existsSync, rmSync } from "node:fs"
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { delimiter, dirname, join } from "node:path"
 import { newId } from "../../src/cli/templates.ts"
 import type { Project } from "../../src/graph/Build.ts"
-import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
 import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
+import { formatSource, type SourceRef } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { findFiles } from "../../src/workspace/Workspace.ts"
@@ -125,41 +128,67 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     world.scratch.repository = project
   })
 
-  // Scenario and code ids are derived (`<spec id>#<slug>`, `code:<path>#<symbol>`), so only
-  // declared ids are searched for.
-  When("it searches each file for the ids of the nodes declared there", ({ world }) =>
+  // A scenario's link to its spec is made by sdp, at the scenario's line: no author wrote an id there.
+  When("it follows every node and link of the graph back to its file and line", ({ world }) =>
     Effect.promise(async () => {
-      const project = repository(world)
-      const files = new Map<string, string>()
-      const misses: Array<string> = []
-      for (const node of project.graph.nodes()) {
-        if (!node.source || node.kind === "scenario" || node.kind === "code") continue
-        const file = node.source.file
-        if (!files.has(file)) files.set(file, await readFile(join(project.root, file), "utf8"))
-        if (!files.get(file)!.includes(node.id)) misses.push(`${node.id} (${file})`)
+      const { config, graph, root } = repository(world)
+      const lines = new Map<string, ReadonlyArray<string>>()
+      const lineAt = async (source: SourceRef | undefined) => {
+        if (!source) return undefined
+        if (!lines.has(source.file)) lines.set(source.file, (await readFile(join(root, source.file), "utf8")).split("\n"))
+        return lines.get(source.file)![source.line - 1]
       }
-      world.scratch.misses = misses
+      const untraceable: Array<string> = []
+      const unnamed: Array<string> = []
+      for (const node of graph.nodes()) {
+        if (await lineAt(node.source) === undefined) untraceable.push(node.id)
+      }
+      for (const edge of graph.edges()) {
+        const label = `${edge.from} -${edge.rel}-> ${edge.to}`
+        for (const source of edge.sources ?? [edge.source]) {
+          const line = await lineAt(source)
+          if (line === undefined) untraceable.push(label)
+          else if (edge.rel !== config.vocabulary.relations.scenario && !line.includes(edge.to)) unnamed.push(`${label} ${formatSource(source)}`)
+        }
+      }
+      world.scratch.untraceable = untraceable
+      world.scratch.unnamed = unnamed
     }))
 
-  Then("every id is found in the file that declares it", ({ world }) => {
-    const misses = world.scratch.misses as ReadonlyArray<string> | undefined
-    assert.ok(misses, "search the files first")
-    assert.equal(misses.length, 0, `not found: ${misses.join(", ")}`)
+  Then("every one of them has a file and a line that exist", ({ world }) => {
+    const untraceable = world.scratch.untraceable as ReadonlyArray<string> | undefined
+    assert.ok(untraceable, "follow the graph back to its files first")
+    assert.equal(untraceable.length, 0, `no file and line for: ${untraceable.slice(0, 10).join(", ")}`)
   })
 
-  When("it exports the graph as {word}", ({ args: [format], world }) => {
-    world.output = exportGraph(repository(world).graph, format as GraphFormat, repository(world).config.vocabulary)
-  })
-
-  Then("every line of the export ends with a file and line", ({ world }) => {
-    const lines = world.output.trimEnd().split("\n")
-    const offenders = lines.filter((line) => !/\t[^\t]+:\d+$/.test(line))
-    assert.equal(offenders.length, 0, `${offenders.length} of ${lines.length} lines:\n${offenders.slice(0, 10).join("\n")}`)
+  Then("the line of every link contains the id it links to", ({ world }) => {
+    const unnamed = world.scratch.unnamed as ReadonlyArray<string> | undefined
+    assert.ok(unnamed, "follow the graph back to its files first")
+    assert.equal(unnamed.length, 0, `grep for the target would miss:\n${unnamed.slice(0, 10).join("\n")}`)
   })
 
   Given("this repository has no build output", ({ project }) => {
     const found = ["dist", "build", "out"].filter((dir) => existsSync(join(project.root, dir)))
     assert.equal(found.length, 0, `build output found: ${found.join(", ")}`)
+  })
+
+  // --- the command line, piped ----------------------------------------------
+
+  // What `I run {string}` cannot say: a pipeline. The given files are written to the scenario's
+  // directory and the script runs there under `sh`, with `sdp` on the PATH as this repository's CLI.
+  When("I run in a shell:", async ({ doc, project, world }) => {
+    const directory = world.directory ??= await mkdtemp(join(await shellBase(project.root), "workspace-"))
+    for (const [file, content] of world.files) {
+      await mkdir(dirname(join(directory, file)), { recursive: true })
+      await writeFile(join(directory, file), content)
+    }
+    const env = { ...process.env, NO_COLOR: "1", PATH: `${join(await shellBase(project.root), "bin")}${delimiter}${process.env.PATH ?? ""}` }
+    const result = await new Promise<{ code: number; output: string }>((done) => {
+      execFile("sh", ["-c", doc ?? ""], { cwd: directory, env }, (error, stdout, stderr) =>
+        done({ code: error ? Number(error.code ?? 1) : 0, output: stdout + stderr }))
+    })
+    world.exitCode = result.code
+    world.output = result.output
   })
 })
 
@@ -168,3 +197,15 @@ const repository = (world: World): Project => {
   assert.ok(project, "start with: Given an agent that explores this repository with grep")
   return project
 }
+
+// Created once (scenarios may run concurrently, so the promise is shared): a temporary directory
+// with `bin/sdp`, a script that runs this repository's command line. Removed when the run exits.
+let shell: Promise<string> | undefined
+
+const shellBase = (root: string) =>
+  shell ??= mkdtemp(join(tmpdir(), "sdp-shell-")).then(async (base) => {
+    process.once("exit", () => rmSync(base, { recursive: true, force: true }))
+    await mkdir(join(base, "bin"))
+    await writeFile(join(base, "bin", "sdp"), `#!/bin/sh\nexec "${process.execPath}" "${join(root, "src/cli/main.ts")}" "$@"\n`, { mode: 0o755 })
+    return base
+  })

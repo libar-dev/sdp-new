@@ -404,7 +404,7 @@ export const stageOf = (maturity: unknown, verification: Verification, ladder: W
     ? made.stages.verified
     : verification === "failing"
     ? made.stages.failing
-    : verification === "pending"
+    : verification === "partial"
     ? made.stages.inProgress
     : Predicate.isString(maturity) && ladder.includes(maturity)
     ? maturity

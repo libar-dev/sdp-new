@@ -42,7 +42,7 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `gherkin-syntax` | error | a gherkin block does not parse; the first error is reported, with the number of follow-on errors | fix the Gherkin at that line |
 | `scenario-empty` | warning | a scenario has no steps | write its steps or delete it |
 | `maturity-value` | error | `maturity` is not on the configured ladder; the node gets no stage from it | use one of the configured levels |
-| `maturity-gate` | error | the content does not support the declared maturity — of a spec, an inline node or a node declared in code ([[REQ-maturity-gates]]) | complete the content or lower the maturity |
+| `maturity-criteria` | error | the content does not support the declared maturity — of a spec, an inline node or a node declared in code ([[REQ-maturity-criteria]]) | complete the content or lower the maturity |
 | `maturity-promotable` | info | the content meets the `specified` or `ready` gate, above the declared maturity | raise the maturity if the team agrees |
 | `decision-status` | warning | a decision has no `status`, or one other than `proposed`, `accepted`, `rejected`, `deprecated`, `superseded` | set `status` |
 | `decision-supersede` | warning | a decision supersedes one whose status is not `superseded`, or a superseded decision has no successor | make both records agree |
@@ -89,7 +89,7 @@ Scenario Outline: Each rule reports its problem where it is
     | gherkin-syntax      | error    | specs/REQ-a.md   | 10   | { id: REQ-a }                                        | ```gherkin\nScenario: Rows\n  Given the rows:\n    \| a \| b \|\n    \| c \|\n```     |
     | scenario-empty      | warning  | specs/REQ-a.md   | 7    | { id: REQ-a }                                        | ```gherkin\nScenario: Nothing yet\n```                                                |
     | maturity-value      | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: someday }                     |                                                                                       |
-    | maturity-gate       | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: specified }                   | Analysts export reports.                                                              |
+    | maturity-criteria       | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: specified }                   | Analysts export reports.                                                              |
     | maturity-promotable | info     | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: draft }                       | Analysts export reports.\n\n```gherkin\nScenario: Export\n  Then a file is saved\n``` |
     | decision-status     | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision }                     |                                                                                       |
     | decision-supersede  | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: superseded } |                                                                                       |

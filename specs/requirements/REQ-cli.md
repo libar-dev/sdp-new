@@ -216,7 +216,7 @@ to it with `decided-by`. Removing the `#` of a suggestion leaves valid YAML. Tem
 be replaced — `We will …`, `What is still unknown?`, `Given <context>` — is flagged by `sdp check`
 until it is ([[REQ-check-rules]]). The `ready` template has no open questions — the structural
 difference from a specified spec; whether it is truly ready to build is the team's own Definition of
-Ready, a gate of its own ([[REQ-maturity-gates]]).
+Ready, a gate of its own ([[REQ-maturity-criteria]]).
 
 `sdp new plan` writes the delivery plan: the four phases (`PH-inception`, `PH-elaboration`,
 `PH-construction`, `PH-transition`) and one two-week example iteration in each (`I1`, `E1`, `C1`, `T1`,
@@ -650,7 +650,7 @@ Scenario Outline: Only errors fail the check
   Examples:
     | front matter                                       | rule          | exit code |
     | { id: REQ-a, links: { depends-on: REQ-gone } }     | dangling-link | 1         |
-    | { id: REQ-a, maturity: draft }                     | maturity-gate  | 1        |
+    | { id: REQ-a, maturity: draft }                     | maturity-criteria  | 1        |
     | { id: REQ-a, links: [REQ-b] }                      | link-syntax    | 1        |
     | { id: REQ-a, kind: decision, status: accepted }    | decision-content | 0      |
 

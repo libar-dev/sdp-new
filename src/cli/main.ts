@@ -201,7 +201,7 @@ const checkCommand = Command.make(
     const count = (s: string) => diagnostics.filter((d) => d.severity === s).length
     yield* Console.log(c.dim(`${count("error")} error(s), ${count("warning")} warning(s), ${count("info")} info`))
   })
-).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity gates and decision records; exit 1 on errors"))
+).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and decision records; exit 1 on errors"))
 
 // --- run / gate -------------------------------------------------------------
 

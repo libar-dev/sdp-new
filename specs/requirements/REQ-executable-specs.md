@@ -132,7 +132,7 @@ The statuses of a spec's scenarios roll up into the spec (the first matching row
 | all passed | `passing` | `verified` |
 | none run yet, or all stale | `unrun` | declared maturity |
 | each undefined or not run | `undefined` | declared maturity |
-| anything else: some pending, or some passed while others are not | `pending` | `in-progress` |
+| anything else: some pending, or some passed while others are not | `partial` | `in-progress` |
 
 `verified` therefore promises exactly this, and nothing wider: **every scenario of the spec
 passed against the fingerprinted inputs below, and none of them has changed since.** It says
@@ -325,7 +325,7 @@ Scenario Outline: Results of automated steps decide the stage
   Examples:
     | adding | scenario | verification | stage       |
     | passes | passed   | passing      | verified    |
-    | pends  | pending  | pending      | in-progress |
+    | pends  | pending  | partial      | in-progress |
     | fails  | failed   | failing      | failing     |
 
 Scenario: A spec is verified only when every one of its scenarios passed
@@ -351,7 +351,7 @@ Scenario: A spec is verified only when every one of its scenarios passed
   When the scenarios are run
   Then scenario "REQ-wishlist#keep-a-lamp" has status "passed"
   And scenario "REQ-wishlist#share-the-list" has status "undefined"
-  And node "REQ-wishlist" has attribute verification = "pending"
+  And node "REQ-wishlist" has attribute verification = "partial"
   And node "REQ-wishlist" has attribute stage = "in-progress"
 
 Scenario: Editing a scenario makes its last result stale

@@ -41,7 +41,7 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
   compare. A list matches when any of its elements does. `<` and `>` compare only set values,
   along the maturity, stage and verification ladders, then as numbers, then as text — so ISO dates
   order correctly. On the stage ladder `failing` and `in-progress` rank equal, above every
-  maturity level and below `verified` ([[REQ-maturity-gates]]). `|` separates alternatives except
+  maturity level and below `verified` ([[REQ-maturity-criteria]]). `|` separates alternatives except
   in a regex; quote a value, in single or double quotes, when it contains a comma or a literal `|`.
   A regex may contain brackets.
 - **Edges.** `-rel->` follows outgoing edges, `<-rel-` incoming ones, `-rel-` both. `*` or nothing

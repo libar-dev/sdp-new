@@ -149,7 +149,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const reasons = gateReasons(content, maturity)
     if (reasons.length > 0) {
       out.push({
-        rule: "maturity-gate",
+        rule: "maturity-criteria",
         severity: "error",
         message: `${node.id} claims maturity "${maturity}" but ${reasons.join("; ")}`,
         node: node.id,

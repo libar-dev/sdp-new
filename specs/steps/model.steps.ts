@@ -2,7 +2,7 @@
  * Step definitions for the model the rest of sdp stands on: the vocabulary
  * profile and the guard that keeps the words sdp interprets in it
  * (DEC-0002, ARCH-vocabulary), the immutable graph (ARCH-graph), and how
- * reports count stages (REQ-maturity-gates).
+ * reports count stages (REQ-maturity-criteria).
  */
 import { Effect } from "effect"
 import { strict as assert } from "node:assert"
@@ -204,7 +204,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.deepEqual(changed, [], `these could be changed: ${changed.join(", ")}`)
   })
 
-  // --- stages (REQ-maturity-gates) ------------------------------------------
+  // --- stages (REQ-maturity-criteria) ------------------------------------------
 
   Then("sdp status counts the stages {string}", ({ args: [expected], world }) =>
     Effect.map(load(world), (project) => {

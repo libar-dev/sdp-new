@@ -91,10 +91,10 @@ export const worstStatus = (statuses: Iterable<StepStatus>): StepStatus => {
 
 /**
  * Verification of a spec, derived from its scenarios:
- * `none` (no scenarios) · `unrun` · `undefined` (no automation yet) · `pending` (partially automated) ·
+ * `none` (no scenarios) · `unrun` · `undefined` (no automation yet) · `partial` (partially automated) ·
  * `failing` · `passing`.
  */
-export type Verification = "none" | "unrun" | "undefined" | "pending" | "failing" | "passing"
+export type Verification = "none" | "unrun" | "undefined" | "partial" | "failing" | "passing"
 
 export const verificationOf = (statuses: ReadonlyArray<StepStatus | undefined>): Verification => {
   if (statuses.length === 0) return "none"
@@ -102,5 +102,5 @@ export const verificationOf = (statuses: ReadonlyArray<StepStatus | undefined>):
   if (statuses.every((s) => s === "passed")) return "passing"
   if (statuses.every((s) => s === undefined)) return "unrun"
   if (statuses.every((s) => s === undefined || s === "undefined")) return "undefined"
-  return "pending"
+  return "partial"
 }
