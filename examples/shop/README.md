@@ -19,7 +19,7 @@ From the repository root:
 
 ```sh
 node src/cli/main.ts -C examples/shop run         # 3 scenarios pass, guest checkout is undefined
-node src/cli/main.ts -C examples/shop arch        # ARCH-pricing, described by its code
+node src/cli/main.ts -C examples/shop arch        # ARCH-pricing, described by its code, and integer-cents through cart totals
 node src/cli/main.ts -C examples/shop context guest-checkout
 node src/cli/main.ts -C examples/shop types       # after adding or renaming a spec
 ```

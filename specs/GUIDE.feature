@@ -113,11 +113,9 @@ Feature: sdp, shown by running it
         ARCH-pricing (element)
         Prices, VAT rates and rounding: every monetary figure flows through here
         ARCH-pricing <-is- code:src/pricing.ts
+        integer-cents, through cart-totals  Money is integer cents, rounded once
         """
       And the output does not contain "src/cart.ts"
-      When I run "sdp q '#integer-cents <-decided-by- rule -rule-of-> feature -realized-by-> element' --ids"
-      Then the exit code is 0
-      And the output lines are "ARCH-pricing"
 
   Rule: A repository of your own starts with sdp init
 

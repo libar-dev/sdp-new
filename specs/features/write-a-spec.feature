@@ -501,17 +501,17 @@ Feature: Write a spec
       And the executable tags of "pay#card" are "@feature"
 
       Examples:
-        | feature                     | rule    | scenario    | examples         | line | message                                     |
-        | @uses:A,B                   |         |             |                  | 1    | @uses:A,B: one tag is one link              |
-        | @id=other                   |         |             |                  | 1    | @id=other: a spec has one id                |
-        | @id:other                   |         |             |                  | 1    | @id:other: a spec's id is written with =    |
-        | @owner=ada @owner.team=core |         |             |                  | 1    | owner is written as a value and as a map    |
-        | @owner..team=core           |         |             |                  | 1    | @owner..team=core: this key names nothing   |
-        |                             | @1st=ok |             |                  | 4    | @1st=ok: this key names nothing             |
-        |                             |         | @:b         |                  | 7    | @:b: this key names nothing                 |
-        |                             | @id=R-1 |             |                  | 4    | @id=R-1: only a Feature says what it is     |
-        |                             |         | @kind=story |                  | 7    | @kind=story: only a Feature says what it is |
-        |                             |         |             | @browser=firefox | 11   | an annotation on Examples is about no node  |
+        | feature                     | rule        | scenario    | examples         | line | message                                     |
+        | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link              |
+        | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                |
+        | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =    |
+        | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map    |
+        | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing   |
+        |                             | @1st=ok     |             |                  | 4    | @1st=ok: this key names nothing             |
+        |                             |             | @:b         |                  | 7    | @:b: this key names nothing                 |
+        |                             | @id=payment |             |                  | 4    | @id=payment: only a Feature says what it is |
+        |                             |             | @kind=story |                  | 7    | @kind=story: only a Feature says what it is |
+        |                             |             |             | @browser=firefox | 11   | an annotation on Examples is about no node  |
 
   Rule: A file the parser cannot read is an error at the line where it stopped, and no spec until it parses
 

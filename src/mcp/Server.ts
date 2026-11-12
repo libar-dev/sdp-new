@@ -107,7 +107,7 @@ const SdpCheck = readOnly(Tool.make("sdp_check", {
 
 const SdpArchitecture = readOnly(Tool.make("sdp_architecture", {
   description:
-    "The architecture: every element and pattern architects declared, their relationships, and the decisions and quality requirements linked to them. Use before designing a change.",
+    "The architecture: every element and pattern architects declared, their relationships, and the decisions and quality requirements that shaped them, linked to them or to the features they realize. Use before designing a change.",
   parameters: Schema.Struct({ json }),
   ...text
 }))

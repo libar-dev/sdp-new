@@ -86,23 +86,23 @@ Feature: Ask the graph
 
     Scenario Outline: A bare key asks whether a value is set; missing and false are not
       Given these specs:
-        | tags                                | Feature  |
-        | @id=F-missing @kind=flag            | No value |
-        | @id=F-false @kind=flag @value=false | False    |
-        | @id=F-zero @kind=flag @value=0      | Zero     |
-        | @id=F-true @kind=flag @value=true   | True     |
+        | tags                                    | Feature  |
+        | @id=missing-value @kind=flag            | No value |
+        | @id=false-value @kind=flag @value=false | False    |
+        | @id=zero-value @kind=flag @value=0      | Zero     |
+        | @id=true-value @kind=flag @value=true   | True     |
       When I query '<query>'
       Then the result is "<result>"
 
       Examples:
-        | query              | result                    |
-        | flag[value]        | F-zero, F-true            |
-        | flag[!value]       | F-missing, F-false        |
-        | flag[value=false]  | F-false                   |
-        | flag[value!=false] | F-missing, F-zero, F-true |
-        | flag[value=0]      | F-zero                    |
-        | flag[value~^f]     | F-false                   |
-        | flag[value<1]      | F-zero                    |
+        | query              | result                                |
+        | flag[value]        | zero-value, true-value                |
+        | flag[!value]       | missing-value, false-value            |
+        | flag[value=false]  | false-value                           |
+        | flag[value!=false] | missing-value, zero-value, true-value |
+        | flag[value=0]      | zero-value                            |
+        | flag[value~^f]     | false-value                           |
+        | flag[value<1]      | zero-value                            |
 
     Scenario Outline: A comparison ignores case, matches any element of a list, and takes alternatives
       When I query '<query>'

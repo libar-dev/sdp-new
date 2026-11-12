@@ -107,9 +107,10 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
 
 /**
  * Each architectural node with what it is for and its links; drivers and anchored code appear as
- * the nodes it links to. What it is for is the first paragraph of its spec — or, for a node
- * declared without one, what the code anchored to it says of itself. A title that only repeats
- * the id, as that of an element declared by its code, is left out.
+ * the nodes it links to, and a driver that shaped it through a feature as `driver, through
+ * feature`. What it is for is the first paragraph of its spec — or, for a node declared without
+ * one, what the code anchored to it says of itself. A title that only repeats the id, as that of
+ * an element declared by its code, is left out.
  */
 export const architecture = ({ anchors, architecture, drivers, edges, kinds }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
@@ -124,6 +125,10 @@ export const architecture = ({ anchors, architecture, drivers, edges, kinds }: A
     for (const text of described) if (typeof text === "string") lines.push(`  ${text}`)
     for (const edge of edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`.trimEnd())
     for (const edge of incoming) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`.trimEnd())
+    for (const driver of drivers) {
+      const features = [...new Set(driver.through.filter((route) => route.nodes[0] === node.id).map((route) => route.nodes[1]))]
+      if (features.length > 0) lines.push(`  ${driver.id}, through ${features.join(", ")}  ${title(driver.id)}`.trimEnd())
+    }
   }
   return lines.join("\n")
 }
