@@ -13,22 +13,30 @@ links:
 # Graph access over MCP
 
 Agents that speak the Model Context Protocol get the graph as tools by running `sdp mcp`, a server
-on stdio. Each call reads the workspace afresh, so an agent sees its own edits immediately. Agents
-with a shell can do everything through the CLI or plain grep instead; MCP is a convenience, not a
-requirement.
+on stdio. Each call reads the workspace afresh — and the step definition modules, where a tool uses
+them — so an agent sees its own edits immediately. Agents with a shell can do everything through
+the CLI or plain grep instead; MCP is a convenience, not a requirement.
 
 | Tool | Arguments | Answers with |
 | --- | --- | --- |
 | `sdp_status` | — | summary counts as JSON: kinds, relations, stages, decision statuses, scenario results, significant elements, diagnostics |
-| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths |
+| `sdp_query` | `expression`, optional `paths` | the matching nodes, one per line (id, kind, status, title, `file:line`), or the matched paths; when nothing matches because the pattern names a kind or relation nothing uses, a note listing those in use |
 | `sdp_show` | `id` | the node as JSON with its outgoing and incoming edges |
-| `sdp_context` | `id`, optional `depth` (2) | the node's context bundle ([[REQ-agent-context]]) |
+| `sdp_context` | `id`, optional `depth` (1 to 6, default 2) | the node's context bundle ([[REQ-agent-context]]) |
+| `sdp_snippets` | `id` | the steps of the spec's scenarios that no step definition matches, or more than one, each with its `file:line`, and a step definition module with a suggested definition for each undefined one ([[REQ-executable-specs]]) |
 | `sdp_check` | optional minimum `severity` (`warning`) | diagnostics with rule, `file:line` and hint ([[REQ-check-rules]]) |
 | `sdp_architecture` | — | the curated architecture as JSON: significant ids, ids declared but not significant, and the view's nodes and edges ([[REQ-curated-architecture]]) |
+| `sdp_lifecycle` | — | phases with their milestone gates, iterations with their planned work, discipline activity, as `sdp lifecycle` prints them ([[REQ-lifecycle-view]]) |
+
+Every tool only reads, and answers the same when asked twice: the tools are annotated read-only,
+idempotent, non-destructive and closed-world, so clients can call them without asking for
+permission.
 
 Mistakes come back as tool errors that an agent can read and act on, not as protocol failures: a
 malformed query returns the parser's message together with the query syntax, and an unknown id
-says so. The server's instructions suggest where to start: `sdp_status`, then `sdp_query`, and
+says so. Arguments are checked against each tool's schema before it runs: a misspelt argument or
+an out-of-range value is rejected as invalid parameters, naming the argument, instead of being
+silently ignored. The server's instructions suggest where to start: `sdp_status`, then `sdp_query`, and
 `sdp_context` before working on a spec.
 
 ## Scenarios
@@ -48,9 +56,10 @@ Background:
     Alpha comes first.
     """
 
-Scenario: The server offers one tool per question
+Scenario: The server offers one tool per question, every one of them read-only
   When an agent lists the MCP tools
-  Then the MCP tools are "sdp_architecture, sdp_check, sdp_context, sdp_query, sdp_show, sdp_status"
+  Then the MCP tools are "sdp_architecture, sdp_check, sdp_context, sdp_lifecycle, sdp_query, sdp_show, sdp_snippets, sdp_status"
+  And every MCP tool is marked "readOnlyHint, idempotentHint"
 
 Scenario Outline: Every tool answers from the workspace
   When an agent calls the MCP tool "<tool>" with:
@@ -68,6 +77,9 @@ Scenario Outline: Every tool answers from the workspace
     | sdp_context      | { "id": "REQ-a" }                                     | # REQ-a — Alpha                                    |
     | sdp_check        | {}                                                    | error [dangling-link] REQ-a -depends-on-> REQ-gone |
     | sdp_architecture | {}                                                    | "significant": []                                  |
+    | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
+    | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
+    | sdp_query        | { "expression": "requirement -realised-by-> *" }      | no relation realised-by; relations in use: depends-on |
 
 Scenario: A malformed query comes back as a tool error that teaches the syntax
   When an agent calls the MCP tool "sdp_query" with:
@@ -88,9 +100,49 @@ Scenario Outline: An unknown id is a tool error
   And the output contains "no node REQ-lost"
 
   Examples:
-    | tool        |
-    | sdp_show    |
-    | sdp_context |
+    | tool         |
+    | sdp_show     |
+    | sdp_context  |
+    | sdp_snippets |
+
+Scenario Outline: A misspelt or out-of-range argument is rejected
+  When an agent calls the MCP tool "<tool>" with:
+    """
+    <arguments>
+    """
+  Then the MCP tool reports an error
+  And the output contains '<problem>'
+
+  Examples:
+    | tool        | arguments                               | problem                |
+    | sdp_context | { "id": "REQ-a", "depht": 3 }           | ["depht"]              |
+    | sdp_context | { "id": "REQ-a", "depth": 9 }           | ["depth"]              |
+    | sdp_query   | { "expression": "requirement", "ids": true } | ["ids"]           |
+    | sdp_status  | { "verbose": true }                     | ["verbose"]            |
+
+Scenario: Snippets list the steps still to automate, with a module to save
+  Given a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    ---
+    # Beta
+
+    ```gherkin
+    Scenario: Beta follows alpha
+      Given alpha is done
+      When beta starts
+      Then the query "#REQ-a" returns 1 result
+    ```
+    """
+  When an agent calls the MCP tool "sdp_snippets" with:
+    """
+    { "id": "REQ-b" }
+    """
+  Then the output contains "REQ-b: 2 step(s) without exactly one definition (no step files yet)"
+  And the output contains "- undefined: When beta starts — specs/REQ-b.md:9"
+  And the output contains '  Given("alpha is done", ({ world }) => pending())'
+  And the output does not contain "returns 1 result"
 
 Scenario: Diagnostics tell the agent what to do
   When an agent calls the MCP tool "sdp_check" with:
@@ -140,4 +192,46 @@ Scenario: Every call sees the files as they are now
     """
   Then the output contains "2 node(s)"
   And the output contains "REQ-b"
+
+Scenario: A running server sees edits to step definitions
+  Given a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    ---
+    # Beta
+
+    ```gherkin
+    Scenario: Beta follows alpha
+      Given alpha is done
+      When beta starts
+    ```
+    """
+  And a file "specs/steps/beta.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp"
+
+    export default defineSteps(() => ({}), ({ Given }) => {
+      Given("alpha is done", () => {})
+    })
+    """
+  When an agent calls the MCP tool "sdp_snippets" on the workspace directory with:
+    """
+    { "id": "REQ-b" }
+    """
+  Then the output contains "undefined: When beta starts"
+  When a file "specs/steps/beta.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp"
+
+    export default defineSteps(() => ({}), ({ Given, When }) => {
+      Given("alpha is done", () => {})
+      When("beta starts", () => {})
+    })
+    """
+  And an agent calls the MCP tool "sdp_snippets" on the workspace directory with:
+    """
+    { "id": "REQ-b" }
+    """
+  Then the output contains "every step of REQ-b has exactly one definition (step files: specs/steps/beta.steps.ts)"
 ~~~

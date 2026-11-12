@@ -102,7 +102,7 @@ const scriptedSteps = (
 interface Execution extends Log {
   /** Module and world of `world.definitions[i]`, when a scenario names them. */
   readonly placements: Array<{ readonly module: string; readonly world: string } | undefined>
-  tools: ReadonlyArray<string>
+  tools: ReadonlyArray<{ readonly name: string; readonly annotations?: Readonly<Record<string, unknown>> | undefined }>
 }
 
 const execution = (world: World): Execution =>
@@ -243,11 +243,19 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("an agent lists the MCP tools", ({ world }) =>
     Effect.gen(function*() {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
-      execution(world).tools = (yield* client.listTools()).tools.map((t) => t.name)
+      execution(world).tools = (yield* client.listTools()).tools
     }).pipe(Effect.scoped, Effect.provide(layerMemoryWorkspace(world.files))))
 
   Then("the MCP tools are {string}", ({ args: [list], world }) => {
-    assert.deepEqual([...execution(world).tools].sort(), ids(list))
+    assert.deepEqual(execution(world).tools.map((t) => t.name).sort(), ids(list))
+  })
+
+  Then("every MCP tool is marked {string}", ({ args: [hints], world }) => {
+    for (const tool of execution(world).tools) {
+      for (const hint of hints.split(/,\s*/)) {
+        assert.equal(tool.annotations?.[hint], true, `${tool.name} is not marked ${hint}: ${JSON.stringify(tool.annotations)}`)
+      }
+    }
   })
 
   // The MCP call step (sdp.steps.ts) records whether the tool answered with an error.

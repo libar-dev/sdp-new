@@ -28,8 +28,6 @@ export const table = (rows: ReadonlyArray<ReadonlyArray<string>>): string => {
 export const nodeRows = (nodes: ReadonlyArray<GraphNode>) =>
   nodes.map((n) => [n.id, n.kind, statusCell(n), n.title, formatSource(n.source)])
 
-
-
 export const statusIcon: Record<StepStatus, string> = {
   passed: c.green("✔"),
   failed: c.red("✘"),
@@ -45,7 +43,8 @@ export const formatDiagnostic = (d: Diagnostic) => {
   return `${sev} ${c.dim(`[${d.rule}]`)} ${d.message}${where ? c.dim(`  ${where}`) : ""}${d.hint ? `\n       ${c.dim(`→ ${d.hint}`)}` : ""}`
 }
 
-export const formatScenario = (r: ScenarioResult, options: { readonly snippets: boolean; readonly verbose: boolean }) => {
+/** A scenario's result line, then each step that did not pass (all with `verbose`) and where a failing one is defined. */
+export const formatScenario = (r: ScenarioResult, options: { readonly verbose: boolean }) => {
   const lines = [`${statusIcon[r.status]} ${pad(r.status, 9)} ${r.id} ${c.dim(`${r.file}:${r.line}`)}`]
   if (r.status === "passed" && !options.verbose) return lines.join("\n")
   for (const pickle of r.pickles) {
@@ -53,9 +52,9 @@ export const formatScenario = (r: ScenarioResult, options: { readonly snippets: 
     for (const step of pickle.steps) {
       if (step.status === "passed" && !options.verbose) continue
       if (step.status === "skipped") continue
-      lines.push(`      ${statusIcon[step.status]} ${step.keyword} ${step.text} ${c.dim(`:${step.line}`)}`)
+      const definedAt = step.definition && step.status !== "passed" ? `  ${c.dim(`defined at ${step.definition}`)}` : ""
+      lines.push(`      ${statusIcon[step.status]} ${step.keyword} ${step.text} ${c.dim(`:${step.line}`)}${definedAt}`)
       if (step.error) lines.push(...step.error.split("\n").map((l) => `          ${c.red(l)}`))
-      if (step.snippet && options.snippets) lines.push(`          ${c.cyan(step.snippet)}`)
     }
   }
   return lines.join("\n")

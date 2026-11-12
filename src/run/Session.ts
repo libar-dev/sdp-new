@@ -7,7 +7,7 @@
  */
 import parseTagExpression from "@cucumber/tag-expressions"
 import { type Duration, Effect, Schema } from "effect"
-import { isActive, type Project } from "../graph/Build.ts"
+import { isActive, isGate, type Project } from "../graph/Build.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { loadProject, writeResults } from "../workspace/Workspace.ts"
@@ -16,10 +16,6 @@ import { mergeResults, runScenarios } from "./Runner.ts"
 import type { StepModule } from "./Steps.ts"
 
 // @sdp is ARCH-runner
-
-/** Gate scenarios run after all others: those of milestones and those tagged `@gate`. */
-export const isGate = (scenario: Scenario, spec: Spec): boolean =>
-  spec.kind === "milestone" || scenario.pickles.some((pickle) => pickle.tags.includes("@gate"))
 
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */

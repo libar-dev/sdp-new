@@ -7,7 +7,8 @@ import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
-import { type Annotation, codeNodeId, scanAnnotations } from "../parse/Annotations.ts"
+import { type Annotation, codeNodeId, ignoredAnnotations, scanAnnotations } from "../parse/Annotations.ts"
+import type { Scenario } from "../parse/Gherkin.ts"
 import { parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
 import { type RunResults, type StepStatus, type Verification, verificationOf } from "../run/Results.ts"
 
@@ -56,6 +57,18 @@ export const buildProject = (input: ProjectInput): Project => {
     if (parsed.spec) specs.push(parsed.spec)
   }
   const annotations = input.codeFiles.flatMap((file) => scanAnnotations(file.path, file.content))
+  for (const file of input.codeFiles) {
+    for (const ignored of ignoredAnnotations(file.content)) {
+      diagnostics.push({
+        rule: "annotation-ignored",
+        severity: "warning",
+        message: `"${ignored.text}" follows code on the same line, so it is not read as an annotation`,
+        source: { file: file.path, line: ignored.line },
+        hint:
+          "put it on a comment line of its own: directly above a declaration it binds to that declaration, followed by a blank line to the whole file"
+      })
+    }
+  }
 
   const nodes = new Map<string, GraphNode>()
   const edges: Array<GraphEdge> = []
@@ -239,6 +252,10 @@ export const inactiveStatuses: ReadonlySet<string> = new Set(["superseded", "rej
 
 export const isActive = (spec: { readonly attrs: Readonly<Record<string, unknown>> }): boolean =>
   !inactiveStatuses.has(String(spec.attrs.status ?? ""))
+
+/** Gate scenarios run after all others: those of milestones and those tagged `@gate`. */
+export const isGate = (scenario: Scenario, spec: Spec): boolean =>
+  spec.kind === "milestone" || scenario.pickles.some((pickle) => pickle.tags.includes("@gate"))
 
 /**
  * Where a spec is in delivery: its declared authoring maturity until automation

@@ -14,14 +14,15 @@ links:
 
 `sdp check` reports what is wrong with the specifications: files that do not parse, references that
 lead nowhere, maturity claims the content does not support, decision records that contradict
-themselves. Every diagnostic names its rule, a severity and the `file:line` to look at, and most
+themselves, plans that name iterations nobody declared, annotations sdp does not read, and template
+text nobody replaced. Every diagnostic names its rule, a severity and the `file:line` to look at, and most
 carry a hint phrased as an instruction, so a person or an agent can fix it without reading sdp's
 code. `sdp check --json` prints the same as objects (`rule`, `severity`, `message`, `node`,
 `source`, `hint`); agents also get them from the MCP tool `sdp_check` ([[REQ-mcp-server]]).
 
 An **error** means the graph is wrong or a claim is false; `sdp check` exits with 1 while there is
-one. A **warning** means something was ignored or is probably a slip, and an **info** is a
-suggestion. Architectural significance is never checked: it is the architect's call ([[DEC-0008]]).
+one ([[REQ-cli]]). A **warning** means something was ignored or is probably a slip, and an **info**
+is a suggestion. Architectural significance is never checked: it is the architect's call ([[DEC-0008]]).
 Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]]).
 
 ## Rules
@@ -42,6 +43,9 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `decision-status` | warning | a decision has no `status`, or one other than `proposed`, `accepted`, `rejected`, `deprecated`, `superseded` | set `status` |
 | `decision-supersede` | warning | a decision supersedes one whose status is not `superseded`, or a superseded decision has no successor | make both records agree |
 | `decision-content` | info | an accepted decision has no "Decision" or "Outcome" section ([[REQ-decision-records]]) | state the decision under `## Decision` |
+| `plan-reference` | warning | an `iteration:` or `phase:` value names no node, so the work or milestone is planned nowhere ([[REQ-lifecycle-view]]) | use the id of a declared iteration or phase, or declare it |
+| `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
+| `template-placeholder` | warning | text an `sdp new` template asks the author to replace is still there — a prompt such as "We will …" or "What is still unknown?", or a scenario or step written as `<…>`; one diagnostic per spec, at the first | write your own text, or delete it |
 
 ## Scenarios
 
@@ -80,23 +84,47 @@ Scenario Outline: Each rule reports its problem where it is
     | decision-status     | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision }                     |                                                                                       |
     | decision-supersede  | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: superseded } |                                                                                       |
     | decision-content    | info     | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: accepted }   | We release weekly.                                                                    |
+    | plan-reference      | warning  | specs/REQ-a.md   | 1    | { id: REQ-a, iteration: C9 }                         |                                                                                       |
+    | annotation-ignored  | warning  | src/cart.ts      | 6    |                                                      | export const total = 0 // @sdp implements REQ-a                                       |
+    | template-placeholder | warning | docs/DEC-0001.md | 8    | { id: DEC-0001, kind: decision, status: proposed }   | ## Decision\n\nWe will …                                                             |
 
-Scenario Outline: Only errors fail the check
+Scenario Outline: Template text is flagged until it is replaced
   Given a file "specs/REQ-a.md" containing:
     """
     ---
-    <front matter>
+    id: REQ-a
+    maturity: specified
     ---
     # Example
+
+    Analysts export reports.
+
+    <text>
     """
-  When I run "sdp check"
-  Then the exit code is <exit code>
+  When the workspace is checked
+  Then the check reports "template-placeholder" for "REQ-a"
+  And the "template-placeholder" diagnostic points at "specs/REQ-a.md:<line>"
 
   Examples:
-    | front matter                                   | exit code |
-    | { id: REQ-a, maturity: idea }                  | 0         |
-    | { id: REQ-a, maturity: someday }               | 0         |
-    | { id: REQ-a, links: { depends-on: REQ-gone } } | 1         |
+    | text                                                               | line |
+    | One sentence capturing the idea.                                   | 9    |
+    | ## Open questions\n\n- [ ] What is still unknown?                  | 11   |
+    | ```gherkin\nScenario: <the main success case>\n  Then it works\n``` | 10   |
+    | ```gherkin\nScenario: Export\n  Then <observable outcome>\n```      | 11   |
+
+Scenario Outline: Words that only mention template text or annotations are not flagged
+  Given a file "<file>" containing:
+    """
+    <text>
+    """
+  When the workspace is checked
+  Then the check does not report "<rule>"
+
+  Examples:
+    | file           | rule                 | text                                                                |
+    | specs/REQ-a.md | template-placeholder | ---\nid: REQ-a\n---\n# A\n\nDecision records start with "We will …" |
+    | src/cart.ts    | annotation-ignored   | // after code, as in total() // @sdp implements REQ-a is not read     |
+    | src/cart.ts    | annotation-ignored   | // @sdp implements REQ-a\nexport const total = 0                     |
 
 Scenario: The catalogue covers every rule
   Then every rule sdp reports has an example in this spec

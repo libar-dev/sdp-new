@@ -4,7 +4,7 @@
  * measurements. Running scenarios lives in execution.steps.ts. Shares its world
  * with every other module (world.ts).
  */
-import { Effect, Result } from "effect"
+import { Effect, Predicate, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
 import { architectureView, rankCandidates } from "../../src/arch/Architecture.ts"
@@ -114,6 +114,11 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
   })
 
+  Then("the check reports nothing but {string}", ({ args: [rule], world }) => {
+    const found = (world.diagnostics ?? []).filter((d) => d.rule !== rule)
+    assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
+  })
+
   // --- architecture ---------------------------------------------------------
 
   When("I ask for the architecture view", ({ world }) =>
@@ -142,8 +147,21 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       world.output = exportGraph(project.graph, format as GraphFormat)
     }))
 
+  // `\t` and `\n` in the expected text stand for a tab and a line break.
   Then("the output contains {string}", ({ args: [text], world }) => {
-    assert.ok(world.output.includes(text.replace(/\\t/g, "\t")), `output does not contain ${JSON.stringify(text)}:\n${world.output}`)
+    const expected = text.replace(/\\t/g, "\t").replace(/\\n/g, "\n")
+    assert.ok(world.output.includes(expected), `output does not contain ${JSON.stringify(expected)}:\n${world.output}`)
+  })
+
+  Then("the output contains {string} {int} time(s)", ({ args: [text, count], world }) => {
+    assert.equal(world.output.split(text).length - 1, count, `occurrences of ${JSON.stringify(text)} in:\n${world.output}`)
+  })
+
+  Then("the line after the output line with {string} contains {string}", ({ args: [anchor, text], world }) => {
+    const lines = world.output.split("\n")
+    const index = lines.findIndex((line) => line.includes(anchor))
+    assert.ok(index >= 0, `no output line contains ${JSON.stringify(anchor)}:\n${world.output}`)
+    assert.ok(lines[index + 1]?.includes(text), `the line after ${JSON.stringify(lines[index])} is ${JSON.stringify(lines[index + 1])}`)
   })
 
   Then("the output does not contain {string}", ({ args: [text], world }) => {
@@ -180,13 +198,23 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(row.activity[column], expected)
   })
 
+  // A tool error and a rejected call (invalid arguments) both count as the tool reporting an error.
   When("an agent calls the MCP tool {string} with:", ({ args: [tool], doc, world }) =>
     Effect.gen(function*() {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
       const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
       world.output = result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n")
       world.scratch.mcpError = result.isError === true
-    }).pipe(Effect.scoped, Effect.provide(layerMemoryWorkspace(world.files))))
+    }).pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          world.output = Predicate.hasProperty(error, "message") ? String(error.message) : String(error)
+          world.scratch.mcpError = true
+        })
+      ),
+      Effect.scoped,
+      Effect.provide(layerMemoryWorkspace(world.files))
+    ))
 
   // --- quality attributes ---------------------------------------------------
 
