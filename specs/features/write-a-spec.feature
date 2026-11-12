@@ -175,8 +175,8 @@ Feature: Write a spec
 
   Rule: A tag is about the Feature, the Rule or the Scenario it sits on, and only Cucumber tags are inherited
 
-    The spec's kind is inherited as a tag too, so `--tags @requirement` selects the examples of
-    requirements.
+    The spec's kind is inherited as a tag too, so `--tags @feature` selects the examples of
+    features.
 
     Scenario: Tags on every level, from the Feature to the Examples
       Given a file "specs/pay.feature" containing:

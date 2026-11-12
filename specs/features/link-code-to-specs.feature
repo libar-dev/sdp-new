@@ -3,7 +3,7 @@
 Feature: Link code to specs
 
   Developers want the graph to know which code is which element, or implements what, so that a
-  question can go from a requirement to the code behind it and back. sdp reads the source and never
+  question can go from a feature to the code behind it and back. sdp reads the source and never
   runs it. In TypeScript and JavaScript an annotation is a call to `annotate` from
   `sdp/annotations`, whose ids the compiler checks once `sdp types` has declared them; in any
   language it can be a comment.
