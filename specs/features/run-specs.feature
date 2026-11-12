@@ -413,7 +413,7 @@ Feature: Run specs as tests
             Scenario: Share the list
               Then the wishlist holds a desk
         """
-      When I run "sdp check"
+      When I run "sdp check --base none"
       Then the exit code is 0
       When I run "sdp q 'scenario[!toCome]' --ids"
       Then the output lines are "wishlist#keep-a-lamp, wishlist#share-the-list"
@@ -488,7 +488,7 @@ Feature: Run specs as tests
           @open
           Rule: Does a wishlist expire?
         """
-      When I run "sdp check"
+      When I run "sdp check --base none"
       Then the exit code is 0
       When I run "sdp q 'scenario[!toCome]' --ids"
       Then the output lines are "wishlist#keep-a-lamp"

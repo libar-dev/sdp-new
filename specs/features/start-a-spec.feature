@@ -26,7 +26,7 @@ Feature: Start a spec
       When I run "sdp init" in "shop"
       Then the output contains "exists  sdp.config.yaml"
       And the output contains "exists  .claude/skills/sdp/SKILL.md"
-      When I run "sdp check" in "shop"
+      When I run "sdp check --base none" in "shop"
       Then the exit code is 0
 
   Rule: A new spec holds only what stays in it, and the answer says what to write next
@@ -259,7 +259,7 @@ Feature: Start a spec
         | @id=filters @depends-on:facets | Filters |
       When I run "sdp new feature Facets"
       Then the output contains "facets\tspecs/features/facets.feature"
-      When I run "sdp check"
+      When I run "sdp check --base none"
       Then the exit code is 0
 
     Scenario Outline: A title reads back as written, however it looks

@@ -493,12 +493,12 @@ Feature: Write step definitions
       And the file "executed.txt" <is there or not>
 
       Examples:
-        | command          | exit | is there or not               |
-        | sdp context cart | 0    | does not exist                |
-        | sdp steps        | 0    | does not exist                |
-        | sdp check        | 0    | does not exist                |
-        | sdp status       | 0    | does not exist                |
-        | sdp run          | 1    | contains "this step file ran" |
+        | command               | exit | is there or not               |
+        | sdp context cart      | 0    | does not exist                |
+        | sdp steps             | 0    | does not exist                |
+        | sdp check --base none | 0    | does not exist                |
+        | sdp status            | 0    | does not exist                |
+        | sdp run               | 1    | contains "this step file ran" |
 
     Scenario: A step definition is read whether its registrar is destructured, renamed or taken whole, and it matches by text, whatever keyword registered it
       Given a file "specs/steps/cart.steps.ts" containing:

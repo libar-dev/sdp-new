@@ -80,7 +80,7 @@ export interface Config {
   readonly ids: Readonly<Record<string, string>>
   /**
    * The git revision `sdp check` compares live tests with, where HEAD meets it; when none is
-   * named, the repository's default branch.
+   * named, the repository's default branch, and `none` waives the comparison.
    */
   readonly base: string | undefined
   /** The words sdp interprets (ARCH-vocabulary). */

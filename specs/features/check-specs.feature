@@ -25,14 +25,14 @@ Feature: Check specs
 
             Scenario: Nothing yet
         """
-      When I run "sdp check"
+      When I run "sdp check --base none"
       Then the exit code is 0
       And the output contains "[scenario-empty] reports#nothing-yet has no steps  specs/reports.feature:6"
       And the output contains "0 error(s), 1 warning(s), 0 info"
       Given these specs:
         | tags                          | Feature  |
         | @id=invoices @depends-on:gone | Invoices |
-      When I run "sdp check --severity error --json"
+      When I run "sdp check --severity error --json --base none"
       Then the exit code is 1
       And the JSON output has:
         | data.rule     | dangling-link          |
@@ -307,11 +307,13 @@ Feature: Check specs
         | is built in the change that deletes it                |                 | 0         | nothing         |
         | is still to come in the change that deletes it        | @maturity=ready | 1         | example-dropped |
 
-  Rule: The base is where HEAD meets the default branch, or the revision --base or the configuration names; without one, check says so
+  Rule: The base is where HEAD meets the default branch, or the revision --base or the configuration names; without one, check's answer is incomplete
 
     A change is judged against what it started from, not against whatever the default branch has
-    become since. The default branch is origin's HEAD, else main, else master. Outside git there is
-    nothing to compare, and a check that compared nothing says so rather than pass in silence; a base
+    become since. The default branch is origin's HEAD, else main, else master. Outside git, in a
+    clone without the history, or without a default branch there is nothing to compare: a check that
+    compared nothing may have missed a test turned off, so it exits with 2, as every answer that may
+    miss something does, unless the comparison is waived with `--base none` or `base: none`. A base
     that is named and cannot be read stops the check.
 
     Background:
@@ -357,8 +359,9 @@ Feature: Check specs
     Scenario Outline: No base: <case>
       Given the files are <where>
       When I run "sdp check"
-      Then the exit code is 0
-      And the output contains "note: no live test was compared with a base: <reason>"
+      Then the exit code is 2
+      And the output contains "incomplete: this answer may miss something"
+      And the output contains "note: not compared: no live test was compared with a base: <reason>"
       When I run "sdp check --base main"
       Then the exit code is 1
       And the output contains "cannot compare live tests with the base main: <named>"
@@ -367,6 +370,23 @@ Feature: Check specs
         | case                     | where                               | reason                                                   | named                                    |
         | outside git              | in no git repository                | this workspace is in no git repository                   | this workspace is in no git repository   |
         | a branch of another name | committed on the branch "trunk"     | the repository has no origin/HEAD, main or master branch | git merge-base HEAD main found no commit |
+
+    Scenario Outline: The comparison waived <how>
+      Given a file "sdp.config.yaml" containing:
+        """
+        <configuration>
+        """
+      And the files are in no git repository
+      When I run "<command> --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | complete | true                                                              |
+        | notes    | no live test was compared with a base: the comparison is waived (<waiver>) |
+
+      Examples:
+        | how                  | configuration              | command               | waiver      |
+        | on the command line  | # every key at its default | sdp check --base none | --base none |
+        | in the configuration | base: none                 | sdp check             | base: none  |
 
   Rule: A decision is a title and one to three sentences
 

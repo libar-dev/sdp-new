@@ -5,14 +5,17 @@
  *
  * The base is named by `--base` or `base:` in the configuration, and is otherwise the repository's
  * default branch: origin's HEAD, else main, else master. A base that is named and cannot be read
- * stops the check; one that is not named and cannot be found leaves it with nothing to compare,
- * which it says.
+ * stops the check; one that is not named and cannot be found leaves it with nothing to compare, an
+ * answer that may miss a test turned off; `none` waives the comparison.
  */
 import { Context, Effect, Glob, Layer, Schema, Stream } from "effect"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import type { SourceFile } from "../graph/Build.ts"
 import type { BaseSpecs } from "../check/Check.ts"
 import type { Config } from "../model/Config.ts"
+
+/** The base that waives the comparison: `--base none`, or `base: none` in the configuration. */
+export const noBase = "none"
 
 /** A base that `--base` or the configuration names, and that cannot be read. */
 export class BaseNotFound extends Schema.TaggedError<BaseNotFound>()("BaseNotFound", {

@@ -734,7 +734,7 @@ Feature: Plan delivery
               When I export the report
               Then I get a CSV file with one line per row
         """
-      When I run "sdp check"
+      When I run "sdp check --base none"
       Then the exit code is 0
       When I run "sdp gate definition-of-ready"
       Then the exit code is <exit code>

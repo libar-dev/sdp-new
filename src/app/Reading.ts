@@ -21,7 +21,7 @@ import { atLeast, type Diagnostic, type RuleId, type Severity, sortDiagnostics }
 import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
-import { type BaseRead, Revisions } from "../workspace/Revisions.ts"
+import { type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
 import { type Answer, answer } from "./Answer.ts"
 import { Refused, UnknownNode } from "./Errors.ts"
@@ -131,25 +131,37 @@ const diagnosticRecord = (diagnostic: Diagnostic): DiagnosticRecord => ({
   hint: diagnostic.hint ?? null
 })
 
-/** What a comparison with the base found, and a note on what it compared with, or that it compared nothing. */
+/**
+ * What a comparison with the base found, and a note on what it compared with. Without a base it
+ * compared nothing, and may have missed a test turned off: the answer is incomplete.
+ */
 const comparedWith = (project: Project, read: BaseRead) => {
-  if ("none" in read) return { diagnostics: [], notes: [`no live test was compared with a base: ${read.none}`] }
+  if ("none" in read) {
+    return {
+      diagnostics: [],
+      missing: [`not compared: no live test was compared with a base: ${read.none}; name one with --base, or waive the comparison with --base ${noBase}`],
+      notes: []
+    }
+  }
   const { diagnostics, notes } = compareWithBase(project, read.found)
-  return { diagnostics, notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`, ...notes] }
+  return { diagnostics, missing: [], notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`, ...notes] }
 }
 
 /**
  * `sdp check`: every diagnostic at least as severe as `severity` (default: all of them), those of
  * the comparison of live tests with the base revision included: `base`, where HEAD meets it, else
- * the configuration's, else the default branch. A note says what was compared, or that nothing was.
+ * the configuration's, else the default branch. A note says what was compared; an answer that
+ * compared nothing is incomplete, unless the base is `none`, which waives the comparison.
  */
 export const check = Effect.fn("check")(function*(root: string, input: { readonly severity?: Severity | undefined; readonly base?: string | undefined } = {}) {
   const project = yield* loadProject(root)
   const revisions = yield* Revisions
-  const { diagnostics, notes } = comparedWith(project, yield* revisions.base(root, project.config, input.base ?? project.config.base))
+  const named = input.base ?? project.config.base
+  const waived = { diagnostics: [], missing: [], notes: [`no live test was compared with a base: the comparison is waived (${input.base === undefined ? `base: ${noBase}` : `--base ${noBase}`})`] }
+  const { diagnostics, missing, notes } = named === noBase ? waived : comparedWith(project, yield* revisions.base(root, project.config, named))
   const found = sortDiagnostics([...checkProject(project), ...diagnostics])
     .filter((diagnostic) => atLeast(diagnostic.severity, input.severity ?? "info"))
-  return answer(project, found.map(diagnosticRecord), { notes })
+  return answer(project, found.map(diagnosticRecord), { missing, notes })
 })
 
 /** `sdp steps`: the step definitions a run would know, read from the step files without running them. */

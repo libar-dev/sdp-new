@@ -311,7 +311,7 @@ export const configTemplate = [
   `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
   "# evidence: { inputs: [], env: [] }   # files (globs) and environment variables the steps read: results go stale when they change",
   `# results: ${defaults.results}`,
-  "# base: main                  # what sdp check compares live tests with, where HEAD meets it; default: origin's HEAD, else main, else master",
+  "# base: main                  # what sdp check compares live tests with, where HEAD meets it; default: origin's HEAD, else main, else master; none waives it",
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
   `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]   # how far work still to come has come, in order; live work declares none`,
   `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,

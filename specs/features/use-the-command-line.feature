@@ -47,12 +47,12 @@ Feature: Use the command line
       Then the exit code is <exit code>
 
       Examples:
-        | command          | exit code |
-        | sdp q feature    | 0         |
-        | sdp check        | 0         |
-        | sdp run          | 0         |
-        | sdp gate MS-beta | 1         |
-        | sdp q 'feature[' | 1         |
+        | command               | exit code |
+        | sdp q feature         | 0         |
+        | sdp check --base none | 0         |
+        | sdp run               | 0         |
+        | sdp gate MS-beta      | 1         |
+        | sdp q 'feature['      | 1         |
 
   Rule: An answer that may miss something says why and exits with 2, while stdout keeps the answer alone
 

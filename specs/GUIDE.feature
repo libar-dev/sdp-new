@@ -148,6 +148,7 @@ Feature: sdp, shown by running it
       Then the output lines are "gift-wrapping\tspecs/features/gift-wrapping.feature"
       When I run "sdp new decision 'Use Postgres for orders'"
       Then the output lines are "use-postgres-for-orders\tspecs/decisions/use-postgres-for-orders.feature"
+      Given the files are committed on the branch "main"
       When I run "sdp check"
       Then the exit code is 0
       When I run "sdp q 'feature[maturity=idea]' --ids"

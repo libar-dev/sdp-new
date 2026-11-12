@@ -228,7 +228,7 @@ Feature: Configure a workspace
       And the file "specs/features/wishlist.feature" contains "@id=wishlist @maturity=idea"
       When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
       Then the output lines are "IT-baseline"
-      When I run "sdp check --json"
+      When I run "sdp check --json --base none"
       Then the exit code is 0
       And the JSON output has:
         | data.rule | template-placeholder |
