@@ -188,11 +188,12 @@ export const buildProject = (input: ProjectInput): Project => {
   /**
    * A node's attributes with its stage, which its maturity and its scenarios decide, and whether it
    * is work still to come. A milestone has no stage: its scenarios are a gate, and a gate that is
-   * not met yet is no failing work.
+   * not met yet is no failing work. Both are derived anew, so that what they were for another kind,
+   * before an anchor wrote the node's kind, is not kept.
    */
   const staged = (id: string, kind: string, attrs: Attrs) => {
     const toCome = isToCome(attrs.maturity)
-    const marked = compact({ ...attrs, toCome: toCome || undefined })
+    const marked = compact({ ...attrs, stage: undefined, toCome: toCome || undefined })
     return hasKind(vocabulary, "milestone", kind)
       ? marked
       : compact({ ...marked, stage: stageOf(attrs.maturity, verifications.get(id) ?? [], toCome) })

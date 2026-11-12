@@ -348,6 +348,27 @@ Feature: See the architecture
         | the one that writes none | a.ts  | b.ts    |
         | the one that writes it   | b.ts  | a.ts    |
 
+    Scenario Outline: One anchor writes a maturity and the other the kind milestone, <first> first
+      Given a file "src/<plain>" containing:
+        """
+        /** @sdp is launch maturity=ready */
+        export const again = (): number => 3
+        """
+      And a file "src/<written>" containing:
+        """
+        /** @sdp is launch kind=milestone */
+        export const wait = (): number => 1
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id     | kind      | maturity | stage |
+        | launch | milestone | ready    |       |
+
+      Examples:
+        | first                       | plain | written |
+        | the one that writes no kind | a.ts  | b.ts    |
+        | the one that writes it      | b.ts  | a.ts    |
+
     Scenario: An anchor that disagrees with the spec
       Given these specs:
         | tags                           | Feature |
