@@ -57,7 +57,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       assert.equal(scenario.pickles.length, count)
     }))
 
-  Then("scenario {string} is at line {int}", ({ args: [id, line], world }) =>
+  Then("scenario/node {string} is at line {int}", ({ args: [id, line], world }) =>
     Effect.map(load(world), (project) => assert.equal(node(project, id).source?.line, line)))
 
   // --- query ----------------------------------------------------------------

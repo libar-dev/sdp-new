@@ -17,6 +17,7 @@
  *   // cart.steps.ts and checkout.steps.ts
  *   export default defineSteps(newWorld, ({ Given }) => { ... })
  */
+import { annotate } from "../annotations.ts"
 import { Data, Effect } from "effect"
 import { fileURLToPath } from "node:url"
 import type { Project } from "../graph/Build.ts"
@@ -78,6 +79,7 @@ export interface StepRegistrar<W> {
   readonly Step: Register<W>
 }
 
+/** Declares a step module: a world factory (shared by modules that pass the same one) and its step definitions. */
 export const defineSteps = <W>(
   world: () => W,
   register: (registrar: StepRegistrar<W>) => void,
@@ -92,6 +94,7 @@ export const defineSteps = <W>(
   const location = definitions[0]?.location.replace(/:\d+$/, "")
   return { _tag: "StepModule", name: options.name ?? location ?? "steps", world, definitions }
 }
+annotate(defineSteps, { is: "ARCH-runner" })
 
 export const isStepModule = (value: unknown): value is StepModule =>
   typeof value === "object" && value !== null && (value as { _tag?: unknown })._tag === "StepModule"

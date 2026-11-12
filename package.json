@@ -16,10 +16,11 @@
   },
   "scripts": {
     "sdp": "node src/cli/main.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p examples/shop",
     "test": "node src/cli/main.ts run --concurrency 8",
     "check": "node src/cli/main.ts check",
-    "verify": "tsc --noEmit && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8"
+    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8",
+    "types": "node src/cli/main.ts types && node src/cli/main.ts -C examples/shop types"
   },
   "dependencies": {
     "@cucumber/cucumber-expressions": "^20.2.0",

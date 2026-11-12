@@ -129,7 +129,9 @@ links:
 
 # ${title}
 
-Responsibility in one or two sentences. Anchor it in code with an \`@sdp is ${id}\` comment.
+Responsibility in one or two sentences. Anchor it in code next to the declaration that is it:
+\`annotate(Thing, { is: "${id}" })\` in TypeScript (from \`sdp/annotations\`; run \`sdp types\`
+so the id is typed), or an \`@sdp is ${id}\` comment in other languages.
 `
     case "pattern":
       return `---
@@ -145,7 +147,8 @@ links:
 # ${title}
 
 The problem this pattern solves and how, in a sentence or two. Elements that apply it link
-\`instance-of: ${id}\`; code says so with an \`@sdp instance-of ${id}\` comment.
+\`instance-of: ${id}\`; code that applies it says so with
+\`annotate(Thing, { "instance-of": "${id}" })\`, or an \`@sdp instance-of ${id}\` comment.
 `
     case "milestone":
       return `---
@@ -256,10 +259,11 @@ export const configTemplate = [
   `# specs: ${yamlList(defaults.specs)}          # Markdown with an \`id:\` in front matter becomes a graph node`,
   `# features: ${yamlList(defaults.features)}    # classic Gherkin files (@id:… @kind:… tags)`,
   `# code: ${yamlList(defaults.code)}`,
-  "#   (scanned for @sdp comments that link code to the graph)",
+  "#   (scanned for annotate() calls and @sdp comments that link code to the graph)",
   `# steps: ${yamlList(defaults.steps)}    # step definition modules`,
   `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
   `# results: ${defaults.results}`,
+  `# types: ${defaults.types}         # written by \`sdp types\`: types the ids annotate() accepts`,
   `# maturity: [${defaults.maturity.join(", ")}]`,
   "# architecture:",
   `#   kinds: [${defaults.architecture.kinds.join(", ")}]     # abstractions architects may mark significant`,
@@ -294,6 +298,8 @@ To change behaviour, change its spec first: the Gherkin scenarios are the accept
 prints a step definition module for them.
 
 Relations are free-form: name them for what they mean. The templates use ${relationVocabulary}.
-Link code with \`@sdp implements REQ-…\` comments. Architectural significance (\`significant: true\`
+Link code to specs with typed annotations in TypeScript — \`annotate(pay, { implements: "REQ-…" })\`
+from \`sdp/annotations\`, after \`sdp types\` so ids are checked — or \`@sdp implements REQ-…\`
+comments in other languages. Architectural significance (\`significant: true\`
 plus a \`rationale\`) is the architects' call: propose it, do not set it yourself.
 `

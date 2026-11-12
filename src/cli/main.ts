@@ -3,6 +3,7 @@
  * default and JSON with `--json`, so people and agents use the same tool.
  */
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
+import { annotate } from "../annotations.ts"
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"
@@ -14,6 +15,7 @@ import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
 import { formatPath, queryProject, querySyntax, unusedNamesNote } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
+import { idsDeclaration } from "../graph/Types.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
@@ -26,7 +28,7 @@ import { findWorkspaceRoot, loadConfig, loadProject, loadSteps } from "../worksp
 import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
 import { agentsTemplate, configTemplate, newSpec, templateKinds } from "./templates.ts"
 
-// @sdp is ARCH-cli
+annotate(import.meta, { is: "ARCH-cli" })
 
 // `sdp … | head` closes the pipe early; that is the reader's choice, not an error.
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
@@ -502,6 +504,23 @@ const initCommand = Command.make(
   })
 ).pipe(Command.withDescription("Create sdp.config.yaml and an agent guide (AGENTS.sdp.md, itself a spec) in the workspace"))
 
+const typesCommand = Command.make(
+  "types",
+  {},
+  Effect.fn(function*() {
+    const root = yield* workspaceRoot
+    const project = yield* loadProject(root, { withResults: false })
+    const fs = yield* FileSystem.FileSystem
+    const path = yield* Path.Path
+    const file = path.join(root, project.config.types)
+    const declaration = idsDeclaration(project)
+    yield* fs.makeDirectory(path.dirname(file), { recursive: true })
+    yield* fs.writeFileString(file, declaration)
+    const count = declaration.split("\n").filter((line) => line.startsWith("    \"")).length
+    yield* Console.log(`wrote ${project.config.types} (${count} ids): annotate() now accepts exactly these`)
+  })
+).pipe(Command.withDescription("Write the id declarations that type annotate() in TypeScript (sdp/annotations)"))
+
 const mcpCommand = Command.make(
   "mcp",
   {},
@@ -526,6 +545,7 @@ sdp.pipe(
     gateCommand,
     archCommand,
     lifecycleCommand,
+    typesCommand,
     mcpCommand
   ]),
   Command.run({ version: "0.1.0" }),

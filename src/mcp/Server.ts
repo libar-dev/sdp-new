@@ -3,6 +3,7 @@
  * workspace — and the step definitions, where a tool uses them — so agents
  * always see the files as they are now, including edits they just made.
  */
+import { annotate } from "../annotations.ts"
 import { NodeStdio } from "@effect/platform-node"
 import { DateTime, Effect, FileSystem, Layer, Path, Result, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
@@ -20,7 +21,7 @@ import { builtinSteps } from "../run/Builtin.ts"
 import { makeMatcher, snippetModule, unmatchedSteps } from "../run/Match.ts"
 import { loadProject, loadSteps } from "../workspace/Workspace.ts"
 
-// @sdp is ARCH-mcp
+annotate(import.meta, { is: "ARCH-mcp" })
 
 const queryHelp = `SDPQ path patterns, one line:\n${querySyntax}`
 

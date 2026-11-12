@@ -26,6 +26,7 @@ the offending key.
 | `steps` | `**/*.steps.{ts,mts,js,mjs}` | step definition modules `sdp run` imports |
 | `exclude` | `**/node_modules/**`, `.sdp/**`, `**/dist/**`, `**/build/**`, `.git/**` | paths never read; the configured list adds to these |
 | `results` | `.sdp/results.json` | where `sdp run` records scenario results |
+| `types` | `.sdp/ids.d.ts` | where `sdp types` writes the id declarations that type `annotate` ([[ARCH-code-annotations]]) |
 | `maturity` | `[idea, draft, specified, ready]` | the maturity ladder, lowest first ([[REQ-maturity-gates]]) |
 | `ids` | see below | the id prefix of each kind |
 | `architecture.kinds` | `[element, pattern]` | kinds that are architectural abstractions, the pool for candidates |

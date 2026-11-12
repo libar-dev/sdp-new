@@ -5,8 +5,7 @@
  * lives in conventions (kinds, attribute names, relation names) chosen by the
  * people writing specs, so the graph never forces a fixed vocabulary.
  */
-
-// @sdp is ARCH-graph
+import { annotate } from "../annotations.ts"
 
 export interface SourceRef {
   readonly file: string
@@ -31,6 +30,7 @@ export interface GraphEdge {
   readonly source?: SourceRef | undefined
 }
 
+/** The system graph: immutable nodes and de-duplicated edges with in/out adjacency indexes. */
 export class Graph {
   readonly nodes: ReadonlyMap<string, GraphNode>
   readonly edges: ReadonlyArray<GraphEdge>
@@ -99,6 +99,7 @@ export class Graph {
     )
   }
 }
+annotate(Graph, { is: "ARCH-graph", "instance-of": "PAT-derived-index" })
 
 export const formatSource = (source: SourceRef | undefined): string => source ? `${source.file}:${source.line}` : ""
 

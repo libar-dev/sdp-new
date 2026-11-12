@@ -12,12 +12,12 @@
  *   specified  at least one scenario stating an outcome (`Then`)
  *   ready      no open questions, every scenario has an outcome, gherkin parses
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { Project } from "../graph/Build.ts"
+import { idsDeclaration } from "../graph/Types.ts"
 import type { Spec } from "../parse/Spec.ts"
-
-// @sdp is ARCH-checker
 
 const builtinLevels = ["idea", "draft", "specified", "ready"] as const
 
@@ -99,6 +99,7 @@ export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text:
 /** Attributes whose values name lifecycle nodes; a value that names no node is a typo or a missing plan entry. */
 const planKeys = ["iteration", "phase"]
 
+/** Every rule check over a built project, as diagnostics with `file:line` and a hint; significance is never checked. */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const out: Array<Diagnostic> = [...project.diagnostics]
   const { graph, config } = project
@@ -232,6 +233,16 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
+  if (project.types !== undefined && project.types !== idsDeclaration(project)) {
+    out.push({
+      rule: "types-stale",
+      severity: "warning",
+      message: `${project.config.types} no longer matches the graph, so annotate() may accept removed ids or reject new ones`,
+      source: { file: project.config.types, line: 1 },
+      hint: "run `sdp types` to regenerate it"
+    })
+  }
+
   for (const spec of project.specs) {
     for (const scenario of spec.scenarios) {
       if (scenario.steps.length === 0) {
@@ -248,3 +259,4 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   }
   return sortDiagnostics(out)
 }
+annotate(check, { is: "ARCH-checker" })

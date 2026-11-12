@@ -24,7 +24,7 @@ as nodes.
 | a link | An edge named by its relation, at the line of its target, with the link's attributes. |
 | a prose link | `-mentions->`, or the typed relation; a spec mentioning itself adds nothing. |
 | an attribute whose value is a node's id | An implicit edge named after the key, marked `implicit`, located at the attribute's line. Values that are not ids stay values; `id`, `kind`, `title`, `summary`, `maturity`, `status`, `stage`, `verification`, `tags`, `file`, `type` and `declaredIn` never link. |
-| an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`), with an edge to each target carrying the annotation's attributes. |
+| an annotation | A `code` node for its symbol (`code:<file>#<symbol>`) or file (`code:<file>`) — at the declaration's line, with its JSDoc as `doc` for typed annotations — with an edge to each target carrying the annotation's attributes. |
 | `@sdp is <ID>` | Anchors the node in code. Declares it (kind `element` unless given) when no spec does; otherwise adds only the attributes the spec does not set. |
 | an id declared again | A `duplicate-id` error at the later declaration; the first, in path order, is kept. |
 | a reference to an unknown id | A `missing` node without a source, and a `dangling-link` error at the reference. |

@@ -11,6 +11,9 @@
  * same line (`total() // @sdp implements X`) is not read; `ignoredAnnotations`
  * finds those so `sdp check` can say so.
  */
+import { annotate } from "../annotations.ts"
+
+annotate(import.meta, { is: "ARCH-code-annotations" })
 
 export interface Annotation {
   readonly file: string
@@ -20,6 +23,10 @@ export interface Annotation {
   readonly attrs: Readonly<Record<string, unknown>>
   /** The symbol declared right after the annotation, if any. */
   readonly symbol: string | undefined
+  /** Line of the annotated declaration, when it is not the annotation's own (typed annotations). */
+  readonly symbolLine?: number | undefined
+  /** The annotated declaration's own description (its JSDoc), when known. */
+  readonly doc?: string | undefined
 }
 
 const marker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/

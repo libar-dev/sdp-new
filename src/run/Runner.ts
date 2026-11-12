@@ -3,6 +3,7 @@
  * a failure: that is how a specification of something not yet built looks.
  * Statuses then roll up into each spec's `verification` and `stage`.
  */
+import { annotate } from "../annotations.ts"
 import { Cause, DateTime, Duration, Effect, Exit, Predicate } from "effect"
 import { isAbsolute, relative } from "node:path"
 import type { Project } from "../graph/Build.ts"
@@ -11,8 +12,6 @@ import type { Spec } from "../parse/Spec.ts"
 import { makeMatcher } from "./Match.ts"
 import { type PickleResult, type RunResults, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "./Results.ts"
 import type { StepContext, StepModule } from "./Steps.ts"
-
-// @sdp is ARCH-runner
 
 export interface RunOptions {
   readonly project: Project
@@ -24,6 +23,7 @@ export interface RunOptions {
   readonly onScenario?: ((result: ScenarioResult) => Effect.Effect<void>) | undefined
 }
 
+/** Executes the selected scenarios against the step modules and returns their results; undefined steps are not failures. */
 export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOptions): Effect.fn.Return<RunResults> {
   const matcher = makeMatcher(options.modules)
   const timeout = options.timeout ?? "30 seconds"
@@ -148,6 +148,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(options: RunOpti
   const results = selected.map(({ scenario }) => byId.get(scenario.id)!)
   return { version: 1, runAt, scenarios: Object.fromEntries(results.map((r) => [r.id, r])) } satisfies RunResults
 })
+annotate(runScenarios, { is: "ARCH-runner" })
 
 /** Merge a partial run into earlier results, dropping entries for scenarios that no longer exist. */
 export const mergeResults = (previous: RunResults | undefined, next: RunResults, project: Project): RunResults => {

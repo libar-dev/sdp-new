@@ -53,9 +53,11 @@ nodes:
     kind: term
     title: Code annotation
     definition: >-
-      A comment `@sdp <relation> <ID>` that links the declaration below it, or the whole file, into
-      the graph as a `code` node. `@sdp is <ID>` anchors a node in code and declares it if no spec
-      does.
+      A link from code to the graph. In TypeScript and JavaScript it is typed code,
+      `annotate(target, { relation: "ID" })` from `sdp/annotations`, with ids checked by the compiler
+      once `sdp types` has run; in other languages it is a comment `@sdp <relation> <ID>`. Either
+      way the annotated declaration (or file) becomes a `code` node; an `is` link anchors a node in
+      code and declares it if no spec does.
     links: { specified-by: ARCH-code-annotations }
   - id: TERM-dangling-link
     kind: term

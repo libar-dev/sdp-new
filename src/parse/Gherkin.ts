@@ -4,13 +4,14 @@
  * one virtual Feature, parsed and compiled by the official Cucumber parser, with
  * every line mapped back to the Markdown file.
  */
+import { annotate } from "../annotations.ts"
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"
 import { IdGenerator } from "@cucumber/messages"
 import { createHash } from "node:crypto"
 import type { Fence } from "./Markdown.ts"
 
-// @sdp is ARCH-spec-parser
+annotate(import.meta, { is: "ARCH-spec-parser" })
 
 export interface ScenarioStep {
   readonly keyword: string

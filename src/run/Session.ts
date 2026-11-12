@@ -5,6 +5,7 @@
  * apply (superseded, rejected, deprecated) do not run. Works on any
  * `FileSystem`, so executable specs run it in memory.
  */
+import { annotate } from "../annotations.ts"
 import parseTagExpression from "@cucumber/tag-expressions"
 import { type Duration, Effect, Schema } from "effect"
 import { isActive, isGate, type Project } from "../graph/Build.ts"
@@ -14,8 +15,6 @@ import { loadProject, writeResults } from "../workspace/Workspace.ts"
 import type { RunResults, ScenarioResult } from "./Results.ts"
 import { mergeResults, runScenarios } from "./Runner.ts"
 import type { StepModule } from "./Steps.ts"
-
-// @sdp is ARCH-runner
 
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */
@@ -56,6 +55,7 @@ export interface WorkspaceRun {
   readonly results: RunResults
 }
 
+/** One `sdp run`: ordinary scenarios first, their results stored, then the gates against the rebuilt graph. */
 export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, options: {
   readonly modules: ReadonlyArray<StepModule<any>>
   readonly selection?: Selection | undefined
@@ -89,3 +89,4 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   yield* writeResults(root, project.config, results)
   return { scenarios: Object.values(ordinary.scenarios), gates: Object.values(gates.scenarios), results } satisfies WorkspaceRun
 })
+annotate(runWorkspace, { is: "ARCH-runner" })

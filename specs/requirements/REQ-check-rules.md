@@ -45,6 +45,8 @@ Teams add their own rules as scenarios with built-in steps ([[REQ-builtin-steps]
 | `decision-content` | info | an accepted decision has no "Decision" or "Outcome" section ([[REQ-decision-records]]) | state the decision under `## Decision` |
 | `plan-reference` | warning | an `iteration:` or `phase:` value names no node, so the work or milestone is planned nowhere ([[REQ-lifecycle-view]]) | use the id of a declared iteration or phase, or declare it |
 | `annotation-ignored` | warning | an `@sdp` annotation follows code on the same line, where it is not read: an annotation opens its own comment line and binds to the declaration below it, or with a blank line after it to the whole file ([[ARCH-code-annotations]]) | move it to a comment line of its own |
+| `annotation-unreadable` | warning | a typed annotation (`annotate(target, links)` from `sdp/annotations`) whose target is not a name or `import.meta`, or whose ids or attributes are computed rather than literal — sdp reads annotations without running code ([[ARCH-code-annotations]]) | write the target as a name and the ids as string literals |
+| `types-stale` | warning | the id declarations at the `types` path no longer match the graph, so `annotate()` may accept removed ids or reject new ones ([[REQ-configuration]]) | run `sdp types` |
 | `template-placeholder` | warning | text an `sdp new` template asks the author to replace is still there — a prompt such as "We will …" or "What is still unknown?", or a scenario or step written as `<…>`; one diagnostic per spec, at the first | write your own text, or delete it |
 
 ## Scenarios
@@ -125,6 +127,41 @@ Scenario Outline: Words that only mention template text or annotations are not f
     | specs/REQ-a.md | template-placeholder | ---\nid: REQ-a\n---\n# A\n\nDecision records start with "We will …" |
     | src/cart.ts    | annotation-ignored   | // after code, as in total() // @sdp implements REQ-a is not read     |
     | src/cart.ts    | annotation-ignored   | // @sdp implements REQ-a\nexport const total = 0                     |
+
+Scenario: A typed annotation sdp cannot read statically is reported
+  Given a file "src/cart.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+
+    export const total = 0
+    const requirement = "REQ-a"
+    annotate(total, { implements: requirement })
+    """
+  When the workspace is checked
+  Then the check reports "annotation-unreadable"
+  And the "annotation-unreadable" diagnostic has severity "warning"
+  And the "annotation-unreadable" diagnostic points at "src/cart.ts:5"
+
+Scenario: Id declarations that no longer match the graph are reported
+  Given a file "specs/REQ-a.md" containing:
+    """
+    ---
+    id: REQ-a
+    ---
+    # A
+    """
+  And a file ".sdp/ids.d.ts" containing:
+    """
+    declare module "sdp/annotations" {
+      interface Ids {
+        "REQ-gone": "requirement"
+      }
+    }
+    export {}
+    """
+  When the workspace is checked
+  Then the check reports "types-stale"
+  And the "types-stale" diagnostic points at ".sdp/ids.d.ts:1"
 
 Scenario: The catalogue covers every rule
   Then every rule sdp reports has an example in this spec

@@ -3,6 +3,7 @@
  * covers an idea written in one line and a fully designed, executable
  * specification: maturity is a property of the content, not of the format.
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"
@@ -60,6 +61,7 @@ const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not r
 
 const reserved = new Set(["id", "kind", "title", "links", "nodes"])
 
+/** Parses one Markdown spec — front matter, links, inline nodes, prose links, open questions and Gherkin — with exact lines. */
 export const parseMarkdownSpec = (file: string, content: string, config: Config): ParsedFile => {
   const md = parseMarkdown(content)
   const diagnostics: Array<Diagnostic> = []
@@ -140,6 +142,7 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
     diagnostics
   }
 }
+annotate(parseMarkdownSpec, { is: "ARCH-spec-parser", "instance-of": "PAT-pipes-and-filters" })
 
 /**
  * Classic `.feature` files join the graph too. Metadata travels in tags:
@@ -193,6 +196,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
     diagnostics
   }
 }
+annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
 
 /** `REQ-foo` → `requirement` when the config maps that prefix; otherwise `spec`. */
 export const inferKind = (id: string, config: Config): string => {

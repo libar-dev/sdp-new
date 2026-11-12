@@ -10,6 +10,7 @@ export const ConfigFile = Schema.Struct({
   steps: Schema.optional(Globs),
   exclude: Schema.optional(Globs),
   results: Schema.optional(Schema.String),
+  types: Schema.optional(Schema.String),
   maturity: Schema.optional(Schema.Array(Schema.String)),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   architecture: Schema.optional(Schema.Struct({
@@ -30,6 +31,8 @@ export interface Config {
   readonly exclude: ReadonlyArray<string>
   /** Where `sdp run` stores scenario results, relative to the workspace root. */
   readonly results: string
+  /** Where `sdp types` writes the id declarations that type `annotate`, relative to the workspace root. */
+  readonly types: string
   /** The authoring maturity ladder, lowest first. Gates are defined for the built-in levels. */
   readonly maturity: ReadonlyArray<string>
   /** Id prefixes used by `sdp new`, keyed by kind. */
@@ -53,6 +56,7 @@ export const defaults: Config = {
   steps: ["**/*.steps.{ts,mts,js,mjs}"],
   exclude: ["**/node_modules/**", ".sdp/**", "**/dist/**", "**/build/**", ".git/**"],
   results: ".sdp/results.json",
+  types: ".sdp/ids.d.ts",
   maturity: ["idea", "draft", "specified", "ready"],
   ids: {
     requirement: "REQ",
@@ -89,6 +93,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     steps: file.steps ?? defaults.steps,
     exclude: [...defaults.exclude, ...(file.exclude ?? [])],
     results: file.results ?? defaults.results,
+    types: file.types ?? defaults.types,
     maturity: file.maturity ?? defaults.maturity,
     ids: { ...defaults.ids, ...file.ids },
     architecture: {

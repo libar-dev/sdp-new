@@ -3,16 +3,16 @@
  * truth; the graph is a derived, disposable index that can be rebuilt at any
  * time (and exported for grep/jq). Building is pure: no IO happens here.
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
 import { type Annotation, codeNodeId, ignoredAnnotations, scanAnnotations } from "../parse/Annotations.ts"
+import { scanTypedAnnotations } from "../parse/TypedAnnotations.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import { parseFeatureSpec, parseMarkdownSpec, type Spec } from "../parse/Spec.ts"
 import { type RunResults, type StepStatus, type Verification, verificationOf } from "../run/Results.ts"
-
-// @sdp is ARCH-graph-builder
 
 export interface SourceFile {
   readonly path: string
@@ -26,6 +26,8 @@ export interface ProjectInput {
   readonly featureFiles: ReadonlyArray<SourceFile>
   readonly codeFiles: ReadonlyArray<SourceFile>
   readonly results?: RunResults | undefined
+  /** The id declarations currently on disk at `config.types`, if any (to tell when they are stale). */
+  readonly types?: string | undefined
 }
 
 export interface Project {
@@ -38,11 +40,13 @@ export interface Project {
   /** Problems found while reading sources and linking the graph (`sdp check` adds rule checks). */
   readonly diagnostics: ReadonlyArray<Diagnostic>
   readonly results: RunResults | undefined
+  readonly types: string | undefined
 }
 
 /** Attribute keys whose values are never turned into implicit links. */
 const notLinks = new Set(["id", "kind", "title", "summary", "maturity", "status", "stage", "verification", "tags", "file", "type", "declaredIn"])
 
+/** Builds the whole-system graph from parsed sources — specs, annotations and stored results — without any IO. */
 export const buildProject = (input: ProjectInput): Project => {
   const diagnostics: Array<Diagnostic> = []
   const specs: Array<Spec> = []
@@ -56,7 +60,21 @@ export const buildProject = (input: ProjectInput): Project => {
     diagnostics.push(...parsed.diagnostics)
     if (parsed.spec) specs.push(parsed.spec)
   }
-  const annotations = input.codeFiles.flatMap((file) => scanAnnotations(file.path, file.content))
+  const annotations: Array<Annotation> = []
+  for (const file of input.codeFiles) {
+    annotations.push(...scanAnnotations(file.path, file.content))
+    const typed = scanTypedAnnotations(file.path, file.content)
+    annotations.push(...typed.annotations)
+    for (const problem of typed.problems) {
+      diagnostics.push({
+        rule: "annotation-unreadable",
+        severity: "warning",
+        message: problem.message,
+        source: { file: file.path, line: problem.line },
+        hint: "write ids and attributes as literals, e.g. annotate(Graph, { is: \"ARCH-graph\" })"
+      })
+    }
+  }
   for (const file of input.codeFiles) {
     for (const ignored of ignoredAnnotations(file.content)) {
       diagnostics.push({
@@ -152,8 +170,8 @@ export const buildProject = (input: ProjectInput): Project => {
         id,
         kind: "code",
         title: annotation.symbol ?? annotation.file,
-        attrs: compact({ file: annotation.file, symbol: annotation.symbol }),
-        source: { file: annotation.file, line: annotation.line }
+        attrs: compact({ file: annotation.file, symbol: annotation.symbol, doc: annotation.doc }),
+        source: { file: annotation.file, line: annotation.symbolLine ?? annotation.line }
       })
     }
   }
@@ -243,9 +261,11 @@ export const buildProject = (input: ProjectInput): Project => {
     annotations,
     graph: new Graph(nodes.values(), edges),
     diagnostics: sortDiagnostics(diagnostics),
-    results: input.results
+    results: input.results,
+    types: input.types
   }
 }
+annotate(buildProject, { is: "ARCH-graph-builder", "instance-of": ["PAT-derived-index", "PAT-pipes-and-filters"] })
 
 /** Records that no longer apply keep their text but stop guarding anything. */
 export const inactiveStatuses: ReadonlySet<string> = new Set(["superseded", "rejected", "deprecated"])

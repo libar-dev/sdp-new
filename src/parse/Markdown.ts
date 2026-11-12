@@ -4,8 +4,11 @@
  * and keeps exact 1-based line numbers so every fact points back to a
  * greppable `file:line`.
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import { parse as parseYaml } from "yaml"
+
+annotate(import.meta, { is: "ARCH-spec-parser" })
 
 export interface Heading {
   readonly level: number

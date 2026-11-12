@@ -325,6 +325,35 @@ Scenario: The ready template has no open questions, and says that is what makes 
   And the file "specs/requirements/REQ-invoices.md" does not contain "What is still unknown?"
 ~~~
 
+### `sdp types`
+
+Writes the id declarations that type `annotate` from `sdp/annotations` — every node id mapped to
+its kind — to the `types` path (`.sdp/ids.d.ts` by default; include it in your `tsconfig.json`).
+Run it after adding or renaming specs; `sdp check` warns while the file is stale
+([[ARCH-code-annotations]]).
+
+```sh
+sdp types
+```
+
+~~~gherkin
+Scenario: types writes the ids annotate() accepts, and check knows when they are stale
+  When I run "sdp types"
+  Then the exit code is 0
+  And the file ".sdp/ids.d.ts" contains '"REQ-search": "requirement"'
+  When I run "sdp check"
+  Then the output does not contain "types-stale"
+  Given a file "specs/REQ-export.md" containing:
+    """
+    ---
+    id: REQ-export
+    ---
+    # Export
+    """
+  When I run "sdp check"
+  Then the output contains "types-stale"
+~~~
+
 ## Reading the graph
 
 ### `sdp status`

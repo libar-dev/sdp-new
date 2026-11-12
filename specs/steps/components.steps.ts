@@ -13,6 +13,7 @@ import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
 import { type Attrs, formatSource } from "../../src/model/Graph.ts"
 import { type Annotation, scanAnnotations } from "../../src/parse/Annotations.ts"
+import { scanTypedAnnotations } from "../../src/parse/TypedAnnotations.ts"
 import type { Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
@@ -135,6 +136,29 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
     world.scratch.annotations = scanAnnotations(path, content)
+  })
+
+  When("{string} is scanned for typed annotations", ({ args: [path], world }) => {
+    const content = world.files.get(path)
+    assert.ok(content !== undefined, `no file ${path}`)
+    const scan = scanTypedAnnotations(path, content)
+    world.scratch.annotations = scan.annotations
+    world.scratch.annotationProblems = scan.problems
+  })
+
+  Then("the annotated {string} is declared at line {int} and described as {string}", ({ args: [target, line, doc], world }) => {
+    const found = annotations(world).find((a) => (a.symbol ?? "the module") === target)
+    assert.ok(found, `no annotation of ${target}`)
+    assert.equal(found.symbolLine, line, `${target} is declared at line ${found.symbolLine}`)
+    assert.equal(found.doc, doc)
+  })
+
+  Then("the scan reports at line {int}: {string}", ({ args: [line, message], world }) => {
+    const problems = (world.scratch.annotationProblems ?? []) as ReadonlyArray<{ line: number; message: string }>
+    assert.ok(
+      problems.some((p) => p.line === line && p.message.includes(message)),
+      `problems: ${JSON.stringify(problems)}`
+    )
   })
 
   Then("the annotations are:", ({ table, world }) =>

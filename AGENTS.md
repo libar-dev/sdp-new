@@ -16,7 +16,9 @@ that its instructions work.
 ## Find things
 
 - Any node by id: `grep -rn "REQ-graph-query" specs docs src` — ids are literal everywhere.
-- Code linked to the graph: `grep -rn "@sdp" src/`.
+- Code linked to the graph: `grep -rn "annotate(" src/` — typed `annotate(target, links)` calls from
+  `sdp/annotations` (`src/annotations.ts` here). After adding or renaming a spec, run
+  `node src/cli/main.ts types` so the compiler knows its id.
 - Graph questions: `node src/cli/main.ts q '<pattern>'` (syntax: `sdp q --help`).
 - Everything about one node before you change it: `node src/cli/main.ts context <id>`.
 - The architecture that matters (and only that): `node src/cli/main.ts arch`.
@@ -62,9 +64,9 @@ Scenario: An id leads to its spec with grep
   Then the output contains "specs/requirements/REQ-graph-query.md"
 
 Scenario: Code linked to the graph is one grep away
-  When I run "grep -rn @sdp src" in the repository
-  Then the output contains "src/cli/main.ts"
-  And the output contains "@sdp is ARCH-cli"
+  When I run "grep -rn annotate( src" in the repository
+  Then the output contains "src/model/Graph.ts"
+  And the output contains 'annotate(Graph, { is: "ARCH-graph"'
 
 Scenario: The query syntax is one --help away
   When I run "sdp q --help"

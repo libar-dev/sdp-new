@@ -46,8 +46,9 @@ export default defineSteps(() => ({ cart: [] as Array<string> }), ({ Given, When
   world per factory; modules passing the same factory share that world, so a step library can be
   split across files (sdp's own steps share `specs/steps/world.ts`).
 - Steps match by text, not keyword: `Given`, `When`, `Then` and `Step` register alike.
-- **`import … from "sdp"`** always resolves to the sdp that runs the steps, so a workspace needs no
-  package installed for it, and step modules and runner never disagree about versions.
+- **`import … from "sdp"`** — and `"sdp/annotations"` in the application code the steps exercise —
+  always resolve to the sdp that runs the steps, so a workspace needs no package installed for it,
+  and step modules and runner never disagree about versions.
 - A step file must export its module (`export default defineSteps(…)`); one that exports none is
   reported as a warning, and one that fails to load stops the run with one line naming the file
   ([[REQ-cli]]).
@@ -396,6 +397,32 @@ Scenario: A step module imports sdp without installing it
       Given("an empty cart", () => {})
       When("I add a lamp", ({ world }) => {
         world.items++
+      })
+      Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
+        if (world.items !== n) throw new Error(`the cart holds ${world.items}`)
+      })
+    })
+    """
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
+
+Scenario: Annotated application code under test imports sdp/annotations without installing it
+  Given a file "src/cart.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+
+    export const lamp = () => 1
+    annotate(lamp, { implements: "REQ-cart" })
+    """
+  And a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp"
+    import { lamp } from "../../src/cart.ts"
+
+    export default defineSteps(() => ({ items: 0 }), ({ Given, When, Then }) => {
+      Given("an empty cart", () => {})
+      When("I add a lamp", ({ world }) => {
+        world.items += lamp()
       })
       Then("the cart holds {int} item(s)", ({ args: [n], world }) => {
         if (world.items !== n) throw new Error(`the cart holds ${world.items}`)

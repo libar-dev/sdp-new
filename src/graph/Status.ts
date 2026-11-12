@@ -1,3 +1,4 @@
+import { annotate } from "../annotations.ts"
 import { architectureSummary } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { isGate, type Project } from "./Build.ts"
@@ -32,3 +33,4 @@ export const statusSummary = (project: Project) => {
     diagnostics: tally(check(project).map((d) => d.severity))
   }
 }
+annotate(statusSummary, { is: "ARCH-reports" })

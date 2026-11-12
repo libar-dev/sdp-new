@@ -6,12 +6,14 @@
  *   grep -P '^edge\t[^\t]*\tsupersedes\t' .sdp/graph.tsv
  *   jq -c 'select(.type=="node" and .attrs.maturity=="ready")' .sdp/graph.jsonl
  */
+import { annotate } from "../annotations.ts"
 import type { Graph, GraphNode } from "../model/Graph.ts"
 import { formatSource } from "../model/Graph.ts"
 
 export const graphFormats = ["jsonl", "json", "tsv", "dot", "mermaid"] as const
 export type GraphFormat = (typeof graphFormats)[number]
 
+/** Serializes the graph as JSON, JSONL, TSV, DOT or Mermaid; the line-oriented formats hold one fact per line. */
 export const exportGraph = (graph: Graph, format: GraphFormat): string => {
   switch (format) {
     case "jsonl":
@@ -26,6 +28,7 @@ export const exportGraph = (graph: Graph, format: GraphFormat): string => {
       return toMermaid(graph)
   }
 }
+annotate(exportGraph, { is: "ARCH-reports" })
 
 export const nodeJson = (node: GraphNode) => ({
   id: node.id,

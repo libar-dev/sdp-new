@@ -6,12 +6,11 @@
  * and the decisions and quality requirements around it, and can suggest
  * candidates for an architect to consider.
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import type { GraphEdge, GraphNode } from "../model/Graph.ts"
 import type { Project } from "../graph/Build.ts"
 import { nodeJson } from "../graph/Export.ts"
-
-// @sdp is ARCH-architecture-view
 
 export const isSignificant = (node: GraphNode): boolean =>
   node.attrs.significant === true || node.attrs.significant === "true" || node.attrs.significant === "yes"
@@ -111,6 +110,7 @@ export const architectureView = (project: Project): ArchitectureView => {
   const sub = graph.subgraph(keep)
   return { nodes: [...sub.nodes.values()], edges: sub.edges }
 }
+annotate(architectureView, { is: "ARCH-architecture-view" })
 
 /** The curated view as JSON — one shape for `sdp arch --format json` and the MCP tool. */
 export const architectureJson = (project: Project) => {

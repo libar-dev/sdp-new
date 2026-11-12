@@ -4,6 +4,7 @@
  * --snippets` and the MCP tool `sdp_snippets` use the same matcher to show
  * what is not automated yet, with a suggested definition for each such step.
  */
+import { annotate } from "../annotations.ts"
 import {
   type Argument,
   CucumberExpression,
@@ -18,7 +19,7 @@ import type { PickleStep, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import type { StepDefinition, StepModule } from "./Steps.ts"
 
-// @sdp is ARCH-runner
+annotate(import.meta, { is: "ARCH-runner" })
 
 export interface Match {
   readonly definition: StepDefinition

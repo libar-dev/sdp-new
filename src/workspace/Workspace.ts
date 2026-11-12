@@ -4,6 +4,7 @@
  * Swapping the FileSystem layer (see MemoryFileSystem) runs the exact same
  * pipeline against an in-memory workspace.
  */
+import { annotate } from "../annotations.ts"
 import { Effect, FileSystem, Path, Schema } from "effect"
 import { registerHooks } from "node:module"
 import { pathToFileURL } from "node:url"
@@ -12,8 +13,6 @@ import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
 import { RunResults } from "../run/Results.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
-
-// @sdp is ARCH-workspace
 
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   file: Schema.String,
@@ -114,7 +113,10 @@ export const writeResults = Effect.fn("writeResults")(function*(root: string, co
   yield* fs.writeFileString(file, `${JSON.stringify(results, null, 2)}\n`)
 })
 
+/** Reads config, specs, feature files, code, stored results and id declarations from a workspace and builds its project. */
 export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
   const config = yield* loadConfig(root)
   const [specPaths, featurePaths, codePaths] = yield* Effect.all([
     findFiles(root, config.specs, config.exclude),
@@ -125,10 +127,17 @@ export const loadProject = Effect.fn("loadProject")(function*(root: string, opti
   const featureFiles = yield* readAll(root, featurePaths)
   const codeFiles = yield* readAll(root, codePaths)
   const results = options.withResults === false ? undefined : yield* readResults(root, config)
-  return buildProject({ root, config, specFiles, featureFiles, codeFiles, results }) satisfies Project
+  const typesFile = path.join(root, config.types)
+  const types = (yield* fs.exists(typesFile)) ? yield* fs.readFileString(typesFile) : undefined
+  return buildProject({ root, config, specFiles, featureFiles, codeFiles, results, types }) satisfies Project
 })
+annotate(loadProject, { is: "ARCH-workspace", "instance-of": "PAT-pipes-and-filters" })
 
-const sdpIndex = new URL("../index.ts", import.meta.url).href
+/** sdp's package exports (see package.json), as the files of the running sdp. */
+const sdpExports: Readonly<Record<string, string>> = {
+  "sdp": new URL("../index.ts", import.meta.url).href,
+  "sdp/annotations": new URL("../annotations.ts", import.meta.url).href
+}
 const sdpSources = new URL("../", import.meta.url).href
 let hooked = false
 
@@ -143,7 +152,10 @@ const hookImports = () => {
   hooked = true
   registerHooks({
     resolve: (specifier, context, nextResolve) => {
-      if (specifier === "sdp") return { url: sdpIndex, shortCircuit: true }
+      // A workspace imports sdp without installing it: the package and its subpath exports
+      // ("sdp/annotations" in application code) resolve to the running sdp.
+      const own = sdpExports[specifier]
+      if (own !== undefined) return { url: own, shortCircuit: true }
       const resolved = nextResolve(specifier, context)
       const load = context.parentURL?.startsWith("file:") ? new URL(context.parentURL).searchParams.get("sdp-load") : null
       if (load === null || !resolved.url.startsWith("file:") || resolved.url.includes("/node_modules/") || resolved.url.startsWith(sdpSources)) {

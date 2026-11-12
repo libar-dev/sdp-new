@@ -6,6 +6,7 @@
  * reach, and the code locations already linked to it. Architecture nobody
  * marked significant appears only as a direct relationship.
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import { architectureView, isDriver, isSignificant } from "../arch/Architecture.ts"
 import { gateReasons } from "../check/Check.ts"
@@ -21,6 +22,7 @@ export interface ContextSteps {
   readonly files: ReadonlyArray<string>
 }
 
+/** Everything needed to work on one node, as one Markdown document: spec, links, readiness, scenarios, curated architecture, decisions, code. */
 export const contextBundle = (project: Project, id: string, depth = 2, steps?: ContextSteps): string | undefined => {
   const { graph } = project
   const node = graph.node(id)
@@ -142,6 +144,7 @@ export const contextBundle = (project: Project, id: string, depth = 2, steps?: C
   }
   return out.join("\n")
 }
+annotate(contextBundle, { is: "ARCH-reports" })
 
 /** Why a spec below `ready` is not ready: the ready gate's reasons, or that its content already meets it. */
 const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {

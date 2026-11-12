@@ -8,6 +8,7 @@
  * `import.meta`) comes along as its description, so the code's own words reach
  * the graph and the context bundles.
  */
+import { annotate } from "../annotations.ts"
 import { parseSync } from "oxc-parser"
 import type { Annotation } from "./Annotations.ts"
 
@@ -44,6 +45,7 @@ type Node = { readonly type: string; readonly start: number; readonly end: numbe
 const isNode = (value: unknown): value is Node =>
   typeof value === "object" && value !== null && typeof (value as { type?: unknown }).type === "string"
 
+/** Reads the `annotate()` calls of one TS/JS file without running it; computed ids are reported, not guessed. */
 export const scanTypedAnnotations = (file: string, content: string): TypedScan => {
   const lang = languageOf(file)
   if (!lang || !content.includes("annotate")) return empty
@@ -86,7 +88,9 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
     if (!comment || content.slice(comment.end, start).trim() !== "") return undefined
     return summary(comment.value)
   }
-  const moduleDoc = jsdocs[0] && (!program.body[0] || jsdocs[0].end <= program.body[0].start) ? summary(jsdocs[0].value) : undefined
+  // The module's description: its first JSDoc, if it comes before any code other than imports.
+  const firstCode = program.body.find((s) => s.type !== "ImportDeclaration")
+  const moduleDoc = jsdocs[0] && (!firstCode || jsdocs[0].end <= firstCode.start) ? summary(jsdocs[0].value) : undefined
 
   // Top-level declarations by name: where they are and what their JSDoc says.
   const declarations = new Map<string, { readonly line: number; readonly doc: string | undefined }>()
@@ -157,6 +161,7 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
   visit(program)
   return { annotations, problems }
 }
+annotate(scanTypedAnnotations, { is: "ARCH-code-annotations" })
 
 const importedName = (spec: Node): string | undefined => {
   const imported = spec.imported as { name?: string; value?: string } | undefined

@@ -111,6 +111,7 @@ Scenario: Specify behaviour before it is automated
 | `sdp arch [--candidates] [-f mermaid\|dot\|json]` | The curated architecture, or suggestions for architects to look at |
 | `sdp lifecycle` | Phases, iterations, gates and discipline activity |
 | `sdp graph [-f jsonl\|tsv\|json\|dot\|mermaid] [-q pattern] [--write]` | Export the graph |
+| `sdp types` | Write the id declarations that type `annotate()` from `sdp/annotations` in TypeScript |
 | `sdp new <kind> <title>` · `sdp init` | Authoring helpers; templates for requirement, idea, nfr, decision, element, pattern, milestone and plan (`sdp new --help`) |
 | `sdp mcp` | MCP server (stdio) for agents |
 

@@ -18,11 +18,12 @@
  * Prefix `!` keeps nodes WITHOUT such a neighbour, `?` keeps nodes WITH one;
  * both filter without moving.
  */
+import { annotate } from "../annotations.ts"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import type { Project } from "./Build.ts"
 
-// @sdp is ARCH-query-engine
+annotate(import.meta, { is: "ARCH-query-engine" })
 
 /** The syntax in a few lines, for `sdp q --help`, the MCP tool description and query errors. */
 export const querySyntax = `node (edge node)*

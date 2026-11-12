@@ -12,11 +12,10 @@
  * The discipline × iteration activity matrix is computed from that work, so
  * the familiar "hump chart" reflects the actual plan instead of a drawing.
  */
+import { annotate } from "../annotations.ts"
 import { Predicate } from "effect"
 import type { GraphNode } from "../model/Graph.ts"
 import type { Project } from "../graph/Build.ts"
-
-// @sdp is ARCH-lifecycle
 
 export interface IterationReport {
   readonly node: GraphNode
@@ -57,7 +56,10 @@ const order = (node: GraphNode) => {
 const byStart = (a: GraphNode, b: GraphNode) =>
   String(a.attrs.start ?? "").localeCompare(String(b.attrs.start ?? "")) || order(a) - order(b) || a.id.localeCompare(b.id)
 
-/** `today` is an ISO date (YYYY-MM-DD); without it nothing is marked current. */
+/**
+ * Phases, iterations, milestones and discipline activity computed from the plan in the graph.
+ * `today` is an ISO date (YYYY-MM-DD); without it nothing is marked current.
+ */
 export const lifecycle = (project: Project, today?: string): LifecycleReport => {
   const { graph } = project
   const linked = (node: GraphNode, kind: string) =>
@@ -117,6 +119,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     dated: today !== undefined
   }
 }
+annotate(lifecycle, { is: "ARCH-lifecycle" })
 
 const activity = (project: Project, discipline: string, kinds: ReadonlyArray<string>, items: ReadonlyArray<GraphNode>) => {
   const { graph } = project
