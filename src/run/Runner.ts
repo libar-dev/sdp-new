@@ -139,6 +139,8 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
       }
       blocked = true
       if (Exit.isSuccess(exit)) {
+        // Noticed only once it returned, but late all the same: what it started is told to stop.
+        controller.abort()
         steps.push({ ...base, status: "failed", durationMs, definition, error: timedOut })
         continue
       }

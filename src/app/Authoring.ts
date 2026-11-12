@@ -5,7 +5,7 @@
  */
 import { annotate } from "sdp/annotations"
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
-import { fileURLToPath } from "node:url"
+import { readFile } from "node:fs/promises"
 import { idsDeclaration } from "../graph/Types.ts"
 import { formatSource } from "../model/Graph.ts"
 import { made } from "../model/Vocabulary.ts"
@@ -18,21 +18,32 @@ annotate(import.meta, { is: "ARCH-reports" })
 /** The skill that teaches an agent to work with sdp, where agents look for skills. sdp ships the one it is developed with. */
 const skillFile = ".claude/skills/sdp/SKILL.md"
 
+/** sdp's own copy of the skill, from where this sdp is installed: a file of sdp's, not of the workspace, so not read through its FileSystem. */
+const ownSkill = Effect.promise(() => readFile(new URL(`../../${skillFile}`, import.meta.url), "utf8"))
+
+/**
+ * Writes a file that does not exist yet, and says whether it did: creating it is the check, so a
+ * file another process made in the meantime is never overwritten.
+ */
+const createFile = Effect.fnUntraced(function*(file: string, content: string) {
+  const fs = yield* FileSystem.FileSystem
+  return yield* fs.writeFileString(file, content, { flag: "wx" }).pipe(
+    Effect.as(true),
+    Effect.catchIf((error) => error.reason._tag === "AlreadyExists", () => Effect.succeed(false))
+  )
+})
+
 /** `sdp init`: a configuration and the skill; files that exist are left alone. */
 export const init = Effect.fn("init")(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  const skill = yield* fs.readFileString(fileURLToPath(new URL(`../../${skillFile}`, import.meta.url)))
+  const skill = yield* ownSkill
   const files = [["sdp.config.yaml", configTemplate], [skillFile, skill]] as const
   const written: Array<{ readonly file: string; readonly created: boolean }> = []
   for (const [file, content] of files) {
     const target = path.join(root, file)
-    const exists = yield* fs.exists(target)
-    if (!exists) {
-      yield* fs.makeDirectory(path.dirname(target), { recursive: true })
-      yield* fs.writeFileString(target, content)
-    }
-    written.push({ file, created: !exists })
+    yield* fs.makeDirectory(path.dirname(target), { recursive: true })
+    written.push({ file, created: yield* createFile(target, content) })
   }
   return written
 })
@@ -99,8 +110,7 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
   const relative = path.relative(yield* fs.realPath(root), path.join(yield* fs.realPath(path.dirname(target)), path.basename(target)))
   const inside = !relative.startsWith("..") && !path.isAbsolute(relative)
   const file = inside ? relative : target
-  if (yield* fs.exists(target)) return yield* new Refused({ reason: `${file} already exists` })
-  yield* fs.writeFileString(target, created.file.content)
+  if (!(yield* createFile(target, created.file.content))) return yield* new Refused({ reason: `${file} already exists` })
   // Found again the way every command finds specs: what the features globs do not match is in no graph.
   const { exclude, features } = project.config
   const unread = !inside

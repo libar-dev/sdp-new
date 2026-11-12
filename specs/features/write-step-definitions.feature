@@ -157,6 +157,12 @@ Feature: Write step definitions
       And the step "an empty cart" reports "step timed out"
       And the handler of "an empty cart" saw its signal abort
 
+    Scenario: A step whose timeout is noticed only once it returns is told to stop too
+      Given a step definition "an empty cart" that listens to its signal and keeps the thread busy for 200 ms
+      When the workspace is run with a step timeout of 50 ms
+      Then the step "an empty cart" reports "step timed out"
+      And the handler of "an empty cart" saw its signal abort
+
     Scenario: Interrupting a run tells the running step to stop
       Given a step definition "an empty cart" that waits for its signal
       When the workspace is run and interrupted while "an empty cart" runs

@@ -82,9 +82,14 @@ export const commitResults = Effect.fn("commitResults")(function*(root: string, 
     }
     // Readers never see a half-written file: the new one replaces the old in one step.
     const temporary = `${file}.${process.pid}.tmp`
-    yield* fs.writeFileString(temporary, `${JSON.stringify(results, null, 2)}\n`)
-    yield* fs.rename(temporary, file)
+    yield* fs.writeFileString(temporary, `${JSON.stringify(results, null, 2)}\n`).pipe(
+      Effect.andThen(fs.rename(temporary, file)),
+      Effect.onError(() => Effect.ignore(fs.remove(temporary)))
+    )
     return results
   })
-  return yield* Effect.acquireUseRelease(acquire, () => merge, () => Effect.ignore(fs.remove(lock)))
+  // A merge that has begun finishes before the lock goes, interrupted or not: Node cannot take back
+  // a write or a rename it has started, and one that lands after the lock is released would
+  // overwrite the results another run committed meanwhile.
+  return yield* Effect.acquireUseRelease(acquire, () => Effect.uninterruptible(merge), () => Effect.ignore(fs.remove(lock)))
 })

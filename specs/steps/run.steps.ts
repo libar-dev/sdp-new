@@ -64,6 +64,12 @@ const behaviours: Record<string, Behaviour> = {
     const until = performance.now() + 200
     while (performance.now() < until) { /* busy */ }
   },
+  // Listens to its signal, then never yields: the timeout is noticed only once it returns.
+  "listens to its signal and keeps the thread busy for 200 ms": ({ signal }, expression, log) => {
+    signal.addEventListener("abort", () => void log.aborted.push(expression), { once: true })
+    const until = performance.now() + 200
+    while (performance.now() < until) { /* busy */ }
+  },
   // Never settles on its own: only an aborted signal ends it.
   "waits for its signal": ({ signal }, expression, log) =>
     new Promise<void>((resolve) => {
