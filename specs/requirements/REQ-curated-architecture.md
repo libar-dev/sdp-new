@@ -99,6 +99,18 @@ Scenario: An element declared without a description is described by the code anc
     """
   Then the output field "data.anchors" holds "code:src/mailer.ts#Mailer"
 
+Scenario: However much code there is, the architecture is what an architect declared or anchored
+  Given a file "src/orders.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+    export class Orders {}
+    export class OrderMapper {}
+    export class OrderValidator {}
+    annotate(Orders, { is: "ARCH-orders" })
+    """
+  When I query "element|pattern"
+  Then the result is "ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox"
+
 Scenario: What belongs in the architecture is never checked
   When the workspace is checked
   Then the check reports nothing

@@ -287,7 +287,7 @@ const addKeyLinks = (map: Located, vocabulary: Vocabulary, add: (rel: string, ta
 }
 
 /**
- * The links a spec or an inline node declares ([[DEC-0010]]): everything under `links:`, in every
+ * The links a spec or an inline node declares (ARCH-graph-builder): everything under `links:`, in every
  * shape people naturally write, and the keys the vocabulary names as links, each link at the line
  * of its target:
  *   links: { refines: CAP-x, uses: [A, B], calls: { to: C, via: http } }

@@ -59,7 +59,7 @@ Background:
     nodes:
       - { id: ARCH-index, kind: element, title: Search index, links: { decided-by: DEC-0001 } }
       - { id: ARCH-cache, kind: element, title: Page cache, links: { decided-by: DEC-0001 } }
-      - { id: DEC-0001, kind: decision, title: Use an inverted index, status: accepted }
+      - { id: DEC-0001, kind: decision, title: Use an inverted index }
     ---
     # Architecture
 
@@ -74,10 +74,10 @@ Background:
     id: PLAN
     kind: plan
     nodes:
-      - { id: PH-inception,    kind: phase, title: Inception,    order: 1 }
-      - { id: PH-elaboration,  kind: phase, title: Elaboration,  order: 2 }
-      - { id: PH-construction, kind: phase, title: Construction, order: 3 }
-      - { id: PH-transition,   kind: phase, title: Transition,   order: 4 }
+      - { id: PH-inception,    kind: phase, title: Inception }
+      - { id: PH-elaboration,  kind: phase, title: Elaboration }
+      - { id: PH-construction, kind: phase, title: Construction }
+      - { id: PH-transition,   kind: phase, title: Transition }
       - { id: C1, kind: iteration, title: Search, phase: PH-construction }
     ---
     # Plan
@@ -86,9 +86,8 @@ Background:
     """
     ---
     id: MS-beta
-    kind: milestone
     title: Beta
-    phase: PH-construction
+    closes: PH-construction
     ---
     # Beta
 
@@ -443,7 +442,7 @@ Scenario: A file written outside the workspace is not part of its graph, and the
 
 Scenario: new --help lists the kinds with a template of their own and the maturity levels
   When I run "sdp new --help"
-  Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan"
+  Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan, risk"
   And the output contains "idea (default), draft, specified or ready"
 
 Scenario Outline: An id is the kind's prefix and a slug of the title in ASCII; decisions, risks and titles without ASCII letters are numbered
@@ -497,6 +496,7 @@ Scenario: status counts gate scenarios apart from the others, since a gate may b
   When I run "sdp status"
   Then the output contains "scenarios     unrun 2"
   And the output contains "gates         unrun 1"
+  And the output contains "milestones    open 1"
   And the output contains "check         no diagnostics"
 ~~~
 
@@ -523,18 +523,17 @@ Scenario: q --paths prints each path on one line, every edge as it points
   Then the output lines are "ARCH-index <-realized-by- REQ-search"
 
 Scenario: q lists a node by the status it declares, else by its stage
-  Given a file "docs/DEC-0002.md" containing:
+  Given a file "docs/RISK-0001.md" containing:
     """
     ---
-    id: DEC-0002
-    kind: decision
-    status: proposed
+    id: RISK-0001
+    status: tolerated
     maturity: idea
     ---
-    # Shard the index
+    # The index outgrows memory
     """
-  When I run "sdp q decision"
-  Then the output contains "DEC-0002\tdecision\tproposed"
+  When I run "sdp q risk"
+  Then the output contains "RISK-0001\trisk\ttolerated"
   When I run "sdp q requirement"
   Then the output contains "REQ-search\trequirement\tspecified"
 
@@ -693,43 +692,50 @@ Scenario: vocabulary prints the words sdp interprets, and the kinds and attribut
 
 ### `sdp lifecycle`
 
-Phases with their milestone gates (`◀ now` marks the calendar, never achievement), the planned work
-of each iteration, the planned discipline activity chart with a one-line legend for its shading, and
-the evidence — stages and scenario results — shown apart from the plan ([[REQ-lifecycle-view]]). Without
-phases it shows how to declare them, inline, and suggests `sdp new plan`.
+The milestones in the order of the timeline — each with the iterations it ends, the date of what it
+closes and how it stands, the first that is not met being where the project is — then the planned
+work of each iteration, the discipline activity chart, and the evidence apart from the plan
+([[REQ-lifecycle-view]]).
 
 ```sh
 sdp lifecycle
+sdp lifecycle --json | jq '.data.position, .data.milestones[].gate'
 ```
 
 ~~~gherkin
-Scenario: lifecycle lays out phases, iterations and gates
+Scenario: lifecycle lays out the milestones, the planned work and the chart
   When I run "sdp lifecycle"
-  Then the output contains "Construction"
-  And the output contains "MS-beta"
+  Then the output line with "MS-beta" contains "▶"
+  And the output line with "MS-beta" contains "Construction"
+  And the output line with "MS-beta" contains "C1"
   And the output contains "DISCIPLINE ACTIVITY"
   And the output contains "░ ▒ ▓ █  more work in an iteration, relative to the discipline's busiest; blank: none"
 
-Scenario: lifecycle --json keeps the plan and the evidence apart
+Scenario: lifecycle --json says where the project is, and keeps the plan and the evidence apart
   When I run "sdp lifecycle --json"
   Then the output is valid JSON
+  And the output contains '"position": {'
+  And the output contains '"milestone": "MS-beta"'
+  And the output field "data.milestones" holds "MS-beta"
+  And the output field "data.phases" holds "PH-inception, PH-elaboration, PH-construction, PH-transition"
+  And the output contains '"unmet": ['
   And the output contains '"disciplines"'
-  And the output contains '"work"'
   And the output contains '"evidence"'
 
-Scenario: A plan from the template puts a milestone from the template under its phase
+Scenario: Before there is a plan lifecycle says how to write one, and a milestone from the template ends its phase
   When I run "sdp -C fresh init"
   Then the output contains "created sdp.config.yaml"
   When I run "sdp -C fresh lifecycle"
   Then the output contains "sdp new plan"
-  And the output contains "- { id: PH-elaboration, kind: phase"
+  And the output contains "- { id: E1, kind: iteration"
   When I run "sdp -C fresh new plan 'Delivery plan'"
   Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.md"
   When I run "sdp -C fresh new milestone 'Architecture baseline'"
   Then the output contains "MS-architecture-baseline\tspecs/delivery/MS-architecture-baseline.md"
   When I run "sdp -C fresh lifecycle"
-  Then the line after the output line with "Elaboration" contains "◆ MS-architecture-baseline"
-  And the output line with "Inception" contains "I1*"
+  Then the output line with "MS-architecture-baseline" contains "Elaboration"
+  And the output line with "MS-architecture-baseline" contains "I1* E1"
+  And the output line with "no milestone" contains "C1"
 ~~~
 
 ## Checking and running
@@ -756,7 +762,7 @@ Scenario Outline: Only errors fail the check
     | { id: REQ-a, links: { depends-on: REQ-gone } }     | dangling-link | 1         |
     | { id: REQ-a, maturity: draft }                     | maturity-criteria  | 1        |
     | { id: REQ-a, links: [REQ-b] }                      | link-syntax    | 1        |
-    | { id: REQ-a, kind: decision, status: accepted }    | decision-content | 0      |
+    | { id: REQ-a, iteration: REQ-a }                    | plan-reference | 0        |
 
 Scenario: --severity sets the least severe diagnostic shown
   Given a file "specs/REQ-a.md" containing:
@@ -974,21 +980,17 @@ Scenario: A --tags filter that is not a tag expression is an error that says so
   And the output does not contain "    at "
 ~~~
 
-### `sdp gate <milestone>`, `sdp gate --due`
+### `sdp gate <milestone>`
 
-Runs one milestone's gate scenarios against the current graph and exits 0 only when the milestone
-has gate scenarios and every one of them passed — an undefined or pending step leaves the milestone
-unmet. An id without gate scenarios is an error.
-
-`sdp gate --due` evaluates the milestones the calendar says are due: those of the current phase
-and of every phase before it, dated exactly as `sdp lifecycle` dates them
-([[REQ-lifecycle-view]]). It is the command a build calls: the milestones of later phases may
-stay unmet, the due ones may not. A due milestone without gate scenarios is not met; before any
-phase with a milestone has begun, nothing is due and the command exits 0, saying so.
+Runs one milestone's gate scenarios against the current graph and exits 0 only when every one of
+them passed. `--record` then writes `met: <today>` into the milestone: it is closed, its gate does
+not run again, and the next milestone is where the project is ([[REQ-lifecycle-view]]). Ending a
+phase is somebody's act, so nothing is recorded unasked — and no command enforces a gate by the
+calendar: the same commit would pass today and fail tomorrow.
 
 ```sh
 sdp gate MS-beta
-sdp gate --due
+sdp gate MS-beta --record
 ```
 
 ~~~gherkin
@@ -1020,86 +1022,60 @@ Scenario: gate --json prints nothing but JSON
   Then the output is valid JSON
   And the output contains '"passed": false'
 
-Scenario: gate names one milestone, or the due ones
-  When I run "sdp gate"
+Scenario: gate --record records nothing while the gate does not pass
+  When I run "sdp gate MS-beta --record"
   Then the exit code is 1
-  And the output contains "name one milestone, or pass --due"
+  And the output contains "MS-beta is not recorded as met"
+  And the file "specs/MS-beta.md" does not contain "met:"
 
-Scenario Outline: gate --due asks about the milestones of the current phase and of those before it
-  Given a file "due/docs/plan.md" containing:
+Scenario: gate --record writes met into a milestone whose gate passes, and the next one is where the project is
+  Given a file "docs/MS-alpha.md" containing:
     """
     ---
-    id: PLAN
-    kind: plan
-    nodes:
-      - { id: inception,    kind: phase, title: Inception,    order: 1 }
-      - { id: elaboration,  kind: phase, title: Elaboration,  order: 2 }
-      - { id: construction, kind: phase, title: Construction, order: 3 }
-      - { id: I1, kind: iteration, phase: inception,   start: "2020-01-06", end: "2020-01-17" }
-      - { id: E1, kind: iteration, phase: elaboration, start: "2020-01-20", end: "2999-12-31" }
+    id: MS-alpha
+    closes: C1
     ---
-    # Plan
-    """
-  And a file "due/docs/MS-scope.md" containing:
-    """
-    ---
-    id: MS-scope
-    kind: milestone
-    phase: inception
-    ---
-    # Scope agreed
+    # Alpha
 
     ```gherkin
     Scenario: There is a plan
       Then the query "plan" returns 1 result
     ```
     """
-  And a file "due/docs/MS-baseline.md" containing:
+  When I run "sdp gate MS-alpha --record"
+  Then the exit code is 0
+  And the file "docs/MS-alpha.md" contains "met: 20"
+  When I run "sdp q milestone[met] --ids"
+  Then the output lines are "MS-alpha"
+  When I run "sdp lifecycle --json"
+  Then the output contains '"milestone": "MS-beta"'
+
+Scenario: A milestone that is met is closed: its gate does not run again
+  Given a file "docs/MS-alpha.md" containing:
     """
     ---
-    id: MS-baseline
-    kind: milestone
-    phase: elaboration
+    id: MS-alpha
+    closes: C1
+    met: 2026-11-13
     ---
-    # Architecture baseline
+    # Alpha
 
     ```gherkin
-    <gate of the current phase>
-    ```
-    """
-  And a file "due/docs/MS-launch.md" containing:
-    """
-    ---
-    id: MS-launch
-    kind: milestone
-    phase: construction
-    ---
-    # Launch
-
-    ```gherkin
-    Scenario: Nothing is left to do
+    Scenario: There is no plan
       Then the query "plan" returns no results
     ```
     """
-  When I run "sdp -C due gate --due"
-  Then the exit code is <exit code>
-  And the output contains "<outcome>"
-  And the output does not contain "MS-launch"
-
-  Examples:
-    | gate of the current phase                                          | exit code | outcome                                                           |
-    | Scenario: Baselined\n  Then the query "plan" returns 1 result      | 0         | 2 gate scenario(s) of MS-scope, MS-baseline: 2 passed             |
-    | Scenario: Baselined\n  Then the query "plan" returns no results    | 1         | 2 gate scenario(s) of MS-scope, MS-baseline: 1 passed, 1 failed   |
-    | # no scenario yet                                                  | 1         | note: MS-baseline has no gate scenarios, so it is not met         |
-
-Scenario: Before any phase with a milestone has begun, nothing is due
-  When I run "sdp gate --due"
+  When I run "sdp gate MS-alpha"
   Then the exit code is 0
-  And the output contains "note: no milestone is due"
+  And the output contains "MS-alpha was met on 2026-11-13"
+  When I run "sdp run"
+  Then the output does not contain "MS-alpha#there-is-no-plan"
+  When I run "sdp status"
+  Then the output contains "milestones    met 1 · open 1"
 
-Scenario: The build of sdp itself enforces the milestones that are due
+Scenario: The build of sdp itself enforces no gate
   When I run "grep verify package.json" in the repository
-  Then the output contains "&& node src/cli/main.ts gate --due"
+  Then the output does not contain "gate"
 ~~~
 
 ## Agents

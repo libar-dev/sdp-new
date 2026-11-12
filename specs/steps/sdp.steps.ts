@@ -227,11 +227,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.deepEqual(p.iterations.map((i) => i.node.id), list.split(",").map((s) => s.trim()))
   })
 
-  Then("phase {string} has milestone {string}", ({ args: [phase, milestone], world }) => {
-    const p = world.lifecycle?.phases.find((x) => x.node.id === phase)
-    assert.ok(p?.milestones.some((m) => m.id === milestone), `${phase} has no milestone ${milestone}`)
-  })
-
   Then("{string} activity in iteration {string} is {int}", ({ args: [discipline, iteration, expected], world }) => {
     const report = world.lifecycle!
     const column = report.iterations.findIndex((i) => i.id === iteration)

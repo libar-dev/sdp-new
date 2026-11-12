@@ -206,28 +206,44 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
 
 const today = Effect.map(DateTime.now, DateTime.formatIsoDate)
 
-/** The lifecycle report as plain data: ids refer to the records in `phases` and `work`. */
+/** The lifecycle report as plain data: ids refer to the records in `milestones`, `phases` and `work`. */
 const lifecycleData = (report: LifecycleReport) => ({
-  phases: report.phases.map((phase) => ({
-    ...nodeRecord(phase.node),
-    milestones: phase.milestones.map(nodeRecord),
-    iterations: phase.iterations.map((iteration) => iteration.node.id)
+  /** Where the project is: the first milestone that is not met, and its phase. The files say it, not the date. */
+  position: { milestone: report.next?.node.id ?? null, phase: report.next?.phase?.id ?? null },
+  /** Where today falls. It decides nothing. */
+  calendar: { today: report.today ?? null, iteration: report.current?.id ?? null },
+  /** In the order of the timeline: each with the iterations since the milestone before it and the work planned into them. */
+  milestones: report.milestones.map((milestone) => ({
+    ...nodeRecord(milestone.node),
+    closes: milestone.closes?.id ?? null,
+    phase: milestone.phase?.id ?? null,
+    iterations: milestone.iterations.map((iteration) => iteration.id),
+    work: milestone.work.map((item) => item.id),
+    /** The last day of what it closes. */
+    planned: milestone.planned ?? null,
+    met: milestone.met ?? null,
+    gate: {
+      passed: milestone.gate.filter((scenario) => scenario.status === "passed").length,
+      total: milestone.gate.length,
+      unmet: milestone.gate.filter((scenario) => scenario.status !== "passed").map((scenario) => scenario.name)
+    }
   })),
+  phases: report.phases.map((phase) => ({ ...nodeRecord(phase.node), iterations: phase.iterations.map((iteration) => iteration.node.id) })),
   /** Planned activity per discipline, one number per iteration in `iterations` order. */
   disciplines: Object.fromEntries(report.disciplines.map((discipline) => [discipline.discipline, discipline.activity])),
   iterations: report.iterations.map((iteration) => iteration.id),
-  /** Per iteration, also those in no phase: the planned work, and the evidence apart from it. */
+  /** Per iteration: the planned work, and the evidence apart from it. */
   work: report.work.map((iteration) => ({
     ...nodeRecord(iteration.node),
     items: iteration.items.map((item) => item.id),
     evidence: { stages: iteration.stages, scenarios: iteration.scenarios }
   })),
-  current: report.current?.id ?? null,
-  currentPhase: report.currentPhase?.id ?? null,
+  /** The iterations no milestone closes. */
+  unclosed: report.unclosed.map((iteration) => iteration.id),
   unplanned: report.unplanned.map((node) => node.id)
 })
 
-/** `sdp lifecycle --json`: phases, iterations, milestones, planned activity and the evidence, as data. */
+/** `sdp lifecycle --json`: milestones, phases, iterations, planned activity and the evidence, as data. */
 export const lifecycle = Effect.fn("lifecycle")(function*(root: string) {
   const project = yield* loadProject(root)
   return answer(project, lifecycleData(lifecycleReport(project, yield* today)))

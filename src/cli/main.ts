@@ -188,7 +188,7 @@ const lifecycleCommand = Command.make(
     if (json) return yield* print(yield* Reading.lifecycle(root), true, () => "")
     yield* print(yield* Reading.lifecycleChart(root), false, (chart) => chart.trimEnd())
   })
-).pipe(Command.withDescription("Phases, iterations, milestone gates and discipline activity (RUP view)"))
+).pipe(Command.withDescription("Milestones and where the project is, the work planned into each iteration, discipline activity and the evidence"))
 
 const vocabularyCommand = Command.make(
   "vocabulary",
@@ -196,7 +196,7 @@ const vocabularyCommand = Command.make(
   Effect.fn(function*({ json }) {
     yield* print(yield* Reading.vocabulary(yield* workspaceRoot), json, Text.vocabulary)
   })
-).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, statuses, maturity, disciplines — as configured"))
+).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, maturity, disciplines — as configured"))
 
 // --- checking and running ---------------------------------------------------
 
@@ -214,7 +214,7 @@ const checkCommand = Command.make(
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
   })
-).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and decision records; exit 1 on errors"))
+).pipe(Command.withDescription("Validate front matter, links, Gherkin, maturity criteria and the plan; exit 1 on errors"))
 
 const stepsCommand = Command.make(
   "steps",
@@ -293,23 +293,22 @@ const runCommand = Command.make(
 const gateCommand = Command.make(
   "gate",
   {
-    milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta"), Argument.optional),
-    due: Flag.Boolean("due").pipe(
-      Flag.withDescription("Instead of one milestone: those of the current phase and of every phase before it"),
+    milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta, or a spec with @gate scenarios")),
+    record: Flag.Boolean("record").pipe(
+      Flag.withDescription("When the gate passes, write `met: <today>` into the milestone: it is closed, and the next one is where the project is"),
       Flag.withDefault(false)
     ),
     json
   },
-  Effect.fn(function*({ due, json, milestone }) {
+  Effect.fn(function*({ json, milestone, record }) {
     const root = yield* workspaceRoot
-    const input = { milestone: Option.getOrUndefined(milestone), due }
-    yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
+    yield* printRun((onScenario) => Running.gate(root, { milestone, record, onScenario }), { json, verbose: false })
   })
 ).pipe(
-  Command.withDescription("Evaluate gate scenarios against the current graph; exit 0 only when every one of them passed"),
+  Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),
   Command.withExamples([
-    { command: "sdp gate MS-beta", description: "Is this milestone met?" },
-    { command: "sdp gate --due", description: "Are the milestones met that the calendar says are due? (for CI)" }
+    { command: "sdp gate MS-beta", description: "Does this milestone's gate pass?" },
+    { command: "sdp gate MS-beta --record", description: "End what it closes: record it as met, in the same commit as whatever must keep holding" }
   ])
 )
 
@@ -357,7 +356,7 @@ const newCommand = Command.make(
     { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
     { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a requirement at maturity idea" },
     { command: "sdp new plan 'Delivery plan'", description: "Phases with an example iteration each" },
-    { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision record" }
+    { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision: a title and a sentence" }
   ])
 )
 

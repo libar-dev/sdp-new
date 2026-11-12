@@ -19,27 +19,21 @@ const VocabularyFile = Schema.Struct({
     anchored: Schema.optional(Word)
   })),
   relations: Schema.optional(Schema.Struct({
-    supersedes: Schema.optional(Words),
     plan: Schema.optional(Words),
     phase: Schema.optional(Words),
+    closes: Schema.optional(Words),
     mention: Schema.optional(Word),
     scenario: Schema.optional(Word),
     anchor: Schema.optional(Word)
   })),
   attributes: Schema.optional(Schema.Struct({
     activity: Schema.optional(Word),
-    order: Schema.optional(Word),
     start: Schema.optional(Word),
     end: Schema.optional(Word),
+    met: Schema.optional(Word),
     quality: Schema.optional(Word)
   })),
   qualities: Schema.optional(Words),
-  statuses: Schema.optional(Schema.Struct({
-    decision: Schema.optional(Words),
-    accepted: Schema.optional(Word),
-    superseded: Schema.optional(Word),
-    inactive: Schema.optional(Words)
-  })),
   maturity: Schema.optional(Words),
   disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
   links: Schema.optional(Words),
@@ -88,7 +82,7 @@ export interface Config {
   readonly types: string
   /** Id prefixes used by `sdp new` and to infer a kind, keyed by kind (a record without a prototype). */
   readonly ids: Readonly<Record<string, string>>
-  /** The words sdp interprets ([[DEC-0002]]). */
+  /** The words sdp interprets (ARCH-vocabulary). */
   readonly vocabulary: Vocabulary
 }
 
@@ -134,7 +128,6 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
     relations: { ...d.relations, ...file.relations },
     attributes: { ...d.attributes, ...file.attributes },
     qualities: file.qualities ?? d.qualities,
-    statuses: { ...d.statuses, ...file.statuses },
     maturity: file.maturity ?? d.maturity,
     disciplines: new Map([...d.disciplines, ...Object.entries(file.disciplines ?? {})]),
     links: file.links ?? d.links,
@@ -182,8 +175,7 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   const { anchor, mention, scenario, ...relationRoles } = v.relations
   const roles: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
     ...Object.entries(kindRoles).map(([role, words]) => [["kinds", role], words] as const),
-    ...Object.entries(relationRoles).map(([role, words]) => [["relations", role], words] as const),
-    [["statuses", "decision"], v.statuses.decision]
+    ...Object.entries(relationRoles).map(([role, words]) => [["relations", role], words] as const)
   ]
   for (const [path, words] of roles) if (words.length === 0) problem(path, "a role needs at least one word")
 
@@ -213,12 +205,6 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
     const others = Object.entries(own).filter(([other, its]) => other !== role && its === word).map(([other]) => `relations.${other}`)
     if (written.includes(word) || others.length > 0) {
       problem(["relations", role], `${word} is also ${others[0] ?? "a relation authors write as a link key"}; this relation needs a word of its own`)
-    }
-  }
-
-  for (const role of ["accepted", "superseded"] as const) {
-    if (!v.statuses.decision.includes(v.statuses[role])) {
-      problem(["statuses", role], `${v.statuses[role]} is not one of statuses.decision (${v.statuses.decision.join(", ")})`)
     }
   }
   return issues

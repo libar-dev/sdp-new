@@ -370,3 +370,17 @@ Scenario: Other languages are read by line, best effort: a comment line counts e
     | line | relation | targets      | binds to |
     | 2    | is       | ARCH-example | the file |
 ~~~
+
+## In this repository
+
+~~~gherkin
+Scenario: Every annotation in this repository is read, and its ids are typed
+  Then the query "code -is-> element|pattern" returns at least 1 result
+  And there are no diagnostics for rule "annotation-unreadable"
+  And there are no diagnostics for rule "types-stale"
+
+Scenario: Code links to the architecture, and a requirement reaches it through its element
+  Then the query "code !-is|instance-of-> element|pattern" returns no results
+  And the query "code ?-*-> requirement|nfr" returns no results
+  And the query "requirement[maturity=ready] !-realized-by-> element" returns no results
+~~~

@@ -9,7 +9,7 @@ tags: [execution]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-runner
-  decided-by: [DEC-0005, DEC-0001, DEC-0011]
+  decided-by: [DEC-0005, DEC-0001, DEC-0010]
 ---
 
 # Executable specifications
@@ -23,7 +23,7 @@ update.
 `verified` promises exactly this, and nothing wider: **every scenario of the spec passed against
 what sdp fingerprinted, and none of that has changed since.** It says nothing about what sdp was
 not told of — a service the steps call, the clock, a file read while running that
-`evidence.inputs` does not name ([[DEC-0011]]).
+`evidence.inputs` does not name ([[DEC-0010]]).
 
 ## Scenarios
 
@@ -863,35 +863,6 @@ Scenario: --snippets prints one module for every undefined step, each expression
 Runs may overlap — agents, shells, CI jobs — so a run records only what it executed.
 
 ~~~gherkin
-Scenario Outline: Records that no longer apply do not run
-  Given a file "docs/DEC-0001.md" containing:
-    """
-    ---
-    id: DEC-0001
-    kind: decision
-    status: <status>
-    ---
-    # Release weekly
-
-    ## Decision
-
-    We release every Monday.
-
-    ```gherkin
-    Scenario: Releases are weekly
-      Then the query "release" returns at least 52 results
-    ```
-    """
-  When the workspace is run
-  Then node "DEC-0001#releases-are-weekly" has attribute status = "<scenario>"
-
-  Examples:
-    | status     | scenario |
-    | accepted   | failed   |
-    | superseded | unrun    |
-    | rejected   | unrun    |
-    | deprecated | unrun    |
-
 Scenario: A partial run keeps the results of everything else
   Given a step definition "an empty cart" that passes
   And a step definition "I add a lamp" that passes

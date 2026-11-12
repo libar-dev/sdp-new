@@ -33,4 +33,20 @@ the skill, `.claude/skills/sdp/SKILL.md`: read it first. Here is only what is sp
 Scenario: A word this repository replaced does not come back
   When I run "grep -rnE '[Mm]aturity gates?|NFR[s]|(draft|specified|ready).? gate' README.md AGENTS.md .claude specs src examples" in the repository
   Then the exit code is 1
+
+Scenario Outline: An id with a prefix is of that prefix's kind, and the other way round
+  Then every node matching "*[id~^<prefix>-[^#]*$]" also matches "<kind>"
+  And every node matching "<kind>" also matches "*[id~^<prefix>-]"
+
+  Examples:
+    | prefix | kind        |
+    | REQ    | requirement |
+    | NFR    | nfr         |
+    | DEC    | decision    |
+    | ARCH   | element     |
+    | PAT    | pattern     |
+    | MS     | milestone   |
+    | CAP    | capability  |
+    | RISK   | risk        |
+    | PH     | phase       |
 ~~~

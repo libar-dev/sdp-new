@@ -3,7 +3,7 @@
  * field names (REQ-graph-export), and `sdp graph` prints one record per line,
  * so grep, jq or a few lines of script answer what `sdp q` answers:
  *
- *   sdp graph | grep '"rel":"supersedes"'
+ *   sdp graph | grep '"rel":"decided-by"'
  *   sdp graph | jq -r 'select(.type == "node" and .attrs.maturity == "ready") | .id'
  *
  * Every JSON answer of sdp is made of the same records.

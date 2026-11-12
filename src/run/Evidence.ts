@@ -12,15 +12,15 @@ import { annotate } from "sdp/annotations"
 import { createHash } from "node:crypto"
 import type { EvidenceView, Settled, SourceFile } from "../graph/Build.ts"
 import type { RunResults, ScenarioResult } from "../model/Results.ts"
-import { hasKind, isInactiveStatus, type Vocabulary } from "../model/Vocabulary.ts"
+import { hasKind, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 
 annotate(import.meta, { is: "ARCH-runner" })
 
-/** Records that no longer apply keep their text but stop guarding anything. */
-export const isActive = (spec: { readonly attrs: Readonly<Record<string, unknown>> }, vocabulary: Vocabulary): boolean =>
-  !isInactiveStatus(vocabulary, spec.attrs.status)
+/** A milestone recorded as met is closed: its gate does not run again. */
+export const isClosed = (spec: Pick<Spec, "kind" | "attrs">, vocabulary: Vocabulary): boolean =>
+  hasKind(vocabulary, "milestone", spec.kind) && metOn(vocabulary, spec) !== undefined
 
 /**
  * Gate scenarios run after all others: those of milestones and those tagged `@gate` — in a run that

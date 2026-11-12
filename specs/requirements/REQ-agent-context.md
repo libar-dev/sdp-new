@@ -50,8 +50,6 @@ Scenario: One call gives the node, its spec text, its relationships, and the arc
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
     # One database transaction per order
     """
@@ -393,33 +391,32 @@ Scenario: A quality requirement in reach comes with its measure: the outcome ste
   Then the output section "Quality requirements" contains "NFR-checkout-latency — Checkout latency"
   And the output section "Quality requirements" contains "measure: the confirmation shows within 300 ms at p95; no payment is lost"
 
-Scenario: Only decisions that still apply are included
+Scenario: What is planned into the same iteration is not within reach
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
     id: REQ-checkout
     maturity: idea
-    links:
-      decided-by: [DEC-1, DEC-2]
+    iteration: E1
     ---
     # Checkout
     """
-  And a file "docs/decisions.md" containing:
+  And a file "specs/plan.md" containing:
     """
     ---
-    id: DECISIONS
-    kind: log
+    id: PLAN
+    kind: plan
     nodes:
-      - { id: DEC-1, kind: decision, title: Card payments only, status: rejected }
-      - { id: DEC-2, kind: decision, title: Cards and invoices, status: accepted }
+      - { id: E1, kind: iteration }
+      - { id: ARCH-search, kind: element, iteration: E1 }
     ---
-    # Decisions
+    # Plan
     """
   When I ask for the context of "REQ-checkout"
-  Then the output section "Decisions" contains "DEC-2"
-  And the output section "Decisions" does not contain "DEC-1"
+  Then the output section "Relationships" contains "REQ-checkout -iteration-> E1"
+  And the output does not contain "ARCH-search"
 
-Scenario: Decisions in reach say what was decided
+Scenario: A decision in reach comes with its text whole
   Given a file "specs/REQ-checkout.md" containing:
     """
     ---
@@ -429,24 +426,19 @@ Scenario: Decisions in reach say what was decided
     ---
     # Checkout
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/DEC-0001.md" containing:
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
-    # Payments provider
+    # One payments provider for cards and invoices
 
-    ## Context
-
-    Card payments need a provider we can trust.
-
-    ## Decision
-
-    We use one provider for cards and invoices.
+    Not a provider for each, although each alone is cheaper: two integrations mean two sets of
+    refunds, chargebacks and reconciliation reports to keep in step, and the finance team reads one
+    statement a month. The price is the higher card fee of the one provider that does both, which
+    we accept until volume makes the difference worth a second integration.
     """
   When I ask for the context of "REQ-checkout"
-  Then the output section "Decisions" contains "We use one provider for cards and invoices."
-  And the output section "Decisions" does not contain "Card payments need a provider"
+  Then the output section "Decisions" contains "Not a provider for each, although each alone is cheaper"
+  And the output section "Decisions" contains "worth a second integration."
 ~~~

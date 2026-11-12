@@ -2,8 +2,8 @@ import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { check } from "../check/Check.ts"
 import { tally } from "../model/Graph.ts"
-import { hasKind, made } from "../model/Vocabulary.ts"
-import { isGate } from "../run/Evidence.ts"
+import { hasKind, made, metOn } from "../model/Vocabulary.ts"
+import { isClosed, isGate } from "../run/Evidence.ts"
 import type { Project } from "./Build.ts"
 import { stageLadder } from "./Query.ts"
 
@@ -21,7 +21,10 @@ export const statusSummary = (project: Project) => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const gates = new Set(project.specs.flatMap((spec) => spec.scenarios.filter((s) => isGate(s, spec, vocabulary)).map((s) => s.id)))
-  const scenarios = graph.ofKind([made.kinds.scenario])
+  // The gate of a milestone that is met is closed: it is counted with the milestones, not with the gates.
+  const closed = new Set(project.specs.filter((spec) => isClosed(spec, vocabulary)).flatMap((spec) => spec.scenarios.map((s) => s.id)))
+  const scenarios = graph.ofKind([made.kinds.scenario]).filter((n) => !closed.has(n.id))
+  const milestones = graph.ofKind(vocabulary.kinds.milestone)
   return {
     nodes: graph.nodes().length,
     edges: graph.edges().length,
@@ -30,10 +33,11 @@ export const statusSummary = (project: Project) => {
     relations: Object.fromEntries(graph.relations()),
     /** Counted the way every report counts stages: each node that has one. */
     stages: counted(graph.nodes().flatMap((n) => Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []), stageLadder(vocabulary).flat()),
-    decisions: counted(graph.ofKind(vocabulary.kinds.decision).map((n) => n.attrs.status)),
     scenarios: counted(scenarios.filter((n) => !gates.has(n.id)).map((n) => n.attrs.status), resultOrder),
     /** Gate scenarios (of milestones, or tagged @gate), which may be unmet without anything being broken. */
     gates: counted(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status), resultOrder),
+    /** Milestones by whether they are recorded as met; the first open one is where the project is. */
+    milestones: counted(milestones.map((n) => metOn(vocabulary, n) === undefined ? "open" : "met"), ["met", "open"]),
     /** Stored results that no longer count, by what changed since they ran. */
     stale: counted(scenarios.filter((n) => n.attrs.staleBecause !== undefined).map((n) => n.attrs.staleBecause)),
     /** Nodes of an architectural kind: the architecture. */

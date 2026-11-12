@@ -24,8 +24,8 @@ observation ([[REQ-cli]]): exploring is not asserting.
 
 ## Scenarios
 
-The guards run against one draft requirement realized by an element, and a decision whose status
-nobody has set yet.
+The guards run against one draft requirement realized by an element, and a decision that has a
+section.
 
 ~~~gherkin
 Background:
@@ -55,9 +55,10 @@ Background:
     """
     ---
     id: DEC-0001
-    kind: decision
     ---
     # Use an inverted index
+
+    ## Options
     """
 
 Scenario Outline: A built-in step passes when the graph agrees, and knows a kind by its id prefix before any node has it
@@ -101,8 +102,8 @@ Scenario Outline: A built-in step that fails says why: what it expected and wher
     | the query "element" returns at least 2 results              | returned 1 result(s), expected at least 2        |
     | the query "requirement\|element" returns at most 1 result   | returned 2 result(s), expected at most 1         |
     | every node matching "element" also matches "*[maturity]"    | ARCH-index (element) docs/ARCH-index.md:1        |
-    | there are no warning diagnostics                            | [decision-status] DEC-0001                       |
-    | there are no diagnostics for rule "decision-status"         | DEC-0001: decision status should be one of       |
+    | there are no warning diagnostics                            | [decision-shape] DEC-0001                        |
+    | there are no diagnostics for rule "decision-shape"          | DEC-0001 has a section ("Options")               |
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |
     | the node "REQ-lost" has maturity "ready"                    | no node REQ-lost                                 |
     | the node "REQ-search" has stage "verified"                  | a scenario that asserts on delivery state is a gate |

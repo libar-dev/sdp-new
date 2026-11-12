@@ -4,7 +4,7 @@ kind: element
 title: Spec parser
 iteration: I1
 links:
-  decided-by: [DEC-0001, DEC-0010]
+  decided-by: DEC-0001
   instance-of: { to: PAT-pipes-and-filters, role: filter }
   uses: ARCH-vocabulary
 ---
@@ -478,7 +478,8 @@ Scenario Outline: Open question, Questions, Unresolved questions and TBD introdu
 ### Gherkin
 
 The blocks of a file are joined into one document for the Cucumber parser, and everything in it is
-mapped back to its line in the Markdown file.
+mapped back to its line in the Markdown file. A scenario's id is the slug of its name: not its
+position, which every edit above it would change, and not a tag to keep unique by hand.
 
 ~~~gherkin
 Scenario: Scenarios and steps keep their lines in the Markdown file, Background steps included, and carry the spec's tags and kind

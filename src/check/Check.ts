@@ -23,14 +23,14 @@ import {
   criteria,
   hasKind,
   hasRelation,
+  isPlanKind,
   type KindRole,
   made,
-  type RelationRole,
-  type Vocabulary
+  type RelationRole
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
-import { declaredActivity } from "../lifecycle/Lifecycle.ts"
+import { declaredActivity, lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import type { OpenQuestion } from "../parse/Markdown.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
@@ -81,11 +81,8 @@ const achievableMaturity = (content: Content): string => {
 
 /** How lines of `sdp new` templates begin that ask the author to write something in their place. */
 const placeholderLines = [
-  "What forces are at play?",
-  "1. **Option A** — pros / cons",
-  "We will …",
-  "What becomes easier or harder.",
-  "What must be true to pass this milestone."
+  "Not <what a reasonable person would have chosen>, because <why>.",
+  "What could go wrong, and what it would cost."
 ]
 /** Template scenarios name their parts in angle brackets: `Given <context>`. */
 const placeholderStep = /^<[^<>]+>$/
@@ -104,8 +101,12 @@ export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text:
   return found.sort((a, b) => a.line - b.line)
 }
 
-/** The relations whose targets must be lifecycle nodes, with the kind role they must play. */
-const planRelations: ReadonlyArray<readonly [RelationRole, KindRole]> = [["plan", "iteration"], ["phase", "phase"]]
+/** The relations whose targets must be nodes of the plan, with the kind roles one of which they must play. */
+const planRelations: ReadonlyArray<readonly [RelationRole, ReadonlyArray<KindRole>]> = [
+  ["plan", ["iteration"]],
+  ["phase", ["phase"]],
+  ["closes", ["phase", "iteration"]]
+]
 
 /** Every rule check over a built project, as diagnostics with `file:line` and a hint. */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
@@ -114,7 +115,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const vocabulary = project.config.vocabulary
   const at = (spec: Spec, line = 1) => ({ file: spec.file, line })
   /** Where an attribute of `node` is written: its line in a spec's front matter, else the node's own line. */
-  const written = (node: GraphNode, key: string): SourceRef | undefined => {
+  const writtenAt = (node: GraphNode, key: string): SourceRef | undefined => {
     const spec = project.specById.get(node.id)
     return spec ? at(spec, spec.attrLines[key] ?? 1) : node.source
   }
@@ -164,45 +165,20 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
+  // A decision says what was chosen over what, and why. Anything more has a place of its own.
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
     const spec = project.specById.get(node.id)
-    const status = attribute(node, "status")
-    const statuses = vocabulary.statuses
-    if (!Predicate.isString(status) || !statuses.decision.includes(status)) {
-      out.push(diagnostic("decision-status", {
-        message: `${node.id}: decision status should be one of ${statuses.decision.join(", ")} (got ${String(status)})`,
-        node: node.id,
-        source: node.source,
-        hint: "set `status:` in the front matter"
-      }))
-    }
-    for (const edge of graph.out(node.id).filter((e) => vocabulary.relations.supersedes.includes(e.rel))) {
-      const old = graph.node(edge.to)
-      if (old && hasKind(vocabulary, "decision", old.kind) && attribute(old, "status") !== statuses.superseded) {
-        out.push(diagnostic("decision-supersede", {
-          message: `${node.id} supersedes ${old.id}, but ${old.id} has status ${String(attribute(old, "status"))}`,
-          node: old.id,
-          source: old.source,
-          hint: `set status: ${statuses.superseded} on ${old.id}`
-        }))
-      }
-    }
-    if (status === statuses.superseded && !graph.in(node.id).some((e) => vocabulary.relations.supersedes.includes(e.rel))) {
-      out.push(diagnostic("decision-supersede", {
-        message: `${node.id} is ${statuses.superseded} but no decision supersedes it`,
-        node: node.id,
-        source: node.source,
-        hint: `add \`links: { ${vocabulary.relations.supersedes[0] ?? "supersedes"}: <old id> }\` to the newer decision`
-      }))
-    }
-    if (status === statuses.accepted && spec && !spec.sections.some((s) => /decision|outcome/i.test(s.heading))) {
-      out.push(diagnostic("decision-content", {
-        message: `${node.id} is ${statuses.accepted} but has no "Decision" section`,
-        node: node.id,
-        source: node.source,
-        hint: "state the decision under a `## Decision` heading"
-      }))
-    }
+    // The title is a heading too; a section is any heading below it.
+    const section = spec?.sections.find((heading) => heading.level > 1)
+    const [scenario] = spec?.scenarios ?? []
+    if (!spec || (!section && !scenario)) continue
+    const has = [section && `a section ("${section.heading}")`, scenario && `a scenario ("${scenario.name}")`].filter(Boolean).join(" and ")
+    out.push(diagnostic("decision-shape", {
+      message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
+      node: node.id,
+      source: at(spec, Math.min(section?.line ?? Infinity, scenario?.line ?? Infinity)),
+      hint: "a rule is a scenario on what it constrains, which links here with `decided-by`; a cost is a risk; what is undecided is an open question on the spec it blocks"
+    }))
   }
 
   for (const spec of project.specs) {
@@ -217,16 +193,39 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }))
   }
 
-  // Plans: what a plan or phase relation names must be an iteration or a phase (a target that does
-  // not exist at all is a dangling link), and `activity:` must map disciplines to iterations.
+  // Met is a date, and milestones are met in the order of their dates: where the project is is
+  // the first that is not.
+  const metKey = vocabulary.attributes.met
+  const plan = lifecycle(project)
+  for (const milestone of plan.milestones) {
+    const { met, node } = milestone
+    const written = attribute(node, metKey)
+    if (written === undefined) continue
+    const [earlier] = unmetBefore(plan, milestone)
+    const problem = met === undefined
+      ? {
+        message: `${node.id}: ${metKey} is ${JSON.stringify(written)}, which is not a date, so it records nothing`,
+        hint: `write \`${metKey}: YYYY-MM-DD\`, or let \`sdp gate ${node.id} --record\` write it when the gate passes`
+      }
+      : earlier
+      ? {
+        message: `${node.id} is met, but ${earlier.node.id}, which is dated before it, is not`,
+        hint: `record ${earlier.node.id} first, or delete \`${metKey}\` from ${node.id}`
+      }
+      : undefined
+    if (problem) out.push(diagnostic("milestone-met", { ...problem, node: node.id, source: writtenAt(node, metKey) }))
+  }
+
+  // Plans: what a plan, phase or closing relation names must be an iteration or a phase (a target
+  // that does not exist at all is a dangling link), and `activity:` must map disciplines to iterations.
   for (const node of authored) {
-    const planReference = (rel: string, target: string, role: KindRole, key: string) => {
-      const known = graph.ofKind(vocabulary.kinds[role]).map((n) => n.id)
-      const what = vocabulary.kinds[role][0] ?? role
+    const planReference = (rel: string, target: string, roles: ReadonlyArray<KindRole>, key: string) => {
+      const known = roles.flatMap((role) => graph.ofKind(vocabulary.kinds[role]).map((n) => n.id))
+      const what = roles.map((role) => vocabulary.kinds[role][0] ?? role).join(" or ")
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${rel} "${target}" names no ${what}`,
         node: node.id,
-        source: written(node, key),
+        source: writtenAt(node, key),
         hint: known.length > 0
           ? `use one of the declared ${what} ids: ${known.join(", ")}`
           : `declare the ${what} in a plan (sdp new plan) or remove \`${rel}: ${target}\``
@@ -236,13 +235,13 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     for (const edge of graph.out(node.id)) {
       const target = graph.node(edge.to)
       if (!target || target.kind === made.kinds.missing) continue
-      for (const [relation, role] of planRelations) {
-        if (vocabulary.relations[relation].includes(edge.rel) && !hasKind(vocabulary, role, target.kind)) {
-          planReference(edge.rel, edge.to, role, edge.rel)
+      for (const [relation, roles] of planRelations) {
+        if (hasRelation(vocabulary, relation, edge.rel) && !roles.some((role) => hasKind(vocabulary, role, target.kind))) {
+          planReference(edge.rel, edge.to, roles, edge.rel)
         }
       }
       if (edge.rel.startsWith(`${activityKey}.`) && !hasKind(vocabulary, "iteration", target.kind)) {
-        planReference(edge.rel, edge.to, "iteration", activityKey)
+        planReference(edge.rel, edge.to, ["iteration"], activityKey)
       }
     }
     // An `iteration:` plans the work of the node's kind's discipline; a kind in no discipline has none.
@@ -250,7 +249,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
     )
     const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(node.kind))
-    if (planned && !disciplined && !isLifecycleKind(vocabulary, node.kind)) {
+    if (planned && !disciplined && !isPlanKind(vocabulary, node.kind)) {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: kind ${node.kind} belongs to no discipline, so its iteration plans no discipline's work`,
         node: node.id,
@@ -264,7 +263,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${activityKey} should map disciplines to iterations`,
         node: node.id,
-        source: written(node, activityKey),
+        source: writtenAt(node, activityKey),
         hint: `write \`${activityKey}: { implementation: C1, test: [C1, T1] }\``
       }))
       continue
@@ -274,7 +273,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${activityKey} names "${discipline}", which is not a discipline`,
         node: node.id,
-        source: written(node, activityKey),
+        source: writtenAt(node, activityKey),
         hint: `use one of: ${[...vocabulary.disciplines.keys()].join(", ")}, or add it under vocabulary.disciplines in the configuration`
       }))
     }
@@ -303,7 +302,3 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   return sortDiagnostics(out)
 }
 annotate(check, { is: "ARCH-checker" })
-
-/** The plan's own nodes — phases, iterations, milestones — are not work any discipline does. */
-const isLifecycleKind = (vocabulary: Vocabulary, kind: string) =>
-  hasKind(vocabulary, "phase", kind) || hasKind(vocabulary, "iteration", kind) || hasKind(vocabulary, "milestone", kind)

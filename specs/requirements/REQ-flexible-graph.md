@@ -9,7 +9,7 @@ tags: [graph]
 links:
   refines: CAP-living-specs
   realized-by: [ARCH-graph, ARCH-graph-builder, ARCH-code-annotations, ARCH-vocabulary]
-  decided-by: [DEC-0002, DEC-0003, DEC-0010]
+  decided-by: [DEC-0002, DEC-0003]
 ---
 
 # A free-form system graph

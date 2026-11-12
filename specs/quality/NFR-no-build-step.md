@@ -8,14 +8,13 @@ iteration: I1
 activity: { implementation: I1, test: I1 }
 links:
   refines: CAP-agent-collaboration
-  decided-by: DEC-0012
 ---
 
 # Runs from source in development
 
 In this repository the tool runs directly from its TypeScript sources on Node.js 24 or later: an
 agent that edits a source file runs the result with the next command, and there is no stale
-`dist/` to forget. What gets installed is a release, which is built ([[DEC-0012]]).
+`dist/` to forget. What gets installed is a release, which is built ([[REQ-npm-package]]).
 
 ## Scenarios
 

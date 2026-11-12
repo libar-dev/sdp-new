@@ -4,7 +4,6 @@ title: Guest checkout
 maturity: specified
 links:
   depends-on: REQ-cart-totals
-  decided-by: DEC-0002
 ---
 
 # Guest checkout
@@ -15,6 +14,7 @@ Shoppers without an account can pay. Specified, not built: its steps have no def
 ## Open questions
 
 - [ ] Do we verify the email address before payment?
+- [ ] Do orders above 50 EUR ship free? Carts are abandoned at the shipping-cost step.
 
 ```gherkin
 Scenario: Guest pays by card

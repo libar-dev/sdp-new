@@ -3,7 +3,7 @@ id: ARCH-graph-builder
 kind: element
 title: Graph builder
 links:
-  decided-by: [DEC-0003, DEC-0010]
+  decided-by: DEC-0003
   instance-of: { to: PAT-pipes-and-filters, role: filter }
   uses: [ARCH-spec-parser, ARCH-code-annotations, ARCH-graph, ARCH-vocabulary]
 ---
@@ -14,6 +14,9 @@ Builds the system graph from what the workspace read — specs, annotations and 
 results — and from nothing else. It is pure and runs on every command ([[PAT-derived-index]]). It
 never fails on content: a problem becomes a diagnostic, and the graph stays complete enough to
 query it, with unresolved references visible as nodes.
+
+Whether a key links is a property of the key, never of its value: were the value to decide, a
+reference to a renamed node would turn into text without a word.
 
 ## Scenarios
 

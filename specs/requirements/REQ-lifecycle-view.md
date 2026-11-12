@@ -9,76 +9,17 @@ tags: [lifecycle]
 links:
   refines: CAP-living-specs
   realized-by: ARCH-lifecycle
-  decided-by: [DEC-0007, DEC-0013]
+  decided-by: DEC-0007
 ---
 
 # Lifecycle view
 
-The delivery lifecycle is part of the graph, not tool configuration ([[DEC-0007]]): phases split
-into iterations and end in milestones, and any spec, decision or element is planned by naming its
-iteration. `sdp lifecycle` shows the phases with their milestone gates, the work planned into each
-iteration, how much work of each discipline every iteration is planned to carry, and — apart from
-the plan — the evidence for that work.
+The plan is part of the graph: iterations on a timeline, milestones that each end a stretch of it,
+and work that names the iterations it is done in. `sdp lifecycle` shows where the project is — the
+first milestone that is not met, which the files say and no date does — next to where the calendar
+is, the work planned into each iteration, and the evidence for it.
 
-| RUP concept | In sdp |
-| --- | --- |
-| Phase (Inception, Elaboration, Construction, Transition) | `kind: phase` nodes, ordered by `order` |
-| Iteration (I1, E1, E2, C1, …) | `kind: iteration` nodes with `phase:`, `start:` and `end:` |
-| Milestone (LCO, LCA, IOC, PR) | `kind: milestone` specs with `phase:`; their scenarios are the gate |
-| Planned work | any node with `iteration: <id>`, or with an iteration in its `activity:` |
-| Discipline (business modeling … deployment) | a set of node kinds (`vocabulary.disciplines`, see [[REQ-configuration]]) |
-| Discipline activity on a piece of work | `activity:`, iterations per discipline |
-
-**What plans work.** Only the plan relations do — `iteration`, unless `vocabulary.relations.plan`
-says otherwise — and only the phase relations (`phase`) put iterations and milestones into a phase
-([[REQ-configuration]]). They are link keys, so they plan the same whichever way they are written
-and must name declared nodes ([[DEC-0010]]). A `[[E2]]` mention in prose plans nothing, a node is
-counted once in an iteration however many relations lead there, and the plan's own phases,
-iterations and milestones are not planned work. Every node with a maturity that is planned nowhere
-is listed as unplanned.
-
-**Discipline activity is planned, per piece of work.** A node's `iteration:` plans the work of its
-own kind's discipline — a requirement is written, a decision taken, a release deployed — in that
-iteration. Work of other disciplines on it, and work that falls in other iterations, is planned
-with `activity:`, which maps disciplines to an iteration or a list of them:
-
-```yaml
-id: REQ-editor-support
-iteration: E2                       # requirements work: specified in E2
-activity:
-  analysis-design: [E2, C1]
-  implementation: C1
-  test: [C1, C2]
-```
-
-Keyed by discipline, it reads like the chart's rows. Each entry is a link named by its path —
-`-activity.implementation-> C1` — and, like every link, also an attribute:
-`sdp q 'requirement[activity.implementation=C1]'` and `sdp q 'requirement -activity.implementation-> #C1'`
-find the same nodes. A discipline that `activity:` names takes exactly the iterations listed there
-(an empty list plans none); the others keep the default. `sdp check` reports an `activity` value
-that names no iteration, a key that names no discipline, and a node whose kind belongs to no
-discipline planned with `iteration:` alone, which no row of the chart would show
-(`plan-reference`, [[REQ-check-rules]]).
-
-The chart is the familiar RUP "hump" chart, one row per discipline and one column per iteration:
-each cell counts the nodes with that discipline's work planned there, shaded `░ ▒ ▓ █` relative to
-the busiest iteration of its row. It is the plan, nothing else: running scenarios does not change
-it. [[REQ-history-lifecycle]] would set what actually happened next to it.
-
-**Evidence is shown apart.** Under its own heading, each iteration's planned work is counted by
-stage (derived from maturity and scenario results, [[REQ-executable-specs]]) and its scenarios by
-the status of their last run.
-
-**Where we are.** The iteration whose `start…end` contains today is the current one; it is marked
-`*`. The current phase, marked `◀ now`, is the phase of the latest iteration that has started, so a
-break between iterations stays in the phase just worked on. Both are the calendar, not progress: a
-milestone is met only when its gate passes. A gate of a later phase is shown as *not due* next to
-its status, since a future milestone is expected to be unmet; before the first iteration starts,
-no gate is due. A gate whose phase the calendar has left behind and that does not pass is
-*overdue* — never met by the passing of time. `sdp lifecycle` prints all of it for this
-repository's [[PLAN]].
-
-## Scenarios
+## Milestones
 
 ~~~gherkin
 Background:
@@ -88,22 +29,42 @@ Background:
     id: PLAN
     kind: plan
     nodes:
-      - { id: PH-inception, kind: phase, order: 1 }
-      - { id: PH-elaboration, kind: phase, order: 2 }
+      - { id: PH-inception, kind: phase, title: Inception }
+      - { id: PH-elaboration, kind: phase, title: Elaboration }
       - { id: I1, kind: iteration, phase: PH-inception, start: "2026-01-05", end: "2026-01-30" }
       - { id: E1, kind: iteration, phase: PH-elaboration, start: "2026-02-02", end: "2026-02-13" }
       - { id: E2, kind: iteration, phase: PH-elaboration, start: "2026-02-16", end: "2026-02-27" }
     ---
     # Plan
     """
-  And a file "LCA.md" containing:
+  And a file "MS-LCO.md" containing:
     """
     ---
-    id: LCA
-    kind: milestone
-    phase: PH-elaboration
+    id: MS-LCO
+    closes: PH-inception
+    ---
+    # Lifecycle objectives
+
+    ```gherkin
+    Scenario: There is a plan
+      Then the query "plan" returns 1 result
+
+    Scenario: The work is planned
+      Then the query "requirement !-iteration-> iteration" returns no results
+    ```
+    """
+  And a file "MS-LCA.md" containing:
+    """
+    ---
+    id: MS-LCA
+    closes: PH-elaboration
     ---
     # Lifecycle architecture
+
+    ```gherkin
+    Scenario: There is an architecture
+      Then the query "element" returns at least 1 result
+    ```
     """
   And a file "specs/REQ-a.md" containing:
     """
@@ -114,65 +75,198 @@ Background:
     ---
     # Alpha
     """
-  And a file "docs/DEC-1.md" containing:
+  And a file "docs/ARCH-x.md" containing:
     """
     ---
-    id: DEC-1
-    kind: decision
-    status: accepted
+    id: ARCH-x
     iteration: E1
     ---
-    # A decision
+    # An element
     """
 
-Scenario: Iterations and milestones hang off their phase
-  When the lifecycle is computed
-  Then phase "PH-elaboration" has iterations "E1, E2"
-  And phase "PH-elaboration" has milestone "LCA"
-
-Scenario: The current iteration is marked and later gates are not due
-  When the lifecycle is computed on "2026-01-20"
-  Then the current iteration is "I1"
-  And the output line with "PH-inception" contains "◀ now"
-  And the output line with "◆ LCA" contains "not due"
-
-Scenario: A gate falls due when its phase starts
-  When the lifecycle is computed on "2026-02-20"
-  Then the current iteration is "E2"
-  And the output line with "PH-elaboration" contains "E2*"
-  And the output line with "PH-elaboration" contains "◀ now"
-  And the output line with "◆ LCA" does not contain "not due"
-  And the output line with "◆ LCA" does not contain "overdue"
-
-Scenario: A break between iterations stays in the phase just worked on
-  When the lifecycle is computed on "2026-01-31"
-  Then the current iteration is "none"
-  And the output line with "PH-inception" contains "◀ now"
-  And the output line with "◆ LCA" contains "not due"
-
-Scenario: Before the plan starts no gate is due
-  When the lifecycle is computed on "2025-12-15"
-  Then the current iteration is "none"
-  And the output line with "◆ LCA" contains "not due"
-
-Scenario: The calendar never marks a milestone met
-  Given a file "LCO.md" containing:
+Scenario: A milestone ends the iterations since the milestone before it, on the last day of what it closes
+  Given a file "MS-demo.md" containing:
     """
     ---
-    id: LCO
-    kind: milestone
-    phase: PH-inception
+    id: MS-demo
+    closes: E1
+    ---
+    # Demo
+    """
+  When the lifecycle is computed on "2026-01-20"
+  Then the output line with "MS-LCO" contains "Inception"
+  And the output line with "MS-LCO" contains "I1*"
+  And the output line with "MS-LCO" contains "2026-01-30"
+  And the output line with "MS-demo" contains "Elaboration"
+  And the output line with "MS-demo" contains "E1"
+  And the output line with "MS-demo" contains "2026-02-13"
+  And the line after the output line with "MS-demo" contains "MS-LCA"
+  And the output line with "MS-LCA" does not contain "E1"
+  And the output line with "MS-LCA" contains "E2"
+  And the output line with "MS-LCA" contains "2026-02-27"
+
+Scenario: The project is at the first milestone that is not met, wherever the calendar is
+  Given a file "MS-LCO.md" containing:
+    """
+    ---
+    id: MS-LCO
+    closes: PH-inception
+    met: 2026-01-30
+    ---
+    # Lifecycle objectives
+    """
+  When the lifecycle is computed on "2026-01-20"
+  Then the output contains "project in Elaboration · calendar in I1"
+  And the output line with "MS-LCO" contains "✔"
+  And the output line with "MS-LCO" contains "met 2026-01-30"
+  And the output line with "MS-LCA" contains "▶"
+
+Scenario: The calendar marks today and lateness, and meets nothing
+  When the lifecycle is computed on "2026-02-20"
+  Then the current iteration is "E2"
+  And the output contains "project in Inception · calendar in E2"
+  And the output line with "MS-LCO" contains "▶"
+  And the output line with "MS-LCO" contains "late 21d"
+  And the output line with "MS-LCA" does not contain "late"
+
+Scenario Outline: A milestone met off its date says by how many days
+  Given a file "MS-LCO.md" containing:
+    """
+    ---
+    id: MS-LCO
+    closes: PH-inception
+    met: <met>
+    ---
+    # Lifecycle objectives
+    """
+  When the lifecycle is computed on "2026-02-20"
+  Then the output line with "MS-LCO" contains "met <met> (<off>)"
+
+  Examples:
+    | met        | off |
+    | 2026-02-03 | +4d |
+    | 2026-01-28 | -2d |
+
+Scenario: The next milestone shows its gate one scenario at a time, as last run
+  Given a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    maturity: idea
+    ---
+    # Beta
+    """
+  When the lifecycle is computed on "2026-01-20"
+  Then the output line with "MS-LCO" contains "0/2"
+  And the output contains "… There is a plan  (unrun)"
+  When the workspace is run
+  And the lifecycle is computed on "2026-01-20"
+  Then the output line with "MS-LCO" contains "1/2"
+  And the output contains "✔ There is a plan"
+  And the output contains "✘ The work is planned"
+
+Scenario: The gate of a milestone that is met does not run again
+  Given a file "MS-LCO.md" containing:
+    """
+    ---
+    id: MS-LCO
+    closes: PH-inception
+    met: 2026-01-30
     ---
     # Lifecycle objectives
 
     ```gherkin
-    Scenario: The vision is written
-      Then the query "vision" returns 1 result
+    Scenario: There is a plan
+      Then the query "plan" returns no results
     ```
     """
+  When the workspace is run
+  Then scenario "MS-LCO#there-is-a-plan" has no result
+
+Scenario: A milestone has no stage, so a gate that is not met yet is no failing work
+  Given a file "specs/REQ-b.md" containing:
+    """
+    ---
+    id: REQ-b
+    maturity: idea
+    ---
+    # Beta
+    """
+  When the workspace is run
+  Then scenario "MS-LCO#the-work-is-planned" has status "failed"
+  And sdp status counts the stages "idea:1 ready:1"
+
+Scenario: A timeline needs no phases, and a milestone nothing but what it closes
+  Given a file "plan.md" containing:
+    """
+    ---
+    id: PLAN
+    kind: plan
+    nodes:
+      - { id: I1, kind: iteration, start: "2026-01-05", end: "2026-01-30" }
+      - { id: E1, kind: iteration, start: "2026-02-02", end: "2026-02-13" }
+      - { id: E2, kind: iteration, start: "2026-02-16", end: "2026-02-27" }
+    ---
+    # Plan
+    """
+  And a file "MS-LCO.md" containing:
+    """
+    ---
+    id: MS-LCO
+    closes: I1
+    ---
+    # First release
+    """
+  And a file "MS-LCA.md" containing:
+    """
+    ---
+    id: MS-LCA
+    closes: E1
+    ---
+    # Second release
+    """
   When the lifecycle is computed on "2026-02-20"
-  Then the output line with "◆ LCO" contains "overdue"
-  And the output line with "◆ LCO" does not contain "✔"
+  Then the output contains "project at MS-LCO · calendar in E2"
+  And the output line with "MS-LCA" contains "2026-02-13"
+  And the output line with "no milestone" contains "E2*"
+
+Scenario: Milestones are met in the order of their dates
+  When I run "sdp gate MS-LCA --record"
+  Then the exit code is 1
+  And the output contains "MS-LCA cannot be met before MS-LCO"
+  When I run "sdp gate MS-LCO --record"
+  Then the exit code is 0
+  When I run "sdp gate MS-LCA --record"
+  Then the exit code is 0
+  When I run "sdp q milestone[met] --ids"
+  Then the output lines are "MS-LCA, MS-LCO"
+
+Scenario: A milestone written as met before one dated earlier is reported
+  Given a file "MS-LCA.md" containing:
+    """
+    ---
+    id: MS-LCA
+    closes: PH-elaboration
+    met: 2026-02-27
+    ---
+    # Lifecycle architecture
+    """
+  When the workspace is checked
+  Then the check reports "milestone-met" for "MS-LCA"
+  And the "milestone-met" diagnostic points at "MS-LCA.md:4"
+
+~~~
+
+## Planned work
+
+Activity is planned on the work itself, not as a task per discipline or one iteration per spec:
+a requirement is written in one iteration and built in another, and a gate has to tell the two
+apart. `iteration:` plans the work of the node's own kind, `activity:` that of any discipline.
+
+~~~gherkin
+Scenario: Iterations hang off their phase, in the order of the timeline
+  When the lifecycle is computed
+  Then phase "PH-elaboration" has iterations "E1, E2"
 
 Scenario: An iteration plans each node once, and mentions and the plan's own nodes are no work
   Given a file "specs/REQ-m.md" containing:
@@ -190,17 +284,15 @@ Scenario: An iteration plans each node once, and mentions and the plan's own nod
     """
     ---
     id: MS-demo
-    kind: milestone
-    phase: PH-elaboration
+    closes: E2
     iteration: E2
     ---
     # Demo
     """
   When the lifecycle is computed
-  Then iteration "E1" plans "DEC-1, REQ-a, REQ-m"
+  Then iteration "E1" plans "ARCH-x, REQ-a, REQ-m"
   And iteration "E2" plans "nothing"
   And "requirements" activity in iteration "E1" is 2
-
 Scenario: Only nodes with a maturity can be unplanned
   Given a file "specs/REQ-later.md" containing:
     """
@@ -266,7 +358,7 @@ Scenario Outline: A discipline activity names takes only the iterations listed t
   When the lifecycle is computed
   Then "requirements" activity in iteration "E1" is 1
   And "requirements" activity in iteration "E2" is <in E2>
-  And iteration "E1" plans "DEC-1, REQ-a, REQ-b"
+  And iteration "E1" plans "ARCH-x, REQ-a, REQ-b"
 
   Examples:
     | iterations | in E2 |
@@ -295,6 +387,11 @@ Scenario: The chart shades each discipline relative to its busiest iteration
   When the lifecycle is computed on "2026-01-20"
   Then the output line with "requirements" contains "    ▒▒▒ ███"
 
+~~~
+
+## Evidence
+
+~~~gherkin
 Scenario: Evidence is shown apart from the planned activity
   Given a file "specs/REQ-b.md" containing:
     """

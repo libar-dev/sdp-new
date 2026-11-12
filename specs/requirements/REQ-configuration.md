@@ -202,7 +202,7 @@ Scenario: kinds.driver says what is shown next to the architecture
   When I ask for the architecture view
   Then the output contains "ARCH-orders -threatened-by-> RISK-1"
 
-Scenario: kinds.decision gives a team's own word for decisions the decision rules
+Scenario: kinds.decision gives a team's own word for decisions the shape of one
   Given a file "sdp.config.yaml" containing:
     """
     vocabulary: { kinds: { decision: [adr], driver: [adr, nfr] } }
@@ -214,9 +214,11 @@ Scenario: kinds.decision gives a team's own word for decisions the decision rule
     kind: adr
     ---
     # Use Postgres
+
+    ## Options
     """
   When the workspace is checked
-  Then the check reports "decision-status" for "ADR-1"
+  Then the check reports "decision-shape" for "ADR-1"
 
 Scenario: disciplines adds or redefines disciplines
   Given a file "sdp.config.yaml" containing:
@@ -248,7 +250,7 @@ Scenario: relations.plan and relations.phase name the relations the plan uses
     id: PLAN
     kind: plan
     nodes:
-      - { id: build, kind: phase, order: 1 }
+      - { id: build, kind: phase }
       - { id: S1, kind: iteration, part-of: build }
       - { id: S2, kind: iteration, phase: build }
     ---
@@ -276,6 +278,28 @@ Scenario: relations.plan and relations.phase name the relations the plan uses
   Then phase "build" has iterations "S1"
   And iteration "S1" plans "REQ-search"
   And "requirements" activity in iteration "S1" is 1
+
+Scenario: attributes.met names the key a milestone is recorded as met with
+  Given a file "sdp.config.yaml" containing:
+    """
+    vocabulary: { attributes: { met: reached } }
+    """
+  And a file "docs/MS-launch.md" containing:
+    """
+    ---
+    id: MS-launch
+    ---
+    # Launch
+
+    ```gherkin
+    Scenario: There is something to launch
+      Then the query "requirement" returns at least 1 result
+    ```
+    """
+  When I run "sdp gate MS-launch --record"
+  Then the file "docs/MS-launch.md" contains "reached: 20"
+  When I run "sdp status"
+  Then the output contains "milestones    met 1"
 
 Scenario: links names keys of the workspace's own that link
   Given a file "sdp.config.yaml" containing:
@@ -335,25 +359,23 @@ Scenario: sdp new writes what a renamed profile reads
     ids: { adr: ADR, era: ERA }
     vocabulary:
       kinds: { decision: [adr], milestone: [checkpoint], phase: [era], iteration: [sprint], driver: [adr, nfr] }
-      relations: { plan: [sprint], phase: [part-of], supersedes: [replaces], anchor: implements-element }
-      attributes: { order: position, start: from, end: until }
-      statuses: { decision: [pending, approved, retired], accepted: approved, superseded: retired, inactive: [retired] }
+      relations: { plan: [sprint], phase: [part-of], closes: [ends], anchor: implements-element }
+      attributes: { start: from, end: until }
     """
   When I run "sdp new adr 'Use Postgres'"
   Then the output contains "ADR-0001\tspecs/decisions/ADR-0001-use-postgres.md"
-  And the file "specs/decisions/ADR-0001-use-postgres.md" contains "status: pending # pending | approved | retired"
-  And the file "specs/decisions/ADR-0001-use-postgres.md" contains "# replaces: ADR-…"
+  And the file "specs/decisions/ADR-0001-use-postgres.md" contains "id: ADR-0001"
+  And the file "specs/decisions/ADR-0001-use-postgres.md" does not contain "kind:"
   When I run "sdp new plan Roadmap"
   Then the output contains "PLAN-roadmap\tspecs/delivery/PLAN-roadmap.md"
   When I run "sdp new checkpoint Launch"
-  Then the file "specs/delivery/CHEC-launch.md" contains "part-of: ERA-elaboration"
+  Then the file "specs/delivery/CHEC-launch.md" contains "ends: ERA-elaboration"
   When I run "sdp q era|sprint --ids"
   Then the output lines are "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition, I1, E1, C1, T1"
-  When I run "sdp q 'sprint -part-of-> era[position=2]' --ids"
+  When I run "sdp q 'checkpoint -ends-> era' --ids"
   Then the output lines are "ERA-elaboration"
   When I run "sdp check"
-  Then the output does not contain "[decision-status]"
-  And the output does not contain "[dangling-link]"
+  Then the output does not contain "[dangling-link]"
   And the output does not contain "[plan-reference]"
   When I run "sdp lifecycle --json"
   Then the output field "data.phases" holds "ERA-inception, ERA-elaboration, ERA-construction, ERA-transition"
@@ -379,7 +401,6 @@ Scenario Outline: A profile that cannot work is rejected where it is wrong
     | vocabulary: { links: [status] }                   | status is an attribute sdp derives or checks itself | at ["vocabulary"]["links"] |
     | vocabulary: { relations: { mention: iteration } } | iteration is also a relation authors write as a link key | at ["vocabulary"]["relations"]["mention"] |
     | vocabulary: { relations: { scenario: is } }       | is is also relations.anchor          | at ["vocabulary"]["relations"]["scenario"] |
-    | vocabulary: { statuses: { accepted: approved } }  | approved is not one of statuses.decision | at ["vocabulary"]["statuses"]["accepted"] |
     | ids: { component: MY-COMP }                       | must be letters only                 | at ["ids"]["component"]       |
     | ids: { story: REQ }                               | requirement and story share the prefix REQ | at ["ids"]              |
 

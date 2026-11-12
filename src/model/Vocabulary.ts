@@ -19,9 +19,9 @@ export type Words = ReadonlyArray<string>
 export interface Vocabulary {
   /** Kinds sdp reads meaning into; each role lists the kinds that play it. */
   readonly kinds: {
-    /** Decision records: status rules, supersession, "decisions in reach". */
+    /** Decisions: a title and a sentence, shown with what rests on them. */
     readonly decision: Words
-    /** Milestones: their scenarios are gates. */
+    /** Milestones: their scenarios are gates, and `met` records that the gate passed. */
     readonly milestone: Words
     readonly phase: Words
     readonly iteration: Words
@@ -35,12 +35,12 @@ export interface Vocabulary {
     readonly anchored: string
   }
   readonly relations: {
-    /** From a newer decision to the one it replaces. */
-    readonly supersedes: Words
     /** From planned work to the iteration it is planned into. */
     readonly plan: Words
-    /** From an iteration or a milestone to its phase. */
+    /** From an iteration to its phase. */
     readonly phase: Words
+    /** From a milestone to the phase or the iteration it ends. */
+    readonly closes: Words
     /** The edge sdp makes for a `[[ID]]` in prose. It is not a link: `*` does not follow it. */
     readonly mention: string
     /** The edge sdp makes from a scenario to its spec. */
@@ -51,24 +51,16 @@ export interface Vocabulary {
   readonly attributes: {
     /** Disciplines mapped to the iterations their work on the node is planned into. */
     readonly activity: string
-    /** A phase's position in the lifecycle. */
-    readonly order: string
     /** An iteration's first and last day (ISO dates). */
     readonly start: string
     readonly end: string
+    /** The day a milestone was recorded as met (an ISO date). */
+    readonly met: string
     /** The attribute whose value (one of `qualities`) marks a quality requirement of any kind. */
     readonly quality: string
   }
   /** Values of the `quality` attribute that make a node an architectural driver. */
   readonly qualities: Words
-  readonly statuses: {
-    /** The statuses a decision may have. */
-    readonly decision: Words
-    readonly accepted: string
-    readonly superseded: string
-    /** Statuses of records that no longer apply: their scenarios do not run. */
-    readonly inactive: Words
-  }
   /** The authoring maturity ladder, lowest first. */
   readonly maturity: Words
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
@@ -95,36 +87,30 @@ export const defaultVocabulary: Vocabulary = {
     anchored: "element"
   },
   relations: {
-    supersedes: ["supersedes"],
     plan: ["iteration"],
     phase: ["phase"],
+    closes: ["closes"],
     mention: "mentions",
     scenario: "verifies",
     anchor: "is"
   },
   attributes: {
     activity: "activity",
-    order: "order",
     start: "start",
     end: "end",
+    met: "met",
     quality: "type"
   },
   qualities: ["quality", "non-functional", "nfr", "constraint"],
-  statuses: {
-    decision: ["proposed", "accepted", "rejected", "deprecated", "superseded"],
-    accepted: "accepted",
-    superseded: "superseded",
-    inactive: ["superseded", "rejected", "deprecated"]
-  },
   maturity: ["idea", "draft", "specified", "ready"],
   disciplines: new Map<string, Words>([
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
     ["requirements", ["requirement", "nfr", "feature", "story", "use-case", "epic"]],
-    ["analysis-design", ["decision", "element", "pattern"]],
+    ["analysis-design", ["element", "pattern"]],
     // No kind is implementation or test work by itself: a spec plans them with `activity:`.
     ["implementation", []],
     ["test", []],
-    ["deployment", ["release", "environment", "deployment"]]
+    ["deployment", ["environment", "deployment"]]
   ]),
   links: [],
   words: { kinds: [], relations: [], attributes: [] }
@@ -156,9 +142,9 @@ export const made = {
 } as const
 
 /**
- * Names no link may have. A link reads as an attribute of the node it starts from (DEC-0010), so
- * one named like a fact sdp derives, or like the maturity or the status it checks, would pass for
- * that fact.
+ * Names no link may have. A link reads as an attribute of the node it starts from
+ * (ARCH-graph-builder), so one named like a fact sdp derives, like the maturity it checks or like
+ * the status a listing shows would pass for that fact.
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
@@ -169,13 +155,17 @@ export const criteria = { idea: "idea", draft: "draft", specified: "specified", 
 export const wordFor = (words: Words): string => words[0]!
 
 export type KindRole = Exclude<keyof Vocabulary["kinds"], "anchored">
-export type RelationRole = "supersedes" | "plan" | "phase"
+export type RelationRole = "plan" | "phase" | "closes"
 
 /** Whether `kind` plays `role`, e.g. `hasKind(v, "decision", node.kind)`. */
 export const hasKind = (vocabulary: Vocabulary, role: KindRole, kind: string): boolean => vocabulary.kinds[role].includes(kind)
 
 /** Whether `rel` plays `role`, e.g. `hasRelation(v, "plan", edge.rel)`. */
 export const hasRelation = (vocabulary: Vocabulary, role: RelationRole, rel: string): boolean => vocabulary.relations[role].includes(rel)
+
+/** The plan's own nodes — phases, iterations, milestones: they say when, and are no work themselves. */
+export const isPlanKind = (vocabulary: Vocabulary, kind: string): boolean =>
+  hasKind(vocabulary, "phase", kind) || hasKind(vocabulary, "iteration", kind) || hasKind(vocabulary, "milestone", kind)
 
 /** A node's own attribute, never one inherited from `Object.prototype` (`constructor` is a legal name). */
 export const attribute = (node: { readonly attrs: Readonly<Record<string, unknown>> }, key: string): unknown =>
@@ -191,13 +181,15 @@ export const isDriver = (vocabulary: Vocabulary, node: { readonly kind: string; 
     (typeof quality === "string" && vocabulary.qualities.includes(quality.toLowerCase()))
 }
 
-/** Records that no longer apply keep their text but stop guarding anything. */
-export const isInactiveStatus = (vocabulary: Vocabulary, status: unknown): boolean =>
-  typeof status === "string" && vocabulary.statuses.inactive.includes(status)
-
-/** Front matter keys whose values are links: the plan and phase relations and the workspace's own link keys. */
+/** Front matter keys whose values are links: the plan, phase and closing relations and the workspace's own link keys. */
 export const linkKeys = (vocabulary: Vocabulary): Words =>
-  [...new Set([...vocabulary.relations.plan, ...vocabulary.relations.phase, ...vocabulary.links])]
+  [...new Set([...vocabulary.relations.plan, ...vocabulary.relations.phase, ...vocabulary.relations.closes, ...vocabulary.links])]
+
+/** The day a milestone was recorded as met. Anything but an ISO date written there records nothing. */
+export const metOn = (vocabulary: Vocabulary, node: { readonly attrs: Readonly<Record<string, unknown>> }): string | undefined => {
+  const value = attribute(node, vocabulary.attributes.met)
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : undefined
+}
 
 /** The relation of a planned discipline's edge: `activity.implementation`. */
 export const activityRelation = (vocabulary: Vocabulary, discipline: string): string => `${vocabulary.attributes.activity}.${discipline}`
@@ -207,13 +199,13 @@ export const isDerived = (kind: string, key: string): boolean =>
   (made.attributes as ReadonlyArray<string>).includes(key) ||
   (kind === made.kinds.scenario && (made.scenarioAttributes as ReadonlyArray<string>).includes(key))
 
-/** Every word the profile names, by what it is: for the unknown words of queries and the guard of DEC-0002. */
+/** Every word the profile names, by what it is: for the unknown words of queries and the guard of ARCH-vocabulary. */
 export const vocabularyWords = (vocabulary: Vocabulary) => ({
   kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat(), ...vocabulary.words.kinds])],
   relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary), ...vocabulary.words.relations])],
   attributes: [...new Set([...Object.values(vocabulary.attributes), ...vocabulary.words.attributes])],
-  /** Attribute values the profile names: the statuses and the qualities. Maturity levels compare only along the ladder. */
-  values: [...new Set([...Object.values(vocabulary.statuses).flat(), ...vocabulary.qualities])],
+  /** Attribute values the profile names: the qualities. Maturity levels compare only along the ladder. */
+  values: vocabulary.qualities,
   disciplines: [...vocabulary.disciplines.keys()]
 })
 

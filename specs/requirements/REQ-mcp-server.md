@@ -60,7 +60,7 @@ Scenario Outline: Every tool answers with the text its command prints; an answer
     | sdp_steps        | { "text": "returns no results" }                      | \tThen\tthe query {string} returns no results      |
     | sdp_check        | {}                                                    | error [dangling-link] REQ-a -depends-on-> REQ-gone |
     | sdp_architecture | {}                                                    | Architecture: 0 node(s)                            |
-    | sdp_lifecycle    | {}                                                    | No phases defined yet                              |
+    | sdp_lifecycle    | {}                                                    | No plan yet                                        |
     | sdp_snippets     | { "id": "REQ-a" }                                     | REQ-a has no scenarios                             |
 
 Scenario Outline: Asked for JSON, a tool answers with the envelope its command prints

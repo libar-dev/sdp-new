@@ -55,12 +55,11 @@ Scenario Outline: Each rule reports its problem with its severity, at the line t
     | maturity-value      | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: someday }                     |                                                                                       |
     | maturity-criteria       | error    | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: specified }                   | Analysts export reports.                                                              |
     | maturity-promotable | info     | specs/REQ-a.md   | 1    | { id: REQ-a, maturity: draft }                       | Analysts export reports.\n\n```gherkin\nScenario: Export\n  Then a file is saved\n``` |
-    | decision-status     | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision }                     |                                                                                       |
-    | decision-supersede  | warning  | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: superseded } |                                                                                       |
-    | decision-content    | info     | docs/DEC-0001.md | 1    | { id: DEC-0001, kind: decision, status: accepted }   | We release weekly.                                                                    |
+    | decision-shape      | warning  | docs/DEC-0001.md | 8    | { id: DEC-0001 }                                     | Not monthly, because feedback is late.\n\n## Consequences                           |
     | plan-reference      | warning  | specs/REQ-a.md   | 3    | id: REQ-a\niteration: REQ-a                          |                                                                                       |
+    | milestone-met       | warning  | docs/MS-beta.md  | 3    | id: MS-beta\nmet: soon                               |                                                                                       |
     | annotation-ignored  | warning  | src/cart.py      | 6    |                                                      | total = 0  # @sdp implements REQ-a                                                    |
-    | template-placeholder | warning | docs/DEC-0001.md | 8    | { id: DEC-0001, kind: decision, status: proposed }   | ## Decision\n\nWe will …                                                             |
+    | template-placeholder | warning | docs/DEC-0001.md | 6    | { id: DEC-0001 }                                     | Not <what a reasonable person would have chosen>, because <why>.                      |
 
 Scenario Outline: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
   Given a file "docs/PLAN.md" containing:
@@ -88,6 +87,7 @@ Scenario Outline: A plan names declared iterations, phases and disciplines, and 
     | front matter                                    | message                                                  |
     | iteration: elaboration                          | iteration "elaboration" names no iteration               |
     | phase: E1                                       | phase "E1" names no phase                                |
+    | closes: PLAN                                    | closes "PLAN" names no phase or iteration                |
     | activity: { implementation: PLAN }              | activity.implementation "PLAN" names no iteration        |
     | activity: { implementation: [E1, elaboration] } | activity.implementation "elaboration" names no iteration |
     | activity: { testing: E1 }                       | activity names "testing", which is not a discipline      |
@@ -150,7 +150,7 @@ Scenario Outline: Words that only mention template text or annotations are not f
 
   Examples:
     | file           | rule                 | text                                                                |
-    | specs/REQ-a.md | template-placeholder | ---\nid: REQ-a\n---\n# A\n\nDecision records start with "We will …" |
+    | specs/REQ-a.md | template-placeholder | ---\nid: REQ-a\n---\n# A\n\nA decision starts as "Not <what a reasonable person would have chosen>, because <why>." |
     | src/cart.ts    | annotation-ignored   | // after code, as in total() // @sdp implements REQ-a is not read     |
     | src/cart.ts    | annotation-ignored   | // @sdp implements REQ-a\nexport const total = 0                     |
 

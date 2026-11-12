@@ -160,9 +160,14 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   /** What the scenarios of each spec say; a node without a spec of its own has none. */
   const verifications = new Map<string, Verification>()
-  /** A node's attributes with its stage, which its maturity and its scenarios decide. */
-  const staged = (id: string, attrs: Attrs) =>
-    compact({ ...attrs, stage: stageOf(attrs.maturity, verifications.get(id) ?? "none", vocabulary.maturity) })
+  /**
+   * A node's attributes with its stage, which its maturity and its scenarios decide. A milestone
+   * has none: its scenarios are a gate, and a gate that is not met yet is no failing work.
+   */
+  const staged = (id: string, kind: string, attrs: Attrs) =>
+    hasKind(vocabulary, "milestone", kind)
+      ? attrs
+      : compact({ ...attrs, stage: stageOf(attrs.maturity, verifications.get(id) ?? "none", vocabulary.maturity) })
 
   const evidence = input.evidence?.(specs)
   const unrun: Settled = { status: undefined, stale: undefined, lastRun: undefined }
@@ -203,14 +208,14 @@ export const buildProject = (input: ProjectInput): Project => {
       id: spec.id,
       kind: spec.kind,
       title: spec.title,
-      attrs: staged(spec.id, {
+      attrs: staged(spec.id, spec.kind, compact({
         ...attrs,
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,
         verification,
         openQuestions: openQuestions > 0 ? openQuestions : undefined
-      }),
+      })),
       source: { file: spec.file, line: 1 }
     })
     for (const inline of spec.inlineNodes) {
@@ -223,7 +228,7 @@ export const buildProject = (input: ProjectInput): Project => {
         id: inline.id,
         kind: inline.kind,
         title: inline.title,
-        attrs: staged(inline.id, { ...attrs, declaredIn: spec.id }),
+        attrs: staged(inline.id, inline.kind, { ...attrs, declaredIn: spec.id }),
         source: at()
       })
     }
@@ -255,12 +260,12 @@ export const buildProject = (input: ProjectInput): Project => {
       nodes.set(
         target,
         existing
-          ? { ...existing, attrs: staged(target, { ...existing.attrs, ...added }) }
+          ? { ...existing, attrs: staged(target, kind, { ...existing.attrs, ...added }) }
           : {
             id: target,
             kind,
             title: Predicate.isString(title) ? title : target,
-            attrs: staged(target, { ...attrs, declaredIn: made.declaredInCode }),
+            attrs: staged(target, kind, { ...attrs, declaredIn: made.declaredInCode }),
             source: at()
           }
       )
@@ -342,6 +347,8 @@ export const buildProject = (input: ProjectInput): Project => {
       ? { what: "phase", ids: phases }
       : hasRelation(vocabulary, "plan", edge.rel) || edge.rel.startsWith(activityPrefix)
       ? { what: "iteration", ids: iterations }
+      : hasRelation(vocabulary, "closes", edge.rel)
+      ? { what: "phase or iteration", ids: [...phases, ...iterations] }
       : undefined
     return known && known.ids.length > 0
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`

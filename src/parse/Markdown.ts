@@ -211,6 +211,20 @@ const blanked = (body: string, spans: ReadonlyArray<Span>): string => {
   return out + body.slice(at)
 }
 
+/**
+ * A Markdown file with one key of its front matter set to a value, everything else as it is
+ * written; `undefined` when the file has no front matter that reads as a mapping.
+ */
+export const withFrontMatter = (content: string, key: string, value: string): string | undefined => {
+  const lines = content.split("\n")
+  const end = lines.findIndex((line, idx) => idx > 0 && (line.trim() === "---" || line.trim() === "..."))
+  if (lines[0]?.trim() !== "---" || end < 0) return undefined
+  const doc = parseDocument(lines.slice(1, end).join("\n"))
+  if (doc.errors.length > 0 || !isMap(doc.contents)) return undefined
+  doc.set(key, value)
+  return [lines[0], doc.toString({ lineWidth: 0 }).trimEnd(), ...lines.slice(end)].join("\n")
+}
+
 const readFrontMatter = (lines: ReadonlyArray<string>): {
   readonly data: FrontMatter | undefined
   readonly error: FrontMatterError | undefined
