@@ -16,19 +16,9 @@ links:
 
 The full state of the system — specs, scenarios, decisions, architecture, plan, code links — is
 one graph. Node kinds, relation names and attributes are whatever the authors write
-([[DEC-0002]]), so teams model what matters to them and agents can follow any edge; any word is
-just a word, `constructor` included. The few words sdp itself interprets are named in its
-vocabulary profile, and a workspace can rename them ([[ARCH-vocabulary]]). The graph is derived
-from the files on every command ([[DEC-0003]]), and every node and edge records the `file:line` it
-came from.
-
-Authors link nodes where they write: in front matter (`links:`, or a key the vocabulary names as a
-link, such as `iteration:`), in prose (`rel:: [[ID]]`), and in code (`annotate(…)` or
-`@sdp <relation> <ID>`, [[ARCH-code-annotations]]). Whether a front matter key links depends on the
-key, never on its value ([[DEC-0010]]), and a link is also an attribute of the node it starts
-from: the key holds the link's targets, and no link shares a name with an attribute. A plain
-`[[ID]]` in prose is a mention: it is recorded, but it is not a link. How each of
-these becomes nodes and edges is the contract of [[ARCH-graph-builder]].
+([[DEC-0002]]), so teams model what matters to them and agents can follow any edge. Authors link
+nodes where they write — in front matter, in prose, in code — and every node and edge records the
+`file:line` it came from.
 
 ## Scenarios
 
@@ -67,7 +57,7 @@ Scenario: Kinds and relations are named by their author
   And there is an edge "ARCH-orders" -publishes-to-> "ARCH-event-bus"
   And there is an edge "ARCH-orders" -guarded-by-> "DEC-0001"
 
-Scenario: Prose links, plain and typed
+Scenario: A [[ID]] in prose is a mention, recorded but no link; rel:: [[ID]] links
   Given a file "specs/REQ-refunds.md" containing:
     """
     ---
@@ -101,7 +91,7 @@ Scenario: Prose links, plain and typed
   Then there is an edge "REQ-refunds" -mentions-> "DEC-0001"
   And there is an edge "REQ-refunds" -realized-by-> "ARCH-orders"
 
-Scenario Outline: A link reads the same whichever way it is written
+Scenario Outline: A link reads the same whichever way it is written, as an edge and as an attribute of the node it starts from
   Given a file "docs/plan.md" containing:
     """
     ---
@@ -151,7 +141,7 @@ Scenario: A link key holds its targets, not the text they were written as
   When I query "*[iteration=I2]"
   Then the result is "REQ-a"
 
-Scenario: Any word is just a word
+Scenario: Any word is just a word: constructor is a kind, a relation and an attribute like any other
   Given a file "sdp.config.yaml" containing:
     """
     vocabulary: { maturity: [constructor, toString] }

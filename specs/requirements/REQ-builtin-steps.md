@@ -13,61 +13,19 @@ links:
 
 # Built-in steps over the graph
 
-Every run includes step definitions that assert against the project graph instead of the product.
-With them, rules about the specifications themselves — architecture fitness functions, decision
-guards, milestone gates, a team's own definition of done — are ordinary scenarios in the same format
-as everything else, and need no code.
-
-| Step | Passes when |
-| --- | --- |
-| `the query "<q>" returns no results` | the query matches nothing |
-| `the query "<q>" returns <n> result(s)` | it matches exactly `n` nodes |
-| `the query "<q>" returns at least <n> result(s)` | it matches `n` nodes or more |
-| `the query "<q>" returns at most <n> result(s)` | it matches `n` nodes or fewer |
-| `the query "<q>" returns:` with a one-column table of ids | it matches exactly those nodes, in any order; a header cell `id` is optional |
-| `every node matching "<a>" also matches "<b>"` | every result of `a` is a result of `b` |
-| `there are no <severity> diagnostics` | `sdp check` reports nothing of that severity: `error(s)`, `warning(s)` or `info` |
-| `there are no diagnostics for rule "<rule>"` | `sdp check` reports nothing for that rule ([[REQ-check-rules]]) |
-| `the node "<id>" has <key> "<value>"` | the node's attribute — or its `kind` or `title` — has that value |
-
-Queries are SDPQ path patterns ([[REQ-graph-query]]). A failing step says what it expected and
-lists up to ten offending nodes with their `file:line`; a malformed query fails the step with the
-parser's message.
+Every run includes step definitions that assert against the project graph instead of the product
+(`sdp steps` lists them). With them, rules about the specifications themselves — architecture
+fitness functions, milestone gates, a team's own definition of done — are ordinary scenarios in
+the same format as everything else, and need no code.
 
 An assertion must not pass for the wrong reason, and "there is none" is the easiest thing to prove
-by accident. So a step fails, whatever it asserts, when its query
-
-- names a word the workspace does not know — an id no node has, a kind or a relation that nothing
-  in the graph uses and the vocabulary does not name, an attribute that no node its selector could
-  match carries. The message names the closest known word, because the cause is almost always a
-  typo. A rule about something the workspace does not have yet declares its word under
-  `vocabulary.words` ([[REQ-configuration]]); then "there is none" is a statement, not an accident;
-- was cut short by a limit ([[ARCH-query-engine]]): what lies beyond it could prove the assertion
-  wrong. The message names the limit;
-- was asked of a graph that could not be fully read. Specs that do not parse stop the run before
-  any step ([[REQ-cli]]); a code annotation sdp cannot read statically does not, so the step says
-  which one, for the link it would have added is exactly what the assertion may be about.
-
-`sdp q` and the MCP tool run the same query without complaint and print the same observations as
-notes ([[REQ-cli]]): exploring is not asserting. Known everywhere are `id`, `kind`, `title`,
-`source`, `maturity` and `status`, the attributes sdp derives, the words of the vocabulary profile
-and the kinds with an id prefix. An unknown severity or rule fails its step the same way.
-
-The steps assert against the graph their scenario sees ([[REQ-executable-specs]], *Layers*): an
-ordinary scenario sees no results, a gate what the results of the ordinary scenarios say. A step
-that reads a result-derived attribute — `stage`, `verification`, `staleBecause`, or `status`
-wherever its selector can match a scenario, `*` included — in an ordinary scenario therefore
-fails, saying that the scenario is a gate. When a result was recorded (`lastRun`) is shown to no
-scenario, so a step that reads it fails in a gate too.
-Like any step, they match by text, whatever the keyword.
-
-This repository uses them for its decision guards ([[DEC-0001]], [[DEC-0002]], [[DEC-0007]]) and its
-milestone gates (for example [[MS-LCA]]).
+by accident. So a step fails when its query cannot be trusted, where `sdp q` only notes the same
+observation ([[REQ-cli]]): exploring is not asserting.
 
 ## Scenarios
 
-The guard scenarios below run against a small workspace: one draft requirement realized by an
-element, and a decision whose status nobody has set yet.
+The guards run against one draft requirement realized by an element, and a decision whose status
+nobody has set yet.
 
 ~~~gherkin
 Background:
@@ -102,7 +60,7 @@ Background:
     # Use an inverted index
     """
 
-Scenario Outline: A built-in step passes when the graph agrees
+Scenario Outline: A built-in step passes when the graph agrees, and knows a kind by its id prefix before any node has it
   Given a file "specs/guard.feature" containing:
     """
     Feature: Guard
@@ -123,8 +81,9 @@ Scenario Outline: A built-in step passes when the graph agrees
     | there are no diagnostics for rule "dangling-link"                          |
     | the node "REQ-search" has maturity "draft"                                 |
     | the node "ARCH-index" has kind "element"                                   |
+    | the query "risk[status=open]" returns no results                           |
 
-Scenario Outline: A built-in step that fails says why
+Scenario Outline: A built-in step that fails says why: what it expected and where, that the scenario must be a gate, or which word the workspace does not know
   Given a file "specs/guard.feature" containing:
     """
     Feature: Guard
@@ -221,7 +180,7 @@ Scenario Outline: A query cut short by a limit proves nothing, so the step fails
     | the query "member -knows-> member -knows-> member" returns at most 25 results      | a step has more than 10000 paths      |
     | every node matching "member -knows-> member -knows-> member" also matches "member" | a step has more than 10000 paths      |
 
-Scenario: A query result is compared with a table of ids
+Scenario: A query result is compared with a table of ids, in any order, with or without a header
   Given a file "specs/guard.feature" containing:
     """
     Feature: Guard

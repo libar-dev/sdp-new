@@ -19,8 +19,6 @@ agent that edits a source file runs the result with the next command, and there 
 
 ## Scenarios
 
-A quality attribute scenario: *Given* is the environment, *When* the stimulus, *Then* the response.
-
 ~~~gherkin
 Scenario: With nothing built, the package's entry points are its TypeScript sources
   Given this repository has no build output

@@ -17,18 +17,13 @@ links:
 Quality requirements — performance, availability, modifiability, usability — use the same format
 as every other spec, written as *quality attribute scenarios*: the *Given* carries the source of
 the stimulus, the environment and the artifact; the *When* the stimulus; the *Then* the response
-and its measure. A quality requirement is marked `kind: nfr`, or `type: quality`,
-`non-functional`, `nfr` or `constraint` on any kind.
-
-Quality requirements are architectural drivers: the architecture view shows them next to the
-elements they constrain ([[REQ-curated-architecture]]). Once their steps are automated,
-the scenarios are fitness functions that run with every `sdp run` — this repository's own
-[[NFR-query-performance]] measures query and build latency that way.
+and its measure. They are architectural drivers, and once their steps are automated they are
+fitness functions that run with every `sdp run`.
 
 ## Scenarios
 
 ~~~gherkin
-Scenario Outline: Quality requirements appear next to the elements they constrain
+Scenario Outline: A quality requirement is a node of kind nfr, or of any kind whose type says so, and is shown next to the elements it constrains
   Given a file "docs/model.md" containing:
     """
     ---
@@ -48,6 +43,8 @@ Scenario Outline: Quality requirements appear next to the elements they constrai
     | kind: nfr                           |
     | kind: requirement, type: quality    |
     | kind: requirement, type: constraint |
+    | kind: requirement, type: non-functional |
+    | kind: story, type: nfr              |
 
 Scenario: An automated quality attribute scenario verifies its requirement
   Given a file "specs/NFR-checkout-latency.md" containing:

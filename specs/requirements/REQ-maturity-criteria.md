@@ -14,79 +14,20 @@ links:
 
 # Honest maturity
 
-Authors declare how mature a spec is; `sdp check` verifies that the content supports the claim
+Authors declare how mature a spec is, and `sdp check` holds the claim to the content
 ([[DEC-0005]]). Whether a spec is implemented is not declared at all: it is derived from scenario
-results ([[REQ-executable-specs]]), and writing a derived fact such as `stage` is an error
-(`derived-attribute`, [[ARCH-graph-builder]]).
+results ([[REQ-executable-specs]]).
 
-| Level | The content must have |
-| --- | --- |
-| idea | a title |
-| draft | a description of the problem or intent: a paragraph, not just code, comments or headings |
-| specified | at least one scenario that states an outcome (`Then`) |
-| ready | no unresolved open questions; every scenario has an outcome |
-
-Open questions are written as [[REQ-progressive-specs]] describes.
-
-A node claiming more than its content supports is an error (`maturity-criteria`), with a hint naming
-the level it does reach. The criteria apply wherever a maturity is declared: a node declared inline
-or in code has only a title, so it can claim no more than the first level. A maturity that is not
-on the ladder is an error (`maturity-value`). Content ahead of its label is not wrong, only worth
-knowing: when the content reaches `specified` or `ready` above the label, `sdp check` adds an
-informational `maturity-promotable`. Teams can rename or extend the ladder (`vocabulary.maturity`
-in [[REQ-configuration]]); levels of their own have no built-in criteria but take part in ordering, so
-`maturity<ready` keeps working in queries.
-
-## Stage
-
-`maturity` is declared and checked; `verification` is derived from scenario results. `stage` sums
-the two up in one word, and only on nodes that declare a maturity or have scenarios: `verified`
-when every scenario passes, `failing` when any fails — a regression is not work in progress —
-`in-progress` while automation is partial, and otherwise the declared maturity. In comparisons
-`failing` ranks with `in-progress`, above every maturity level and below `verified`
-([[REQ-graph-query]]). Every report counts stages the same way: each node that has one.
-
-## Structural, not a judgement
-
-The criteria check the *shape* of a spec, never its quality. `ready` means **structurally ready**:
+The criteria check the *shape* of a spec, never its quality. `ready` means structurally ready:
 nothing is left open and every scenario is complete. It does not mean the design behind the spec
-is decided, its quality requirements are measurable, or anyone has reviewed it — sdp cannot know
-that, and a placeholder paragraph with a token scenario passes ([[RISK-0004]]).
-
-What else "ready" has to mean is the team's **Definition of Ready**, and the team writes it down as
-executable policy: a spec with a `@gate` scenario — or a milestone — whose built-in steps
-([[REQ-builtin-steps]]) query the graph. sdp ships no such rules; each team picks its own, for
-example:
-
-````markdown
----
-id: POL-definition-of-ready
-kind: policy
-title: Definition of Ready
----
-
-# Definition of Ready
-
-A requirement is ready when the decisions it rests on are accepted, the quality requirements that
-constrain it state a measure, and a reviewer signed it off.
-
-```gherkin
-@gate
-Scenario: Ready requirements rest on accepted decisions, measures and a review
-  Then the query "requirement[maturity=ready] ?-decided-by-> decision[status!=accepted]" returns no results
-  And the query "requirement[maturity=ready] ?-constrained-by-> nfr[!measure]" returns no results
-  And the query "requirement[maturity=ready, !reviewed-by]" returns no results
-```
-````
-
-Here `measure` and `reviewed-by` are attributes the team chose to record; they mean nothing to sdp.
-Gates run last in `sdp run` and never fail it; `sdp gate <id>` enforces one, for instance in the
-pipeline that merges a pull request ([[REQ-cli]]).
+is decided or anyone has reviewed it — sdp cannot know that, and a placeholder paragraph with a
+token scenario passes ([[RISK-0004]]). What else "ready" has to mean is the team's Definition of
+Ready, which the team writes as a gate of its own.
 
 ## Scenarios
 
 ~~~gherkin
-Scenario Outline: A claim is checked against the content
+Scenario Outline: Each level asks for more of the content, and a claim the content does not support is an error
   Given a file "specs/REQ-csv.md" containing:
     """
     ---
@@ -95,38 +36,33 @@ Scenario Outline: A claim is checked against the content
     ---
     # Export to CSV
 
-    <description>
+    <content>
     """
   When the workspace is checked
   Then the check <verdict>
 
-  Examples:
-    | claimed   | description                  | verdict                                 |
-    | idea      |                              | does not report "maturity-criteria"         |
-    | draft     |                              | reports "maturity-criteria" for "REQ-csv"   |
-    | draft     | Analysts want data in Excel. | does not report "maturity-criteria"         |
-    | specified | Analysts want data in Excel. | reports "maturity-criteria" for "REQ-csv"   |
+  Examples: idea asks for a title
+    | claimed   | content                      | verdict                                   |
+    | idea      |                              | does not report "maturity-criteria"       |
 
-Scenario: Specified means a scenario states an outcome
-  Given a file "specs/REQ-csv.md" containing:
-    """
-    ---
-    id: REQ-csv
-    maturity: specified
-    ---
-    # Export to CSV
+  Examples: draft, for a description of the problem or intent
+    | claimed   | content                      | verdict                                   |
+    | draft     |                              | reports "maturity-criteria" for "REQ-csv" |
+    | draft     | Analysts want data in Excel. | does not report "maturity-criteria"       |
 
-    Analysts want data in Excel.
+  Examples: specified, for a scenario that states an outcome
+    | claimed   | content                                                                                                               | verdict                                   |
+    | specified | Analysts want data in Excel.                                                                                          | reports "maturity-criteria" for "REQ-csv" |
+    | specified | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  When I export the report\n```                         | reports "maturity-criteria" for "REQ-csv" |
+    | specified | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  When I export the report\n  Then I get a file\n```    | does not report "maturity-criteria"       |
 
-    ```gherkin
-    Scenario: Export current rows
-      When I export the report
-    ```
-    """
-  When the workspace is checked
-  Then the check reports "maturity-criteria" for "REQ-csv"
+  Examples: ready, for no open question left and an outcome in every scenario
+    | claimed   | content                                                                                                                                                         | verdict                                   |
+    | ready     | Analysts want data in Excel.\n\n## Open questions\n- [ ] Archived rows too?\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                            | reports "maturity-criteria" for "REQ-csv" |
+    | ready     | Analysts want data in Excel.\n\n```gherkin\nScenario: Export\n  Then I get a file\n\nScenario: Import\n  When I import a file\n```                            | reports "maturity-criteria" for "REQ-csv" |
+    | ready     | Analysts want data in Excel.\n\n## Open questions\n- [x] Which delimiter? Comma.\n\n```gherkin\nScenario: Export\n  Then I get a file\n```                       | does not report "maturity-criteria"       |
 
-Scenario Outline: A node without a spec of its own can claim no more than the first level
+Scenario Outline: A node declared inline or in code has only a title, so it can claim no more than the first level
   Given a file "<file>" containing:
     """
     <content>
@@ -139,32 +75,7 @@ Scenario Outline: A node without a spec of its own can claim no more than the fi
     | docs/backlog.md | ---\nid: BACKLOG\nnodes:\n  - { id: REQ-export, kind: requirement, maturity: ready }\n---\n# Backlog | REQ-export |
     | src/pay.py      | # @sdp is REQ-pay kind=requirement maturity=ready\ndef pay(): pass                            | REQ-pay    |
 
-Scenario: Ready means no open questions
-  Given a file "specs/REQ-csv.md" containing:
-    """
-    ---
-    id: REQ-csv
-    maturity: ready
-    ---
-    # Export to CSV
-
-    Analysts want data in Excel.
-
-    ## Open questions
-
-    - [x] Which delimiter? Comma.
-    - [ ] Do we include archived rows?
-
-    ```gherkin
-    Scenario: Export current rows
-      When I export the report
-      Then I get a CSV file with one line per row
-    ```
-    """
-  When the workspace is checked
-  Then the check reports "maturity-criteria" for "REQ-csv"
-
-Scenario: Content ahead of its label can be promoted
+Scenario: Content ahead of its label is not wrong, only worth knowing: an info says it can be promoted
   Given a file "specs/REQ-csv.md" containing:
     """
     ---
@@ -245,7 +156,7 @@ Scenario Outline: A team's Definition of Ready is a gate of its own
     | accepted |                       | 1         |
     | accepted | reviewed-by: analysts | 0         |
 
-Scenario: Levels a team adds have no built-in criteria
+Scenario: A level a team adds has no built-in criteria, and takes its place in the order
   Given a file "sdp.config.yaml" containing:
     """
     vocabulary: { maturity: [idea, draft, approved, specified, ready] }
@@ -261,8 +172,10 @@ Scenario: Levels a team adds have no built-in criteria
   When the workspace is checked
   Then the check does not report "maturity-criteria"
   And the check does not report "maturity-value"
+  When I query "requirement[maturity>draft, maturity<specified]"
+  Then the result is "REQ-csv"
 
-Scenario Outline: Stage is the declared maturity until scenarios say more
+Scenario Outline: Stage is the declared maturity until scenarios say more, and only a node with a maturity or scenarios has one
   Given a file "specs/REQ-csv.md" containing:
     """
     ---

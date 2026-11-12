@@ -16,48 +16,13 @@ links:
 
 Agents and scripts take data structures apart faster than they learn a query language. So sdp
 hands its graph — a derived index of the files ([[DEC-0003]]) — over as plain data for ordinary
-tools: `sdp graph` prints one record per line, every node and then every edge, and grep, jq or a
-few lines of script answer from it what `sdp q` answers ([[NFR-greppable]]). SDPQ
-([[REQ-graph-query]]) stays as a convenience; it is never the only door.
+tools: `sdp graph` prints one record per line, and grep, jq or a few lines of script answer from
+it what `sdp q` answers ([[NFR-greppable]]). SDPQ ([[REQ-graph-query]]) stays as a convenience; it
+is never the only door.
 
-```sh
-sdp graph | grep '"rel":"realized-by"'
-sdp graph | jq -r 'select(.type == "node" and .attrs.maturity == "ready") | .id'
-sdp graph -q 'requirement -realized-by-> element'     # only what a query matches
-```
-
-## The record
-
-Every line is one JSON object that says what it is. The field names are a public contract: they
-do not change with the workspace, and every field is always there.
-
-| Field | On | Holds |
-| --- | --- | --- |
-| `type` | both | `"node"` or `"edge"` |
-| `id`, `kind`, `title` | node | what the node is; the id is unique in the graph |
-| `file`, `line` | node | where it is declared, as a path from the workspace root and a line number; both `null` for a node nothing declares — the `missing` target of a dangling link |
-| `attrs` | node | every attribute: those its author wrote and those sdp derives (`stage`, `verification`, a scenario's `status`) |
-| `from`, `rel`, `to` | edge | the ids it joins and its relation; an edge is one fact, once, however many places state it |
-| `attrs` | edge | the union of the attributes its declarations give it; `{}` when they give none |
-| `declared` | edge | every declaration that states it, in the order they were read, each as `{ "file", "line" }` |
-
-Every JSON answer of sdp is made of these same records — the nodes of `sdp q --json`, the node
-and edges of `sdp show --json`, the architecture of `sdp arch --json` ([[REQ-cli]]) — and so is
-what the programmatic API returns, so a script written against one reads them all.
-
-A record never spans two lines: JSON escapes the tabs and line breaks of a title. Nodes come in
-the order they are declared, edges after them.
-
-## A part of the graph, and a picture of it
-
-`-q <pattern>` exports the nodes along the paths a query matches, with the edges among them.
-`--mermaid` prints a Mermaid flowchart of the same graph instead of records; decisions, patterns,
-milestones, scenarios and code each have a shape of their own. Other formats are a few lines over
-the records, as the Graphviz scenario below shows.
-
-`sdp graph` writes nothing to disk. A dump in a file cannot say that it is stale, or that the
-workspace it was made from could not be fully read; the command says both, on stderr and with exit
-code 2 ([[REQ-cli]]), and its lines stay clean for the pipe.
+The field names are a public contract: they do not change with the workspace, and every JSON
+answer of sdp and of its programmatic API is made of the same records, so a script written
+against one reads them all.
 
 ## Scenarios
 
@@ -110,7 +75,7 @@ Background:
 
 Rule: The record
 
-  Scenario Outline: A record has these fields, in this order
+  Scenario Outline: A record says what it is and always has every field, in this order; an edge is one record however many places state it
     When the graph is exported
     Then the output contains '<record>'
 
@@ -131,7 +96,12 @@ Rule: The record
     And the output field "data.nodes" holds "REQ-b"
     And the output contains '"file": "specs/REQ-b.md"'
 
-  Scenario: sdp graph prints the records
+  Scenario: sdp graph prints every node and then every edge
+    When I run the pipeline:
+      """
+      sdp graph | jq -r .type | uniq
+      """
+    Then the output lines are "node, edge"
     When I run "sdp graph"
     Then the exit code is 0
     And the output contains '{"type":"node","id":"DEC-0001","kind":"decision","title":"Use X","file":"docs/DEC-0001.md","line":1,'

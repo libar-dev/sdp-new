@@ -13,87 +13,12 @@ links:
 
 # Workspace configuration
 
-A workspace is the directory sdp reads. Its root may hold `sdp.config.yaml` (or `sdp.config.yml`,
-or `sdp.config.json`; the first one found wins). Every key is optional and an empty or missing file
-means the defaults, so sdp works in any repository before anyone configures it. A malformed file
-— or a key sdp does not know, such as a misspelled `spec:` — is an error that names the file and
-the offending key.
-
-| Key | Default | Effect |
-| --- | --- | --- |
-| `specs` | `**/*.md` | Markdown files read as specs (those whose front matter has an `id`) |
-| `features` | `**/*.feature` | Gherkin feature files that join the graph |
-| `code` | sources under `src/`, `lib/`, `app/` and `packages/` | files scanned for `@sdp` annotations |
-| `steps` | `**/*.steps.{ts,mts,js,mjs}` | step definition modules: `sdp run` imports them, every other command only reads them |
-| `exclude` | `**/node_modules/**`, `.sdp/**`, `**/dist/**`, `**/build/**`, `.git/**` | paths never read; the configured list adds to these |
-| `evidence.inputs` | none | files the steps read while they run — fixtures, data — as globs: a result goes stale when one changes ([[REQ-executable-specs]]) |
-| `evidence.env` | none | names of environment variables the steps read: a result goes stale when one changes; only a digest of the values is stored |
-| `results` | `.sdp/results.json` | where `sdp run` records scenario results |
-| `types` | `.sdp/ids.d.ts` | where `sdp types` writes the id declarations that type `annotate` ([[ARCH-code-annotations]]) |
-| `ids` | see below | the id prefix of each kind |
-| `vocabulary` | see below | the words sdp interprets ([[DEC-0002]]) |
-
-Lists replace their default, except `exclude`, which extends it; `ids` merges key by key.
-
-**Vocabulary.** The few words sdp reads meaning into are roles of one profile, each with a default
-word ([[ARCH-vocabulary]]). `sdp vocabulary` prints the active profile role by role, and
-`sdp vocabulary --json` holds it as `data.vocabulary` in the shape this section takes, so it can
-be copied into the configuration and changed there. A role the section names replaces its default;
-`disciplines` merge one by one. Under `made`, the same command lists the words that are not
-configurable because sdp makes them itself: the kinds `scenario`, `code` and `missing`, the
-attributes it derives, the stages beyond the ladder, and the names no link can have ([[DEC-0010]]).
-
-| Section | What sdp reads its words for |
-| --- | --- |
-| `kinds` | decision records, milestones (their scenarios are gates), phases, iterations, patterns, the kinds that are the architecture, the architectural drivers, and the kind a node anchored in code gets when it names none |
-| `relations` | superseding a decision, planning work into an iteration, putting an iteration or milestone into its phase, the prose mention, a scenario's link to its spec, and the code anchor |
-| `attributes` | `activity`, a phase's `order`, an iteration's `start` and `end`, and the attribute whose value in `qualities` marks a quality requirement |
-| `statuses` | the statuses a decision may have, which of them are `accepted` and `superseded`, and those that make a record inactive |
-| `maturity` | the authoring ladder, lowest first ([[REQ-maturity-criteria]]) |
-| `disciplines` | the kinds whose planned nodes are, by default, work in each discipline ([[REQ-lifecycle-view]]) |
-| `links` | keys of the workspace's own that link like `links:` entries ([[DEC-0010]]) |
-| `words` | `kinds`, `relations` and `attributes` of the workspace's own that nothing in its graph has yet, so that a rule can assert there is none of them without its query being taken for a typo ([[REQ-builtin-steps]]) |
-
-A profile that cannot work is an error naming its path, where it is configured and not later in a
-spec or a query:
-
-- a word that is empty, or a kind, relation or decision-status role left without any word —
-  renaming a role is free, removing it would switch off what sdp reads through it;
-- an empty ladder, a level listed twice, or a level named like a stage sdp derives (`failing`,
-  `in-progress`, `verified`);
-- a role given a word sdp makes or reads itself: a kind sdp makes (`scenario`, `code`, `missing`),
-  or a relation, link key or attribute named like an attribute sdp derives or checks (`stage`,
-  `maturity`, `status`, …);
-- the mention, scenario or anchor relation sharing its word with another of them or with a relation
-  authors write as a link key (plan, phase, supersedes, `links`): one edge would be two things;
-- `statuses.accepted` or `statuses.superseded` naming a status that `statuses.decision` does not list.
-
-`sdp new` writes what the profile says ([[REQ-cli]]): the template of a kind is that of the role it
-plays, and the keys, kinds and statuses it writes are the workspace's words.
-
-**Id prefixes.** A spec that omits `kind` gets it from its id prefix — case-insensitive, followed
-by `-` or `_` — and a prefix that maps to no kind gives `spec`. `sdp new` names new specs with the same prefixes: decisions and risks are
-numbered (`DEC-0007`), everything else takes a slug of its title (`REQ-guest-checkout`). A kind has
-one prefix, so moving requirements to `US-` makes `REQ-` ids plain specs unless they declare their
-kind. A prefix is letters only and belongs to one kind, so every id sdp makes reads back as its kind.
-
-| Kind | requirement | nfr | decision | element | pattern | milestone | capability | risk |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Prefix | `REQ` | `NFR` | `DEC` | `ARCH` | `PAT` | `MS` | `CAP` | `RISK` |
-
-**Disciplines.** The default disciplines are RUP's, with the kinds whose planned nodes count as
-their work unless `activity:` says otherwise; how activity is planned and counted is
-[[REQ-lifecycle-view]]'s. No kind is implementation or test work by itself: specs plan those with
-`activity:`.
-
-| Discipline | Kinds |
-| --- | --- |
-| business-modeling | capability, goal, actor, business-process, vision, stakeholder |
-| requirements | requirement, nfr, feature, story, use-case, epic |
-| analysis-design | decision, element, pattern |
-| implementation | none |
-| test | none |
-| deployment | release, environment, deployment |
+A workspace is the directory sdp reads. Its root may hold an `sdp.config.yaml` (or `.yml`, or
+`.json`); every key is optional, and an empty or missing file means the defaults, so sdp works in
+any repository before anyone configures it. `sdp init` writes every key with its default, and
+`sdp vocabulary` prints the words sdp interprets as the workspace configures them
+([[ARCH-vocabulary]]). A configuration that cannot work is an error where it is written, naming
+the file and the key, not later in a spec or a query.
 
 ## Scenarios
 
@@ -139,7 +64,7 @@ Background:
     export function report() {}
     """
 
-Scenario Outline: Each key shapes what the graph holds
+Scenario Outline: Each key shapes what the graph holds: a list replaces its default, exclude adds to it, ids merges into it
   Given a file "<file>" containing:
     """
     <config>
@@ -158,8 +83,9 @@ Scenario Outline: Each key shapes what the graph holds
     | ids      | sdp.config.yaml | ids: { requirement: US }                            | requirement                    | US-signup                          |
     | vocabulary | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | requirement[maturity<approved] | REQ-scratch |
     | json     | sdp.config.json | { "exclude": ["notes/**"] }                         | requirement                    | REQ-login, REQ-search              |
+    | yml      | sdp.config.yml  | exclude: ["notes/**"]                               | requirement                    | REQ-login, REQ-search              |
 
-Scenario Outline: Without a declared kind, the id prefix decides
+Scenario Outline: Without a declared kind the id prefix decides it, in any case, before - or _; an unknown prefix is a spec
   Given a file "specs/spec.md" containing:
     """
     ---
@@ -183,7 +109,7 @@ Scenario Outline: Without a declared kind, the id prefix decides
     | TODO-1              | spec        |
     | checkout            | spec        |
 
-Scenario Outline: The id prefixes name new specs
+Scenario Outline: The configured prefixes name new specs, and every other kind keeps its default
   Given a file "sdp.config.yaml" containing:
     """
     ids: { requirement: US, decision: ADR }
