@@ -16,10 +16,10 @@ Feature: Check specs
     is probably a slip; an info is a suggestion.
 
     Scenario: A warning passes the check, an error fails it, and --severity leaves out what is less severe
-      Given a file "specs/REQ-a.feature" containing:
+      Given a file "specs/reports.feature" containing:
         """
-        @id=REQ-a
-        Feature: Example
+        @id=reports
+        Feature: Reports
 
           Rule: Something holds
 
@@ -27,19 +27,19 @@ Feature: Check specs
         """
       When I run "sdp check"
       Then the exit code is 0
-      And the output contains "[scenario-empty] REQ-a#nothing-yet has no steps  specs/REQ-a.feature:6"
+      And the output contains "[scenario-empty] reports#nothing-yet has no steps  specs/reports.feature:6"
       And the output contains "0 error(s), 1 warning(s), 0 info"
       Given these specs:
-        | tags                           | Feature |
-        | @id=REQ-b @depends-on:REQ-gone | Example |
+        | tags                          | Feature  |
+        | @id=invoices @depends-on:gone | Invoices |
       When I run "sdp check --severity error --json"
       Then the exit code is 1
       And the JSON output has:
-        | data.rule     | dangling-link       |
-        | data.severity | error               |
-        | data.node     | REQ-b               |
-        | data.file     | specs/REQ-b.feature |
-        | data.line     | 1                   |
+        | data.rule     | dangling-link          |
+        | data.severity | error                  |
+        | data.node     | invoices               |
+        | data.file     | specs/invoices.feature |
+        | data.line     | 1                      |
 
   Rule: Every diagnostic names its rule, its severity and the line to fix
 
@@ -54,31 +54,31 @@ Feature: Check specs
         | <rule> | <severity> | <file>:<line> |
 
       Examples:
-        | rule                  | severity | file                               | line | content                                                                                                                                         |
-        | duplicate-id          | error    | specs/REQ-a.feature                | 4    | @id=REQ-a\nFeature: A\n  Rule: R\n  Rule: R                                                                                                     |
-        | dangling-link         | error    | specs/REQ-a.feature                | 1    | @id=REQ-a @depends-on:REQ-gone\nFeature: A                                                                                                      |
-        | link-syntax           | error    | specs/REQ-a.feature                | 1    | @id=REQ-a @maturity:ready\nFeature: A                                                                                                           |
-        | link-conflict         | warning  | src/billing.py                     | 2    | # @sdp uses ARCH-ledger via=events\n# @sdp uses ARCH-ledger via=http\nclass Billing: pass                                                       |
-        | derived-attribute     | error    | specs/REQ-a.feature                | 1    | @id=REQ-a @verification=passing\nFeature: A                                                                                                     |
-        | gherkin-syntax        | error    | specs/REQ-a.feature                | 7    | @id=REQ-a\nFeature: A\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \|                              |
-        | annotation            | error    | specs/REQ-a.feature                | 1    | @id=REQ-a @uses:A,B\nFeature: A                                                                                                                 |
-        | description-comment   | warning  | specs/REQ-a.feature                | 4    | @id=REQ-a\nFeature: A\n  Why:\n  # not read\n  because.                                                                                         |
-        | scenario-empty        | warning  | specs/REQ-a.feature                | 4    | @id=REQ-a\nFeature: A\n  Rule: R\n    Scenario: Nothing yet                                                                                     |
-        | scenario-outside-rule | error    | specs/REQ-a.feature                | 3    | @id=REQ-a\nFeature: A\n  Scenario: S\n    Then it works                                                                                         |
-        | maturity-value        | error    | specs/REQ-a.feature                | 1    | @id=REQ-a @maturity=someday\nFeature: A                                                                                                         |
-        | maturity-criteria     | error    | specs/REQ-a.feature                | 1    | @id=REQ-a @maturity=specified\nFeature: A\n  Analysts export reports.                                                                           |
-        | maturity-promotable   | info     | specs/REQ-a.feature                | 1    | @id=REQ-a @maturity=draft\nFeature: A\n  Analysts export reports.\n  Rule: R\n    Scenario: Export\n      Then a file is saved                  |
-        | decision-shape        | warning  | specs/DEC-monthly-releases.feature | 4    | @id=DEC-monthly-releases\nFeature: Monthly releases\n  Not weekly, because a release takes a week to test.\n  Rule: Consequences                |
-        | template-placeholder  | warning  | specs/DEC-monthly-releases.feature | 3    | @id=DEC-monthly-releases\nFeature: Monthly releases\n  Not <what a reasonable person would have chosen>, because <why>.                         |
-        | plan-reference        | warning  | specs/REQ-a.feature                | 1    | @id=REQ-a @iteration:REQ-a\nFeature: A                                                                                                          |
-        | plan-date             | warning  | specs/IT-beta.feature              | 1    | @id=IT-beta @kind=iteration @start=2026-11-16 @end=2026-11-31\nFeature: Beta                                                                    |
-        | milestone-met         | warning  | specs/MS-beta.feature              | 1    | @id=MS-beta @met=2026-02-30\nFeature: Beta                                                                                                      |
-        | annotation-ignored    | warning  | src/cart.py                        | 1    | total = 0  # @sdp implements REQ-a                                                                                                              |
-        | annotation-unreadable | warning  | src/cart.ts                        | 5    | import { annotate } from "sdp/annotations"\n\nexport const total = 0\nconst requirement = "REQ-a"\nannotate(total, { implements: requirement }) |
-        | step-unreadable       | warning  | specs/steps/cart.steps.ts          | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(cart, () => {})\n})                   |
-        | step-expression       | error    | specs/steps/cart.steps.ts          | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given("a cart of {items}", () => {})\n})    |
-        | step-expression       | error    | specs/steps/cart.steps.ts          | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(/a (cart of items/, () => {})\n})     |
-        | types-stale           | warning  | .sdp/ids.d.ts                      | 1    | declare module "sdp/annotations" {\n  interface Ids {\n    "REQ-gone": "requirement"\n  }\n}\nexport {}                                         |
+        | rule                  | severity | file                           | line | content                                                                                                                                      |
+        | duplicate-id          | error    | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n  Rule: R                                                                                          |
+        | dangling-link         | error    | specs/reports.feature          | 1    | @id=reports @depends-on:gone\nFeature: Reports                                                                                               |
+        | link-syntax           | error    | specs/reports.feature          | 1    | @id=reports @maturity:ready\nFeature: Reports                                                                                                |
+        | link-conflict         | warning  | src/billing.py                 | 2    | # @sdp uses ARCH-ledger via=events\n# @sdp uses ARCH-ledger via=http\nclass Billing: pass                                                    |
+        | derived-attribute     | error    | specs/reports.feature          | 1    | @id=reports @verification=passing\nFeature: Reports                                                                                          |
+        | gherkin-syntax        | error    | specs/reports.feature          | 7    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \|                   |
+        | annotation            | error    | specs/reports.feature          | 1    | @id=reports @uses:A,B\nFeature: Reports                                                                                                      |
+        | description-comment   | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Why:\n  # not read\n  because.                                                                              |
+        | scenario-empty        | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Nothing yet                                                                          |
+        | scenario-outside-rule | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Scenario: S\n    Then it works                                                                              |
+        | maturity-value        | error    | specs/reports.feature          | 1    | @id=reports @maturity=someday\nFeature: Reports                                                                                              |
+        | maturity-criteria     | error    | specs/reports.feature          | 1    | @id=reports @maturity=specified\nFeature: Reports\n  Analysts export reports.                                                                |
+        | maturity-promotable   | info     | specs/reports.feature          | 1    | @id=reports @maturity=draft\nFeature: Reports\n  Analysts export reports.\n  Rule: R\n    Scenario: Export\n      Then a file is saved       |
+        | decision-shape        | warning  | specs/monthly-releases.feature | 4    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not weekly, because a release takes a week to test.\n  Rule: Consequences  |
+        | template-placeholder  | warning  | specs/monthly-releases.feature | 3    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not <what a reasonable person would have chosen>, because <why>.           |
+        | plan-reference        | warning  | specs/reports.feature          | 1    | @id=reports @iteration:reports\nFeature: Reports                                                                                             |
+        | plan-date             | warning  | specs/IT-beta.feature          | 1    | @id=IT-beta @kind=iteration @start=2026-11-16 @end=2026-11-31\nFeature: Beta                                                                 |
+        | milestone-met         | warning  | specs/MS-beta.feature          | 1    | @id=MS-beta @met=2026-02-30\nFeature: Beta                                                                                                   |
+        | annotation-ignored    | warning  | src/cart.py                    | 1    | total = 0  # @sdp implements cart                                                                                                            |
+        | annotation-unreadable | warning  | src/cart.ts                    | 5    | import { annotate } from "sdp/annotations"\n\nexport const total = 0\nconst feature = "cart"\nannotate(total, { implements: feature })       |
+        | step-unreadable       | warning  | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(cart, () => {})\n})                |
+        | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given("a cart of {items}", () => {})\n}) |
+        | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(/a (cart of items/, () => {})\n})  |
+        | types-stale           | warning  | .sdp/ids.d.ts                  | 1    | declare module "sdp/annotations" {\n  interface Ids {\n    "gone": "feature"\n  }\n}\nexport {}                                              |
 
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec
@@ -90,9 +90,9 @@ Feature: Check specs
     for a scenario that states an outcome.
 
     Scenario Outline: A name, then a paragraph, then an outcome
-      Given a file "specs/REQ-csv.feature" containing:
+      Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=REQ-csv @maturity=<claimed>
+        @id=export-to-csv @maturity=<claimed>
         Feature: Export to CSV
 
         <content>
@@ -108,25 +108,25 @@ Feature: Check specs
         | specified | Analysts want data in Excel.                                                                    | maturity-criteria |
         | specified | Analysts want data in Excel.\n\nRule: Every row is exported\nScenario: Export\nWhen I export it | maturity-criteria |
 
-    Scenario: A requirement declared in code can claim no more than a name
+    Scenario: A feature declared in code can claim no more than a name
       Given a file "src/pay.py" containing:
         """
-        # @sdp is REQ-pay kind=requirement maturity=ready
+        # @sdp is pay kind=feature maturity=ready
         def pay(): pass
         """
       When the workspace is checked
       Then sdp reports at least:
-        | rule              | node    |
-        | maturity-criteria | REQ-pay |
+        | rule              | node |
+        | maturity-criteria | pay  |
 
   Rule: Ready asks for an example of every rule, an outcome in every scenario and no open question
 
     So a draft's rules are a checked list of what is still to specify.
 
     Scenario Outline: What a spec may leave until it claims ready
-      Given a file "specs/REQ-csv.feature" containing:
+      Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=REQ-csv @maturity=<claimed>
+        @id=export-to-csv @maturity=<claimed>
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -151,9 +151,9 @@ Feature: Check specs
         | ready     | Rule: Archived rows too\n  @open\n  Scenario: Deleted ones as well?      | maturity-criteria |
 
     Scenario: What keeps a spec from ready names the first open question and the first rule without an example
-      Given a file "specs/REQ-csv.feature" containing:
+      Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=REQ-csv @maturity=ready
+        @id=export-to-csv @maturity=ready
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -174,9 +174,9 @@ Feature: Check specs
     content supports is not false, and raising it is the team's call.
 
     Scenario: A draft whose scenario states an outcome
-      Given a file "specs/REQ-csv.feature" containing:
+      Given a file "specs/export-to-csv.feature" containing:
         """
-        @id=REQ-csv @maturity=draft
+        @id=export-to-csv @maturity=draft
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -189,8 +189,8 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports:
-        | rule                | severity | node    |
-        | maturity-promotable | info     | REQ-csv |
+        | rule                | severity | node          |
+        | maturity-promotable | info     | export-to-csv |
 
   Rule: A level a team adds has no criteria of its own, and takes its place in the order
 
@@ -204,12 +204,12 @@ Feature: Check specs
         vocabulary: { maturity: [idea, draft, approved, specified, ready] }
         """
       And these specs:
-        | tags                           | Feature       |
-        | @id=REQ-csv @maturity=approved | Export to CSV |
+        | tags                                 | Feature       |
+        | @id=export-to-csv @maturity=approved | Export to CSV |
       When the workspace is checked
       Then sdp reports nothing
-      When I query "requirement[maturity>draft, maturity<specified]"
-      Then the result is "REQ-csv"
+      When I query "feature[maturity>draft, maturity<specified]"
+      Then the result is "export-to-csv"
 
   Rule: A decision is a title and one to three sentences
 
@@ -218,9 +218,9 @@ Feature: Check specs
     and what changed is rewritten: git keeps the rest.
 
     Scenario Outline: A decision that grows a rule or a scenario is reported
-      Given a file "specs/DEC-retire-legacy-billing.feature" containing:
+      Given a file "specs/retire-legacy-billing.feature" containing:
         """
-        @id=DEC-retire-legacy-billing
+        @id=retire-legacy-billing @kind=decision
         Feature: Retire legacy billing
 
           Not a wrapper around it, because every new caller would keep it alive.
@@ -229,8 +229,8 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports at least:
-        | rule           | node                      | at                                        |
-        | decision-shape | DEC-retire-legacy-billing | specs/DEC-retire-legacy-billing.feature:6 |
+        | rule           | node                  | at                                    |
+        | decision-shape | retire-legacy-billing | specs/retire-legacy-billing.feature:6 |
 
       Examples:
         | more                                                            |
@@ -244,14 +244,14 @@ Feature: Check specs
 
     Scenario: A rule of legacy billing rests on the decision to retire it, and fails while code still calls it
       Given these specs:
-        | tags                          | Feature               |
-        | @id=DEC-retire-legacy-billing | Retire legacy billing |
+        | tags                                     | Feature               |
+        | @id=retire-legacy-billing @kind=decision | Retire legacy billing |
       And a file "specs/ARCH-legacy-billing.feature" containing:
         """
         @id=ARCH-legacy-billing
         Feature: Legacy billing
 
-          @decided-by:DEC-retire-legacy-billing
+          @decided-by:retire-legacy-billing
           Rule: Nothing new calls legacy billing
 
             Scenario: No code uses it
@@ -264,7 +264,7 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports nothing
-      When I query "#DEC-retire-legacy-billing <-decided-by- rule"
+      When I query "#retire-legacy-billing <-decided-by- rule"
       Then the result is "ARCH-legacy-billing#nothing-new-calls-legacy-billing"
       When the workspace is run
       Then node "ARCH-legacy-billing#no-code-uses-it" has attribute status = "failed"
@@ -278,27 +278,27 @@ Feature: Check specs
       Given these specs:
         | tags                        | Feature |
         | @id=IT-beta @kind=iteration | Beta    |
-        | @id=REQ-a <tags>            | A       |
+        | @id=reports <tags>          | Reports |
       When the workspace is checked
       Then sdp reports:
-        | rule   | at                    | message   | hint   |
-        | <rule> | specs/REQ-a.feature:1 | <message> | <hint> |
+        | rule   | at                      | message   | hint   |
+        | <rule> | specs/reports.feature:1 | <message> | <hint> |
 
       Examples:
-        | tags                   | rule           | message                                                               | hint                                                    |
-        | @iteration=IT-beta     | link-syntax    | iteration is a link, so a value written with = links nothing          | write @iteration:IT-beta                                |
-        | @activity.test=IT-beta | link-syntax    | activity.test is a link, so a value written with = links nothing      | write @activity.test:IT-beta                            |
-        | @activity:IT-beta      | plan-reference | activity names no discipline, so its link to IT-beta plans nothing    | name the discipline, `@activity.implementation:IT-beta` |
-        | @owner=                | annotation     | owner has no value                                                    | write @owner=<value>, or @owner alone                   |
+        | tags                   | rule           | message                                                            | hint                                                    |
+        | @iteration=IT-beta     | link-syntax    | iteration is a link, so a value written with = links nothing       | write @iteration:IT-beta                                |
+        | @activity.test=IT-beta | link-syntax    | activity.test is a link, so a value written with = links nothing   | write @activity.test:IT-beta                            |
+        | @activity:IT-beta      | plan-reference | activity names no discipline, so its link to IT-beta plans nothing | name the discipline, `@activity.implementation:IT-beta` |
+        | @owner=                | annotation     | owner has no value                                                 | write @owner=<value>, or @owner alone                   |
 
   @decided-by:specs-are-gherkin-files
   Rule: A Markdown file where specs live is reported with what to write instead, because sdp reads none of it
 
-    Scenario: A requirement written as Markdown beside the feature files, and a README elsewhere
+    Scenario: A spec written as Markdown beside the feature files, and a README elsewhere
       Given these specs:
-        | tags      | Feature |
-        | @id=REQ-a | A       |
-      And a file "specs/REQ-b.md" containing:
+        | tags        | Feature |
+        | @id=reports | Reports |
+      And a file "specs/checkout.md" containing:
         """
         # Checkout
         """
@@ -308,22 +308,22 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports:
-        | rule       | severity | at               | hint                                                                  |
-        | not-a-spec | warning  | specs/REQ-b.md:1 | a spec is a feature file: write specs/REQ-b.feature, its tags (@id=…) |
+        | rule       | severity | at                  | hint                                                                     |
+        | not-a-spec | warning  | specs/checkout.md:1 | a spec is a feature file: write specs/checkout.feature, its tags (@id=…) |
 
     Scenario: Markdown under the directory the feature files are configured in, before any feature file
       Given a file "sdp.config.yaml" containing:
         """
         features: ["specs/**/*.feature"]
         """
-      And a file "specs/billing/REQ-invoice.md" containing:
+      And a file "specs/billing/invoice.md" containing:
         """
         # Invoices
         """
       When the workspace is checked
       Then sdp reports:
-        | rule       | at                             |
-        | not-a-spec | specs/billing/REQ-invoice.md:1 |
+        | rule       | at                         |
+        | not-a-spec | specs/billing/invoice.md:1 |
 
   Rule: A quote of template text or a mention of an annotation is not flagged
 
@@ -339,10 +339,10 @@ Feature: Check specs
       Then sdp does not report "<rule>"
 
       Examples: a quote of template text
-        | file                | rule                 | text                                                                                                             |
-        | specs/REQ-a.feature | template-placeholder | @id=REQ-a\nFeature: A\n  A decision starts as "Not <what a reasonable person would have chosen>, because <why>." |
+        | file                  | rule                 | text                                                                                                                     |
+        | specs/reports.feature | template-placeholder | @id=reports\nFeature: Reports\n  A decision starts as "Not <what a reasonable person would have chosen>, because <why>." |
 
       Examples: a mention of an annotation, and an annotation on a line of its own, which is read
-        | file        | rule               | text                                                              |
-        | src/cart.ts | annotation-ignored | // after code, as in total() // @sdp implements REQ-a is not read |
-        | src/cart.ts | annotation-ignored | // @sdp implements REQ-a\nexport const total = 0                  |
+        | file        | rule               | text                                                             |
+        | src/cart.ts | annotation-ignored | // after code, as in total() // @sdp implements cart is not read |
+        | src/cart.ts | annotation-ignored | // @sdp implements cart\nexport const total = 0                  |

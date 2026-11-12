@@ -20,7 +20,7 @@ Feature: Plan delivery
       | @id=IT-scope @phase:PH-inception @start=2026-01-05 @end=2026-01-30       | Scope       |
       | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 @end=2026-02-13 | Prototype   |
       | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-27  | Baseline    |
-      | @id=REQ-a @maturity=idea @iteration:IT-prototype                         | Alpha       |
+      | @id=alpha @maturity=idea @iteration:IT-prototype                         | Alpha       |
       | @id=ARCH-x @iteration:IT-prototype                                       | An element  |
     And a file "specs/MS-objectives.feature" containing:
       """
@@ -32,8 +32,8 @@ Feature: Plan delivery
           Scenario: There is a plan
             Then the query "iteration" returns at least 1 result
 
-          Scenario: Every requirement is in an iteration
-            Then the query "requirement !-iteration-> iteration" returns no results
+          Scenario: Every feature is in an iteration
+            Then the query "feature !-iteration-> iteration" returns no results
       """
     And a file "specs/MS-architecture.feature" containing:
       """
@@ -248,7 +248,7 @@ Feature: Plan delivery
     A requirement is written in one iteration and built in another, and a gate has to tell the two
     apart.
 
-    Scenario: A requirement and an element in IT-prototype
+    Scenario: A feature and an element in IT-prototype
       When the lifecycle is computed
       Then the planned activity is:
         | discipline      | IT-prototype | IT-baseline |
@@ -258,8 +258,8 @@ Feature: Plan delivery
 
     Scenario: Analysed in IT-prototype, built over IT-prototype and IT-baseline, tested in IT-baseline
       Given these specs:
-        | tags                                                                                                                                                                                          | Feature |
-        | @id=REQ-b @maturity=idea @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline @activity.test:IT-baseline | Beta    |
+        | tags                                                                                                                                                                                         | Feature |
+        | @id=beta @maturity=idea @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline @activity.test:IT-baseline | Beta    |
       When the lifecycle is computed
       Then the planned activity is:
         | discipline      | IT-prototype | IT-baseline |
@@ -268,24 +268,24 @@ Feature: Plan delivery
         | implementation  | 1            | 1           |
         | test            | 0            | 1           |
       And the iterations are:
-        | id           | plans                |
-        | IT-scope     |                      |
-        | IT-prototype | ARCH-x, REQ-a, REQ-b |
-        | IT-baseline  | REQ-b                |
+        | id           | plans               |
+        | IT-scope     |                     |
+        | IT-prototype | ARCH-x, alpha, beta |
+        | IT-baseline  | beta                |
 
     Scenario: A discipline with links of its own is planned only into the iterations they name
       Given these specs:
-        | tags                                                                                | Feature |
-        | @id=REQ-b @maturity=idea @iteration:IT-prototype @activity.requirements:IT-baseline | Beta    |
+        | tags                                                                               | Feature |
+        | @id=beta @maturity=idea @iteration:IT-prototype @activity.requirements:IT-baseline | Beta    |
       When the lifecycle is computed
       Then the planned activity is:
         | discipline   | IT-prototype | IT-baseline |
         | requirements | 1            | 1           |
       And the iterations are:
-        | id           | plans                |
-        | IT-scope     |                      |
-        | IT-prototype | ARCH-x, REQ-a, REQ-b |
-        | IT-baseline  | REQ-b                |
+        | id           | plans               |
+        | IT-scope     |                     |
+        | IT-prototype | ARCH-x, alpha, beta |
+        | IT-baseline  | beta                |
 
   Rule: The plan's own nodes are no work
 
@@ -297,26 +297,26 @@ Feature: Plan delivery
       Then the iterations are:
         | id           | plans         |
         | IT-scope     |               |
-        | IT-prototype | ARCH-x, REQ-a |
+        | IT-prototype | ARCH-x, alpha |
         | IT-baseline  |               |
 
   Rule: Only work still to do can be unplanned: what has a maturity and is not verified
 
     Once a spec is built, its scenarios are the record of it, and a plan of it is history.
 
-    Scenario: An unplanned requirement and an unplanned element
+    Scenario: An unplanned feature and an unplanned element
       Given these specs:
-        | tags                         | Feature |
-        | @id=REQ-later @maturity=idea | Later   |
-        | @id=ARCH-cache               | Cache   |
+        | tags                     | Feature |
+        | @id=later @maturity=idea | Later   |
+        | @id=ARCH-cache           | Cache   |
       When the lifecycle is computed on "2026-01-20"
-      Then the output line with "unplanned" contains "REQ-later"
+      Then the output line with "unplanned" contains "later"
       And the output line with "unplanned" does not contain "ARCH-cache"
 
-    Scenario: A requirement that is built, with no plan
-      Given a file "specs/REQ-done.feature" containing:
+    Scenario: A feature that is built, with no plan
+      Given a file "specs/done.feature" containing:
         """
-        @id=REQ-done @maturity=ready
+        @id=done @maturity=ready
         Feature: Done
 
           Something already built.
@@ -327,13 +327,13 @@ Feature: Plan delivery
               Then it works
         """
       And these specs:
-        | tags                         | Feature |
-        | @id=REQ-later @maturity=idea | Later   |
+        | tags                     | Feature |
+        | @id=later @maturity=idea | Later   |
       And a step definition "it works" that passes
       When the workspace is run
       And the lifecycle is computed on "2026-01-20"
-      Then the output line with "unplanned" contains "REQ-later"
-      And the output line with "unplanned" does not contain "REQ-done"
+      Then the output line with "unplanned" contains "later"
+      And the output line with "unplanned" does not contain "done"
 
   Rule: The chart shades each discipline relative to its busiest iteration
 
@@ -343,8 +343,8 @@ Feature: Plan delivery
     Scenario: Half of IT-baseline's requirements work in IT-prototype
       Given these specs:
         | tags                                            | Feature |
-        | @id=REQ-b @maturity=idea @iteration:IT-baseline | Beta    |
-        | @id=REQ-c @maturity=idea @iteration:IT-baseline | Gamma   |
+        | @id=beta @maturity=idea @iteration:IT-baseline  | Beta    |
+        | @id=gamma @maturity=idea @iteration:IT-baseline | Gamma   |
       When the lifecycle is computed on "2026-01-20"
       Then the output line with "requirements" contains "    ▒▒▒ ███"
       And the output contains "1   2   3"
@@ -355,10 +355,10 @@ Feature: Plan delivery
     The chart is what was planned and the stages are what the scenarios showed. Kept apart, the two
     can be compared: a plan that counted what was verified could never fall behind.
 
-    Scenario: A requirement verified in IT-baseline
-      Given a file "specs/REQ-b.feature" containing:
+    Scenario: A feature verified in IT-baseline
+      Given a file "specs/beta.feature" containing:
         """
-        @id=REQ-b @maturity=ready @iteration:IT-baseline
+        @id=beta @maturity=ready @iteration:IT-baseline
         Feature: Beta
 
           Something worth testing.
@@ -385,8 +385,8 @@ Feature: Plan delivery
 
     Scenario: Before a run and after it
       Given these specs:
-        | tags                     | Feature |
-        | @id=REQ-b @maturity=idea | Beta    |
+        | tags                    | Feature |
+        | @id=beta @maturity=idea | Beta    |
       When the lifecycle is computed on "2026-01-20"
       Then the milestones are:
         | id              | gate | next |
@@ -400,7 +400,7 @@ Feature: Plan delivery
         | MS-objectives   | 1/2  | yes  |
         | MS-architecture | 1/1  |      |
       And the output contains "✔ There is a plan"
-      And the output contains "✘ Every requirement is in an iteration"
+      And the output contains "✘ Every feature is in an iteration"
 
   Rule: A gate passes only when every one of its scenarios passed, run against the current graph
 
@@ -429,8 +429,8 @@ Feature: Plan delivery
 
     Scenario: A run with a gate that is not met
       Given these specs:
-        | tags                     | Feature |
-        | @id=REQ-b @maturity=idea | Beta    |
+        | tags                    | Feature |
+        | @id=beta @maturity=idea | Beta    |
       When I run "sdp run --json"
       Then the exit code is 0
       And the JSON output has:
@@ -441,10 +441,10 @@ Feature: Plan delivery
 
     Scenario: A gate not met yet is no failing work
       Given these specs:
-        | tags                     | Feature |
-        | @id=REQ-b @maturity=idea | Beta    |
+        | tags                    | Feature |
+        | @id=beta @maturity=idea | Beta    |
       When the workspace is run
-      Then node "MS-objectives#every-requirement-is-in-an-iteration" has attribute status = "failed"
+      Then node "MS-objectives#every-feature-is-in-an-iteration" has attribute status = "failed"
       And sdp status counts the stages "idea:2"
 
     Scenario: The build of sdp itself enforces no gate
@@ -459,8 +459,8 @@ Feature: Plan delivery
 
     Scenario: Nothing is recorded while the gate does not pass
       Given these specs:
-        | tags                     | Feature |
-        | @id=REQ-b @maturity=idea | Beta    |
+        | tags                    | Feature |
+        | @id=beta @maturity=idea | Beta    |
       When I run "sdp gate MS-objectives --record"
       Then the exit code is 1
       And the output contains "MS-objectives is not recorded as met"
@@ -581,22 +581,22 @@ Feature: Plan delivery
     sdp cannot know whether the design behind a spec is decided or anyone has reviewed it: a
     placeholder paragraph with a token scenario meets every criterion.
 
-    Scenario Outline: A ready requirement, its review and what it depends on
+    Scenario Outline: A ready feature, its review and what it depends on
       Given a file "specs/POL-definition-of-ready.feature" containing:
         """
         @id=POL-definition-of-ready @kind=policy
         Feature: Definition of Ready
 
-          Rule: A ready requirement is reviewed, and what it depends on is ready too
+          Rule: A ready feature is reviewed, and what it depends on is ready too
 
             @gate
             Scenario: Reviewed, and depending only on what is ready
-              Then the query "requirement[maturity=ready] ?-depends-on-> requirement[maturity<ready]" returns no results
-              And the query "requirement[maturity=ready, !reviewed-by]" returns no results
+              Then the query "feature[maturity=ready] ?-depends-on-> feature[maturity<ready]" returns no results
+              And the query "feature[maturity=ready, !reviewed-by]" returns no results
         """
-      And a file "specs/REQ-reports.feature" containing:
+      And a file "specs/reports.feature" containing:
         """
-        @id=REQ-reports @maturity=<dependency> @reviewed-by=analysts
+        @id=reports @maturity=<dependency> @reviewed-by=analysts
         Feature: Reports
 
           Analysts see what was sold.
@@ -606,9 +606,9 @@ Feature: Plan delivery
             Scenario: Sales by day
               Then the report has one row per day
         """
-      And a file "specs/REQ-csv.feature" containing:
+      And a file "specs/export-to-csv.feature" containing:
         """
-        @id=REQ-csv @maturity=ready <review> @depends-on:REQ-reports
+        @id=export-to-csv @maturity=ready <review> @depends-on:reports
         Feature: Export to CSV
 
           Analysts want data in Excel.
@@ -637,26 +637,26 @@ Feature: Plan delivery
 
     Scenario Outline: What is wrong with each reference
       Given these specs:
-        | tags             | Feature |
-        | @id=REQ-b <tags> | Beta    |
+        | tags            | Feature |
+        | @id=beta <tags> | Beta    |
       When the workspace is checked
       Then sdp reports:
-        | rule           | severity | node  | at                    | message   |
-        | plan-reference | warning  | REQ-b | specs/REQ-b.feature:1 | <problem> |
+        | rule           | severity | node | at                   | message   |
+        | plan-reference | warning  | beta | specs/beta.feature:1 | <problem> |
 
       Examples:
         | tags                                                                          | problem                              |
         | @iteration:PH-elaboration                                                     | "PH-elaboration" names no iteration  |
         | @phase:IT-prototype                                                           | "IT-prototype" names no phase        |
-        | @closes:REQ-a                                                                 | "REQ-a" names no phase or iteration  |
-        | @activity.implementation:REQ-a                                                | "REQ-a" names no iteration           |
+        | @closes:alpha                                                                 | "alpha" names no phase or iteration  |
+        | @activity.implementation:alpha                                                | "alpha" names no iteration           |
         | @activity.implementation:IT-prototype @activity.implementation:PH-elaboration | "PH-elaboration" names no iteration  |
         | @activity.testing:IT-prototype                                                | "testing", which is not a discipline |
         | @kind=risk @iteration:IT-prototype                                            | belongs to no discipline             |
 
-    Scenario: A requirement planned into what the plan declares
+    Scenario: A feature planned into what the plan declares
       Given these specs:
-        | tags                                                                                                                                                | Feature |
-        | @id=REQ-b @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline | Beta    |
+        | tags                                                                                                                                               | Feature |
+        | @id=beta @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline | Beta    |
       When the workspace is checked
       Then sdp reports nothing
