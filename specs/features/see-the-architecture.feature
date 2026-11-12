@@ -78,7 +78,7 @@ Feature: See the architecture
 
   Rule: Each element is shown with what it is for, from its spec or else from the doc comment of its code, and with its links
 
-    An element declared by its code alone has no title of its own, so it is named by its id alone.
+    An element declared by its code alone is named by its id, unless an anchor gives it a title.
 
     Scenario: One element described by its spec, one by its code, one by its links alone
       When I run "sdp arch"
@@ -112,6 +112,29 @@ Feature: See the architecture
         """
       And the output does not contain "ARCH-mailer — ARCH-mailer"
       And the output does not contain "ARCH-mailer  ARCH-mailer"
+
+    Scenario Outline: An element declared by its code alone, <titled>
+      Given a file "src/mailer.ts" containing:
+        """
+        /**
+         * Sends receipts.
+         *
+         * @sdp is ARCH-mailer <title>
+         */
+        export class Mailer {}
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains:
+        """
+        <heading>
+        Sends receipts.
+        """
+
+      Examples:
+        | titled                 | title             | heading                        |
+        | its anchor naming none |                   | ARCH-mailer (element)          |
+        | its anchor titling it  | title="Mail room" | ARCH-mailer — Mail room (element) |
 
     Scenario: An element anchored in two places is described by each, in the order of their files
       Given a file "src/outbox.ts" containing:
@@ -350,8 +373,9 @@ Feature: See the architecture
   Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp plays`
 
     The code every instance goes through is the pattern's, and its comment says what the pattern
-    is; an anchor declares a node of the kind its id's prefix names. `plays` is the team's word:
-    the view shows every link from code to a pattern, and the elements that code is. Elements
+    is; an anchor declares a node of the kind its id's prefix names. `plays` is the team's word, and
+    like any link it only names a pattern, which an anchor declares: the view shows every link from
+    code to a pattern, and the elements that code is. Elements
     import elements: a pattern imports nothing, and nothing imports it.
 
     Scenario: A retry pattern, declared by its code and played by billing
@@ -394,6 +418,22 @@ Feature: See the architecture
       And the output contains "PAT-retry <-is- code:src/retry.ts#retry  retry"
       And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
       And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
+
+    Scenario: A pattern that no code declares, played by billing
+      Given a file "src/billing.ts" containing:
+        """
+        /**
+         * Charges the card on file.
+         *
+         * @sdp is ARCH-billing
+         * @sdp plays PAT-retry
+         */
+        export const charge = (): Promise<number> => Promise.resolve(0)
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule          | at               | message                                             |
+        | dangling-link | src/billing.ts:5 | -plays-> PAT-retry: no node has id PAT-retry        |
 
   Rule: Each element is shown with its public surface: the shape of what its code exports
 

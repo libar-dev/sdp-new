@@ -12,7 +12,8 @@
  * not read, and is reported; a string is never a tag. The modules a file anchored to a node imports
  * come from the same parse. Other languages have no parser here: a line that opens with a comment
  * marker and the tag annotates the declaration directly below it, or else the file — best effort,
- * even inside a multi-line string — and their imports are not read.
+ * even inside a multi-line string — the comment lines around it describe that code, and their
+ * imports are not read.
  *
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
@@ -268,9 +269,23 @@ const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" 
       return []
     }
     const below = nextSymbol(lines, index)
-    return [{ file, line: index + 1, ...tag, symbol: below?.name, symbolLine: below?.line ?? 1 }]
+    return [{ file, line: index + 1, ...tag, symbol: below?.name, symbolLine: below?.line ?? 1, doc: lineCommentDoc(lines, index) }]
   })
   return { annotations, unreadable }
+}
+
+/** A line comment's text, without the marker that opens it or the one that closes a block. */
+const commentText = (line: string): string =>
+  line.replace(/^\s*(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s?/, "").replace(/\s*(?:\*\/|-->|"""|''')\s*$/, "")
+
+/** What the comment lines around a tag say, as one comment: those on lines of their own, up to a blank line or code. */
+const lineCommentDoc = (lines: ReadonlyArray<string>, at: number): string | undefined => {
+  const comment = (index: number) => index >= 0 && index < lines.length && commentOnly.test(lines[index]!)
+  let first = at
+  let last = at
+  while (comment(first - 1)) first--
+  while (comment(last + 1)) last++
+  return description([lines.slice(first, last + 1).map(commentText).join("\n")])
 }
 
 const trailing = /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[A-Za-z][\w.:#/-]*(?:,[A-Za-z][\w.:#/-]*)*)(?=\s|$|\*\/|-->)/

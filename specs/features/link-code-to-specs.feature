@@ -204,6 +204,22 @@ Feature: Link code to specs
         | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
         | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
 
+    Scenario Outline: In <language>, the comment lines around the tag describe the code
+      Given a file "<file>" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id     | doc                       |
+        | <node> | Charges the card on file. |
+
+      Examples:
+        | language | file       | code                                                                         | node                |
+        | Python   | src/pay.py | # Charges the card on file.\n# @sdp implements pay\ndef pay(): pass          | code:src/pay.py#pay |
+        | Go       | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error { | code:src/pay.go#Pay |
+        | Ruby     | src/pay.rb | # @sdp implements pay\n# Charges the card on file.\ndef pay                   | code:src/pay.rb#pay |
+
     Scenario Outline: A decorated declaration, <placed>
       Given a file "src/pay.ts" containing:
         """
