@@ -30,11 +30,13 @@ Feature: Minimum viable product
     Scenario: Open questions outside what is still to come
       Then the query "*[openQuestions>0][file!~^specs/incoming/]" returns no results
 
-  Rule: Every element and pattern says what it is for
+  Rule: Every element says what it is for
 
-    Scenario: The elements and patterns
-      Then the query "element|pattern" returns at least 1 result
-      And the query "element|pattern[!summary]" returns no results
+    In the doc comment of the code anchored to it, which `sdp arch` shows.
+
+    Scenario: The elements
+      Then the query "element" returns at least 1 result
+      And the query "element !<-is- code[doc]" returns no results
 
   Rule: The specification graph is consistent
 

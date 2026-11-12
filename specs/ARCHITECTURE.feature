@@ -1,27 +1,63 @@
-@id=ARCHITECTURE @kind=view
-Feature: Architecture overview
+@id=ARCHITECTURE @kind=architecture
+Feature: Architecture
 
-  The rules that hold between all elements.
-
-  Rule: A uses link between elements is exactly a value import between the modules anchored to them
-
-    `A uses B` says one thing: a module anchored to `A` imports a function, a class or a constant
-    from a module anchored to `B`. An import of types alone calls no code of the other element.
-
-    Scenario: The uses links of this repository
-      Then the "uses" links between elements are the value imports between the modules anchored to them
+  The rules this repository's code keeps, over the elements its annotations declare and what each
+  imports; `sdp arch` shows them.
 
   Rule: No element depends on itself through others
 
     Scenario: The elements of this repository
-      Then no element reaches itself over "uses" links
+      Then no element reaches itself over "imports" links
 
   Rule: Nothing depends on a transport, except the command line that starts the server
 
     Scenario: The command line and the MCP server
-      Then the query "#ARCH-cli <-uses- *" returns no results
-      And the query "#ARCH-mcp <-uses- *" returns:
+      Then the query "#ARCH-cli <-imports- *" returns no results
+      And the query "#ARCH-mcp <-imports- *" returns:
         | ARCH-cli |
+
+  @decided-by:effect-for-io
+  Rule: Only workspace IO touches files, and each stage after it is a pure function of its input
+
+    That is what lets executable specs run the real pipeline against an in-memory file system.
+
+    Scenario: The core does no IO
+      When I run "grep -rlE FileSystem|node:fs src/parse src/model src/graph src/check" in the repository
+      Then the exit code is 1
+
+    Scenario: A workspace in memory reads as one on disk
+      Given a file "notes/NOTE-outside.feature" containing:
+        """
+        @id=NOTE-outside
+        Feature: Outside the workspace
+        """
+      And a file "shop/specs/REQ-cart.feature" containing:
+        """
+        @id=REQ-cart
+        Feature: Cart
+        """
+      When the workspace "shop" is loaded from memory and from disk
+      Then both graphs have exactly the nodes "REQ-cart"
+
+  Rule: A built graph cannot be changed, through what it was built from or what it returns
+
+    It keeps a frozen copy of what it is given. What is not JSON data would stay shared with whoever
+    passed it, so a graph refuses it.
+
+    Scenario: The nodes and edges it was built from are changed afterwards
+      Given a graph built from a node "a" linked to "b" by "uses"
+      When the nodes and edges it was built from are changed
+      Then the graph still has "a" -uses-> "b" via "http"
+      And nothing read from the graph can be changed
+
+    Scenario Outline: An attribute that is not JSON data
+      Then no graph can be built from a node whose attribute is <value>
+
+      Examples:
+        | value      |
+        | a Date     |
+        | a Map      |
+        | a function |
 
   Rule: Every element is anchored in the code it describes
 
@@ -36,15 +72,15 @@ Feature: Architecture overview
     sdp only warns about either; this repository fails its run instead.
 
     Scenario: Annotations found, none unreadable, and no stale id types
-      Then the query "code -is-> element|pattern" returns at least 1 result
+      Then the query "code -is-> element" returns at least 1 result
       And there are no diagnostics for rule "annotation-unreadable"
       And there are no diagnostics for rule "types-stale"
 
   Rule: Code in this repository links only to the architecture, and every ready requirement or feature names the element that realizes it
 
     Scenario: No code outside the architecture, none linked to anything else, no ready requirement or feature without an element
-      Then the query "code !-is|instance-of-> element|pattern" returns no results
-      And the query "code ?-*-> *[kind!=element|pattern]" returns no results
+      Then the query "code !-is-> element" returns no results
+      And the query "code ?-*-> *[kind!=element]" returns no results
       And the query "requirement|feature[maturity=ready] !-realized-by-> element" returns no results
 
   Rule: The step API loads nothing of the parser, the graph or the workspace
@@ -60,6 +96,7 @@ Feature: Architecture overview
       And the output does not contain "/src/graph/"
       And the output does not contain "/src/workspace/"
 
+  @decided-by:free-vocabulary
   Rule: Only the vocabulary profile names the words sdp interprets
 
     Every other module asks the profile what a role is called, so renaming a word changes what sdp
@@ -97,7 +134,7 @@ Feature: Architecture overview
   Rule: Which element is `src/model/Results.ts`, the results a run records as data?
 
   @open
-  Rule: Is `src/run/Builtin.ts`, the built-in steps, part of the runner? An agent anchored it there so that the runner's uses links hold.
+  Rule: Is `src/run/Builtin.ts`, the built-in steps, part of the runner? An agent anchored it there, not an architect.
 
   @open
-  Rule: May the spec parser depend on the vocabulary? An agent declared the link when the parser began to read which keys link.
+  Rule: May the spec parser depend on the vocabulary? It imports the profile since it began to read which keys link.

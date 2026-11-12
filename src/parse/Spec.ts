@@ -98,7 +98,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
     diagnostics
   }
 }
-annotate(parseFeatureSpec, { is: "ARCH-spec-parser", "instance-of": "PAT-pipes-and-filters" })
+annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
 
 /** A Rule or a Scenario tagged `@open` is a question still open, and its name is the question. */
 const openIn = (gherkin: GherkinResult): ReadonlyArray<OpenQuestion> =>

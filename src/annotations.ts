@@ -5,7 +5,7 @@
  *   import { annotate } from "sdp/annotations"
  *
  *   export class Graph { ... }
- *   annotate(Graph, { is: "ARCH-graph", "instance-of": "PAT-derived-index" })
+ *   annotate(Graph, { is: "ARCH-graph" })
  *   annotate(import.meta, { is: "ARCH-query-engine" })   // the whole module
  *
  * The target is a real symbol, so renaming it or finding its references includes

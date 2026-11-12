@@ -397,7 +397,7 @@ export const buildProject = (input: ProjectInput): Project => {
     steps: { files: (input.stepFiles ?? []).map((file) => file.path), definitions: stepDefinitions }
   }
 }
-annotate(buildProject, { is: "ARCH-graph-builder", "instance-of": ["PAT-derived-index", "PAT-pipes-and-filters"] })
+annotate(buildProject, { is: "ARCH-graph-builder" })
 
 /**
  * `A -imports-> B` for each module anchored to element A that imports a function, a class or a

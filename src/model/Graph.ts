@@ -171,7 +171,7 @@ export class Graph {
     )
   }
 }
-annotate(Graph, { is: "ARCH-graph", "instance-of": "PAT-derived-index" })
+annotate(Graph, { is: "ARCH-graph" })
 
 export const formatSource = (source: SourceRef | undefined): string => source ? `${source.file}:${source.line}` : ""
 

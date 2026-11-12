@@ -91,15 +91,19 @@ The sharp edges of the format, each what the official parser does:
   note nobody acts on — is not written, and is deleted where it is found.
 - **Files are the source of truth.** The graph is rebuilt from them on every command. Edit the
   files; never a derived artefact (`.sdp/results.json` is written by `sdp run`).
-- **The architecture is what architects declared.** An element or pattern is in the graph because
-  someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
+- **The architecture is what architects declared, and none of it is prose.** It is a decision when
+  it is significant and universal, a rule in the spec it constrains otherwise, or a view sdp
+  generates from the code (`sdp arch`): `annotate(Thing, { is: "ARCH-x" })` from `sdp/annotations`,
+  or an `@sdp is ARCH-x` comment, declares an element where its code is, that code's doc comment
+  says what it is for, and sdp derives which element `imports` which from the TypeScript and
+  JavaScript anchored to them, so nobody writes it. An element is in the graph because someone
+  decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
-  requirements: `annotate(Thing, { is: "ARCH-x" })` from `sdp/annotations`, or an `@sdp is ARCH-x`
-  comment, says which code an element is, and a requirement names its element with `@realized-by:`.
+  requirements, and a requirement names its element with `@realized-by:`.
 - **Specs instead of prose.** A claim that can be structured or checked is a link or a rule with
   examples, not a paragraph. When you would write "X depends on Y" or "this must never happen",
-  write the link or the rule. A description says what the examples cannot — never a "verified by"
+  write the link or the rule (between elements, the code's imports already say it). A description says what the examples cannot — never a "verified by"
   list, a status, or a restatement of the rules below it. When a sentence becomes a rule, delete
   the sentence: promote, do not copy.
 - **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
@@ -140,9 +144,11 @@ faster than grepping for a guess.
 
   A node is `{type, id, kind, title, file, line, attrs}`; an edge is
   `{type, from, rel, to, attrs, declared: [{file, line}]}`. A rule is a node of kind `rule` that
-  is `rule-of` its spec, and a scenario `verifies` its rule and its spec. `sdp graph -q '<pattern>'`
-  exports only what a query matches.
-- **Orientation:** `sdp arch` (the architecture with its decisions and the code that is it),
+  is `rule-of` its spec, a scenario `verifies` its rule and its spec, and an element `imports`
+  each element whose code its code imports. `sdp graph -q '<pattern>'` exports only what a query
+  matches.
+- **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it and what
+  each element imports),
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
 
@@ -160,7 +166,7 @@ typed does not exist and which one is closest.
 
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new requirement "…"`
    writes the file and says what to write in it next. What a user sees belongs to a requirement;
-   how one part does its job belongs to that element.
+   a rule only the code observes, to the rules of the architecture.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for
