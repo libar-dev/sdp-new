@@ -10,7 +10,7 @@ import { annotate } from "sdp/annotations"
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { parseQuery, projectQueryOptions, type Query, runQuery, unknownWords } from "../graph/Query.ts"
+import { closest, parseQuery, projectQueryOptions, type Query, runQuery, unknownWords } from "../graph/Query.ts"
 import { isRuleId, problemLine, rules, type Severity, unreadRules } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, made } from "../model/Vocabulary.ts"
@@ -89,7 +89,13 @@ const run = (context: Asserting, source: string): ReadonlyArray<GraphNode> => {
   return result.nodes
 }
 
-const severities: Record<string, Severity> = { error: "error", errors: "error", warning: "warning", warnings: "warning", info: "info" }
+const severities: ReadonlyMap<string, Severity> = new Map([
+  ["error", "error"],
+  ["errors", "error"],
+  ["warning", "warning"],
+  ["warnings", "warning"],
+  ["info", "info"]
+])
 
 const list = (nodes: ReadonlyArray<GraphNode>, max = 10) =>
   nodes.slice(0, max).map((n) => `  - ${n.id} (${n.kind}) ${formatSource(n.source)}`).join("\n") +
@@ -133,7 +139,7 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
   })
 
   Then("there are no {word} diagnostics", ({ args: [severity], project }) => {
-    const wanted = severities[severity]
+    const wanted = severities.get(severity)
     if (!wanted) throw new Error(`unknown severity "${severity}"; use error, warning or info`)
     const found = check(project).filter((d) => d.severity === wanted)
     if (found.length > 0) {
@@ -155,6 +161,10 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
     unseen(`${id}.${key}`, key)
     if (isResult(key, node.kind === made.kinds.scenario)) gatesOnly(context, `${id}.${key}`)
     const actual = key === "kind" ? node.kind : key === "title" ? node.title : attribute(node, key)
+    if (actual === undefined) {
+      const near = closest(key, Object.keys(node.attrs))
+      throw new Error(`${id} has no attribute ${key}${near === undefined ? "" : `; closest: ${near}`}`)
+    }
     if (String(actual) !== value) throw new Error(`${id}.${key} is ${JSON.stringify(actual)}, expected ${JSON.stringify(value)}`)
   })
 })

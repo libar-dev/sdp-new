@@ -167,7 +167,7 @@ Feature: Workspace configuration
         @id=ADR-1 @kind=adr
         Feature: Use Postgres
 
-          Rule: Options
+          Rule: Every table has a primary key
         """
       When the workspace is checked
       Then sdp reports at least:

@@ -18,7 +18,7 @@ Feature: Built-in steps over the graph
       @id=DEC-0001
       Feature: Use an inverted index
 
-        Rule: Options
+        Rule: The index is rebuilt every night
       """
 
   Rule: A built-in step passes when the graph agrees, and otherwise says what it expected and what it found
@@ -64,7 +64,7 @@ Feature: Built-in steps over the graph
         | the query "requirement\|element" returns at most 1 result | returned 2 result(s), expected at most 1            |
         | every node matching "element" also matches "*[maturity]"  | ARCH-index (element) specs/ARCH-index.feature:1     |
         | there are no warning diagnostics                          | [decision-shape] DEC-0001                           |
-        | there are no diagnostics for rule "decision-shape"        | DEC-0001 has a rule ("Options")                     |
+        | there are no diagnostics for rule "decision-shape"        | DEC-0001 has a rule ("The index is rebuilt every night") |
         | the node "REQ-search" has maturity "ready"                | REQ-search.maturity is "idea", expected "ready"     |
 
     Scenario: A query result is compared with a table of ids, in any order, with or without a header
@@ -113,7 +113,9 @@ Feature: Built-in steps over the graph
         | the query "#REQ-search -realized-by-> *[ownr]" returns no results            | * has no attribute ownr                                 |
         | every node matching "#REQ-serach" also matches "requirement[maturity=ready]" | no node has the id REQ-serach                           |
         | the node "REQ-lost" has maturity "ready"                                     | no node REQ-lost                                        |
+        | the node "REQ-search" has maturty "undefined"                                | REQ-search has no attribute maturty; closest: maturity  |
         | there are no eror diagnostics                                                | unknown severity "eror"                                 |
+        | there are no constructor diagnostics                                         | unknown severity "constructor"                          |
         | there are no diagnostics for rule "decision-stats"                           | unknown rule "decision-stats"                           |
 
     Scenario Outline: A word the vocabulary declares, or a kind an id prefix names, can be asserted absent
