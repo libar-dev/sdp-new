@@ -3,13 +3,9 @@
 @iteration:I1
 Feature: Query engine (SDPQ)
 
-  Parses the path patterns of REQ-graph-query and evaluates them over the graph: a pure function
-  of a graph, a query and the workspace's ordering ladders.
-
-  It is architecture because gates, guards and agents' scripts in every workspace embed its syntax,
-  and because it must stay interactive on large graphs. So evaluation is bounded, and the bound is
-  part of the contract: a caller that concludes from a result refuses a truncated one
-  (REQ-builtin-steps, REQ-cli, REQ-mcp-server).
+  Parses path patterns and evaluates them over the graph: a pure function of a graph, a query and
+  the workspace's ordering ladders. It is architecture because gates, guards and agents' scripts in
+  every workspace embed its syntax, and because it must stay interactive on large graphs.
 
   Rule: A plus walks breadth-first, at most 12 hops, and adds one path per node it reaches
 
@@ -20,19 +16,12 @@ Feature: Query engine (SDPQ)
       And the result is truncated because "a + edge reaches further than 12 hops"
 
     Scenario: The path to a node a closure reaches is a shortest one
-      Given a file "model.md" containing:
-        """
-        ---
-        id: MODEL
-        kind: model
-        nodes:
-          - { id: A, kind: stop, links: { next: [B, C] } }
-          - { id: B, kind: stop, links: { next: D } }
-          - { id: C, kind: stop, links: { next: D } }
-          - { id: D, kind: stop, links: { next: A } }
-        ---
-        # Two routes from A to D, and a way back
-        """
+      Given these specs:
+        | tags                             | Feature |
+        | @id=A @kind=stop @next:B @next:C | A       |
+        | @id=B @kind=stop @next:D         | B       |
+        | @id=C @kind=stop @next:D         | C       |
+        | @id=D @kind=stop @next:A         | D       |
       When I query "#A -next+-> *"
       Then the paths are:
         | A -next-> B                     |
@@ -55,6 +44,8 @@ Feature: Query engine (SDPQ)
       And the result is truncated because "a step has more than 1000 paths"
 
   Rule: A result cut short says so and names the limit, unless the limit could not have changed it
+
+    The bound is part of the contract: a caller that concludes from a result refuses a truncated one.
 
     Scenario: An empty result cut short says so too
       Given a chain of 14 nodes linked by "next"

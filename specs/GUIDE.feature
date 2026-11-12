@@ -49,11 +49,17 @@ Feature: sdp, shown by running it
       When I run "sdp q 'requirement[stage=verified]' --ids"
       Then the output contains "REQ-guest-checkout"
 
+    Scenario: The shop example verifies itself
+      Given the workspace is a copy of "examples/shop"
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "4 scenario(s): 3 passed, 1 undefined"
+
   Rule: The graph is data: grep, jq and a query give the same answer
 
     Each reads the files, and every node and link knows the file and line it came from.
 
-    Scenario: grep, jq and sdp q give the same answer
+    Scenario: The specs a decision constrains
       Given these specs:
         | tags                                        | Feature                |
         | @id=REQ-guest-checkout @decided-by:DEC-0001 | Guest checkout         |
@@ -73,19 +79,13 @@ Feature: sdp, shown by running it
     examples/shop is a small product specified this way: one of its modules is anchored as an
     element, and the rest of its code stays out of the architecture.
 
-    Scenario: The architecture view holds what was declared, with what shaped it
+    Scenario: The architecture of the shop example
       Given the workspace is a copy of "examples/shop"
       When I run "sdp arch"
       Then the output contains "ARCH-pricing"
       And the output contains "DEC-0001"
       And the output contains "NFR-pricing-latency"
       And the output does not contain "src/cart.ts"
-
-    Scenario: The shop example verifies itself
-      Given the workspace is a copy of "examples/shop"
-      When I run "sdp run"
-      Then the exit code is 0
-      And the output contains "4 scenario(s): 3 passed, 1 undefined"
 
   Rule: A repository of your own starts with sdp init
 
@@ -103,7 +103,7 @@ Feature: sdp, shown by running it
 
   Rule: In this repository a word means one thing, and so does an id's prefix
 
-    A word this repository replaced does not come back, and a kind has one prefix.
+    So grep finds a thing under one name, and an id says what kind of thing it is.
 
     Scenario: A word this repository replaced does not come back
       When I run "grep -rnE '[Mm]aturity gates?|NFR[s]|(draft|specified|ready).? gate' README.md AGENTS.md .claude specs src examples" in the repository
@@ -129,6 +129,6 @@ Feature: sdp, shown by running it
 
     A rule written in Markdown is in no graph, no run and no check, so it counts for nothing.
 
-    Scenario: The Markdown files of this repository are its README, its agent guide and the skill
-      When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*' -not -path './examples/*'" in the repository
-      Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md"
+    Scenario: The Markdown files of this repository, the example's included
+      When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
+      Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"

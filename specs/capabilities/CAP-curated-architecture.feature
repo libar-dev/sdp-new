@@ -7,10 +7,10 @@ Feature: Curated architecture knowledge
   the decisions and quality requirements behind them. Architects decide which ones they are;
   everything else stays design detail in the code, out of the graph.
 
-  GUIDE shows an element anchored in code next to its decision. sdp holds its own
-  architecture to that: a description that no code stands behind is a diagram that stopped being
-  true.
+  Rule: Every element is anchored in the code it describes
 
-  Scenario: Every element of sdp's own architecture is anchored in its code
-    Then the query "element" returns at least 1 result
-    And the query "element !<-is- code" returns no results
+    An element that no code stands behind is a diagram that stopped being true.
+
+    Scenario: The elements of sdp's own architecture
+      Then the query "element" returns at least 1 result
+      And the query "element !<-is- code" returns no results
