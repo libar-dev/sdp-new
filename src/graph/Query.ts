@@ -23,6 +23,20 @@ import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 
 // @sdp is ARCH-query-engine
 
+/** The syntax in a few lines, for `sdp q --help`, the MCP tool description and query errors. */
+export const querySyntax = `node (edge node)*
+  node  kind | kind|kind | * | #ID | #ID|ID, then [cond, ...]
+  cond  key | !key | key=a|b | key!=a | key~regex | key!~regex | key<v | key>=v
+        (numbers, dates, and maturity/stage along idea < draft < specified < ready < in-progress < verified)
+  edge  -rel-> | <-rel- | -rel-   rel: * or empty for any, a|b alternatives, trailing + for one or more hops
+        prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves
+examples
+  requirement[maturity<ready]
+  requirement -realized-by-> element[significant]
+  element[significant] !-*- decision
+  #DEC-0002 <-*- *
+  scenario[status=failed] -verifies-> *`
+
 export class QueryError extends Data.TaggedError("QueryError")<{
   readonly message: string
   readonly query: string

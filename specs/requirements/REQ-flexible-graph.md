@@ -7,7 +7,7 @@ iteration: E1
 tags: [graph]
 links:
   refines: CAP-curated-architecture
-  realized-by: [ARCH-graph, ARCH-graph-builder]
+  realized-by: [ARCH-graph, ARCH-graph-builder, ARCH-code-annotations]
   decided-by: [DEC-0002, DEC-0003]
 ---
 

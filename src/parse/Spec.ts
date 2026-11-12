@@ -45,12 +45,16 @@ export interface Spec {
   readonly body: string
   /** Fenced gherkin blocks present (even if empty or unparseable). */
   readonly hasGherkin: boolean
+  /** Line of each top-level front matter attribute, so facts derived from one can point at it. */
+  readonly attrLines: Readonly<Record<string, number>>
 }
 
 export interface ParsedFile {
   readonly spec: Spec | undefined
   readonly diagnostics: ReadonlyArray<Diagnostic>
 }
+
+const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not run until it parses"
 
 const reserved = new Set(["id", "kind", "title", "links", "nodes"])
 
@@ -62,7 +66,8 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       rule: "front-matter",
       severity: "error",
       message: `invalid front matter: ${md.frontMatterError.message}`,
-      source: { file, line: md.frontMatterError.line }
+      source: { file, line: md.frontMatterError.line },
+      hint: "fix the YAML between the --- lines; until then the file is not part of the graph"
     })
     return { spec: undefined, diagnostics }
   }
@@ -91,7 +96,14 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
   // Parse errors cascade; the first one is what needs fixing.
   for (const error of gherkin.errors.slice(0, 1)) {
     const more = gherkin.errors.length > 1 ? ` (and ${gherkin.errors.length - 1} follow-on errors)` : ""
-    diagnostics.push({ rule: "gherkin-syntax", severity: "error", message: `${error.message}${more}`, node: id, source: { file, line: error.line } })
+    diagnostics.push({
+      rule: "gherkin-syntax",
+      severity: "error",
+      message: `${error.message}${more}`,
+      node: id,
+      source: { file, line: error.line },
+      hint: gherkinHint
+    })
   }
 
   const links = normalizeLinks(fm.links, {
@@ -119,7 +131,8 @@ export const parseMarkdownSpec = (file: string, content: string, config: Config)
       summary: md.summary,
       headings: md.headings.map((h) => h.text),
       body: md.body,
-      hasGherkin: md.fences.some((fence) => gherkinLangs.has(fence.lang))
+      hasGherkin: md.fences.some((fence) => gherkinLangs.has(fence.lang)),
+      attrLines: Object.fromEntries(Object.keys(attrs).map((key) => [key, frontMatterKeyLine(md, key)]))
     },
     diagnostics
   }
@@ -145,7 +158,8 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
     severity: "error" as const,
     message: error.message,
     node: id,
-    source: { file, line: error.line }
+    source: { file, line: error.line },
+    hint: gherkinHint
   }))
   if (!parsed.featureName && parsed.errors.length === 0) return { spec: undefined, diagnostics }
   const plainTags = parsed.featureTags.filter((tag) => !tagValue.test(tag)).map((tag) => tag.slice(1))
@@ -169,7 +183,8 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       summary: parsed.description?.split("\n\n")[0]?.replace(/\s+/g, " ") ?? "",
       headings: [],
       body: content,
-      hasGherkin: true
+      hasGherkin: true,
+      attrLines: {}
     },
     diagnostics
   }

@@ -194,12 +194,15 @@ export const buildProject = (input: ProjectInput): Project => {
   // (`iteration: E2` → `-iteration-> E2`). Explicit links are never required for the obvious ones.
   for (const node of [...nodes.values()]) {
     if (node.kind === "scenario" || node.kind === "code") continue
+    const spec = specById.get(node.id)
     for (const [key, value] of Object.entries(node.attrs)) {
       if (notLinks.has(key)) continue
       const values = Array.isArray(value) ? value : [value]
+      const line = spec?.attrLines[key]
+      const source = node.source && line !== undefined ? { file: node.source.file, line } : node.source
       for (const v of values) {
         if (Predicate.isString(v) && v !== node.id && nodes.has(v)) {
-          edges.push({ from: node.id, rel: key, to: v, attrs: { implicit: true }, source: node.source })
+          edges.push({ from: node.id, rel: key, to: v, attrs: { implicit: true }, source })
         }
       }
     }

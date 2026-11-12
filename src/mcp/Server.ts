@@ -10,25 +10,14 @@ import { architectureSummary, architectureView } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
-import { formatPath, projectOrderings, query } from "../graph/Query.ts"
+import { formatPath, projectOrderings, query, querySyntax } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { formatSource } from "../model/Graph.ts"
 import { loadProject } from "../workspace/Workspace.ts"
 
 // @sdp is ARCH-mcp
 
-const queryHelp = `SDPQ path patterns, one line:
-  kind[cond, ...] -rel-> kind[...] <-rel- * ...
-Node: kind | kind|kind | * | #ID | #ID|ID, then [conditions]: key, !key, key=a|b, key!=a, key~regex, key<v, key>=v
-  (maturity and stage compare along idea < draft < specified < ready < in-progress < verified).
-Edge: -rel-> out, <-rel- in, -rel- either; * or empty = any relation; a|b alternatives; trailing + = transitive.
-  Prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one (filters, does not move).
-Examples:
-  requirement[maturity<ready]
-  requirement -realized-by-> element[significant]
-  element[significant] !-*- decision
-  #DEC-0002 <-*- *
-  scenario[status=failed] -verifies-> *`
+const queryHelp = `SDPQ path patterns, one line:\n${querySyntax}`
 
 const text = { success: Schema.String, failure: Schema.String, failureMode: "return" as const }
 

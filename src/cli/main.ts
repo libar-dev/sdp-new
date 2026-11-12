@@ -12,7 +12,7 @@ import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
-import { formatPath, projectOrderings, query } from "../graph/Query.ts"
+import { formatPath, projectOrderings, query, querySyntax } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { formatSource } from "../model/Graph.ts"
@@ -119,13 +119,7 @@ const queryCommand = Command.make(
 ).pipe(
   Command.withAlias("q"),
   Command.withShortDescription("Query the graph with a path pattern"),
-  Command.withDescription(`Query the graph with a path pattern (SDPQ):
-
-  node (edge node)*
-  node  kind | kind|kind | * | #ID | #ID|ID, then [cond, ...]
-  cond  key | !key | key=a|b | key!=a | key~regex | key<v | key>=v  (maturity and stage compare in order)
-  edge  -rel-> | <-rel- | -rel-   rel: * | a|b, trailing + follows it transitively
-        prefix ! keeps nodes WITHOUT such a neighbour, ? keeps nodes WITH one; neither moves`),
+  Command.withDescription(`Query the graph with a path pattern (SDPQ):\n\n${querySyntax.replace(/^/gm, "  ")}`),
   Command.withExamples([
     { command: "sdp q 'requirement[maturity<ready]'", description: "Requirements not ready yet" },
     { command: "sdp q 'element[significant] !-*- decision'", description: "Significant elements without a decision" },

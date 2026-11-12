@@ -253,6 +253,13 @@ nodes:
       The end of a phase (LCO, LCA, IOC, PR): a spec of kind `milestone` whose scenarios are its
       gate.
     links: { specified-by: REQ-lifecycle-view }
+  - id: TERM-diagnostic
+    kind: term
+    title: Diagnostic
+    definition: >-
+      A problem `sdp check` reports: a rule id, a severity (error, warning or info), the
+      `file:line` where it is, and a hint saying how to fix it. Only errors fail the check.
+    links: { specified-by: REQ-check-rules }
   - id: TERM-gate
     kind: term
     title: Gate

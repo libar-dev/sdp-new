@@ -8,7 +8,7 @@
 import { Predicate } from "effect"
 import { architectureView, isSignificant } from "../arch/Architecture.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
-import type { Project } from "./Build.ts"
+import { isActive, type Project } from "./Build.ts"
 
 export const contextBundle = (project: Project, id: string, depth = 2): string | undefined => {
   const { graph } = project
@@ -63,7 +63,8 @@ export const contextBundle = (project: Project, id: string, depth = 2): string |
   const reach = neighbourhood(project, id, depth)
   const curated = new Set(architectureView(project).nodes.map((n) => n.id))
   const significant = reach.filter((n) => isSignificant(n) && n.id !== id)
-  const decisions = reach.filter((n) => n.kind === "decision" && n.id !== id)
+  // Decisions that no longer apply (superseded, rejected, deprecated) are not context for new work.
+  const decisions = reach.filter((n) => n.kind === "decision" && n.id !== id && isActive(n))
   const patterns = reach.filter((n) => n.kind === "pattern" && n.id !== id && curated.has(n.id) && !isSignificant(n))
   if (significant.length > 0) {
     out.push(`## Significant architecture within ${depth} hops`, "")

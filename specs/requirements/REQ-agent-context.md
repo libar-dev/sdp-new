@@ -22,7 +22,8 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
    suggested step definition for each undefined step;
 5. the significant architecture within two hops (`--depth`), with the rationale for each element,
    and the patterns it applies;
-6. the decisions within reach, with their summaries;
+6. the decisions within reach that still apply, with their summaries — superseded, rejected and
+   deprecated records are left out;
 7. the code linked by `@sdp` annotations within reach.
 
 Only curated architecture is included. An element or pattern that no architect marked significant
@@ -112,6 +113,32 @@ Scenario: Only curated architecture within two hops is included
   And the output section "Patterns" contains "PAT-saga"
   And the output section "Patterns" does not contain "PAT-memo"
   And the output section "Relationships" contains "ARCH-cache"
+
+Scenario: Only decisions that still apply are included
+  Given a file "specs/REQ-checkout.md" containing:
+    """
+    ---
+    id: REQ-checkout
+    maturity: idea
+    links:
+      decided-by: [DEC-1, DEC-2]
+    ---
+    # Checkout
+    """
+  And a file "docs/decisions.md" containing:
+    """
+    ---
+    id: DECISIONS
+    kind: log
+    nodes:
+      - { id: DEC-1, kind: decision, title: Card payments only, status: rejected }
+      - { id: DEC-2, kind: decision, title: Cards and invoices, status: accepted }
+    ---
+    # Decisions
+    """
+  When I ask for the context of "REQ-checkout"
+  Then the output section "Decisions" contains "DEC-2"
+  And the output section "Decisions" does not contain "DEC-1"
 
 Scenario: Scenario status comes with the step definitions still to write
   Given a file "specs/REQ-cart.md" containing:
