@@ -18,7 +18,6 @@ import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 const directoryFor: Record<string, string> = {
   feature: "specs/features",
   decision: "specs/decisions",
-  pattern: "specs/architecture",
   milestone: "specs/delivery",
   plan: "specs/delivery",
   phase: "specs/delivery",
@@ -28,7 +27,7 @@ const directoryFor: Record<string, string> = {
 
 /**
  * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
- * maturity idea, and an element is no file: its code declares it.
+ * maturity idea, and an element or a pattern is no file: its code declares it.
  */
 export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
 
@@ -77,7 +76,7 @@ export const newId = (kind: string, title: string, config: Config, existing: Rea
 
 export interface NewSpec {
   readonly id: string
-  /** The file to write, and what it holds; an element has none, for its code declares it. */
+  /** The file to write, and what it holds; an element or a pattern has none, for its code declares it. */
   readonly file: { readonly path: string; readonly content: string } | undefined
   /** What the author writes next, one instruction per line: the template leaves none in the file. */
   readonly next: ReadonlyArray<string>
@@ -86,10 +85,10 @@ export interface NewSpec {
 /**
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
  * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
- * `sdp new element` no file: only the id its code declares, and how.
+ * `sdp new element` or `sdp new pattern` no file: only the id its code declares, and how.
  * Fails, with the reason, for a change, which is rules of the feature it changes unless the
  * workspace names a kind `change` of its own, and when the content would not read back with its id,
- * kind and title: an element's id is read back too, though it has no file.
+ * kind and title: the id of an element or a pattern is read back too, though it has no file.
  */
 export const newSpec = (options: {
   readonly kind: string
@@ -122,8 +121,8 @@ export const newSpec = (options: {
   const file = `${directory}/${id}.feature`
   const content = specTemplate({ kind, id, title, maturity, today: options.today, config, graph })
   const back = parseFeatureSpec(file, content, config).spec
-  // An element is no file, but its id is written in tags all the same, so it is read back as any other.
-  if (template === "element") {
+  // An element or a pattern is no file, but its id is written in tags all the same, so it is read back as any other.
+  if (template === "element" || template === "pattern") {
     return back?.id === id
       ? Result.succeed({ id, file: undefined, next })
       : Result.fail(
@@ -215,7 +214,7 @@ const phaseId = (config: Config, name: string) => newId(wordFor(config.vocabular
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
-  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; element `@instance-of:PAT-…`; risk `@affects:<feature>` and `@mitigated-by:<feature>`"
+  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp plays PAT-…`; risk `@affects:<feature>` and `@mitigated-by:<feature>`"
 
 /**
  * What the author of a new spec writes next, in the workspace's own words. It is the answer of
@@ -286,8 +285,9 @@ const guidance = (options: {
       ]
     case "pattern":
       return [
-        "say under the title which problem the pattern solves, and how",
-        `elements that apply it link \`@instance-of:${id}\`; what decided it, \`@decided-by:<decision>\``
+        `no file is written: a pattern is declared where the code its instances share is, by the tag \`@sdp ${anchor} ${id}\` in the doc comment of a module-level declaration, or of the file in the comment that opens it`,
+        "the rest of that comment is its description: say there which problem it solves, and how",
+        `code that applies it says so in its doc comment with \`@sdp plays ${id}\`: sdp arch shows the pattern with the code that plays it and the elements that code is`
       ]
     case "generic":
       return [

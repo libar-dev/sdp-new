@@ -45,7 +45,6 @@ Feature: Start a spec
       Examples:
         | kind    | title     | options | file                                  | tags                                    | next                                                                |
         | gizmo   | Sprocket  |         | specs/gizmo/sprocket.feature          | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
-        | pattern | Outbox    |         | specs/architecture/PAT-outbox.feature | @id=PAT-outbox @maturity=idea           | elements that apply it link `@instance-of:PAT-outbox`               |
         | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk @maturity=idea    | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
         | phase   | Hardening |         | specs/delivery/PH-hardening.feature   | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
 
@@ -65,8 +64,20 @@ Feature: Start a spec
         next: a rule that rests on it is written on the spec it constrains, tagged `@decided-by:use-postgres`
         """
 
-  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+  @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in its code like an element, so new writes no file for one, and the answer says how code plays it
+
+    Scenario: A pattern
+      When I run "sdp new pattern Outbox"
+      Then the exit code is 0
+      And the output lines are "PAT-outbox"
+      And the output contains:
+        """
+        next: no file is written: a pattern is declared where the code its instances share is, by the tag `@sdp is PAT-outbox` in the doc comment of a module-level declaration, or of the file in the comment that opens it
+        next: the rest of that comment is its description: say there which problem it solves, and how
+        next: code that applies it says so in its doc comment with `@sdp plays PAT-outbox`: sdp arch shows the pattern with the code that plays it and the elements that code is
+        """
+      And the file "specs/architecture/PAT-outbox.feature" does not exist
 
   Rule: An element is declared where its code is, so new writes no file for one, and the answer says how its code declares it
 
@@ -187,7 +198,6 @@ Feature: Start a spec
         | kind      | title         | maturity |
         | gizmo     | Sprocket      | idea     |
         | idea      | Gift wrapping |          |
-        | pattern   | Outbox        |          |
         | phase     | Elaboration   |          |
         | milestone | Launch        |          |
         | risk      | Outage        |          |

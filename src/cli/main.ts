@@ -335,7 +335,7 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a feature at maturity idea; element: no file, for its code declares it). Any other kind gets the generic template`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a feature at maturity idea; element and pattern: no file, for their code declares them). Any other kind gets the generic template`
       )
     ),
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it")),
