@@ -25,17 +25,50 @@ const functions = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFu
 /** Wrappers that change only types: parentheses, `as`, `satisfies`, `<T>x`, `x!`. */
 const typeOnly = new Set(["ParenthesizedExpression", "TSAsExpression", "TSSatisfiesExpression", "TSTypeAssertion", "TSNonNullExpression"])
 
+/** The functions of Effect that make a function of a generator: `Effect.fn`, and the untraced ones. */
+const effectFunctions = new Set(["fn", "fnUntraced", "fnUntracedEager"])
+
 /**
- * The function a constant's value is: a function written there, or the one a call wraps as its last
- * argument, as `Effect.fn("load")(function*(…) { … })` does.
+ * The names a file imports Effect's module under: `import { Effect } from "effect"`, or the module
+ * itself, `import * as Effect from "effect/Effect"`.
  */
-const functionOf = (value: Node | null | undefined): Node | undefined => {
+const effectNames = (program: Script["program"]): ReadonlySet<string> =>
+  new Set(program.body.flatMap((statement) => {
+    if (statement.type !== "ImportDeclaration" || statement.importKind === "type") return []
+    const from = (statement.source as Node).value
+    return (statement.specifiers as ReadonlyArray<Node>).flatMap((specifier) => {
+      const local = (specifier.local as Node).name as string
+      if (from === "effect") return specifier.type === "ImportSpecifier" && nameOf(specifier.imported as Node) === "Effect" ? [local] : []
+      return from === "effect/Effect" && specifier.type !== "ImportSpecifier" ? [local] : []
+    })
+  }))
+
+/**
+ * The body Effect makes a function of, as its documentation has the arguments: `Effect.fn(body, …)`,
+ * `Effect.fn("name", options?)(body, …)`, and `Effect.fn({ self }, body, …)`; the arguments after
+ * the body transform what it returns. Any other call is not read.
+ */
+const effectBody = (call: Node, effect: ReadonlySet<string>): Node | undefined => {
+  const isFn = (callee: unknown): boolean =>
+    isNode(callee) && callee.type === "MemberExpression" && !callee.computed && isNode(callee.object) &&
+    callee.object.type === "Identifier" && effect.has(callee.object.name as string) && effectFunctions.has(nameOf(callee.property as Node) ?? "")
+  const named = isNode(call.callee) && call.callee.type === "CallExpression" && isFn(call.callee.callee) &&
+    (call.callee.arguments as ReadonlyArray<Node>)[0]?.type === "Literal"
+  if (!named && !isFn(call.callee)) return undefined
+  const [first, second] = call.arguments as ReadonlyArray<Node>
+  const body = first?.type === "ObjectExpression" ? second : first
+  return body && functions.has(body.type) ? body : undefined
+}
+
+/**
+ * The function a variable's value is: one written there, through what changes only its type, or
+ * the body `Effect.fn` makes one of.
+ */
+const functionOf = (value: Node | null | undefined, effect: ReadonlySet<string>): Node | undefined => {
   if (!isNode(value)) return undefined
-  if (typeOnly.has(value.type)) return functionOf(value.expression as Node)
+  if (typeOnly.has(value.type)) return functionOf(value.expression as Node, effect)
   if (functions.has(value.type)) return value
-  if (value.type !== "CallExpression") return undefined
-  const last = (value.arguments as ReadonlyArray<Node>).at(-1)
-  return last && (typeOnly.has(last.type) ? functionOf(last) : functions.has(last.type) ? last : undefined)
+  return value.type === "CallExpression" ? effectBody(value, effect) : undefined
 }
 
 /** The shapes of the declarations of one parsed file. */
@@ -86,7 +119,7 @@ export const shapes = (content: string, script: Script): Shapes => {
     switch (declared.type) {
       case "FunctionDeclaration":
       case "TSDeclareFunction":
-        return signature(declared, name)
+        return functionShape(declared, name)
       case "ClassDeclaration":
       case "ClassExpression": {
         const body = declared.body as Node
@@ -109,12 +142,28 @@ export const shapes = (content: string, script: Script): Shapes => {
     }
   }
 
-  /** A variable's shape: the function its value is, or its type as written; a variable declared without a value has its type alone. */
+  const effect = effectNames(script.program)
+  /** A variable's shape: its type as written, or else the function its value is; any other value says nothing of itself. */
   const variableShape = (kind: string, declarator: Node, name: string): Shape => {
-    const fn = functionOf(declarator.init as Node | null)
-    if (fn) return signature(fn, name)
     const type = typeOf((declarator.id as Node).typeAnnotation)
-    return { text: `${kind} ${name}${type ? `: ${type}` : ""}` }
+    const fn = type === undefined ? functionOf(declarator.init as Node | null, effect) : undefined
+    return fn ? signature(fn, name) : { text: `${kind} ${name}${type ? `: ${type}` : ""}` }
+  }
+
+  /** The module-level functions of each name: one, or the signatures of an overloaded one and its implementation. */
+  const functionsByName = new Map<string, Array<Node>>()
+  for (const statement of script.program.body) {
+    const declared = statement.type === "ExportNamedDeclaration" || statement.type === "ExportDefaultDeclaration" ? statement.declaration : statement
+    if (!isNode(declared) || (declared.type !== "FunctionDeclaration" && declared.type !== "TSDeclareFunction")) continue
+    const name = isNode(declared.id) ? declared.id.name as string : undefined
+    if (name !== undefined) functionsByName.set(name, [...functionsByName.get(name) ?? [], declared])
+  }
+  /** A function's shape: its signature, or, overloaded, each signature it can be called with — not its implementation's. */
+  const functionShape = (fn: Node, name: string): Shape => {
+    const all = functionsByName.get(name) ?? [fn]
+    const overloads = all.length > 1 ? all.filter((candidate) => !isNode(candidate.body)) : []
+    const callable = (overloads.length > 0 ? overloads : [fn]).map((candidate) => signature(candidate, name))
+    return { text: callable.map((shape) => shape.text).join("; "), returnType: callable.every((shape) => shape.returnType) }
   }
 
   /** What a module-level statement declares, under each name it declares. */
@@ -140,7 +189,8 @@ export const shapes = (content: string, script: Script): Shapes => {
 
   const exports = (): ReadonlyArray<string> => {
     const local = new Map(script.program.body.flatMap((statement) => declarations(statement).map(([name, shape]) => [name, statement] as const)))
-    return script.program.body.flatMap((statement) => {
+    // An overloaded function is exported once, with every signature, whichever of its declarations says `export`.
+    return [...new Set(script.program.body.flatMap((statement) => {
       if (statement.type === "ExportDefaultDeclaration" || (statement.type === "ExportNamedDeclaration" && isNode(statement.declaration))) {
         return declarations(statement).map(([, shape]) => shape.text)
       }
@@ -153,7 +203,7 @@ export const shapes = (content: string, script: Script): Shapes => {
         const shape = declaring && declarations(declaring).find(([name]) => name === localName)?.[1]
         return shape && exported ? [renamed(shape.text, localName!, exported)] : []
       })
-    })
+    }))]
   }
 
   return { of: (statement) => declarations(statement)[0]?.[1], exports }
@@ -162,6 +212,6 @@ export const shapes = (content: string, script: Script): Shapes => {
 const nameOf = (node: Node | undefined): string | undefined =>
   node === undefined ? undefined : typeof node.name === "string" ? node.name : typeof node.value === "string" ? node.value : undefined
 
-/** A shape under the name it is exported as: its first word after what it declares. */
+/** A shape under the name it is exported as: the first word after what it declares, and after each further signature of a function's. */
 const renamed = (text: string, from: string, to: string): string =>
-  from === to ? text : text.replace(new RegExp(`^(\\S+ )${from.replace(/[$]/g, "\\$&")}\\b`), `$1${to}`)
+  from === to ? text : text.replace(new RegExp(`(^\\S+ |; function )${from.replace(/[$]/g, "\\$&")}\\b`, "g"), `$1${to}`)

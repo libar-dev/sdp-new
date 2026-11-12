@@ -329,7 +329,9 @@ Feature: Link code to specs
 
     So the graph explains the code the architect annotated without the code being read. The shape
     is read as written, and leads with what the declaration is: a type the compiler would infer is
-    not.
+    not. A variable is its written type, or else the function its value is: one written there, or
+    the body `Effect.fn` and `Effect.fnUntraced` make one of, as their documentation has it. What any
+    other call gives back only a type checker knows. An overloaded function is its public signatures.
 
     Scenario: An interface and a function, each tagged in the comment that describes it
       Given a file "src/pricing.ts" containing:
@@ -382,6 +384,12 @@ Feature: Link code to specs
         | Side   | export enum Side { Buy, Sell }                                                                                                                     | enum Side { Buy, Sell }                                                                       |
         | count  | export let count: number                                                                                                                           | let count: number                                                                             |
         | ready  | export declare const ready: boolean                                                                                                                | const ready: boolean                                                                          |
+        | doubled | export const doubled = [1, 2].map((n: number): number => n * 2)                                                                                  | const doubled                                                                                 |
+        | traced | export const traced = trace(function(id: string): number {\n  return id.length\n})                                                                 | const traced                                                                                  |
+        | square | export const square: (n: number) => number = (n) => n * n                                                                                          | const square: (n: number) => number                                                           |
+        | spanned | export const spanned = Effect.fn("spanned")(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n}, Effect.withSpan("cart"))   | function spanned(id: string): Effect.fn.Return<number>                                        |
+        | size   | export const size = Effect.fnUntraced(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n})                                    | function size(id: string): Effect.fn.Return<number>                                           |
+        | parse  | export function parse(text: string): number\nexport function parse(text: string, radix: number): number\nexport function parse(text: string, radix = 10): number {\n  return Number.parseInt(text, radix)\n} | function parse(text: string): number; function parse(text: string, radix: number): number |
 
     Scenario: A tag that opens a file gives the shapes of what the file exports
       Given a file "src/pricing.ts" containing:
@@ -400,12 +408,18 @@ Feature: Link code to specs
 
         export let rounding: number
 
+        export function cents(euros: number): Cents
+        export function cents(euros: string): Cents
+        export function cents(euros: number | string): Cents {
+          return Math.round(Number(euros) * 100)
+        }
+
         const audit = (): void => {}
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
-        | id                  | doc                             | exports                                                                                     |
-        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number |
+        | id                  | doc                             | exports                                                                                                                                                 |
+        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number, function cents(euros: number): Cents; function cents(euros: string): Cents |
 
   Rule: sdp check asks an annotated function to state its return type
 
@@ -433,7 +447,10 @@ Feature: Link code to specs
         | export function pay(amount: number) {\n  return amount\n}                                      | return-type |
         | export const pay = Effect.fn("pay")(function*(amount: number) {\n  return amount\n})           | return-type |
         | export const pay = Effect.fn("pay")(function*(amount: number): Effect.fn.Return<number> {\n  return amount\n}) | nothing     |
+        | export const pay = Effect.fn("pay")(function*(amount: number) {\n  return amount\n}, Effect.withSpan("pay")) | return-type |
         | export const pay = 0.2                                                                         | nothing     |
+        | export const pay = [1, 2].map((amount: number) => amount)                                      | nothing     |
+        | export const pay: (amount: number) => number = (amount) => amount                              | nothing     |
         | export class Pay {\n  amount() {\n    return 0\n  }\n}                                         | nothing     |
 
     Scenario: Reported at the function, as a warning
