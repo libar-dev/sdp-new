@@ -26,7 +26,7 @@ Feature: Check rules
         | duplicate-id          | error    | specs/REQ-a.feature    | 4    | @id=REQ-a\nFeature: A\n  Rule: R\n  Rule: R                                                                                    |
         | dangling-link         | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @depends-on:REQ-gone\nFeature: A                                                                                     |
         | link-syntax           | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @maturity:ready\nFeature: A                                                                                          |
-        | link-conflict         | warning  | src/billing.py         | 2    | # @sdp uses ARCH-ledger via=events\n# @sdp uses ARCH-ledger via=http\nclass Billing: pass                                       |
+        | link-conflict         | warning  | src/billing.py         | 2    | # @sdp uses ARCH-ledger via=events\n# @sdp uses ARCH-ledger via=http\nclass Billing: pass                                      |
         | derived-attribute     | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @verification=passing\nFeature: A                                                                                    |
         | gherkin-syntax        | error    | specs/REQ-a.feature    | 7    | @id=REQ-a\nFeature: A\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \|             |
         | annotation            | error    | specs/REQ-a.feature    | 1    | @id=REQ-a @uses:A,B\nFeature: A                                                                                                |
@@ -97,6 +97,25 @@ Feature: Check rules
 
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec
+
+  Rule: A tag that as written would link nothing or say nothing is reported, not read as something else
+
+    Scenario Outline: A planning link written as a value, an activity without its discipline, a tag without a value
+      Given these specs:
+        | tags                   | Feature |
+        | @id=E1 @kind=iteration | E1      |
+        | @id=REQ-a <tags>       | A       |
+      When the workspace is checked
+      Then sdp reports:
+        | rule   | at                    | message   | hint   |
+        | <rule> | specs/REQ-a.feature:1 | <message> | <hint> |
+
+      Examples:
+        | tags              | rule           | message                                                          | hint                                               |
+        | @iteration=E1     | link-syntax    | iteration is a link, so a value written with = links nothing     | write @iteration:E1                                |
+        | @activity.test=E1 | link-syntax    | activity.test is a link, so a value written with = links nothing | write @activity.test:E1                            |
+        | @activity:E1      | plan-reference | activity names no discipline, so its link to E1 plans nothing    | name the discipline, `@activity.implementation:E1` |
+        | @owner=           | annotation     | owner has no value                                               | write @owner=<value>, or @owner alone              |
 
   Rule: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
 

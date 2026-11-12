@@ -295,11 +295,10 @@ export const buildProject = (input: ProjectInput): Project => {
 
   // A link reads as an attribute of the node it starts from. So it cannot carry the name of a fact
   // sdp derives or checks, nor of an attribute that node has: either would pass for the other.
-  const keys = linkKeys(vocabulary)
   const links = edges.filter((edge) => {
     const from = nodes.get(edge.from)
     const reserved = reservedRelations.includes(edge.rel)
-    const written = from !== undefined && Object.hasOwn(from.attrs, edge.rel) && !keys.includes(edge.rel)
+    const written = from !== undefined && Object.hasOwn(from.attrs, edge.rel)
     if (!reserved && !written) return true
     diagnostics.push(diagnostic("link-syntax", {
       message: reserved

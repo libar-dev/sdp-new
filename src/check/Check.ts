@@ -233,7 +233,16 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       }))
     }
     const activityKey = vocabulary.attributes.activity
+    const disciplines = [...vocabulary.disciplines.keys()].join(", ")
     for (const edge of graph.out(node.id)) {
+      if (edge.rel === activityKey) {
+        out.push(diagnostic("plan-reference", {
+          message: `${node.id}: ${activityKey} names no discipline, so its link to ${edge.to} plans nothing`,
+          node: node.id,
+          source: edge.source,
+          hint: `name the discipline, \`@${activityKey}.implementation:${edge.to}\`; the disciplines are ${disciplines}`
+        }))
+      }
       const target = graph.node(edge.to)
       if (!target || target.kind === made.kinds.missing) continue
       for (const [relation, roles] of planRelations) {
@@ -264,7 +273,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${node.id}: ${activityKey} names "${discipline}", which is not a discipline`,
         node: node.id,
         source: edge.source,
-        hint: `use one of: ${[...vocabulary.disciplines.keys()].join(", ")}, or add it under vocabulary.disciplines in the configuration`
+        hint: `use one of: ${disciplines}, or add it under vocabulary.disciplines in the configuration`
       }))
     }
     const activity = attribute(node, activityKey)

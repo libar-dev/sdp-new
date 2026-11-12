@@ -8,7 +8,7 @@ import { Predicate, Result } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
-import { made } from "../model/Vocabulary.ts"
+import { isLinkKey, made } from "../model/Vocabulary.ts"
 import { type GherkinError, type GherkinResult, type LinkDecl, type Paragraph, parseFeatureFile, type Rule, type Scenario } from "./Gherkin.ts"
 
 /** A Rule or a Scenario tagged `@open`: its name is the question. */
@@ -53,7 +53,7 @@ const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not r
  */
 export const parseFeatureSpec = (file: string, content: string, config: Config): ParsedFile => {
   const fallbackId = `feature:${file}`
-  const parsed = parseFeatureFile(content)
+  const parsed = parseFeatureFile(content, (key) => isLinkKey(config.vocabulary, key))
   if (Result.isFailure(parsed)) return { spec: undefined, diagnostics: syntaxDiagnostics(fallbackId, file, parsed.failure) }
   const { feature, read } = parsed.success
   if (!feature) return { spec: undefined, diagnostics: [] }

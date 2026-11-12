@@ -182,6 +182,10 @@ export const isDriver = (vocabulary: Vocabulary, node: { readonly kind: string; 
 export const linkKeys = (vocabulary: Vocabulary): Words =>
   [...new Set([...vocabulary.relations.plan, ...vocabulary.relations.phase, ...vocabulary.relations.closes])]
 
+/** Whether a key only links: a relation of the plan, or a discipline under `activity` (`activity.test`). */
+export const isLinkKey = (vocabulary: Vocabulary, key: string): boolean =>
+  linkKeys(vocabulary).includes(key) || key.startsWith(`${vocabulary.attributes.activity}.`)
+
 /** The day a milestone was recorded as met. Anything but an ISO date written there records nothing. */
 export const metOn = (vocabulary: Vocabulary, node: { readonly attrs: Readonly<Record<string, unknown>> }): string | undefined => {
   const value = attribute(node, vocabulary.attributes.met)

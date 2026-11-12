@@ -104,7 +104,7 @@ export interface GherkinError {
 
 /** Something the parser accepts that sdp cannot read as written: an annotation where it says nothing, a line Gherkin drops. */
 export interface GherkinProblem {
-  readonly rule: Extract<RuleId, "annotation" | "description-comment" | "gherkin-syntax">
+  readonly rule: Extract<RuleId, "annotation" | "description-comment" | "gherkin-syntax" | "link-syntax">
   readonly message: string
   readonly line: number
   readonly hint: string
@@ -127,8 +127,11 @@ export interface FeatureFile {
 
 const featureLine = /^\s*Feature:/
 
+/** Which keys link, so that one written with `=` is a slip: `@iteration=E1` plans nothing. */
+export type LinkKeys = (key: string) => boolean
+
 /** Parse a `.feature` file, or say where the parser stopped. */
-export const parseFeatureFile = (content: string): Result.Result<FeatureFile, ReadonlyArray<GherkinError>> => {
+export const parseFeatureFile = (content: string, links: LinkKeys): Result.Result<FeatureFile, ReadonlyArray<GherkinError>> => {
   const newId = IdGenerator.incrementing()
   const parsed = parseDocument(content, newId)
   if (Result.isFailure(parsed)) return Result.fail(parsed.failure)
@@ -138,10 +141,10 @@ export const parseFeatureFile = (content: string): Result.Result<FeatureFile, Re
     feature: feature && {
       name: feature.name,
       description: paragraphs(placeDescription(lines, feature).lines),
-      ...readTags(feature.tags, "Feature")
+      ...readTags(feature.tags, "Feature", links)
     },
     read: (specId, tags) =>
-      feature ? readFeature(specId, { ...feature, tags: [...feature.tags, ...inherited(feature, tags, newId)] }, newId, lines, comments) : empty
+      feature ? readFeature(specId, { ...feature, tags: [...feature.tags, ...inherited(feature, tags, newId)] }, newId, lines, comments, links) : empty
   })
 }
 
@@ -160,7 +163,7 @@ const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<
   }
 }
 
-const annotationTag = /^@([A-Za-z][\w.-]*)([=:])(.+)$/
+const annotationTag = /^@([A-Za-z][\w.-]*)([=:])(.*)$/
 
 /** Where a tag sits: what an annotation there is about, and which ones it may hold. */
 type Level = "Feature" | "Rule" | "Scenario" | "Examples"
@@ -177,13 +180,13 @@ const tagValue = (text: string): unknown => {
  * any other tag is a Cucumber tag. An annotation that cannot mean what it says is a problem, and
  * neither a fact nor a tag.
  */
-const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, problems: Array<GherkinProblem> = []): Annotations => {
+const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: LinkKeys, problems: Array<GherkinProblem> = []): Annotations => {
   const plain: Array<string> = []
   const values = new Map<string, Array<unknown>>()
   const attrLines = new Map<string, number>()
   const links: Array<LinkDecl> = []
-  const problem = (tag: Messages.Tag, message: string, hint: string) =>
-    problems.push({ rule: "annotation", message: `${tag.name}: ${message}`, line: tag.location.line, hint })
+  const problem = (tag: Messages.Tag, message: string, hint: string, rule: GherkinProblem["rule"] = "annotation") =>
+    problems.push({ rule, message: `${tag.name}: ${message}`, line: tag.location.line, hint })
   for (const tag of tags) {
     const match = annotationTag.exec(tag.name)
     if (!match) {
@@ -196,6 +199,10 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, problems: Arr
     const line = tag.location.line
     if (level === "Examples") {
       problem(tag, "an annotation on Examples is about no node", "put it on the Scenario or the Rule above; a plain tag such as @slow selects the table's rows")
+    } else if (value === "") {
+      problem(tag, `${key} has no value`, `write @${key}${separator}${separator === ":" ? "<ID>" : "<value>"}, or @${key} alone for a plain tag`)
+    } else if (separator === "=" && linkKeys(key)) {
+      problem(tag, `${key} is a link, so a value written with = links nothing`, `write @${key}:${value}`, "link-syntax")
     } else if (level !== "Feature" && (key === "id" || key === "kind")) {
       problem(tag, `only a Feature says what it is with @${key}=`, "move it above `Feature:`: a Rule or a Scenario is a node sdp names itself")
     } else if ((key === "id" || key === "kind") && values.has(key)) {
@@ -287,11 +294,12 @@ const readFeature = (
   feature: Messages.Feature,
   newId: IdGenerator.NewId,
   lines: ReadonlyArray<string>,
-  comments: ReadonlyArray<Messages.Comment>
+  comments: ReadonlyArray<Messages.Comment>,
+  links: LinkKeys
 ): GherkinResult => {
   const problems: Array<GherkinProblem> = []
   const pickles = compile({ feature, comments: [] }, specId, newId)
-  readTags(feature.tags, "Feature", problems)
+  readTags(feature.tags, "Feature", links, problems)
 
   const astLines = new Map<string, number>()
   const astSteps = new Map<string, Messages.Step>()
@@ -307,7 +315,7 @@ const readFeature = (
     visitSteps(scenario.steps)
     described.push(scenario)
     for (const examples of scenario.examples) {
-      readTags(examples.tags, "Examples", problems)
+      readTags(examples.tags, "Examples", links, problems)
       for (const row of examples.tableBody) astLines.set(row.id, row.location.line)
     }
     scenarioDefs.push({ scenario, rule })
@@ -368,7 +376,7 @@ const readFeature = (
     name: rule.name,
     description: describe(rule.description),
     line: rule.location.line,
-    ...readTags(rule.tags, "Rule", problems)
+    ...readTags(rule.tags, "Rule", links, problems)
   }))
   const scenarios = scenarioDefs.map(({ rule, scenario }, index): Scenario => {
     const compiled = (picklesByScenario.get(scenario.id) ?? []).map((pickle): Pickle => ({
@@ -395,7 +403,7 @@ const readFeature = (
       line: scenario.location.line,
       description: describe(scenario.description),
       rule: rule && ruleIds.get(rule),
-      ...readTags(scenario.tags, "Scenario", problems),
+      ...readTags(scenario.tags, "Scenario", links, problems),
       steps: scenario.steps.map((step) => ({ keyword: step.keyword.trim(), text: step.text, line: step.location.line })),
       pickles: compiled,
       hash: hashPickles(compiled),
