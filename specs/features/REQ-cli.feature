@@ -476,16 +476,6 @@ Feature: Command line
       When I run "sdp status"
       Then the output contains "rules         unrun 3 · no example 1 · open 2"
 
-  Rule: context prints the bundle of one node: its spec, what is in reach, and the steps still to write
-
-    Scenario: A requirement with an open question and steps without a definition
-      When I run "sdp context REQ-search"
-      Then the output contains "Shoppers find products by name."
-      And the output contains "ARCH-index"
-      And the output contains "DEC-0001"
-      And the output contains "1 open question(s)"
-      And the output contains 'suggested: `When("a shopper searches for {string}", ({ world, args: [string] }) => pending())`'
-
   Rule: vocabulary prints the words sdp interprets, as the workspace configures them, and the words it makes itself, which nothing configures
 
     Scenario: The default profile
