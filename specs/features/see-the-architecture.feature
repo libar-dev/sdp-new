@@ -263,6 +263,7 @@ Feature: See the architecture
         | package.json              | { "name": "shop" }                                                                                       | src/tax.ts            | src/tax/index.ts          | ./tax/    | ARCH-tax |
         | tsconfig.json             | {\n  // the aliases of the code\n  "compilerOptions": { "paths": { "@/*": ["./src/*"] } },\n}          | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | tsconfig.json             | { "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["*"] } } }                                 | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
+        | jsconfig.json             | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }                                               | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | package.json              | { "name": "shop", "imports": { "#tax": "./src/tax.ts" } }                                                | lib/tax.ts            | src/tax.ts                | #tax      | ARCH-tax |
         | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
         | package.json              | { "name": "shop", "dependencies": { "tax": "^1.0.0" } }                                                  | lib/tax.ts            | src/tax.ts                | tax       | nothing  |
@@ -346,6 +347,10 @@ Feature: See the architecture
 
       Examples:
         | case                                       | workspace                                                               | package                                                                                                    | tsconfig                                                      | name            |
+        | its types and main, built from src         | { "name": "shop" }                                                      | { "name": "@shop/tax", "types": "./dist/index.d.ts", "main": "./dist/index.js" }                           | { "compilerOptions": { "rootDir": "src", "outDir": "dist" } } | @shop/tax       |
+        | its exports, built from src                | { "name": "shop" }                                                      | { "name": "@shop/tax", "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } } } | { "compilerOptions": { "rootDir": "src", "outDir": "dist" } } | @shop/tax       |
+        | a subpath of its exports, built from src   | { "name": "shop" }                                                      | { "name": "@shop/tax", "exports": { "./*": "./dist/*.js" } }                                               | { "compilerOptions": { "rootDir": "src", "outDir": "dist" } } | @shop/tax/index |
+        | its main, built from its directory         | { "name": "shop" }                                                      | { "name": "@shop/tax", "main": "./dist/src/index.js" }                                                     | { "compilerOptions": { "outDir": "dist" } }                   | @shop/tax       |
         | an alias a package.json declares           | { "name": "shop", "dependencies": { "tax": "npm:@shop/tax@1.0.0" } }    | { "name": "@shop/tax", "exports": "./src/index.ts" }                                                       | {}                                                            | tax             |
         | an alias of the workspace                  | { "name": "shop", "dependencies": { "tax": "workspace:@shop/tax@*" } } | { "name": "@shop/tax", "exports": "./src/index.ts" }                                                       | {}                                                            | tax             |
 
@@ -387,6 +392,34 @@ Feature: See the architecture
         | by a file of a package of the workspace    | packages/tsconfig/package.json           | packages/tsconfig/base.json               | ../../src/*    | @shop/tsconfig/base.json    |
         | by a package of the workspace, whole       | packages/tsconfig/package.json           | packages/tsconfig/tsconfig.json           | ../../src/*    | @shop/tsconfig              |
         | by a package installed in a node_modules   | node_modules/@shop/tsconfig/package.json | node_modules/@shop/tsconfig/base.json     | ../../../src/* | @shop/tsconfig/base.json    |
+
+    Scenario: A file is read with the tsconfig.json, among those its own references, that includes it
+      Given a file "packages/web/tsconfig.json" containing:
+        """
+        { "files": [], "references": [{ "path": "./tsconfig.node.json" }, { "path": "./tsconfig.app.json" }] }
+        """
+      And a file "packages/web/tsconfig.node.json" containing:
+        """
+        { "compilerOptions": { "paths": { "@/*": ["./config/*"] } }, "include": ["vite.config.ts"] }
+        """
+      And a file "packages/web/tsconfig.app.json" containing:
+        """
+        { "compilerOptions": { "paths": { "@/*": ["./src/*"] } }, "include": ["src"] }
+        """
+      And a file "packages/web/src/components/button.tsx" containing:
+        """
+        /** @sdp is ARCH-ui */
+        export const Button = (): number => 0
+        """
+      And a file "packages/web/src/app.tsx" containing:
+        """
+        import { Button } from "@/components/button"
+
+        /** @sdp is ARCH-web */
+        export const App = (): number => Button()
+        """
+      When I query "#ARCH-web -imports-> *"
+      Then the result is "ARCH-ui"
 
     Scenario: A tsconfig.json above the workspace maps names from where it is
       Given a file "tsconfig.base.json" containing:
@@ -452,6 +485,7 @@ Feature: See the architecture
         | a name its paths map to no file                           | tsconfig.json    | { "compilerOptions": { "paths": { "@/*": ["./missing/*"] } } } | { "name": "@shop/tax", "exports": "./src/index.ts" }                                      | @/tax     | nothing  | "@/tax" is mapped by the paths of tsconfig.json to missing/tax, which is no code file                                                              |
         | a name the imports of package.json do not map             | package.json     | { "name": "shop", "imports": { "#rates": "./src/rates.ts" } }  | { "name": "@shop/tax", "exports": "./src/index.ts" }                                      | #tax      | nothing  | "#tax" is not mapped by the imports of package.json                                                                                                |
         | a package exported only under conditions TypeScript lacks | package.json     | { "name": "shop" }                                             | { "name": "@shop/tax", "exports": { "browser": "./src/index.ts" } }                       | @shop/tax | nothing  | "@shop/tax" is mapped by packages/tax/package.json only under the conditions browser                                                               |
+        | an entry of a package that no tsconfig.json builds        | package.json     | { "name": "shop" }                                             | { "name": "@shop/tax", "types": "./dist/index.d.ts", "main": "./dist/index.js" }          | @shop/tax | nothing  | "@shop/tax" means packages/tax/dist/index.d.ts, which is no code file                                                                              |
         | two packages of the workspace with one name               | src/package.json | { "name": "@shop/tax" }                                        | { "name": "@shop/tax", "exports": "./src/index.ts" }                                      | @shop/tax | nothing  | "@shop/tax" names 2 packages of the workspace                                                                                                      |
         | what the tsconfig.json extends is not installed           | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": { "import": "./src/index.ts", "default": "./lib.ts" } } | @shop/tax | ARCH-tax | how "@shop/tax" is resolved depends on the conditions of tsconfig.json, which extends @tsconfig/strictest, neither in the workspace nor installed |
         | the tsconfig.json does not parse                          | tsconfig.json    | { "compilerOptions": { "paths": } }                            | { "name": "@shop/tax", "exports": { "import": "./src/index.ts", "default": "./lib.ts" } } | @shop/tax | ARCH-tax | how "@shop/tax" is resolved depends on the conditions of tsconfig.json, which does not parse                                                      |

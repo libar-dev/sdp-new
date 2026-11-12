@@ -124,8 +124,8 @@ const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<s
 
 /**
  * The files that say what the names code imports mean: `moduleConfigFiles`, what the tsconfig.json
- * files among them extend (`namedBy`), and the package.json of each package a workspace lists
- * (`listedPackages`), as far as they are found.
+ * files among them extend and reference (`namedBy`), and the package.json of each package a
+ * workspace lists (`listedPackages`), as far as they are found.
  */
 const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: ReadonlyArray<string>) {
   const path = yield* Path.Path

@@ -1,12 +1,12 @@
 /**
  * What the names code imports mean: the code file of the workspace TypeScript resolves each name to,
- * read from the tsconfig.json, package.json and pnpm-workspace.yaml files around the code, without
- * installing or running anything. A name sdp cannot follow, though it could name the workspace's
- * code, comes back with why.
+ * read from the tsconfig.json, jsconfig.json, package.json and pnpm-workspace.yaml files around the
+ * code, without installing or running anything. A name sdp cannot follow, though it could name the
+ * workspace's code, comes back with why.
  *
  * @sdp is ARCH-code-annotations
  */
-import { Option, Predicate, Schema } from "effect"
+import { Glob, Option, Schema } from "effect"
 import { isBuiltin } from "node:module"
 import { parse as parseYaml } from "yaml"
 import { type Export, type Exports, type Import, parseScript } from "./Script.ts"
@@ -43,22 +43,25 @@ export interface Modules {
 }
 
 const tsconfigFile = "tsconfig.json"
+const jsconfigFile = "jsconfig.json"
 const packageFile = "package.json"
 const pnpmWorkspaceFile = "pnpm-workspace.yaml"
 
 /**
- * The files that may say what the names code imports mean: the tsconfig.json, package.json and
- * pnpm-workspace.yaml of each directory that holds code and of every one above it, past the
- * workspace's root to the filesystem's, as TypeScript and package managers look for them. What
- * these name in turn is `namedBy` and `listedPackages`.
+ * The files that may say what the names code imports mean: the tsconfig.json, jsconfig.json,
+ * package.json and pnpm-workspace.yaml of each directory that holds code and of every one above it,
+ * past the workspace's root to the filesystem's, as TypeScript and package managers look for them.
+ * What these name in turn is `namedBy` and `listedPackages`.
  */
 export const moduleConfigFiles = (root: string, code: ReadonlyArray<string>): ReadonlyArray<string> => {
   const at = pathsFrom(root)
   const directories = new Set(code.flatMap((file) => at.upFrom(directoryOf(file))))
-  return [...directories].flatMap((directory) => [tsconfigFile, packageFile, pnpmWorkspaceFile].map((name) => at.join(directory, name)))
+  return [...directories].flatMap((directory) =>
+    [tsconfigFile, jsconfigFile, packageFile, pnpmWorkspaceFile].map((name) => at.join(directory, name))
+  )
 }
 
-/** Where each tsconfig.json that `files` holds may find what it extends, nearest first. */
+/** Where each tsconfig.json or jsconfig.json that `files` holds may find what it extends, nearest first, and what it references. */
 export const namedBy = (root: string, files: ReadonlyArray<File>): ReadonlyArray<string> => {
   const at = pathsFrom(root)
   const packages = packagesOf(files)
@@ -66,7 +69,8 @@ export const namedBy = (root: string, files: ReadonlyArray<File>): ReadonlyArray
     if (!isProject(file.path)) return []
     const read = readConfig(file.content, decodeTsConfig)
     if (!("value" in read)) return []
-    return [read.value.extends ?? []].flat().flatMap((base) => extendsCandidates(at, packages, file.path, base))
+    const bases = [read.value.extends ?? []].flat().flatMap((base) => extendsCandidates(at, packages, file.path, base))
+    return [...bases, ...(read.value.references ?? []).map((reference) => referencePath(at, file.path, reference.path))]
   })
 }
 
@@ -97,8 +101,9 @@ export const listedPackages = (files: ReadonlyArray<File>): ReadonlyArray<{
 export const pathFrom = (root: string, ...parts: ReadonlyArray<string>): string => pathsFrom(root).join(...parts)
 
 /**
- * What the names code imports mean, as TypeScript resolves them with the tsconfig.json nearest the
- * code and the package.json files of the workspace:
+ * What the names code imports mean, as TypeScript resolves them with the tsconfig.json — or
+ * jsconfig.json — nearest the code, or the one of those it references that includes the code, and
+ * the package.json files of the workspace:
  *
  * - a relative name, the file it names;
  * - any other, the file the `paths` of that tsconfig.json map it to — what it extends included —
@@ -106,7 +111,8 @@ export const pathFrom = (root: string, ...parts: ReadonlyArray<string>): string 
  * - a `#` name, the file the `imports` of the nearest package.json map it to;
  * - a package of the workspace — one whose package.json sdp reads, by the name it gives, or by the
  *   alias a package.json declares for it — the file its `exports` map the name to, else its
- *   `types` or `main`, else its index;
+ *   `types` or `main`, else its index; an entry its build writes is the source it is built from,
+ *   by the `rootDir` and `outDir` of the package's tsconfig.json, as project references map it;
  * - a library a package.json declares, a module of Node.js, a name with a scheme (`node:`,
  *   `virtual:`) or a file that is not code, no code of the workspace.
  *
@@ -125,6 +131,8 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
 
   const tsconfigs = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodeTsConfig))
   const manifests = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodePackageJson))
+  const codePaths = [...contents.keys()]
+  const hasCode = cache((directory: string) => holdsCode(directory, codePaths))
   const manifest = (path: string) => {
     const read = manifests(path)
     return "value" in read ? read.value : undefined
@@ -160,7 +168,11 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       inherited = { ...inherited, ...settings, unread: [...inherited.unread, ...unread] }
     }
     const directory = directoryOf(path)
-    const place = (value: string) => value.startsWith(configDirectory) ? at.join(configDir, value.slice(configDirectory.length)) : at.join(directory, value)
+    const placed = (value: string) => value.startsWith(configDirectory) ? { from: configDir, path: value.slice(configDirectory.length) } : { from: directory, path: value }
+    const place = (value: string) => {
+      const { from, path } = placed(value)
+      return at.join(from, path)
+    }
     const own = config.compilerOptions ?? {}
     return {
       ...inherited,
@@ -168,14 +180,51 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       ...own.paths === undefined ? {} : { paths: { map: own.paths, from: directory } },
       ...own.customConditions === undefined ? {} : { customConditions: own.customConditions },
       ...own.module === undefined ? {} : { module: own.module.toLowerCase() },
-      ...own.moduleResolution === undefined ? {} : { moduleResolution: own.moduleResolution.toLowerCase() }
+      ...own.moduleResolution === undefined ? {} : { moduleResolution: own.moduleResolution.toLowerCase() },
+      ...own.rootDir === undefined ? {} : { rootDir: place(own.rootDir) },
+      ...own.outDir === undefined ? {} : { outDir: place(own.outDir) },
+      ...config.files === undefined ? {} : { files: config.files.map(place) },
+      ...config.include === undefined ? {} : { include: config.include.map(placed) },
+      ...config.exclude === undefined ? {} : { exclude: config.exclude.map(placed) }
     }
   }
   const settings = cache((path: string) => settingsOf(path, directoryOf(path), new Set()))
 
-  /** The tsconfig.json a file is read with: the nearest. */
-  const projectOf = (file: string): string | undefined =>
-    at.upFrom(directoryOf(file)).map((directory) => at.join(directory, tsconfigFile)).find((path) => byPath.has(path))
+  /** Whether the tsconfig.json at `path` includes `file`, by its `files`, its `include` and its `exclude`. */
+  const includes = (path: string, file: string): boolean => {
+    const { exclude, files, include, outDir } = settings(path)
+    if (files?.includes(file)) return true
+    const patterns = include ?? (files === undefined ? [{ from: directoryOf(path), path: "**/*" }] : [])
+    const excluded = exclude ?? [
+      ...["node_modules", "bower_components", "jspm_packages"].map((name) => ({ from: directoryOf(path), path: name })),
+      ...outDir === undefined ? [] : [{ from: "", path: outDir }]
+    ]
+    return patterns.some((pattern) => matches(pattern, file)) && !excluded.some((pattern) => matches(pattern, file))
+  }
+  const matches = ({ from, path }: Placed, file: string) => {
+    const pattern = path.replace(/^(\.\/)+/, "")
+    const last = pattern.slice(pattern.lastIndexOf("/") + 1)
+    // A last segment without a wildcard or an extension is a directory, and means what is in it.
+    return Glob.match(glob(/[*?]|\.[^.]+$/.test(last) ? pattern : `${pattern}/**/*`), at.relative(from, file))
+  }
+
+  /** The tsconfig.json a file is read with: the nearest, or the first it references, at any depth, that includes the file. */
+  const projectOf = cache((file: string): string | undefined => {
+    const nearest = at.upFrom(directoryOf(file))
+      .flatMap((directory) => [at.join(directory, tsconfigFile), at.join(directory, jsconfigFile)])
+      .find((path) => byPath.has(path))
+    if (nearest === undefined) return undefined
+    const seen = new Set<string>()
+    const including = (path: string): string | undefined => {
+      if (seen.has(path) || !byPath.has(path)) return undefined
+      seen.add(path)
+      if (includes(path, file)) return path
+      const read = tsconfigs(path)
+      const references = "value" in read ? read.value.references ?? [] : []
+      return references.map((reference) => including(referencePath(at, path, reference.path))).find((found) => found !== undefined)
+    }
+    return including(nearest) ?? nearest
+  })
 
   /** The package.json nearest a directory, at it or above it. */
   const scopeOf = (directory: string) => at.upFrom(directory).map((above) => at.join(above, packageFile)).find((path) => byPath.has(path))
@@ -198,8 +247,8 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   /**
    * What a map of names — `exports`, `imports` — gives under `conditions`: the first target, in the
    * order written, that `take` finds, or undefined. It notes in `trail` the conditions it passed
-   * over, and whether a condition other than `types` and `default`, which always hold, decided the
-   * answer.
+   * over, the first target it did not find, and whether a condition other than `types` and
+   * `default`, which always hold, decided the answer.
    */
   const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take: (target: string) => Outcome | undefined, trail: Trail): Outcome | undefined => {
     if (value === null) return undefined
@@ -223,38 +272,60 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return undefined
   }
 
-  /** What a target of a package's map of names means; undefined for a file that is not there. */
-  const entry = (directory: string, target: string): Outcome | undefined => {
-    const path = at.join(directory, target)
-    const found = fileAt(path, false)
-    if (found !== undefined) return { module: found }
-    return namesNoCode(path) ? {} : undefined
+  /** The source a package's build writes `path` from, by the `rootDir` and `outDir` of the tsconfig.json nearest the package. */
+  const sourceOf = (directory: string, path: string): string | undefined => {
+    const config = at.upFrom(directory).map((above) => at.join(above, tsconfigFile)).find((candidate) => byPath.has(candidate))
+    if (config === undefined) return undefined
+    const { outDir, rootDir } = settings(config)
+    if (outDir === undefined || !path.startsWith(`${outDir}/`)) return undefined
+    const written = path.slice(outDir.length + 1).replace(/\.d\.([cm]?)ts$/, ".$1js")
+    return fileAt(at.join(rootDir ?? directoryOf(config), written), false)
   }
 
-  /** What a map of names that gave nothing means: nothing it maps, or what is mapped only under conditions that do not hold. */
-  const missed = (specifier: string, path: string, trail: Trail): Outcome =>
-    trail.passed.length === 0 ? {} : {
-      unresolved: {
-        message: `"${specifier}" is mapped by ${path} only under the conditions ${[...new Set(trail.passed)].join(", ")}, which do not hold for it, so it is not resolved`,
-        hint: `add a "default" condition to ${path}, or name the condition in the customConditions of the tsconfig.json`
-      }
-    }
+  /** What a target of a package's map of names, or one of its entries, means; undefined for a file that is not there. */
+  const entry = (directory: string, target: string, trail: Trail): Outcome | undefined => {
+    const path = at.join(directory, target)
+    const found = fileAt(path, false) ?? sourceOf(directory, path)
+    if (found !== undefined) return { module: found }
+    if (namesNoCode(path)) return {}
+    trail.missing ??= path
+    return undefined
+  }
 
   /** What `specifier` means as a package of the workspace, in `directory`, by its subpath. */
   const packageExport = (directory: string, specifier: string, subpath: string, conditions: ReadonlySet<string>, trail: Trail): Outcome => {
     const path = at.join(directory, packageFile)
+    // Nothing a package without code means is the workspace's code.
+    if (!hasCode(directory)) return {}
     const { exports, main, types, typings } = manifest(path) ?? {}
+    const take = (target: string) => entry(directory, target, trail)
+    const missed = (): Outcome => ({
+      unresolved: trail.missing !== undefined
+        ? {
+          message: `"${specifier}" means ${trail.missing}, which is no code file, nor built from one by the rootDir and outDir of a tsconfig.json, so it is not resolved`,
+          hint: `name the source in ${path}, or set rootDir and outDir in the tsconfig.json of ${directory || "the workspace"} to build it from its source`
+        }
+        : trail.passed.length > 0
+        ? {
+          message: `"${specifier}" is mapped by ${path} only under the conditions ${[...new Set(trail.passed)].join(", ")}, which do not hold for it, so it is not resolved`,
+          hint: `add a "default" condition to ${path}, or name the condition in the customConditions of the tsconfig.json`
+        }
+        : { message: `"${specifier}" is not among the exports of ${path}, so it is not resolved`, hint: `export it in ${path}, or import what it exports` }
+    })
     if (exports !== undefined) {
       const map = !isArray(exports) && typeof exports === "object" && exports !== null && Object.keys(exports).some((key) => key.startsWith("."))
         ? exports
         : { ".": exports }
       const key = matchKey(Object.keys(map), subpath === "" ? "." : `./${subpath}`)
-      const take = (target: string) => entry(directory, target)
-      return (key === undefined ? undefined : pick(map[key.key]!, key.star, conditions, take, trail)) ?? missed(specifier, path, trail)
+      return (key === undefined ? undefined : pick(map[key.key]!, key.star, conditions, take, trail)) ?? missed()
     }
-    if (subpath !== "") return { module: fileAt(at.join(directory, subpath), false) }
-    const named = [types, typings, main].find(Predicate.isString)
-    return { module: named === undefined ? fileAt(directory, true) : fileAt(at.join(directory, named), false) }
+    if (subpath !== "") return take(subpath) ?? missed()
+    for (const named of [types, typings, main]) {
+      const found = named === undefined ? undefined : take(named)
+      if (found !== undefined) return found
+    }
+    const index = fileAt(directory, true)
+    return index !== undefined ? { module: index } : missed()
   }
 
   /** What a name that is neither relative nor `#` means as a package: of the workspace, a library, or neither. */
@@ -302,8 +373,15 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       }
     }
     const take = (target: string): Outcome | undefined =>
-      /^\.\.?\//.test(target) ? entry(directoryOf(scope), target) : packageOf(file, target, conditions, trail) ?? {}
-    return pick(imports[key.key]!, key.star, conditions, take, trail) ?? missed(specifier, scope, trail)
+      /^\.\.?\//.test(target) ? entry(directoryOf(scope), target, trail) : packageOf(file, target, conditions, trail) ?? {}
+    return pick(imports[key.key]!, key.star, conditions, take, trail) ?? {
+      unresolved: trail.missing !== undefined
+        ? { message: `"${specifier}" means ${trail.missing}, which is no code file, so it is not resolved`, hint: `map it to a code file in the imports of ${scope}` }
+        : {
+          message: `"${specifier}" is mapped by ${scope} only under the conditions ${[...new Set(trail.passed)].join(", ")}, which do not hold for it, so it is not resolved`,
+          hint: `add a "default" condition to ${scope}, or name the condition in the customConditions of the tsconfig.json`
+        }
+    }
   }
 
   /** What a name that is not relative means in `file`, read with `options`. */
@@ -400,7 +478,14 @@ type Outcome = Resolved
 /** What walking a map of names noted. */
 interface Trail {
   readonly passed: Array<string>
+  missing?: string
   decided: boolean
+}
+
+/** A path of a tsconfig.json from the directory it is relative to: its own, or the `${configDir}` of the one the code is read with. */
+interface Placed {
+  readonly from: string
+  readonly path: string
 }
 
 /** What a tsconfig.json, with what it extends, says of names, and what sdp could not read of it, each as what follows "which". */
@@ -411,6 +496,11 @@ interface Settings {
   readonly customConditions?: ReadonlyArray<string>
   readonly module?: string
   readonly moduleResolution?: string
+  readonly rootDir?: string
+  readonly outDir?: string
+  readonly files?: ReadonlyArray<string>
+  readonly include?: ReadonlyArray<Placed>
+  readonly exclude?: ReadonlyArray<Placed>
   readonly unread: ReadonlyArray<string>
 }
 
@@ -418,7 +508,7 @@ const configDirectory = "${configDir}"
 
 const Strings = Schema.Array(Schema.String)
 
-/** What sdp reads of a tsconfig.json. */
+/** What sdp reads of a tsconfig.json or a jsconfig.json. */
 const TsConfig = Schema.Struct({
   extends: Schema.optional(Schema.Union([Schema.String, Strings])),
   compilerOptions: Schema.optional(Schema.Struct({
@@ -426,8 +516,14 @@ const TsConfig = Schema.Struct({
     paths: Schema.optional(Schema.Record(Schema.String, Strings)),
     customConditions: Schema.optional(Strings),
     module: Schema.optional(Schema.String),
-    moduleResolution: Schema.optional(Schema.String)
-  }))
+    moduleResolution: Schema.optional(Schema.String),
+    rootDir: Schema.optional(Schema.String),
+    outDir: Schema.optional(Schema.String)
+  })),
+  files: Schema.optional(Strings),
+  include: Schema.optional(Strings),
+  exclude: Schema.optional(Strings),
+  references: Schema.optional(Schema.Array(Schema.Struct({ path: Schema.String })))
 })
 
 /** A target of `exports` or `imports`: a path, conditions that each map to one, fallbacks, or `null`, which excludes the name. */
@@ -526,7 +622,13 @@ const extendsCandidates = (at: Paths, packages: ReturnType<typeof packagesOf>, c
   ]
 }
 
-/** Whether a file read is a tsconfig.json or one it extends: any JSON but a package.json. */
+/** The tsconfig.json a reference names: the file, or the tsconfig.json of the directory. */
+const referencePath = (at: Paths, config: string, reference: string) => {
+  const path = at.join(directoryOf(config), reference)
+  return path.endsWith(".json") ? path : at.join(path, tsconfigFile)
+}
+
+/** Whether a file read is a tsconfig.json, a jsconfig.json, or one they extend or reference: any JSON but a package.json. */
 const isProject = (path: string) => path.endsWith(".json") && baseName(path) !== packageFile
 
 /**
@@ -636,14 +738,39 @@ const pathsFrom = (root: string) => {
     for (let above = parentOf(directory); above !== undefined; above = parentOf(above)) all.push(above)
     return all
   }
-  return { join, upFrom }
+  /** A path from the directory `from` rather than from the root. */
+  const relative = (from: string, path: string): string => {
+    const absolute = (of: string) => join(of).split("/").filter((part) => part !== "").reduce<Array<string>>(
+      (parts, part) => part === ".." ? parts.slice(0, -1) : [...parts, part],
+      [...rootParts]
+    )
+    const [base, target] = [absolute(from), absolute(path)]
+    let common = 0
+    while (common < base.length && base[common] === target[common]) common++
+    return [...base.slice(common).map(() => ".."), ...target.slice(common)].join("/")
+  }
+  return { join, upFrom, relative }
 }
 
 const directoryOf = (file: string) => file.slice(0, Math.max(0, file.lastIndexOf("/")))
 
 const baseName = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
+/** Whether a directory, as a path from the root, holds code: it is the root, one above it, or one in it that a code file is in. */
+const holdsCode = (directory: string, code: ReadonlyArray<string>) =>
+  directory === "" || directory.split("/").every((part) => part === "..") ||
+  (!directory.startsWith("..") && code.some((file) => file.startsWith(`${directory}/`)))
+
 const isArray = (value: unknown): value is ReadonlyArray<any> => Array.isArray(value)
+
+const globs = new Map<string, Glob.Glob>()
+const glob = (pattern: string) => {
+  const known = globs.get(pattern)
+  if (known !== undefined) return known
+  const made = Glob.make(pattern)
+  globs.set(pattern, made)
+  return made
+}
 
 const cache = <A>(compute: (key: string) => A) => {
   const known = new Map<string, A>()
