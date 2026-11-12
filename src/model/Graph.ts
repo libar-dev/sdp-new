@@ -107,7 +107,7 @@ export class Graph {
     for (const node of nodes) this.#nodes.set(node.id, freezeNode(node))
     this.#nodeList = Object.freeze([...this.#nodes.values()])
     const merged = mergeEdges(edges)
-    this.conflicts = Object.freeze([...merged.conflicts])
+    this.conflicts = Object.freeze(merged.conflicts.map(freezeConflict))
     this.#edges = Object.freeze(merged.edges.map(freezeEdge))
     for (const edge of this.#edges) {
       push(this.#out, edge.from, edge)
@@ -210,6 +210,14 @@ const freezeEdge = (edge: GraphEdge): GraphEdge =>
     attrs: edge.attrs && (frozen(edge.attrs) as Attrs),
     source: freezeSource(edge.source),
     sources: edge.sources && Object.freeze(edge.sources.map((s) => freezeSource(s)!))
+  })
+
+const freezeConflict = (conflict: EdgeConflict): EdgeConflict =>
+  Object.freeze({
+    edge: freezeEdge(conflict.edge),
+    key: conflict.key,
+    kept: Object.freeze({ value: frozen(conflict.kept.value), source: freezeSource(conflict.kept.source) }),
+    dropped: Object.freeze({ value: frozen(conflict.dropped.value), source: freezeSource(conflict.dropped.source) })
   })
 
 /**

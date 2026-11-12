@@ -252,7 +252,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       { id: from, kind: "element", title: from, attrs: { owner: { team: "core" }, tags: ["a"] } },
       { id: to, kind: "element", title: to, attrs: {} }
     ]
-    const edges: Array<GraphEdge> = [{ from, rel, to, attrs: { via: "http" } }]
+    // Declared twice, and the second declaration disagrees: the graph keeps the first and records the conflict.
+    const edges: Array<GraphEdge> = [{ from, rel, to, attrs: { via: "http" } }, { from, rel, to, attrs: { via: "events" } }]
     world.scratch.builtGraph = new Graph(nodes, edges)
     world.scratch.inputs = { nodes, edges }
   })
@@ -282,6 +283,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const graph = builtGraph(world)
     const node = graph.nodes()[0] as any
     const edge = graph.edges()[0] as any
+    const conflict = graph.conflicts[0] as any
+    assert.ok(conflict, "the graph records no conflict")
     const attempts: Record<string, () => void> = {
       "a node": () => (node.kind = "x"),
       "a nested attribute": () => (node.attrs.owner.team = "x"),
@@ -290,7 +293,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       "an edge attribute": () => (edge.attrs.via = "x"),
       "the node list": () => (graph.nodes() as Array<GraphNode>).push(node),
       "the edge list": () => (graph.edges() as Array<GraphEdge>).pop(),
-      "an adjacency list": () => (graph.out(edge.from) as Array<GraphEdge>).pop()
+      "an adjacency list": () => (graph.out(edge.from) as Array<GraphEdge>).pop(),
+      "a conflict": () => (conflict.dropped.value = "x"),
+      "the edge of a conflict": () => (conflict.edge.to = "x")
     }
     const changed = Object.entries(attempts).flatMap(([what, attempt]) => {
       try {
