@@ -5,7 +5,6 @@
  * Besides what authors link, it derives which element imports which from the
  * code anchored to them.
  */
-import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
@@ -46,8 +45,6 @@ export interface ProjectInput {
   readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
   /** What the stored results say about the parsed specs' scenarios; without it the graph shows no results. */
   readonly evidence?: ((specs: ReadonlyArray<Spec>) => EvidenceView) | undefined
-  /** The id declarations currently on disk at `config.types`, if any (to tell when they are stale). */
-  readonly types?: string | undefined
 }
 
 /** Where a scenario's stored result stands: its status while the result still counts, else why it does not. */
@@ -86,11 +83,14 @@ export interface Project {
   readonly diagnostics: ReadonlyArray<Diagnostic>
   /** The stored result records, for readers that see every result; `undefined` for a scenario that runs. */
   readonly results: RunResults | undefined
-  readonly types: string | undefined
   readonly steps: ProjectSteps
 }
 
-/** Builds the whole-system graph from parsed sources — specs, annotations and stored results — without any IO. */
+/**
+ * Builds the whole-system graph from parsed sources — specs, annotations and stored results — without any IO.
+ *
+ * @sdp is ARCH-graph-builder
+ */
 export const buildProject = (input: ProjectInput): Project => {
   const vocabulary = input.config.vocabulary
   const diagnostics: Array<Diagnostic> = []
@@ -117,20 +117,11 @@ export const buildProject = (input: ProjectInput): Project => {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
     if (scan.imports.length > 0) importsOf.set(file.path, scan.imports)
-    for (const problem of scan.unreadable) {
-      diagnostics.push(diagnostic("annotation-unreadable", {
-        message: problem.message,
-        source: { file: file.path, line: problem.line },
-        hint: problem.hint ?? "write ids and attributes as literals, e.g. annotate(Graph, { is: \"ARCH-graph\" })"
-      }))
+    for (const { hint, line, message } of scan.unreadable) {
+      diagnostics.push(diagnostic("annotation-unreadable", { message, source: { file: file.path, line }, hint }))
     }
-    for (const ignored of scan.ignored) {
-      diagnostics.push(diagnostic("annotation-ignored", {
-        message: `"${ignored.text}" follows code on the same line, so it is not read as an annotation`,
-        source: { file: file.path, line: ignored.line },
-        hint:
-          "put it on a comment line of its own: directly above a declaration it binds to that declaration, followed by a blank line to the whole file"
-      }))
+    for (const { hint, line, message } of scan.ignored) {
+      diagnostics.push(diagnostic("annotation-ignored", { message, source: { file: file.path, line }, hint }))
     }
   }
   const stepDefinitions: Array<StepSignature> = []
@@ -309,7 +300,7 @@ export const buildProject = (input: ProjectInput): Project => {
         kind: made.kinds.code,
         title: annotation.symbol ?? annotation.file,
         attrs: compact({ file: annotation.file, symbol: annotation.symbol, doc: annotation.doc }),
-        source: { file: annotation.file, line: annotation.symbolLine ?? annotation.line }
+        source: { file: annotation.file, line: annotation.symbolLine }
       })
     }
   }
@@ -425,11 +416,9 @@ export const buildProject = (input: ProjectInput): Project => {
     graph,
     diagnostics: sortDiagnostics(diagnostics),
     results: evidence?.results,
-    types: input.types,
     steps: { files: (input.stepFiles ?? []).map((file) => file.path), definitions: stepDefinitions }
   }
 }
-annotate(buildProject, { is: "ARCH-graph-builder" })
 
 /**
  * `A -imports-> B` for each module anchored to element A that imports a function, a class or a

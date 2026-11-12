@@ -7,7 +7,6 @@
  * its relationships, and the architecture, quality requirements, decisions
  * and code within reach of its links.
  */
-import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { description } from "../arch/Architecture.ts"
 import { featureContent, unmetCriteria } from "../check/Check.ts"
@@ -29,7 +28,11 @@ export interface ContextSteps {
   readonly problems: ReadonlyArray<string>
 }
 
-/** Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach. */
+/**
+ * Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach.
+ *
+ * @sdp is ARCH-reports
+ */
 export const contextBundle = (project: Project, node: GraphNode, depth = 2, steps?: ContextSteps): string => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
@@ -183,7 +186,6 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   }
   return out.join("\n")
 }
-annotate(contextBundle, { is: "ARCH-reports" })
 
 /** Why a spec below `ready` is not ready: what the criteria of ready still miss, or that its content already meets them. */
 const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {

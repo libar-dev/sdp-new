@@ -15,8 +15,7 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   row, its tag line and the name of its Feature. A fixture written whole is a spec like any other:
   its scenarios sit under a `Rule:` named in the fixture's own words, as its Feature is
   (`Rule: R` beside `Feature: A`).
-- `npm run verify` must pass before a change is done. After adding or renaming a spec, run
-  `npm run types` so the compiler knows its id.
+- `npm run verify` must pass before a change is done.
 - Node.js 24 runs `.ts` directly: erasable syntax only (no enums, namespaces, parameter
   properties), imports with `.ts` extensions.
 - Effect 4: `Effect.fn`/`Effect.gen` for IO workflows, `Schema` for external data, services at the

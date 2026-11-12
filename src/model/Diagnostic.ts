@@ -33,8 +33,7 @@ export const rules = {
   "annotation-ignored": "warning",
   "annotation-unreadable": "warning",
   "step-unreadable": "warning",
-  "step-expression": "error",
-  "types-stale": "warning"
+  "step-expression": "error"
 } as const satisfies Record<string, Severity>
 
 export type RuleId = keyof typeof rules

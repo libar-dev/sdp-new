@@ -41,20 +41,20 @@ Feature: See the architecture
       """
     And a file "src/mailer.ts" containing:
       """
-      import { annotate } from "sdp/annotations"
-
-      /** Sends receipts, and retries while the provider is down. */
+      /**
+       * Sends receipts, and retries while the provider is down.
+       *
+       * @sdp is ARCH-mailer
+       */
       export class Mailer {}
       export class MailTemplates {}
-      annotate(Mailer, { is: "ARCH-mailer" })
       """
     And a file "src/orders.ts" containing:
       """
-      import { annotate } from "sdp/annotations"
       import { Mailer } from "./mailer.ts"
 
-      export const place = () => new Mailer()
-      annotate(place, { is: "ARCH-orders" })
+      /** @sdp is ARCH-orders */
+      export const place = (): Mailer => new Mailer()
       """
 
   Rule: The architecture is every element and pattern declared in a spec or anchored in code, with the decisions and quality requirements linked to it, to a feature linked to it or to a rule of that feature, and nothing else
@@ -113,11 +113,12 @@ Feature: See the architecture
     Scenario: An element anchored in two places is described by each, in the order of their files
       Given a file "src/outbox.ts" containing:
         """
-        import { annotate } from "sdp/annotations"
-
-        /** Keeps each receipt until the provider has taken it. */
+        /**
+         * Keeps each receipt until the provider has taken it.
+         *
+         * @sdp is ARCH-mailer
+         */
         export const outbox = new Set<string>()
-        annotate(outbox, { is: "ARCH-mailer" })
         """
       When I run "sdp arch"
       Then the exit code is 0
@@ -139,11 +140,10 @@ Feature: See the architecture
     Scenario Outline: The billing module imports from the mailer's module
       Given a file "src/billing.ts" containing:
         """
-        import { annotate } from "sdp/annotations"
         <import>
 
-        export const bill = () => 0
-        annotate(bill, { is: "ARCH-billing" })
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => 0
         """
       When I query "#ARCH-billing -imports-> *"
       Then the result is "<imports>"
@@ -169,18 +169,15 @@ Feature: See the architecture
         """
       And a file "src/<anchored>" containing:
         """
-        import { annotate } from "sdp/annotations"
-
+        /** @sdp is ARCH-tax */
         export const rate = 0.25
-        annotate(rate, { is: "ARCH-tax" })
         """
       And a file "src/billing.ts" containing:
         """
-        import { annotate } from "sdp/annotations"
         import { rate } from "<name>"
 
-        export const bill = () => rate
-        annotate(bill, { is: "ARCH-billing" })
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
         """
       When I query "#ARCH-billing -imports-> *"
       Then the result is "<imports>"

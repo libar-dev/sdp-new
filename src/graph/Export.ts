@@ -8,7 +8,6 @@
  *
  * Every JSON answer of sdp is made of the same records.
  */
-import { annotate } from "sdp/annotations"
 import type { Attrs, Graph, GraphEdge, GraphNode, SourceRef } from "../model/Graph.ts"
 import { hasKind, made, type Vocabulary } from "../model/Vocabulary.ts"
 
@@ -56,12 +55,15 @@ export const edgeRecord = (edge: GraphEdge): EdgeRecord => ({
   declared: edge.sources ?? (edge.source ? [edge.source] : [])
 })
 
-/** The whole graph as records: every node, then every edge. */
+/**
+ * The whole graph as records: every node, then every edge.
+ *
+ * @sdp is ARCH-reports
+ */
 export const graphRecords = (graph: Graph): ReadonlyArray<GraphRecord> => [
   ...graph.nodes().map(nodeRecord),
   ...graph.edges().map(edgeRecord)
 ]
-annotate(graphRecords, { is: "ARCH-reports" })
 
 /** One JSON value per line. JSON escapes tabs and line breaks, so a record never spans two lines. */
 export const jsonLines = (records: ReadonlyArray<unknown>): string => records.map((record) => `${JSON.stringify(record)}\n`).join("")

@@ -1,4 +1,3 @@
-import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { check } from "../check/Check.ts"
 import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
@@ -86,7 +85,11 @@ export const implementable = (project: Project, ran: ReadonlySet<string>): Reado
   })
 }
 
-/** One-screen summary of the delivery state: what `sdp status` and the MCP tool answer with. */
+/**
+ * One-screen summary of the delivery state: what `sdp status` and the MCP tool answer with.
+ *
+ * @sdp is ARCH-reports
+ */
 export const statusSummary = (project: Project) => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
@@ -123,6 +126,5 @@ export const statusSummary = (project: Project) => {
     diagnostics: counted(check(project).map((d) => d.severity), ["error", "warning", "info"])
   }
 }
-annotate(statusSummary, { is: "ARCH-reports" })
 
 export type StatusSummary = ReturnType<typeof statusSummary>

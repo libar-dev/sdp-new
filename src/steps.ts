@@ -4,8 +4,7 @@
  *   import { defineSteps, pending } from "sdp/steps"
  *
  * Everything a step file needs and nothing else: importing it loads no parser
- * and reads no workspace. `sdp/annotations` links code to the graph; `sdp` is
- * the programmatic API.
+ * and reads no workspace. `sdp` is the programmatic API.
  */
 export { defineSteps, Pending, pending } from "./run/Steps.ts"
 export type {

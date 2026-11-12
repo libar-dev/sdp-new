@@ -57,7 +57,6 @@ export const ConfigFile = Schema.Struct({
     env: Schema.optional(Schema.Array(Schema.String))
   })),
   results: Schema.optional(Schema.String),
-  types: Schema.optional(Schema.String),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   vocabulary: Schema.optional(VocabularyFile)
 }).check(Schema.makeFilter((file) => configProblems(file)))
@@ -77,8 +76,6 @@ export interface Config {
   }
   /** Where `sdp run` stores scenario results, relative to the workspace root. */
   readonly results: string
-  /** Where `sdp types` writes the id declarations that type `annotate`, relative to the workspace root. */
-  readonly types: string
   /** Id prefixes used by `sdp new` and to infer a kind, keyed by kind (a record without a prototype). */
   readonly ids: Readonly<Record<string, string>>
   /** The words sdp interprets (ARCH-vocabulary). */
@@ -110,7 +107,6 @@ export const defaults: Config = {
   exclude: ["**/node_modules/**", ".sdp/**", "**/dist/**", "**/build/**", ".git/**"],
   evidence: { inputs: [], env: [] },
   results: ".sdp/results.json",
-  types: ".sdp/ids.d.ts",
   ids: record(defaultIds),
   vocabulary: defaultVocabulary
 }
@@ -143,7 +139,6 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
       env: file.evidence?.env ?? defaults.evidence.env
     },
     results: file.results ?? defaults.results,
-    types: file.types ?? defaults.types,
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
     vocabulary: resolveVocabulary(file.vocabulary)
   }

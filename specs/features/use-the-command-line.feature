@@ -94,7 +94,7 @@ Feature: Use the command line
       Examples:
         | file               | line | rule                  | content                                                                                                                        |
         | specs/twin.feature | 1    | duplicate-id          | @id=search\nFeature: Search again                                                                                              |
-        | src/search.ts      | 4    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nconst id = "search"\nannotate(search, { implements: id }) |
+        | src/search.ts      | 2    | annotation-unreadable | // @sdp implements search\nexport const search = ( => 0                                                                       |
         | specs/b.feature    | 1    | annotation            | @uses:search,ARCH-index\nFeature: B                                                                                            |
         | specs/b.feature    | 1    | link-syntax           | @iteration=IT-beta\nFeature: B                                                                                                 |
 

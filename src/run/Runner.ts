@@ -3,7 +3,6 @@
  * a failure: that is how a specification of something not yet built looks.
  * Statuses then roll up into each spec's `verification` and `stage`.
  */
-import { annotate } from "sdp/annotations"
 import { Cause, DateTime, Duration, Effect, Exit, Fiber, Predicate, Queue, Schema } from "effect"
 import type { Project } from "../graph/Build.ts"
 import { type ExampleResult, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "../model/Results.ts"
@@ -50,7 +49,11 @@ interface Selected {
   readonly pickles: ReadonlyArray<Pickle>
 }
 
-/** Executes the selected scenarios against the step modules and returns their results; undefined steps are not failures. */
+/**
+ * Executes the selected scenarios against the step modules and returns their results; undefined steps are not failures.
+ *
+ * @sdp is ARCH-runner
+ */
 export const runScenarios = Effect.fn("runScenarios")(function*(
   options: RunOptions
 ): Effect.fn.Return<ReadonlyArray<ScenarioResult>, InvalidStepExpressions> {
@@ -228,7 +231,6 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
   const byId = new Map([...first, ...rest].map((r) => [r.id, r]))
   return selected.map(({ scenario }) => byId.get(scenario.id)!)
 })
-annotate(runScenarios, { is: "ARCH-runner" })
 
 export const summarize = (results: ReadonlyArray<ScenarioResult>): Readonly<Record<StepStatus, number>> => {
   const counts: Record<StepStatus, number> = { passed: 0, failed: 0, pending: 0, undefined: 0, ambiguous: 0, skipped: 0 }

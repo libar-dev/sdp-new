@@ -44,11 +44,12 @@ Feature: Serve AI agents
       """
     And a file "src/orders.ts" containing:
       """
-      import { annotate } from "sdp/annotations"
-
-      /** Owns the order aggregate and its transaction boundary. */
+      /**
+       * Owns the order aggregate and its transaction boundary.
+       *
+       * @sdp is ARCH-orders
+       */
       export class Orders {}
-      annotate(Orders, { is: "ARCH-orders" })
       """
 
   Rule: One call gives everything needed to work on a node, its contract first
@@ -62,7 +63,7 @@ Feature: Serve AI agents
       And the sections of the output are "Not ready yet, Contract, Step definitions, Specification, Relationships, Architecture within 2 hops, Decisions in reach, Code"
       And the output section "Relationships" contains "cart -realized-by-> ARCH-orders (element)"
       And the output does not contain "ARCH-orders — ARCH-orders"
-      And the output section "Code" contains "src/orders.ts:4 Orders — is ARCH-orders"
+      And the output section "Code" contains "src/orders.ts:6 Orders — is ARCH-orders"
 
     Scenario: Each rule with its state, what it rests on and why it holds, then its examples
       When I ask for the context of "cart"
@@ -289,8 +290,7 @@ Feature: Serve AI agents
     Scenario: The server's instructions
       When an agent reads the MCP server's instructions
       Then the output contains 'Code links to the architecture, not to features'
-      And the output contains '`annotate(Orders, { is: "ARCH-orders" })` imported from "sdp/annotations"'
-      And the output contains "other languages use a comment line, `// @sdp is ARCH-orders`"
+      And the output contains "A tag in the doc comment of a declaration, `@sdp is ARCH-orders`, says which code an element is, in every language"
       And the output contains "`feature -realized-by-> element <-is- code`"
       And the output contains "propose an element, a pattern or an `is` annotation, do not add or remove one yourself"
       And the output does not contain "implements"

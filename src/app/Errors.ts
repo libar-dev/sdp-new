@@ -3,16 +3,15 @@
  * error is a value the caller can inspect, and `describe` words any of them as
  * one line that names the input or the file — a user's mistake is never a
  * stack trace.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import { Predicate, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 import type { QueryError } from "../graph/Query.ts"
 import type { InvalidStepExpressions } from "../run/Runner.ts"
 import type { ResultsLocked } from "../run/Store.ts"
 import type { ConfigError, SourcesChanged, StepLoadError, WorkspaceNotFound } from "../workspace/Workspace.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 /** An id no node has. */
 export class UnknownNode extends Schema.TaggedError<UnknownNode>()("UnknownNode", {

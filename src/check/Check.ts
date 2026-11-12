@@ -17,7 +17,6 @@
  *                states an outcome, gherkin parses
  *   implemented  what ready asks, and so is a spec that declares no maturity
  */
-import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { GraphNode, SourceRef } from "../model/Graph.ts"
@@ -37,7 +36,6 @@ import {
   wordFor
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
-import { idsDeclaration } from "../graph/Types.ts"
 import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { type OpenQuestion, type Spec, suiteId } from "../parse/Spec.ts"
@@ -166,7 +164,11 @@ const planRelations: ReadonlyArray<readonly [RelationRole, ReadonlyArray<KindRol
   ["closes", ["phase", "iteration"]]
 ]
 
-/** Every rule check over a built project, as diagnostics with `file:line` and a hint. */
+/**
+ * Every rule check over a built project, as diagnostics with `file:line` and a hint.
+ *
+ * @sdp is ARCH-checker
+ */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const out: Array<Diagnostic> = [...project.diagnostics]
   const { graph } = project
@@ -431,14 +433,6 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  if (project.types !== undefined && project.types !== idsDeclaration(project)) {
-    out.push(diagnostic("types-stale", {
-      message: `${project.config.types} no longer matches the graph, so annotate() may accept removed ids or reject new ones`,
-      source: { file: project.config.types, line: 1 },
-      hint: "run `sdp types` to regenerate it"
-    }))
-  }
-
   for (const spec of project.specs) {
     for (const scenario of spec.scenarios) {
       if (scenario.steps.length === 0) {
@@ -453,4 +447,3 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   }
   return sortDiagnostics(out)
 }
-annotate(check, { is: "ARCH-checker" })

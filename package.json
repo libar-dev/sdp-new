@@ -10,8 +10,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./effect": "./src/effect.ts",
-    "./steps": "./src/steps.ts",
-    "./annotations": "./src/annotations.ts"
+    "./steps": "./src/steps.ts"
   },
   "engines": {
     "node": ">=24"
@@ -21,8 +20,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p examples/shop",
     "test": "node src/cli/main.ts run --concurrency 8",
     "check": "node src/cli/main.ts check",
-    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts gate GUIDE",
-    "types": "node src/cli/main.ts types && node src/cli/main.ts -C examples/shop types"
+    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts gate GUIDE"
   },
   "dependencies": {
     "@cucumber/cucumber-expressions": "^20.2.0",

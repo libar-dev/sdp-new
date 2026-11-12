@@ -1,10 +1,9 @@
 /**
  * Prices, VAT rates and rounding: every monetary figure flows through here, and rounding and VAT
  * rules are regulated and costly to change.
+ *
+ * @sdp is ARCH-pricing
  */
-import { annotate } from "sdp/annotations"
-
-annotate(import.meta, { is: "ARCH-pricing" })
 
 /** Money is integer cents everywhere (integer-cents). */
 export type Cents = number

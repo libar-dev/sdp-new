@@ -7,16 +7,15 @@
  * scenarios → gates. An ordinary scenario runs against the graph without any
  * results; a gate against the ordinary results and never gate results; every
  * other reader (status, queries, context) sees all results that still count.
+ *
+ * @sdp is ARCH-runner
  */
-import { annotate } from "sdp/annotations"
 import { createHash } from "node:crypto"
 import type { EvidenceView, Settled, SourceFile } from "../graph/Build.ts"
 import type { RunResults, ScenarioResult } from "../model/Results.ts"
 import { hasKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
-
-annotate(import.meta, { is: "ARCH-runner" })
 
 /** A milestone recorded as met is closed: its gate does not run again. */
 export const isClosed = (spec: Pick<Spec, "kind" | "attrs">, vocabulary: Vocabulary): boolean =>

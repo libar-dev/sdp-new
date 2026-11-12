@@ -12,6 +12,6 @@ Feature: Write specs in an editor
 
     The vocabulary is free, so suggesting the words in use is what keeps it from drifting.
 
-  Rule: Go to definition leads from an id in a tag, an annotation or an `@sdp` comment to the line that declares it
+  Rule: Go to definition leads from an id in a tag of a spec or an `@sdp` tag in code to the line that declares it
 
   Rule: The diagnostics of sdp check show at their line, with their hint

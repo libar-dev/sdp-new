@@ -437,11 +437,9 @@ Feature: Write step definitions
     Scenario: A graph that could not be fully read proves nothing, so a query step fails
       Given a file "src/search.ts" containing:
         """
-        import { annotate } from "sdp/annotations"
+        // @sdp implements search
 
-        export const search = () => []
-        const feature = "search"
-        annotate(search, { implements: feature })
+        export const search = ( => []
         """
       And a file "specs/guard.feature" containing:
         """
@@ -451,7 +449,7 @@ Feature: Write step definitions
         """
       When the workspace is run
       Then the step 'the query "code -implements-> #search" returns no results' has status "failed"
-      And the step 'the query "code -implements-> #search" returns no results' reports "src/search.ts:5 [annotation-unreadable]"
+      And the step 'the query "code -implements-> #search" returns no results' reports "src/search.ts:3 [annotation-unreadable]"
 
     Scenario Outline: A query cut short by a limit proves nothing, so the step fails
       Given a chain of 14 nodes linked by "next"
@@ -648,13 +646,12 @@ Feature: Write step definitions
       Then the JSON output has:
         | data.summary.passed | 1 |
 
-    Scenario: Annotated application code under test imports sdp/annotations without installing it
+    Scenario: Application code under test imports sdp without installing it
       Given a file "src/cart.ts" containing:
         """
-        import { annotate } from "sdp/annotations"
+        import { isAppError } from "sdp"
 
-        export const lamp = () => 1
-        annotate(lamp, { implements: "cart" })
+        export const lamp = (): number => (isAppError(undefined) ? 0 : 1)
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """

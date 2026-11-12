@@ -5,7 +5,6 @@
  * pipeline against an in-memory workspace. Reading never runs workspace code:
  * only `loadSteps`, for `sdp run` and `sdp gate`, imports step modules.
  */
-import { annotate } from "sdp/annotations"
 import { Effect, FileSystem, Path, Schema } from "effect"
 import { createRequire, registerHooks } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -161,7 +160,6 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   readonly results?: Layer | "none" | undefined
   readonly imports?: ReadonlyArray<string> | undefined
 } = {}) {
-  const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const configFile = yield* readConfigFile(root)
   const config = yield* parseConfig(configFile)
@@ -178,8 +176,6 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const markdownFiles = yield* findFiles(root, [...beside, ...under], config.exclude)
   const codeFiles = yield* readAll(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
-  const typesFile = path.join(root, config.types)
-  const types = (yield* fs.exists(typesFile)) ? yield* fs.readFileString(typesFile) : undefined
   const stored = yield* readResults(root, config)
   const recorded = Object.entries(stored?.imports ?? {})
   const imports = options.imports ?? []
@@ -198,28 +194,29 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
     inputs: declaredInputs(yield* readAll(root, inputPaths), config.evidence.env),
-    // The id declarations too: a check reads them (`types-stale`), and so does a step that asks for diagnostics.
-    specs: fingerprint([...featureFiles, ...(types === undefined ? [] : [{ path: config.types, content: types }])])
+    specs: fingerprint(featureFiles)
   }
   const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, types, evidence: view })
+  const project = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
 })
 
-/** Reads config, feature files, code, step definitions, stored results and id declarations and builds the project. */
+/**
+ * Reads config, feature files, code, step definitions and stored results, and builds the project.
+ *
+ * @sdp is ARCH-workspace
+ */
 export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
   return (yield* loadWorkspace(root, { results: options.withResults === false ? "none" : "all" })).project
 })
-annotate(loadProject, { is: "ARCH-workspace" })
 
 /** sdp's package exports (see package.json), as the files of the running sdp. */
 const sdpExports = new Map([
   ["sdp", new URL("../index.ts", import.meta.url).href],
   ["sdp/effect", new URL("../effect.ts", import.meta.url).href],
-  ["sdp/steps", new URL("../steps.ts", import.meta.url).href],
-  ["sdp/annotations", new URL("../annotations.ts", import.meta.url).href]
+  ["sdp/steps", new URL("../steps.ts", import.meta.url).href]
 ])
 let hooked = false
 /**

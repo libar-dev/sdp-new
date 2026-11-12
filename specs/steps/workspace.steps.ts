@@ -5,7 +5,7 @@
  */
 import { Effect, FileSystem, Path, Result } from "effect"
 import { strict as assert } from "node:assert"
-import { cp, mkdir, stat, symlink } from "node:fs/promises"
+import { cp, stat } from "node:fs/promises"
 import { basename, join } from "node:path"
 import * as Api from "sdp"
 import * as EffectApi from "sdp/effect"
@@ -52,13 +52,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       recursive: true,
       filter: (file) => ![".sdp", "node_modules"].includes(basename(file))
     })
-  })
-
-  // Linked as a package manager links a local package, so that a compiler resolves "sdp/annotations".
-  Given("sdp is installed in the workspace", async ({ world }) => {
-    const modules = join(await directoryOf(world), "node_modules")
-    await mkdir(modules, { recursive: true })
-    await symlink(repository, join(modules, "sdp"), "junction")
   })
 
   // Each row joins the workspace before the next is created, as with `sdp new`.

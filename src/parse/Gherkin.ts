@@ -3,8 +3,9 @@
  * node, a `Rule:` the unit of content, its scenarios the examples. Tags say what a Feature, a Rule
  * or a Scenario is and what it links to — `@key=value` describes, `@rel:ID` links, any other tag
  * is a Cucumber tag — and the free text under each keyword line is its description.
+ *
+ * @sdp is ARCH-spec-parser
  */
-import { annotate } from "sdp/annotations"
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"
 import { IdGenerator } from "@cucumber/messages"
@@ -13,8 +14,6 @@ import { createHash } from "node:crypto"
 import type { RuleId } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
 import { isKey } from "../model/Vocabulary.ts"
-
-annotate(import.meta, { is: "ARCH-spec-parser" })
 
 export interface LinkDecl {
   readonly rel: string

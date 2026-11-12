@@ -11,10 +11,8 @@
  * Programs that do not use Effect import the same use cases from "sdp", which
  * answer with Promises.
  */
-export { annotate } from "./annotations.ts"
-export type { Declaration, Id, IdOf, Ids, Links } from "./annotations.ts"
 export type { Answer } from "./app/Answer.ts"
-export { create, init, types } from "./app/Authoring.ts"
+export { create, init } from "./app/Authoring.ts"
 export type { CreateInput } from "./app/Authoring.ts"
 export { type AppError, describe, isAppError } from "./app/Errors.ts"
 export {

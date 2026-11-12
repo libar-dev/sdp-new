@@ -177,7 +177,7 @@ Feature: Link specs into one graph
         | src/pay.py        | # @sdp is pay iteration=IT-gone\ndef pay(): pass                                                                    | pay -iteration-> IT-gone | dangling-link |
         | src/pay.py        | # @sdp is pay owner=IT-beta\ndef pay(): pass                                                                        | nothing                  | nothing       |
         | specs/pay.feature | @id=pay @iteration=IT-beta\nFeature: Pay                                                                            | nothing                  | link-syntax   |
-        | src/pay.ts        | import { annotate } from "sdp/annotations"\nexport const pay = 0\nannotate(pay, { is: "pay" }, { iteration: true }) | nothing                  | link-syntax   |
+        | src/pay.py        | # @sdp is pay iteration=true\ndef pay(): pass                                                                       | nothing                  | link-syntax   |
 
   Rule: A link stated more than once is one edge that keeps every declaration, and where their attributes disagree the first holds
 
@@ -284,7 +284,7 @@ Feature: Link specs into one graph
         | id                    | kind    | source                 |
         | backup                | feature | specs/backup.feature:1 |
         | sync                  | feature | specs/sync.feature:1   |
-        | code:src/sync.ts#sync | code    | src/sync.ts:1          |
+        | code:src/sync.ts#sync | code    | src/sync.ts:2          |
         | ARCH-queue            | missing |                        |
         | ARCH-worker           | missing |                        |
         | sink                  | missing |                        |

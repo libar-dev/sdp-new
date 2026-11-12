@@ -10,10 +10,9 @@
  * prints the active profile. Words sdp makes itself (the `scenario` and `code`
  * kinds, derived attributes such as `stage`, the `imports` between elements)
  * are fixed and listed here too.
+ *
+ * @sdp is ARCH-vocabulary
  */
-import { annotate } from "sdp/annotations"
-
-annotate(import.meta, { is: "ARCH-vocabulary" })
 
 export type Words = ReadonlyArray<string>
 

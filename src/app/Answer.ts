@@ -2,19 +2,18 @@
  * The envelope of every answer sdp gives: the data, whether it is complete,
  * and notes on what the reader should know before relying on it. An answer is
  * incomplete when something that could change it was not read — a spec that
- * does not parse, a tag that says nothing as written, an annotation or a step
- * registration that is computed — or
- * not followed — a traversal stopped by a limit. So "nothing found" is never
- * said of a graph that could not be fully read.
+ * does not parse, a tag that says nothing as written, a code file that annotates
+ * but does not parse, a step registration that is computed — or not followed —
+ * a traversal stopped by a limit. So "nothing found" is never said of a graph
+ * that could not be fully read.
  *
  * Both transports hand it over the same way (use-the-command-line, serve-agents): as
  * JSON, the envelope itself; as text, the data on its own and the notes apart.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import type { Project } from "../graph/Build.ts"
 import { type Diagnostic, problemLine, unreadRules } from "../model/Diagnostic.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 export interface Answer<A> {
   /** False when the data may miss something; the notes say what was not read or not followed. */

@@ -77,11 +77,10 @@ Feature: Check specs
         | plan-date             | warning  | specs/IT-beta.feature          | 1    | @id=IT-beta @kind=iteration @start=2026-11-16 @end=2026-11-31\nFeature: Beta                                                                                                  |
         | milestone-met         | warning  | specs/MS-beta.feature          | 1    | @id=MS-beta @met=2026-02-30\nFeature: Beta                                                                                                                                    |
         | annotation-ignored    | warning  | src/cart.py                    | 1    | total = 0  # @sdp implements cart                                                                                                                                             |
-        | annotation-unreadable | warning  | src/cart.ts                    | 5    | import { annotate } from "sdp/annotations"\n\nexport const total = 0\nconst feature = "cart"\nannotate(total, { implements: feature })                                        |
+        | annotation-unreadable | warning  | src/cart.ts                    | 2    | // @sdp implements cart\nexport const total = ( => 0                                                                                                                         |
         | step-unreadable       | warning  | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(cart, () => {})\n})                                                 |
         | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given("a cart of {items}", () => {})\n})                                  |
         | step-expression       | error    | specs/steps/cart.steps.ts      | 3    | import { defineSteps } from "sdp/steps"\nexport default defineSteps(() => ({}), ({ Given }) => {\n  Given(/a (cart of items/, () => {})\n})                                   |
-        | types-stale           | warning  | .sdp/ids.d.ts                  | 1    | declare module "sdp/annotations" {\n  interface Ids {\n    "gone": "feature"\n  }\n}\nexport {}                                                                               |
 
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec

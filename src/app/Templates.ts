@@ -3,8 +3,9 @@
  * what it is, and from `specified` on a rule with a scenario to fill in; what the author writes
  * next is said in the answer of `sdp new`, never in the file. A new spec is a Gherkin file: its
  * tags say what it is and what it links to, its Feature's name is its title.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
@@ -12,8 +13,6 @@ import type { Graph } from "../model/Graph.ts"
 import { attribute, criteria, criteriaOf, dayOf, hasKind, hasRelation, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 /** Where a new spec goes, by the template it is written from, then by its kind. A feature stays where it is written, built or not. */
 const directoryFor: Record<string, string> = {
@@ -291,8 +290,8 @@ const guidance = (options: {
       ]
     case "element":
       return [
-        `no file is written: an element is declared where its code is, by annotate(<declaration>, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
-        "the doc comment of that code is its description: say there what it is for",
+        `no file is written: an element is declared where its code is, by the tag \`@sdp ${anchor} ${id}\` in the doc comment of a module-level declaration, or of the file in the comment that opens it`,
+        "the rest of that comment is its description: say there what it is for",
         `sdp arch shows it, with its code and the elements that code imports; a feature it realizes links it with \`@realized-by:${id}\``
       ]
     case "pattern":
@@ -326,12 +325,11 @@ export const configTemplate = [
   "# sdp configuration. Every key is optional; uncomment one to change its default.",
   `# features: ${yamlList(defaults.features)}    # specs: Gherkin files, @id=… above Feature:`,
   `# code: ${yamlList(defaults.code)}`,
-  "#   (scanned for annotate() calls and @sdp comments that link code to the graph)",
+  "#   (scanned for the @sdp tags in comments that link code to the graph)",
   `# steps: ${yamlList(defaults.steps)}    # step definition modules`,
   `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
   "# evidence: { inputs: [], env: [] }   # files (globs) and environment variables the steps read: results go stale when they change",
   `# results: ${defaults.results}`,
-  `# types: ${defaults.types}         # written by \`sdp types\`: types the ids annotate() accepts`,
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
   `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]`,
   `#   implemented: ${defaults.vocabulary.implemented}     # the rung that says built: below it, work is still to come`,

@@ -1,19 +1,16 @@
 /**
- * Authoring: the use cases that write files — `sdp init`, `sdp new` and
- * `sdp types`. Each says what it wrote; only `sdp types` rewrites a file it
- * wrote before, the one it derives.
+ * Authoring: the use cases that write files — `sdp init` and `sdp new`. Each
+ * says what it wrote, and neither rewrites a file that exists.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
-import { idsDeclaration } from "../graph/Types.ts"
 import { formatSource } from "../model/Graph.ts"
 import { made } from "../model/Vocabulary.ts"
 import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 /** The skill that teaches an agent to work with sdp, where agents look for skills. sdp ships the one it is developed with. */
 const skillFile = ".claude/skills/sdp/SKILL.md"
@@ -116,16 +113,4 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
     : undefined
   /** `next` is what to write in it; `unread` why no command will read it, when none will. */
   return { id: created.id, file, next: created.next, unread }
-})
-
-/** `sdp types`: the id declarations that type `annotate()`, written to the configured path. */
-export const types = Effect.fn("types")(function*(root: string) {
-  const project = yield* loadProject(root, { withResults: false })
-  const fs = yield* FileSystem.FileSystem
-  const path = yield* Path.Path
-  const file = path.join(root, project.config.types)
-  const declaration = idsDeclaration(project)
-  yield* fs.makeDirectory(path.dirname(file), { recursive: true })
-  yield* fs.writeFileString(file, declaration)
-  return { file: project.config.types, ids: declaration.split("\n").filter((line) => line.startsWith("    \"")).length }
 })

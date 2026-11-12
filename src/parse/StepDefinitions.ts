@@ -11,7 +11,6 @@
  * the export of another call — is
  * reported, never guessed: only `sdp run`, which imports the module, knows it.
  */
-import { annotate } from "sdp/annotations"
 import { CucumberExpression, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
 import { children, isNode, type Node, parseScript } from "./Script.ts"
 
@@ -59,7 +58,11 @@ const callsOf = (node: Node, names: ReadonlySet<string>): ReadonlyArray<Node> =>
 const exits = (node: Node): boolean =>
   node.type === "ReturnStatement" || node.type === "ThrowStatement" || (!node.type.includes("Function") && children(node).some(exits))
 
-/** Reads the step definitions of one step file without running it. */
+/**
+ * Reads the step definitions of one step file without running it.
+ *
+ * @sdp is ARCH-spec-parser
+ */
 export const scanStepDefinitions = (file: string, content: string): StepScan => {
   const script = parseScript(file, content)
   const unread = (line: number, message: string): StepScan => ({ definitions: [], problems: [{ rule: "step-unreadable", line, message }] })
@@ -196,7 +199,6 @@ export const scanStepDefinitions = (file: string, content: string): StepScan => 
   }
   return { definitions, problems }
 }
-annotate(scanStepDefinitions, { is: "ARCH-spec-parser" })
 
 /** Why a RegExp literal is no regular expression — the parser reads it without checking — or `undefined`. */
 const regexProblem = (node: Node | undefined): string | undefined => {

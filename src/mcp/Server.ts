@@ -5,8 +5,9 @@
  * returns the answer as text, or as the JSON envelope when asked. Every call
  * reads the workspace again, so agents always see the files as they are now,
  * and no tool runs workspace code.
+ *
+ * @sdp is ARCH-mcp
  */
-import { annotate } from "sdp/annotations"
 import { NodeStdio } from "@effect/platform-node"
 import { Effect, FileSystem, Layer, Path, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
@@ -16,8 +17,6 @@ import * as Reading from "../app/Reading.ts"
 import { relationVocabulary } from "../app/Templates.ts"
 import * as Text from "../app/Text.ts"
 import { querySyntax } from "../graph/Query.ts"
-
-annotate(import.meta, { is: "ARCH-mcp" })
 
 const queryHelp = `SDPQ path patterns, one line:\n${querySyntax}`
 
@@ -175,7 +174,7 @@ export const instructions = [
   "sdp exposes a software delivery graph: features (each with its requirements, quality ones included, as rules with examples) at any maturity, a feature or a rule up to implemented once it is built, decisions, curated architecture (the elements and patterns architects declared), lifecycle (milestones, iterations, phases), scenarios with execution status, and the code anchored to the architecture.",
   "Start with sdp_status, then sdp_query; use sdp_context before working on a spec, sdp_snippets to automate its scenarios and sdp_steps to find a step definition to extend.",
   "An answer that starts with \"incomplete:\" was given from a workspace sdp could not fully read: its notes say what is missing, so do not conclude that something is absent.",
-  "Code links to the architecture, not to features. TypeScript and JavaScript say which code an element is with a typed call, `annotate(Orders, { is: \"ARCH-orders\" })` imported from \"sdp/annotations\", whose ids the compiler checks once `sdp types` has run; other languages use a comment line, `// @sdp is ARCH-orders`. A feature names its element with `realized-by`, so the way from a feature to its code is `feature -realized-by-> element <-is- code`.",
+  "Code links to the architecture, not to features. A tag in the doc comment of a declaration, `@sdp is ARCH-orders`, says which code an element is, in every language; in the comment that opens a file, it says the file is, and the rest of the comment describes it. A feature names its element with `realized-by`, so the way from a feature to its code is `feature -realized-by-> element <-is- code`.",
   "What belongs in the architecture is the architects' call: propose an element, a pattern or an `is` annotation, do not add or remove one yourself.",
   `Relations are free-form; sdp's templates use ${relationVocabulary}.`,
   "A spec is a Gherkin file: `@id=guest-checkout @maturity=implemented` above `Feature:` says what it is, `@decided-by:accounts-are-optional` what it links to, a `Rule:` what must hold and its scenarios the examples — you can also grep them directly.",

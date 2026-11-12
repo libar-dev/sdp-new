@@ -3,8 +3,9 @@
  * command line and the MCP server alike. A list is one item per line with its
  * fields separated by tabs, so it pipes into grep and cut; on a terminal the
  * same fields are aligned in columns and coloured.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import type { NodeRecord } from "../graph/Export.ts"
 import { formatPath } from "../graph/Query.ts"
 import type { StatusSummary } from "../graph/Status.ts"
@@ -13,8 +14,6 @@ import type { ListedStep } from "../run/Match.ts"
 import type { Answer } from "./Answer.ts"
 import type { ArchitectureData, DiagnosticRecord, QueryData, ShowData, VocabularyData } from "./Reading.ts"
 import type { GateReport, RunReport } from "./Running.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 const onTerminal = process.stdout.isTTY === true
 const useColor = onTerminal && !process.env.NO_COLOR

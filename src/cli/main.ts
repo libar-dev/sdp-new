@@ -3,9 +3,10 @@
  * calls one use case of the application layer (`src/app/`) and prints the
  * answer — as text by default, as the JSON envelope with `--json`. Notes go to
  * stderr, and an incomplete answer exits with 2 (use-the-command-line).
+ *
+ * @sdp is ARCH-cli
  */
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
-import { annotate } from "sdp/annotations"
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, Effect, FileSystem, Option, Path } from "effect"
@@ -21,8 +22,6 @@ import { jsonLines } from "../graph/Export.ts"
 import { querySyntax } from "../graph/Query.ts"
 import type { ScenarioResult } from "../model/Results.ts"
 import { findWorkspaceRoot, sdpVersion } from "../workspace/Workspace.ts"
-
-annotate(import.meta, { is: "ARCH-cli" })
 
 // `sdp … | head` closes the pipe early; that is the reader's choice, not an error.
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
@@ -377,15 +376,6 @@ const initCommand = Command.make(
   })
 ).pipe(Command.withDescription("Create sdp.config.yaml and the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) in the workspace"))
 
-const typesCommand = Command.make(
-  "types",
-  {},
-  Effect.fn(function*() {
-    const written = yield* Authoring.types(yield* workspaceRoot)
-    yield* Console.log(`wrote ${written.file} (${written.ids} ids): annotate() now accepts exactly these`)
-  })
-).pipe(Command.withDescription("Write the id declarations that type annotate() in TypeScript (sdp/annotations)"))
-
 const mcpCommand = Command.make(
   "mcp",
   {},
@@ -412,7 +402,6 @@ sdp.pipe(
     archCommand,
     lifecycleCommand,
     vocabularyCommand,
-    typesCommand,
     mcpCommand
   ]),
   Command.run({ version: sdpVersion }),

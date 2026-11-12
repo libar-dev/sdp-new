@@ -76,8 +76,8 @@ Feature: Start a spec
       And the output lines are "ARCH-orders"
       And the output contains:
         """
-        next: no file is written: an element is declared where its code is, by annotate(<declaration>, { is: "ARCH-orders" }) from "sdp/annotations" (sdp types makes the id typed), or an `@sdp is ARCH-orders` comment in other languages
-        next: the doc comment of that code is its description: say there what it is for
+        next: no file is written: an element is declared where its code is, by the tag `@sdp is ARCH-orders` in the doc comment of a module-level declaration, or of the file in the comment that opens it
+        next: the rest of that comment is its description: say there what it is for
         next: sdp arch shows it, with its code and the elements that code imports; a feature it realizes links it with `@realized-by:ARCH-orders`
         """
       And the file "specs/architecture/ARCH-orders.feature" does not exist

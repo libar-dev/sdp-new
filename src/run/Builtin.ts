@@ -5,8 +5,9 @@
  *
  *   Then the query "element !-*- decision" returns no results
  *   Then there are no error diagnostics
+ *
+ * @sdp is ARCH-runner
  */
-import { annotate } from "sdp/annotations"
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
@@ -15,8 +16,6 @@ import { isRuleId, problemLine, rules, type Severity, unreadRules } from "../mod
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, made } from "../model/Vocabulary.ts"
 import { defineSteps, type StepContext } from "./Steps.ts"
-
-annotate(import.meta, { is: "ARCH-runner" })
 
 type Asserting = Pick<StepContext<unknown, ReadonlyArray<unknown>>, "project" | "scenario">
 

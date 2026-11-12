@@ -7,8 +7,8 @@ description: How to work in a repository that uses sdp (it has an `sdp.config.ya
 
 sdp is architecture-focused software delivery. Features — each with its requirements, quality ones
 included, as rules with examples — decisions and the delivery plan are Gherkin files. Together they
-form one graph, and code is anchored to it with `annotate()` calls or `@sdp` comments, which is
-where the elements of the architecture are declared.
+form one graph, and code is anchored to it with `@sdp` tags in its doc comments, which is where
+the elements and patterns of the architecture are declared.
 
 `sdp` below is the CLI. Where it is not installed, run it from its source:
 `node <path-to-sdp>/src/cli/main.ts …` (inside the sdp repository itself, `node src/cli/main.ts …`).
@@ -104,10 +104,10 @@ The sharp edges of the format, each what the official parser does:
   files; never a derived artefact (`.sdp/results.json` is written by `sdp run`).
 - **The architecture is what architects declared, and none of it is prose.** It is a decision when
   it is significant and universal, a rule in the spec it constrains otherwise, or a view sdp
-  generates from the code (`sdp arch`): `annotate(Thing, { is: "ARCH-x" })` from `sdp/annotations`,
-  or an `@sdp is ARCH-x` comment, declares an element where its code is, that code's doc comment
-  says what it is for, and sdp derives which element `imports` which from the TypeScript and
-  JavaScript anchored to them, so nobody writes it. An element is in the graph because someone
+  generates from the code (`sdp arch`): the tag `@sdp is ARCH-x` in the doc comment of a
+  module-level declaration, or in the comment that opens a file, declares an element where its code
+  is, the rest of that comment says what it is for, and sdp derives which element `imports` which
+  from the TypeScript and JavaScript anchored to them, so nobody writes it. An element is in the graph because someone
   decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to

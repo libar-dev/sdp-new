@@ -6,7 +6,6 @@
  * people writing specs, so the graph never forces a fixed vocabulary; the few
  * words sdp itself reads are its vocabulary profile (`Vocabulary.ts`).
  */
-import { annotate } from "sdp/annotations"
 
 export interface SourceRef {
   readonly file: string
@@ -93,6 +92,8 @@ const mergeEdges = (
  * The system graph: nodes and de-duplicated edges with in/out adjacency indexes. It owns its data:
  * nodes, edges and attribute trees are copied and frozen when it is built, so nothing a caller
  * holds can change it afterwards.
+ *
+ * @sdp is ARCH-graph
  */
 export class Graph {
   readonly #nodes = new Map<string, GraphNode>()
@@ -171,7 +172,6 @@ export class Graph {
     )
   }
 }
-annotate(Graph, { is: "ARCH-graph" })
 
 export const formatSource = (source: SourceRef | undefined): string => source ? `${source.file}:${source.line}` : ""
 

@@ -8,8 +8,9 @@
  * that is met does not run again, and a workspace that cannot all be read as
  * written, has a scenario outside a rule or a maturity sdp check rejects, does not run at all. Works on any
  * `FileSystem`, so executable specs run it in memory.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import parseTagExpression from "@cucumber/tag-expressions"
 import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
 import { check } from "../check/Check.ts"
@@ -32,8 +33,6 @@ import { commitResults } from "../run/Store.ts"
 import { type LoadedSteps, loadConfig, loadProject, loadSteps, loadWorkspace, readFiles, SourcesChanged, type Workspace } from "../workspace/Workspace.ts"
 import { type Answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */

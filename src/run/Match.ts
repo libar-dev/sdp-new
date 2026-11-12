@@ -4,8 +4,9 @@
  * executes it; `sdp context`, `sdp steps` and the MCP tool `sdp_snippets` match
  * against the definitions read statically from the step files, so they run no
  * workspace code. Either way an unmatched step gets a suggested definition.
+ *
+ * @sdp is ARCH-runner
  */
-import { annotate } from "sdp/annotations"
 import { CucumberExpression, CucumberExpressionGenerator, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
 import { Predicate } from "effect"
 import { isAbsolute, relative } from "node:path"
@@ -15,8 +16,6 @@ import type { PickleStep, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
 import { expressionProblem, type StepSignature } from "../parse/StepDefinitions.ts"
 import { builtinSteps } from "./Builtin.ts"
-
-annotate(import.meta, { is: "ARCH-runner" })
 
 type Definition = Pick<StepSignature, "expression" | "location">
 

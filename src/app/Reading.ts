@@ -4,8 +4,9 @@
  * returns an answer (Answer.ts) made of plain records (`graph/Export.ts`), or
  * fails with a typed error (Errors.ts). The command line and the MCP server
  * call these and nothing else, so they cannot disagree.
+ *
+ * @sdp is ARCH-reports
  */
-import { annotate } from "sdp/annotations"
 import { DateTime, Effect, Result } from "effect"
 import { architectureView } from "../arch/Architecture.ts"
 import { check as checkProject } from "../check/Check.ts"
@@ -22,8 +23,6 @@ import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unm
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
 import { type Answer, answer } from "./Answer.ts"
 import { Refused, UnknownNode } from "./Errors.ts"
-
-annotate(import.meta, { is: "ARCH-reports" })
 
 /** The node with this id; the target of a dangling link is not one. */
 const known = (project: Project, id: string) => {

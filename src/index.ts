@@ -11,15 +11,12 @@
  * A use case that fails rejects with its error, an `AppError` that `describe`
  * words as one line. Programs written with Effect import the same use cases
  * from "sdp/effect" instead, and choose the file system they run on. Step
- * modules import "sdp/steps" and annotated code "sdp/annotations": those load
- * nothing of this.
+ * modules import "sdp/steps", which loads nothing of this.
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Effect, type FileSystem, type Path } from "effect"
 import * as Api from "./effect.ts"
 
-export { annotate } from "./annotations.ts"
-export type { Declaration, Id, IdOf, Ids, Links } from "./annotations.ts"
 export type {
   AppError,
   Answer,
@@ -62,7 +59,6 @@ export const show = onDisk(Api.show)
 export const snippets = onDisk(Api.snippets)
 export const status = onDisk(Api.status)
 export const steps = onDisk(Api.steps)
-export const types = onDisk(Api.types)
 export const vocabulary = onDisk(Api.vocabulary)
 
 /**

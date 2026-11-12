@@ -23,7 +23,6 @@
  * discipline × iteration chart is the plan; stages and executed scenarios are
  * evidence and are reported apart from it.
  */
-import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type GraphEdge, type GraphNode, tally } from "../model/Graph.ts"
 import { activityRelation, attribute, dayOf, hasKind, hasRelation, isPlanKind, made, metOn, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
@@ -157,6 +156,8 @@ const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<Plann
  * Milestones with the stretch of the timeline each ends, phases, iterations and planned discipline
  * activity, with the evidence for the planned work. `today` is an ISO date (YYYY-MM-DD); without
  * it nothing is marked current or late.
+ *
+ * @sdp is ARCH-lifecycle
  */
 export const lifecycle = (project: Project, today?: string): LifecycleReport => {
   const { graph } = project
@@ -292,7 +293,6 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     vocabulary
   }
 }
-annotate(lifecycle, { is: "ARCH-lifecycle" })
 
 /**
  * The milestones dated before this one that are not met. The timeline says they come first; of

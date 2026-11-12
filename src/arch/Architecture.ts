@@ -7,7 +7,6 @@
  * requirements that shaped it: those linked to it, and those linked to a
  * feature linked to it or to one of that feature's rules.
  */
-import { annotate } from "sdp/annotations"
 import type { GraphEdge, GraphNode } from "../model/Graph.ts"
 import { attribute, hasKind, isDriver, made } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
@@ -35,6 +34,8 @@ export interface ArchitectureView {
  * Every architectural node and the decisions and quality requirements that shaped it — linked to
  * it, or to a feature linked to it or one of that feature's rules — and nothing else. This is the
  * view to hand to a person or an agent designing a change.
+ *
+ * @sdp is ARCH-architecture-view
  */
 export const architectureView = (project: Project): ArchitectureView => {
   const { graph } = project
@@ -68,7 +69,6 @@ export const architectureView = (project: Project): ArchitectureView => {
   const sub = graph.subgraph(keep)
   return { nodes: sub.nodes(), edges: sub.edges(), routes }
 }
-annotate(architectureView, { is: "ARCH-architecture-view" })
 
 /**
  * What an architectural node says it is for: the first paragraph of its spec. One declared

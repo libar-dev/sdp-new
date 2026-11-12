@@ -67,14 +67,14 @@ Feature: Architecture
       Then the query "element" returns at least 1 result
       And the query "element !<-is- code" returns no results
 
-  Rule: Every annotation in this repository reads, and the ids it is typed against are current
+  Rule: Every annotation in this repository reads
 
-    sdp only warns about either; this repository fails its run instead.
+    sdp only warns about one it cannot read; this repository fails its run instead.
 
-    Scenario: Annotations found, none unreadable, and no stale id types
+    Scenario: Annotations found, none unreadable and none ignored
       Then the query "code -is-> element" returns at least 1 result
       And there are no diagnostics for rule "annotation-unreadable"
-      And there are no diagnostics for rule "types-stale"
+      And there are no diagnostics for rule "annotation-ignored"
 
   Rule: Code in this repository links only to the architecture, and every implemented requirement or feature names the element that realizes it
 

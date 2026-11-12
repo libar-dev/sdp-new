@@ -3,7 +3,6 @@
  * attributes and its links. The same format covers an idea written in one line and a fully
  * designed, executable specification: maturity is a property of the content, not of the format.
  */
-import { annotate } from "sdp/annotations"
 import { Predicate, Result } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic } from "../model/Diagnostic.ts"
@@ -53,6 +52,8 @@ export const suiteId = (file: string): string => `suite:${file}`
  * other `@key=value` its identity and attributes, `@rel:ID` its links, any other tag a Cucumber
  * tag its scenarios inherit, as they inherit its kind. The Feature's name is its title and the
  * paragraphs under it its description. A file without an `@id=` is a suite named by its path.
+ *
+ * @sdp is ARCH-spec-parser
  */
 export const parseFeatureSpec = (file: string, content: string, config: Config): ParsedFile => {
   const fallbackId = suiteId(file)
@@ -98,7 +99,6 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
     diagnostics
   }
 }
-annotate(parseFeatureSpec, { is: "ARCH-spec-parser" })
 
 /** A Rule tagged `@open` is a question still open, and its name is the question; a Scenario is an example, tagged so or not. */
 const openIn = (gherkin: GherkinResult): ReadonlyArray<OpenQuestion> =>

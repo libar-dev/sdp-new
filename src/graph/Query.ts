@@ -15,14 +15,13 @@
  * node once, so it adds one path per node it reaches — a shortest one. The
  * result is the distinct end nodes in the order they were first reached, and
  * the paths.
+ *
+ * @sdp is ARCH-query-engine
  */
-import { annotate } from "sdp/annotations"
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import { activityRelation, made, type Vocabulary, vocabularyWords } from "../model/Vocabulary.ts"
 import type { Project } from "./Build.ts"
-
-annotate(import.meta, { is: "ARCH-query-engine" })
 
 /** The syntax in a few lines, for `sdp q --help`, the MCP tool description and query errors. */
 export const querySyntax = `query  := node (edge node)* [edge]

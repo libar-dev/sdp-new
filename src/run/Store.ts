@@ -4,13 +4,12 @@
  * run never writes back what it read when it started: a commit takes a lock,
  * reads the file as it is then, replaces only the scenarios this run executed,
  * and publishes the new file with a rename.
+ *
+ * @sdp is ARCH-runner
  */
-import { annotate } from "sdp/annotations"
 import { Effect, FileSystem, Path, Schema } from "effect"
 import type { Config } from "../model/Config.ts"
 import { RunResults, type ScenarioResult } from "../model/Results.ts"
-
-annotate(import.meta, { is: "ARCH-runner" })
 
 /** Another run holds the lock on the results file and did not release it in time. */
 export class ResultsLocked extends Schema.TaggedError<ResultsLocked>()("ResultsLocked", {
