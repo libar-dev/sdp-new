@@ -4,11 +4,12 @@
  * the node's rules with their state and reason, the names of its scenarios
  * with their status and the step definitions still to write — then the rest
  * of the spec as written, why it is not ready yet, what rests on it rule by rule,
- * its relationships, and the architecture, quality requirements, decisions
- * and code within reach of its links.
+ * its relationships, for an element the work on it, and the architecture,
+ * quality requirements, decisions and code within reach of its links, the
+ * code with its surface.
  */
 import { Predicate } from "effect"
-import { description } from "../arch/Architecture.ts"
+import { description, workOn } from "../arch/Architecture.ts"
 import { featureContent, unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphEdge, type GraphNode } from "../model/Graph.ts"
 import { attribute, criteria, hasKind, isDriver, isPlanKind, made } from "../model/Vocabulary.ts"
@@ -146,6 +147,21 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("")
   }
 
+  // The work on an element or a pattern: what is built on it, then what is still to come, ready first.
+  if (hasKind(vocabulary, "architectural", node.kind)) {
+    const { implemented, toCome } = workOn(project, node)
+    const stage = (n: GraphNode) => Predicate.isString(n.attrs.stage) ? ` (${n.attrs.stage})` : ""
+    if (implemented.length + toCome.length > 0) {
+      out.push(
+        "## Work",
+        "",
+        ...implemented.map((n) => `- implemented: ${n.id} — ${n.title}`),
+        ...toCome.map((n) => `- still to come: ${n.id}${stage(n)} — ${n.title}`),
+        ""
+      )
+    }
+  }
+
   // Context within reach: the architecture, quality requirements and decisions.
   const reach = neighbourhood(project, id, depth).filter((n) => n.id !== id)
   const isDecision = (n: GraphNode) => hasKind(vocabulary, "decision", n.kind)
@@ -181,6 +197,8 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
       const links = graph.out(n.id).map((e) => `${e.rel} ${e.to}`).join(", ")
       const symbol = Predicate.isString(n.attrs.symbol) ? ` ${n.attrs.symbol}` : ""
       out.push(`- ${formatSource(n.source)}${symbol}${links ? ` — ${links}` : ""}`)
+      // Its surface: the shape of the declaration, or what the file exports.
+      for (const shape of [n.attrs.shape, n.attrs.exports].flat()) if (Predicate.isString(shape)) out.push(`  ${shape}`)
     }
     out.push("")
   }

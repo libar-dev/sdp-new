@@ -116,8 +116,9 @@ Feature: sdp, shown by running it
   Rule: The architecture is what an architect anchors in the code, with the decisions that shaped it
 
     examples/shop is a small product specified this way: one of its modules is anchored as an
-    element, whose doc comment says what it is for, and the rest of its code stays out of the
-    architecture. A decision shapes the element through the rules of its features that rest on it.
+    element, whose doc comment says what it is for and whose exports are its surface, and the rest
+    of its code stays out of the architecture. A decision shapes the element through the rules of
+    its features that rest on it, and the features built on it are its work.
 
     Scenario: The architecture of the shop example
       Given the workspace is a copy of "examples/shop"
@@ -128,8 +129,12 @@ Feature: sdp, shown by running it
         ARCH-pricing (element)
         Prices, VAT rates and rounding: every monetary figure flows through here
         ARCH-pricing <-is- code:src/pricing.ts
+        type Cents = number
+        const vatRates: Readonly<Record<string, number>>
+        function vatFor(net: Cents, country: string): Cents
         cart-totals#the-total-of-a-thousand-line-cart-takes-under-2-ms-on-average, through cart-totals
         integer-cents, through cart-totals  Money is integer cents, rounded once
+        implemented: cart-totals  Cart totals include VAT
         """
       And the output does not contain "src/cart.ts"
 

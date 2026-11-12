@@ -85,3 +85,33 @@ export const description = (project: Project, node: GraphNode): ReadonlyArray<st
       return typeof doc === "string" ? [doc] : []
     })
 }
+
+/** The work on an architectural node: what is built on it, and what is still to come, ready first. */
+export interface Work {
+  readonly implemented: ReadonlyArray<GraphNode>
+  readonly toCome: ReadonlyArray<GraphNode>
+}
+
+/**
+ * The work on an architectural node: each feature or rule that names it, and each rule still to come
+ * of a feature built on it, which is a change to that feature. What is still to come is ordered by
+ * how far it has come, ready first: ready is designed and all but final. A question is no work.
+ */
+export const workOn = (project: Project, node: GraphNode): Work => {
+  const { graph } = project
+  const vocabulary = project.config.vocabulary
+  const work = (n: GraphNode | undefined): n is GraphNode =>
+    n !== undefined && (hasKind(vocabulary, "feature", n.kind) || n.kind === made.kinds.rule) && !isQuestion(n)
+  const naming = [...new Set(graph.in(node.id).map((edge) => edge.from))].map((id) => graph.node(id)).filter(work)
+  const implemented = naming.filter((n) => n.attrs.toCome !== true)
+  const changes = implemented.flatMap((n) => graph.in(n.id).filter((edge) => edge.rel === made.relations.rule).map((edge) => graph.node(edge.from)))
+    .filter(work).filter((rule) => rule.attrs.toCome === true)
+  const rung = (n: GraphNode) => vocabulary.maturity.indexOf(String(attribute(n, "stage")))
+  const toCome = [...new Map([...changes, ...naming.filter((n) => n.attrs.toCome === true)].map((n) => [n.id, n])).values()]
+  return { implemented, toCome: toCome.map((n, index) => ({ n, index })).sort((a, b) => rung(b.n) - rung(a.n) || a.index - b.index).map(({ n }) => n) }
+}
+
+const isQuestion = (node: GraphNode): boolean => {
+  const tags = attribute(node, "tags")
+  return Array.isArray(tags) && tags.includes(made.tags.open)
+}

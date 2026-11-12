@@ -33,7 +33,7 @@ export interface Vocabulary {
     readonly architectural: Words
     /** Architectural drivers, shown next to the architecture they shape. */
     readonly driver: Words
-    /** The kind of a node an anchor annotation declares without naming one. */
+    /** The kind of a node an anchor declares when it writes none and its id has no prefix that names one. */
     readonly anchored: string
   }
   readonly relations: {
@@ -45,7 +45,7 @@ export interface Vocabulary {
     readonly closes: Words
     /** The edge sdp makes from a scenario to its spec. */
     readonly scenario: string
-    /** The code annotation that anchors a node in code and may declare it. */
+    /** The relation of the code tag that anchors a node in code and declares it. */
     readonly anchor: string
     /** From a rule still to come to the implemented rule it replaces, which stays enforced until then. */
     readonly replaces: Words

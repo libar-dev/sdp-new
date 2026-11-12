@@ -400,8 +400,12 @@ export const buildProject = (input: ProjectInput): Project => {
   })
 
   // Every reference to an unknown id is reported where it is written; the id stays visible as one
-  // `missing` node, so it can be queried and fixed.
+  // `missing` node, so it can be queried and fixed. An element or a pattern that work still to come
+  // names is planned: it is a node of the kind its id's prefix names, with no place in the files,
+  // until the work is built and its code must declare it.
   const declaredIds = new Set(nodes.keys())
+  const architectural = (id: string) => hasKind(vocabulary, "architectural", prefixKind(id, input.config) ?? "")
+  const planning = (edge: GraphEdge) => nodes.get(edge.from)?.attrs.toCome === true && architectural(edge.to)
   const iterations = [...nodes.values()].filter((n) => hasKind(vocabulary, "iteration", n.kind)).map((n) => n.id)
   const phases = [...nodes.values()].filter((n) => hasKind(vocabulary, "phase", n.kind)).map((n) => n.id)
   const activityPrefix = `${vocabulary.attributes.activity}.`
@@ -419,6 +423,13 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   for (const edge of links) {
     if (declaredIds.has(edge.to)) continue
+    if (planning(edge)) {
+      const planned = nodes.get(edge.to)
+      if (planned === undefined || planned.kind === made.kinds.missing) {
+        nodes.set(edge.to, { id: edge.to, kind: prefixKind(edge.to, input.config)!, title: edge.to, attrs: {} })
+      }
+      continue
+    }
     diagnostics.push(diagnostic("dangling-link", {
       message: `${edge.from} -${edge.rel}-> ${edge.to}: no node has id ${edge.to}`,
       node: edge.from,
@@ -449,7 +460,8 @@ export const buildProject = (input: ProjectInput): Project => {
  * constant from a module anchored to element B, at the line that names the module: the
  * dependencies between elements as the code has them. An import of types alone calls nothing, and
  * no element imports itself. A name means the code file it resolves to among all of `codeFiles`,
- * whether or not that file anchors an element.
+ * whether or not that file anchors an element. A pattern imports nothing and nothing imports it: the
+ * code that plays it is part of an element.
  */
 const importsBetweenElements = (
   annotations: ReadonlyArray<Annotation>,
@@ -460,7 +472,10 @@ const importsBetweenElements = (
 ): ReadonlyArray<GraphEdge> => {
   const elementsOf = new Map<string, Set<string>>()
   for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
-    const elements = annotation.targets.filter((id) => hasKind(vocabulary, "architectural", nodes.get(id)?.kind ?? ""))
+    const elements = annotation.targets.filter((id) => {
+      const kind = nodes.get(id)?.kind ?? ""
+      return hasKind(vocabulary, "architectural", kind) && !hasKind(vocabulary, "pattern", kind)
+    })
     if (elements.length > 0) elementsOf.set(annotation.file, new Set([...elementsOf.get(annotation.file) ?? [], ...elements]))
   }
   const edges: Array<GraphEdge> = []

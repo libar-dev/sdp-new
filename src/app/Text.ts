@@ -106,32 +106,57 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
   rows(listed.map((step) => [`${step.file}:${step.line}`, step.keyword, step.expression]))
 
 /**
- * Each architectural node with what it is for and its links; drivers and anchored code appear as
- * the nodes it links to, and a driver that shaped it through a feature as `driver, through
- * feature`. What it is for is the first paragraph of its spec — or, for a node declared without
- * one, what the code anchored to it says of itself. A title that only repeats the id, as that of
- * an element declared by its code, is left out.
+ * Each architectural node with what it is for and its links; drivers and the code linked to it
+ * appear as the nodes it links to, and a driver that shaped it through a feature as `driver,
+ * through feature`. What it is for is the first paragraph of its spec — or, for a node declared
+ * without one, what the code anchored to it says of itself. Under each piece of code that is it
+ * comes its surface: a declaration's shape, or what a file exports. Code that links to it otherwise
+ * — that plays a pattern — is followed by the elements that code is. Then the work on it: what is
+ * implemented, and what is still to come, ready first. A node no file declares is planned by the
+ * work that names it. A title that only repeats the id, as that of an element declared by its code,
+ * is left out.
  */
-export const architecture = ({ anchors, architecture, drivers, edges, kinds }: ArchitectureData): string => {
+export const architecture = ({ anchor, anchors, architecture, drivers, edges, kinds, work }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
   const title = (id: string) => titles.get(id) === id ? "" : titles.get(id) ?? ""
-  const docs = new Map(anchors.map((code) => [code.id, code.attrs.doc]))
+  const code = new Map(anchors.map((record) => [record.id, record]))
   const lines = [`Architecture: ${architecture.length} node(s) of the kinds ${kinds.join(", ")}`]
   for (const node of architecture) {
     const incoming = edges.filter((e) => e.to === node.id)
-    const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : incoming.map((e) => docs.get(e.from))
+    const anchoring = incoming.filter((e) => e.rel === anchor && code.has(e.from))
+    const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : anchoring.map((e) => code.get(e.from)?.attrs.doc)
     const named = title(node.id) === "" ? node.id : `${node.id} — ${node.title}`
-    lines.push("", `${named} (${node.kind})  ${where(node)}`.trimEnd())
+    const { implemented = [], toCome = [] } = work.find((w) => w.node === node.id) ?? {}
+    const by = toCome.length > 0 ? ` by ${toCome.map((item) => item.id).join(", ")}` : ""
+    const planned = node.file === null ? `planned${by}: no code declares it yet` : ""
+    lines.push("", `${named} (${node.kind})  ${where(node) || planned}`.trimEnd())
     for (const text of described) if (typeof text === "string") lines.push(`  ${text}`)
     for (const edge of edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`.trimEnd())
-    for (const edge of incoming) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`.trimEnd())
+    for (const edge of incoming) {
+      lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`.trimEnd())
+      const linked = code.get(edge.from)
+      if (linked === undefined) continue
+      if (edge.rel === anchor) {
+        for (const shape of [linked.attrs.shape, linked.attrs.exports].flat()) if (typeof shape === "string") lines.push(`    ${shape}`)
+        continue
+      }
+      // The elements that code is apply what it links to.
+      for (const is of edges.filter((e) => e.from === linked.id && e.rel === anchor && e.to !== node.id)) {
+        lines.push(`  ${node.id} <-${edge.rel}- ${is.to}, through ${linked.id}  ${title(is.to)}`.trimEnd())
+      }
+    }
     for (const driver of drivers) {
       const features = [...new Set(driver.through.filter((route) => route.nodes[0] === node.id).map((route) => route.nodes[1]))]
       if (features.length > 0) lines.push(`  ${driver.id}, through ${features.join(", ")}  ${title(driver.id)}`.trimEnd())
     }
+    for (const item of implemented) lines.push(`  implemented: ${item.id}  ${item.title}`)
+    for (const item of toCome) lines.push(`  still to come: ${item.id}${stageOf(item)}  ${item.title}`)
   }
   return lines.join("\n")
 }
+
+/** How far work still to come has come, as ` (ready)`. */
+const stageOf = (record: NodeRecord): string => typeof record.attrs.stage === "string" ? ` (${record.attrs.stage})` : ""
 
 /** The vocabulary profile, one line per role — `role  word, word` — then the words sdp makes itself. */
 export const vocabulary = (data: VocabularyData): string => {

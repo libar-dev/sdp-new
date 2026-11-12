@@ -4,8 +4,8 @@ Feature: See the architecture
 
   Architects, and anyone designing a change, person or agent, need the few elements and patterns
   that shape the system, the decisions and quality requirements around them, the code that is
-  each of them and which of them it calls, in one view: `sdp arch`, or the MCP tool
-  `sdp_architecture`.
+  each of them with its surface and which of them it calls, and the work built on each and still
+  to come, in one view: `sdp arch`, or the MCP tool `sdp_architecture`.
 
   Not a discovery of the architecture: sdp never judges what belongs in it. Nor are quality
   requirements a document apart: they are specs, and their scenarios run with the rest.
@@ -96,8 +96,10 @@ Feature: See the architecture
         ARCH-orders -constrained-by-> order-latency  Order latency
         ARCH-orders -imports-> ARCH-mailer
         ARCH-orders <-is- code:src/orders.ts#place  place
+        function place(): Mailer
         receipts#a-receipt-is-sent-within-a-minute, through receipts  A receipt is sent within a minute
         numbered-receipts, through receipts  Receipts are numbered without gaps
+        still to come: receipts (idea)  Receipts
 
         PAT-outbox — Transactional outbox (pattern)
         PAT-outbox <-instance-of- ARCH-orders  Orders
@@ -106,6 +108,7 @@ Feature: See the architecture
         Sends receipts, and retries while the provider is down.
         ARCH-mailer <-imports- ARCH-orders  Orders
         ARCH-mailer <-is- code:src/mailer.ts#Mailer  Mailer
+        class Mailer {}
         """
       And the output does not contain "ARCH-mailer — ARCH-mailer"
       And the output does not contain "ARCH-mailer  ARCH-mailer"
@@ -320,7 +323,7 @@ Feature: See the architecture
         | rule                 | severity | at              | message                                                                                      |
         | declaration-conflict | warning  | src/ledger.ts:4 | ARCH-ledger: owner is "payments" here but "finance" at specs/ARCH-ledger.feature:1, which is kept |
 
-  @maturity=ready @decided-by:architecture-is-declared-in-doc-comments
+  @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp plays`
 
     The code every instance goes through is the pattern's, and its comment says what the pattern
@@ -369,7 +372,6 @@ Feature: See the architecture
       And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
       And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
 
-  @maturity=ready
   Rule: Each element is shown with its public surface: the shape of what its code exports
 
     Scenario: Billing, anchored by the file that holds its code
@@ -380,6 +382,7 @@ Feature: See the architecture
          *
          * @sdp is ARCH-billing
          */
+
         export interface Invoice {
           readonly number: string
           readonly cents: number
@@ -407,7 +410,6 @@ Feature: See the architecture
         function charge(invoice: Invoice): Promise<boolean>
         """
 
-  @maturity=ready
   Rule: Each element is shown with the work implemented on it and the work still to come, ready first
 
     The work on an element is each feature that names it, and each rule still to come of a feature
@@ -458,7 +460,6 @@ Feature: See the architecture
         - still to come: receipts (idea) — Receipts
         """
 
-  @maturity=ready
   Rule: An element that work still to come names, and no code declares yet, is shown as planned
 
     Once that work is implemented, the element must be in the code.

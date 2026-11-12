@@ -31,7 +31,8 @@ export type {
   QueryPath,
   RunReport,
   ScenarioResult,
-  ShowData
+  ShowData,
+  WorkRecord
 } from "./effect.ts"
 export { describe, isAppError } from "./effect.ts"
 

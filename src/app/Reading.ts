@@ -8,7 +8,7 @@
  * @sdp is ARCH-reports
  */
 import { DateTime, Effect, Result } from "effect"
-import { architectureView } from "../arch/Architecture.ts"
+import { architectureView, workOn } from "../arch/Architecture.ts"
 import { check as checkProject } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
@@ -178,17 +178,31 @@ export interface DriverRecord extends NodeRecord {
   readonly through: ReadonlyArray<QueryPath>
 }
 
+/** The work on an architectural node: what is built on it, and what is still to come, ready first. */
+export interface WorkRecord {
+  readonly node: string
+  readonly implemented: ReadonlyArray<NodeRecord>
+  readonly toCome: ReadonlyArray<NodeRecord>
+}
+
 export interface ArchitectureData {
   /** The kinds whose nodes are the architecture in this workspace. */
   readonly kinds: ReadonlyArray<string>
+  /** The relation by which code is an element or a pattern; any other link from code applies or uses one. */
+  readonly anchor: string
   /** Every node of one of those kinds. */
   readonly architecture: ReadonlyArray<NodeRecord>
   /** The decisions and quality requirements that shaped them. */
   readonly drivers: ReadonlyArray<DriverRecord>
-  /** The code anchored to them, each with what its own comment says of it (`attrs.doc`). */
+  /**
+   * The code linked to them, each with what its own comment says of it (`attrs.doc`) and its shape
+   * (`attrs.shape`) or a file's exports (`attrs.exports`).
+   */
   readonly anchors: ReadonlyArray<NodeRecord>
   /** The links among all of these. */
   readonly edges: ReadonlyArray<EdgeRecord>
+  /** The work on each of them. */
+  readonly work: ReadonlyArray<WorkRecord>
 }
 
 /** `sdp arch`: every element and pattern architects declared, with what shaped them and the code that is them. */
@@ -199,12 +213,11 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
   const view = architectureView(project)
   const architectural = (kind: string) => hasKind(vocabulary, "architectural", kind)
   const architecture = view.nodes.filter((node) => architectural(node.kind))
-  const anchored = architecture.flatMap((node) =>
-    graph.in(node.id).filter((edge) => edge.rel === vocabulary.relations.anchor && graph.node(edge.from)?.kind === made.kinds.code)
-  )
+  const anchored = architecture.flatMap((node) => graph.in(node.id).filter((edge) => graph.node(edge.from)?.kind === made.kinds.code))
   const code = new Set(anchored.map((edge) => edge.from))
   const data: ArchitectureData = {
     kinds: vocabulary.kinds.architectural,
+    anchor: vocabulary.relations.anchor,
     architecture: architecture.map(nodeRecord),
     drivers: view.nodes.filter((node) => !architectural(node.kind)).map((node) => ({
       ...nodeRecord(node),
@@ -212,7 +225,11 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
         .map((route) => ({ nodes: route.nodes, edges: route.edges.map(({ from, rel, to }) => ({ from, rel, to })) }))
     })),
     anchors: graph.nodes().filter((node) => code.has(node.id)).map(nodeRecord),
-    edges: [...view.edges, ...anchored].map(edgeRecord)
+    edges: [...view.edges, ...anchored].map(edgeRecord),
+    work: architecture.map((node) => {
+      const { implemented, toCome } = workOn(project, node)
+      return { node: node.id, implemented: implemented.map(nodeRecord), toCome: toCome.map(nodeRecord) }
+    })
   }
   return answer(project, data)
 })

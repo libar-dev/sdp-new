@@ -161,8 +161,9 @@ faster than grepping for a guess.
   node of kind `rule` that is `rule-of` its spec, a scenario `verifies` its rule and its spec, and
   an element `imports` each element whose code its code imports. `sdp graph -q '<pattern>'` exports only what a query
   matches.
-- **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it and what
-  each element imports),
+- **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it with the
+  shape of what it exports, what each element imports, the code that plays each pattern, and the
+  work implemented on each and still to come),
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
 
