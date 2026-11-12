@@ -90,6 +90,13 @@ export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
   return yield* parseConfig(yield* readConfigFile(root))
 })
 
+/** Where a glob starts: the directories before its first wildcard, `specs` in `specs/**`, none in `**` alone. */
+const globBase = (pattern: string): string => {
+  const parts = pattern.split("/")
+  const wild = parts.findIndex((part) => /[*?[{]/.test(part))
+  return parts.slice(0, wild < 0 ? -1 : wild).join("/")
+}
+
 /** Expand globs relative to `root`, de-duplicated and sorted for stable output. */
 export const findFiles = Effect.fn("findFiles")(function*(
   root: string,
@@ -164,8 +171,10 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     findFiles(root, config.evidence.inputs, config.exclude)
   ], { concurrency: "unbounded" })
   const featureFiles = yield* readAll(root, featurePaths)
-  const directories = new Set(featurePaths.map((file) => path.dirname(file)))
-  const markdownFiles = yield* findFiles(root, [...directories].map((directory) => path.join(directory, "*.md")), config.exclude)
+  // Markdown where specs live: beside a feature file, or under the directory a features glob starts in.
+  const beside = [...new Set(featurePaths.map((file) => path.dirname(file)))].map((directory) => path.join(directory, "*.md"))
+  const under = config.features.map(globBase).filter((base) => base !== "").map((base) => `${base}/**/*.md`)
+  const markdownFiles = yield* findFiles(root, [...beside, ...under], config.exclude)
   const codeFiles = yield* readAll(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
   const typesFile = path.join(root, config.types)

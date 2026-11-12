@@ -24,7 +24,7 @@ export interface ProjectInput {
   readonly root: string
   readonly config: Config
   readonly featureFiles: ReadonlyArray<SourceFile>
-  /** The `.md` files beside the feature files, by path: sdp reads none of them. */
+  /** The `.md` files beside the feature files and under the directories the features globs start in, by path: sdp reads none of them. */
   readonly markdownFiles: ReadonlyArray<string>
   readonly codeFiles: ReadonlyArray<SourceFile>
   /** The step definition files: their definitions are read statically, never run. */
@@ -85,9 +85,11 @@ export const buildProject = (input: ProjectInput): Project => {
     diagnostics.push(...parsed.diagnostics)
     if (parsed.spec) specs.push(parsed.spec)
   }
-  // Markdown where specs live is a spec written out of habit, and in no graph, run or check.
+  // Markdown where specs live is a spec written out of habit, and in no graph, run or check. Beside
+  // someone else's suites, named by their paths, it is their documentation.
   const specDirectories = new Set(specs.filter((spec) => spec.id !== suiteId(spec.file)).map((spec) => directoryOf(spec.file)))
-  for (const file of input.markdownFiles.filter((file) => specDirectories.has(directoryOf(file)))) {
+  const suiteDirectories = new Set(specs.map((spec) => directoryOf(spec.file)).filter((directory) => !specDirectories.has(directory)))
+  for (const file of input.markdownFiles.filter((file) => !suiteDirectories.has(directoryOf(file)))) {
     diagnostics.push(diagnostic("not-a-spec", {
       message: `${file} is Markdown, which sdp does not read: nothing written in it is in the graph`,
       source: { file, line: 1 },

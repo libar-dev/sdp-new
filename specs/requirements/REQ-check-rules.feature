@@ -138,6 +138,20 @@ Feature: Check rules
         | rule       | severity | at               | hint                                                                  |
         | not-a-spec | warning  | specs/REQ-b.md:1 | a spec is a feature file: write specs/REQ-b.feature, its tags (@id=…) |
 
+    Scenario: A directory of Markdown under the directory the feature files are configured in, with no feature file yet
+      Given a file "sdp.config.yaml" containing:
+        """
+        features: ["specs/**/*.feature"]
+        """
+      And a file "specs/billing/REQ-invoice.md" containing:
+        """
+        # Invoices
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule       | at                             |
+        | not-a-spec | specs/billing/REQ-invoice.md:1 |
+
   Rule: A plan names declared iterations, phases and disciplines, and plans only work that belongs to a discipline
 
     Background:
