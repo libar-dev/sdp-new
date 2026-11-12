@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
-import { digest, evidenceView, fingerprint, type Layer, type Snapshot } from "../run/Evidence.ts"
+import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults } from "../run/Store.ts"
 
@@ -33,6 +33,17 @@ export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoad
   file: Schema.String,
   message: Schema.String
 }) {}
+
+/** Files this process imported as modules have changed since: what it would run is no longer what is on disk. */
+export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("SourcesChanged", {
+  files: Schema.Array(Schema.String)
+}) {
+  override get message() {
+    return `${this.files.join(", ")} changed after this process imported ${
+      this.files.length === 1 ? "it" : "them"
+    }, and Node.js keeps a module for the life of a process: the changed code did not run, so nothing is recorded. Run again in a new process`
+  }
+}
 
 /**
  * The workspace a command run in `start` works on: the nearest directory, `start` or above, with an
@@ -135,8 +146,8 @@ export const readFiles = Effect.fn("readFiles")(function*(root: string, files: R
 /**
  * Reads a workspace and builds one view of it: the project with the results that `results` lets
  * it show — `all` for readers, `ordinary` for gates, `none` for ordinary scenarios — and the
- * fingerprints a run records. `imports` names workspace files the step definitions import, when a
- * run has loaded them; those earlier runs recorded count either way.
+ * fingerprints a run records. `imports` names the workspace files the step definitions of this
+ * run have imported; a stored result is compared with the files its own run had imported.
  */
 export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, options: {
   readonly results?: Layer | "none" | undefined
@@ -157,22 +168,34 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const featureFiles = yield* readAll(root, featurePaths)
   const codeFiles = yield* readAll(root, codePaths)
   const stepFiles = yield* readAll(root, stepPaths)
-  const stored = yield* readResults(root, config)
-  const imported = yield* readFiles(root, [...new Set([...(stored?.imports ?? []), ...(options.imports ?? [])])])
-  const sources = [...(configFile ? [configFile] : []), ...codeFiles, ...stepFiles, ...imported]
-  const fingerprints = {
-    sources: fingerprint(sources),
-    toolchain: toolchain(yield* readFiles(root, lockfileNames)),
-    inputs: declaredInputs(yield* readAll(root, inputPaths), config.evidence.env),
-    specs: fingerprint([...specFiles, ...featureFiles])
-  }
-  const layer = options.results ?? "all"
   const typesFile = path.join(root, config.types)
   const types = (yield* fs.exists(typesFile)) ? yield* fs.readFileString(typesFile) : undefined
+  const stored = yield* readResults(root, config)
+  const recorded = Object.entries(stored?.imports ?? {})
+  const imports = options.imports ?? []
+  const imported = new Map(
+    (yield* readFiles(root, [...new Set([...recorded.flatMap(([, files]) => files), ...imports])])).map((file) => [file.path, file])
+  )
+  /** What a run whose step definitions imported `files` ran against, as the workspace is now. */
+  const sourcesWith = (files: ReadonlyArray<string>) => [
+    ...(configFile ? [configFile] : []),
+    ...codeFiles,
+    ...stepFiles,
+    ...files.flatMap((file) => imported.get(file) ?? [])
+  ]
+  const sources = sourcesWith(imports)
+  const fingerprints: Fingerprints = {
+    sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
+    toolchain: toolchain(yield* readFiles(root, lockfileNames)),
+    inputs: declaredInputs(yield* readAll(root, inputPaths), config.evidence.env),
+    // The id declarations too: a check reads them (`types-stale`), and so does a step that asks for diagnostics.
+    specs: fingerprint([...specFiles, ...featureFiles, ...(types === undefined ? [] : [{ path: config.types, content: types }])])
+  }
+  const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
   const project = buildProject({ root, config, specFiles, featureFiles, codeFiles, stepFiles, types, evidence: view })
   const results = view ? view(project.specs).ordinary : ""
-  return { project, now: { ...fingerprints, results }, sources } satisfies Workspace
+  return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources } satisfies Workspace
 })
 
 /** Reads config, specs, feature files, code, step definitions, stored results and id declarations and builds the project. */
@@ -189,17 +212,21 @@ const sdpExports = new Map([
 ])
 let hooked = false
 /**
- * Module URL → the local files it imports, as this process resolved them. Node keeps every module
- * for the life of the process, and so does this record of what each one imports: a process loads
- * the step modules once.
+ * What this process has imported of workspaces, by module URL: the local files each module
+ * imports, as Node resolved them, and the source Node loaded. Node keeps every module for the life
+ * of the process, and so do these records: a process loads step modules once, and what it runs is
+ * what it loaded, whatever the file says later.
  */
 const importGraph = new Map<string, Set<string>>()
+const loadedSources = new Map<string, string>()
+
+const isWorkspaceFile = (url: string) => url.startsWith("file:") && !url.includes("/node_modules/")
 
 /**
  * Step modules `import { defineSteps } from "sdp/steps"`: that always resolves to the sdp that runs
  * them, so a workspace needs no install, and step modules and runner agree on one sdp. What step
  * modules import is part of what scenarios run against, so every local import is recorded — also
- * one a handler makes while it runs.
+ * one a handler makes while it runs — with the source that was loaded.
  */
 const hookImports = () => {
   if (hooked) return
@@ -209,10 +236,16 @@ const hookImports = () => {
       const own = sdpExports.get(specifier)
       if (own !== undefined) return { url: own, shortCircuit: true }
       const resolved = nextResolve(specifier, context)
-      if (context.parentURL?.startsWith("file:") && resolved.url.startsWith("file:") && !resolved.url.includes("/node_modules/")) {
+      if (context.parentURL?.startsWith("file:") && isWorkspaceFile(resolved.url)) {
         importGraph.set(context.parentURL, (importGraph.get(context.parentURL) ?? new Set()).add(resolved.url))
       }
       return resolved
+    },
+    load: (url, context, nextLoad) => {
+      const loaded = nextLoad(url, context)
+      const { source } = loaded
+      if (isWorkspaceFile(url) && source != null) loadedSources.set(url, typeof source === "string" ? source : new TextDecoder().decode(source))
+      return loaded
     }
   })
 }
@@ -228,6 +261,11 @@ export interface LoadedSteps {
    * the root. Ask again after a run: a handler may import a file only when it executes.
    */
   readonly imports: () => ReadonlyArray<string>
+  /**
+   * Of `sources`, the step files and their imports whose content is no longer what this process
+   * loaded: a run against them would record evidence about code that did not run.
+   */
+  readonly changed: (sources: ReadonlyArray<SourceFile>) => ReadonlyArray<string>
 }
 
 /** Imports every step definition module matched by `config.steps`: this runs workspace code, so only `sdp run` and `sdp gate` do it. */
@@ -236,21 +274,22 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   const path = yield* Path.Path
   const files = yield* findFiles(root, config.steps, config.exclude)
   if (files.length > 0) hookImports()
+  // Node resolves modules to their real paths.
+  const real = files.length > 0 ? yield* fs.realPath(root) : root
+  const urlOf = (file: string) => pathToFileURL(path.join(real, file)).href
   const modules: Array<StepModule<any>> = []
   const empty: Array<string> = []
   for (const file of files) {
     const exports = yield* Effect.tryPromise({
-      try: () => import(pathToFileURL(path.resolve(root, file)).href) as Promise<Record<string, unknown>>,
+      try: () => import(urlOf(file)) as Promise<Record<string, unknown>>,
       catch: (e) => new StepLoadError({ file, message: loadMessage(e) })
     })
     const found = Object.values(exports).filter(isStepModule)
     if (found.length === 0) empty.push(file)
     modules.push(...found)
   }
-  // Node resolves modules to their real paths.
-  const real = files.length > 0 ? yield* fs.realPath(root) : root
   const imports = () => {
-    const seen = new Set(files.map((file) => pathToFileURL(path.join(real, file)).href))
+    const seen = new Set(files.map(urlOf))
     const queue = [...seen]
     for (const url of queue) {
       for (const next of importGraph.get(url) ?? []) {
@@ -265,7 +304,17 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
       .filter((file) => !own.has(file) && !file.startsWith("..") && !path.isAbsolute(file))
       .sort()
   }
-  return { files, modules, empty, imports } satisfies LoadedSteps
+  const changed = (sources: ReadonlyArray<SourceFile>) => {
+    const running = new Set([...files, ...imports()])
+    return sources.filter((file) => {
+      if (!running.has(file.path)) return false
+      // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
+      const loaded = loadedSources.get(urlOf(file.path)) ?? file.content
+      loadedSources.set(urlOf(file.path), loaded)
+      return loaded !== file.content
+    }).map((file) => file.path)
+  }
+  return { files, modules, empty, imports, changed } satisfies LoadedSteps
 })
 
 /** The first line of what went wrong; Node appends the code frame and a stack nobody needs here. */

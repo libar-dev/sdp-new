@@ -94,6 +94,13 @@ const behaviours: Record<string, Behaviour> = {
     assert.deepEqual([...new Set(statuses)], ["unrun"], "scenario statuses in the graph")
     assert.equal(project.results, undefined, "stored results")
   },
+  // What a gate sees: the ordinary scenarios by status, none of the records behind them.
+  "finds statuses without run details": ({ project }) => {
+    const scenarios = project.graph.ofKind(["scenario"])
+    assert.equal(project.results, undefined, "stored results")
+    assert.deepEqual(scenarios.filter((node) => node.attrs.lastRun !== undefined).map((node) => node.id), [], "scenarios that show when they ran")
+    assert.ok(scenarios.some((node) => node.attrs.status === "passed"), "no ordinary scenario shows as passed")
+  },
   "adds an item to its world": ({ world }) => {
     world.items = (world.items ?? 0) + 1
   },

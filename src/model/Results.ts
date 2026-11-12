@@ -38,15 +38,18 @@ export type ExampleResult = typeof ExampleResult.Type
  * that every scenario passed against exactly these inputs, nothing wider.
  */
 export const Evidence = Schema.Struct({
-  /** The configuration file, the code, the step definitions and every workspace file they imported up to the end of the run. */
+  /**
+   * The configuration file, the code, the step definitions and every workspace file they imported
+   * up to the end of the run: `RunResults.imports` names those files under this fingerprint.
+   */
   sources: Schema.String,
   /** The sdp version, the Node major version and the lockfile. */
   toolchain: Schema.String,
   /** The declared inputs: the files of `evidence.inputs` and the variables of `evidence.env`. */
   inputs: Schema.String,
-  /** The spec and feature files, recorded when a step read the graph (`project`). */
+  /** The spec and feature files and the id declarations, recorded when a step read the graph (`project`). */
   specs: Schema.optional(Schema.String),
-  /** The statuses of the ordinary scenarios, recorded when a gate read the graph. */
+  /** What the graph showed a gate of the ordinary scenarios' results — each one's status, or why it no longer counts — recorded when the gate read the graph. */
   results: Schema.optional(Schema.String)
 })
 export type Evidence = typeof Evidence.Type
@@ -68,10 +71,12 @@ export const ScenarioResult = Schema.Struct({
 export type ScenarioResult = typeof ScenarioResult.Type
 
 export const RunResults = Schema.Struct({
-  version: Schema.Literal(3),
-  runAt: Schema.String,
-  /** Workspace files the step definitions imported in any run, besides the step files: part of `evidence.sources`. */
-  imports: Schema.Array(Schema.String),
+  version: Schema.Literal(4),
+  /**
+   * For each `evidence.sources` fingerprint of a stored result: the workspace files the step
+   * definitions had imported, besides the step files, when the run that recorded it ended.
+   */
+  imports: Schema.Record(Schema.String, Schema.Array(Schema.String)),
   scenarios: Schema.Record(Schema.String, ScenarioResult)
 })
 export type RunResults = typeof RunResults.Type

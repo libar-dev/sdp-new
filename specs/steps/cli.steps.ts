@@ -16,7 +16,10 @@ import { access, cp, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promise
 import { tmpdir } from "node:os"
 import { basename, dirname, join, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { describe } from "../../src/app/Errors.ts"
+import { run } from "../../src/app/Running.ts"
 import { newSpec } from "../../src/app/Templates.ts"
+import * as Text from "../../src/app/Text.ts"
 import { registrations } from "../../src/mcp/Server.ts"
 import { defineSteps, Pending } from "sdp/steps"
 import { ids, load, newWorld, setFile, type World } from "./world.ts"
@@ -163,6 +166,14 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     world.output = reply.result.content.map((c: { text?: string }) => c.text ?? "").join("\n")
     world.scratch.stdout = world.output
   })
+
+  // A program that runs a workspace more than once, as this process: it keeps the modules it imported.
+  When("this process runs the workspace through the API", ({ world }) =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => workspace(world))
+      const outcome = yield* Effect.result(run(directory))
+      world.output = Result.isSuccess(outcome) ? Text.runSummary(outcome.success.data) : describe(outcome.failure)
+    }).pipe(Effect.provide(NodeServices.layer)))
 
   // A server in this very process, on the files on disk: like a long-running `sdp mcp`, every call
   // shares one module cache, so it shows whether edits to step files are seen.

@@ -47,6 +47,7 @@ export interface Settled {
  * on the runner's side (`src/run/Evidence.ts`); the builder only places the answers on the nodes.
  */
 export interface EvidenceView {
+  /** The records themselves, for the readers that may see all of them; a scenario that runs sees none. */
   readonly results: RunResults | undefined
   readonly settle: (scenario: Scenario) => Settled
 }
@@ -67,6 +68,7 @@ export interface Project {
   readonly graph: Graph
   /** Problems found while reading sources and linking the graph (`sdp check` adds rule checks). */
   readonly diagnostics: ReadonlyArray<Diagnostic>
+  /** The stored result records, for readers that see every result; `undefined` for a scenario that runs. */
   readonly results: RunResults | undefined
   readonly types: string | undefined
   readonly steps: ProjectSteps

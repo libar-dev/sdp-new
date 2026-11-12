@@ -410,6 +410,7 @@ sdp.pipe(
   Effect.catchTags({
     ConfigError: (e) => fail(describe(e)),
     StepLoadError: (e) => fail(describe(e)),
+    SourcesChanged: (e) => fail(describe(e)),
     InvalidStepExpressions: (e) => fail(describe(e)),
     InvalidTags: (e) => fail(describe(e)),
     ResultsLocked: (e) => fail(describe(e)),

@@ -23,8 +23,8 @@ derived from its results (DEC-0005), so its semantics (undefined vs. failed) are
 | `src/steps.ts`, `src/run/Steps.ts` | the step API (`sdp/steps`): `defineSteps`, `pending`, the handler's context |
 | `src/run/Match.ts` | matching step text against definitions — the loaded ones for a run, those read statically from the step files (`src/parse/StepDefinitions.ts`) for every reader — and suggesting definitions |
 | `src/run/Runner.ts` | executing the selected examples; one publisher reports results in order |
-| `src/run/Evidence.ts` | what a result ran against (fingerprints), whether it still counts (staleness), and which results each layer sees: none for ordinary scenarios, the ordinary ones for gates |
-| `src/run/Store.ts` | the results file: read, and commit under a lock what one run executed |
+| `src/run/Evidence.ts` | what a result ran against (fingerprints), whether it still counts (staleness), and what each layer sees of the results: nothing for ordinary scenarios, what the ordinary ones say for gates |
+| `src/run/Store.ts` | the results file: read, and commit under a lock what one run executed, with the files its step definitions imported |
 | `src/run/Builtin.ts` | steps that assert against the graph through the query engine and the checker, which is how gates and guards execute |
 
 The runner reads the graph; the graph builder never imports the runner: it is handed what the

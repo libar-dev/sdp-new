@@ -10,7 +10,7 @@ import type { PlatformError } from "effect/PlatformError"
 import type { QueryError } from "../graph/Query.ts"
 import type { InvalidStepExpressions } from "../run/Runner.ts"
 import type { ResultsLocked } from "../run/Store.ts"
-import type { ConfigError, StepLoadError, WorkspaceNotFound } from "../workspace/Workspace.ts"
+import type { ConfigError, SourcesChanged, StepLoadError, WorkspaceNotFound } from "../workspace/Workspace.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
 
@@ -67,6 +67,7 @@ export type AppError =
   | ConfigError
   | WorkspaceNotFound
   | StepLoadError
+  | SourcesChanged
   | InvalidStepExpressions
   | InvalidTags
   | ResultsLocked

@@ -33,21 +33,26 @@ export const isGate = (
   pickles: ReadonlyArray<Pickle> = scenario.pickles
 ): boolean => hasKind(vocabulary, "milestone", spec.kind) || pickles.some((pickle) => pickle.tags.includes("@gate"))
 
-/** Fingerprints of the workspace as it is now, to compare with what each stored result recorded. */
+/** The workspace as it is now, to compare with what each stored result recorded. */
 export interface Fingerprints {
-  /** The configuration file, the code files, the step definition files and the workspace files they import. */
-  readonly sources: string
+  /**
+   * The `evidence.sources` stored results recorded that still match: the configuration file, the
+   * code files, the step definition files and the workspace files their run had imported.
+   */
+  readonly sources: ReadonlySet<string>
   /** The sdp version, the Node major version and the lockfile. */
   readonly toolchain: string
   /** The files of `evidence.inputs` and the variables of `evidence.env`. */
   readonly inputs: string
-  /** The spec and feature files. */
+  /** The spec and feature files and the id declarations: what a step that reads the graph sees. */
   readonly specs: string
 }
 
-/** Everything a result can record: the workspace's fingerprints and, for gates, the ordinary results they see. */
-export interface Snapshot extends Fingerprints {
-  /** The statuses of the ordinary scenarios. */
+/** What a run records with each result: the fingerprints of what it ran against. */
+export interface Snapshot extends Omit<Fingerprints, "sources"> {
+  /** The sources with the workspace files this run's step definitions imported. */
+  readonly sources: string
+  /** What the graph shows a gate of the ordinary scenarios' results. */
   readonly results: string
 }
 
@@ -72,15 +77,19 @@ export type Staleness =
   | "specs-changed"
   | "results-changed"
 
-/** Compares what a result recorded with the workspace now; `undefined` while the result still counts. */
+/**
+ * Compares what a result recorded with the workspace now, and with what the ordinary results say
+ * now; `undefined` while the result still counts.
+ */
 export const staleness = (
   result: ScenarioResult,
   scenario: Scenario,
-  now: Snapshot
+  now: Fingerprints,
+  ordinary: string
 ): Staleness | undefined =>
   result.hash !== scenario.hash
     ? "scenario-changed"
-    : result.evidence.sources !== now.sources
+    : !now.sources.has(result.evidence.sources)
     ? "code-changed"
     : result.evidence.toolchain !== now.toolchain
     ? "toolchain-changed"
@@ -88,7 +97,7 @@ export const staleness = (
     ? "inputs-changed"
     : result.evidence.specs !== undefined && result.evidence.specs !== now.specs
     ? "specs-changed"
-    : result.evidence.results !== undefined && result.evidence.results !== now.results
+    : result.evidence.results !== undefined && result.evidence.results !== ordinary
     ? "results-changed"
     : undefined
 
@@ -96,7 +105,7 @@ export const staleness = (
 export type Layer = "ordinary" | "all"
 
 export interface LayeredResults extends EvidenceView {
-  /** Fingerprint of the ordinary scenarios' statuses: what a gate that reads the graph records as `evidence.results`. */
+  /** Fingerprint of what the ordinary results say: what a gate that reads the graph records as `evidence.results`. */
   readonly ordinary: string
 }
 
@@ -105,7 +114,8 @@ const unrun: Settled = { status: undefined, stale: undefined, lastRun: undefined
 /**
  * The stored results as one view of the graph shows them, settled against the workspace as it is
  * now. The ordinary results are settled first — they depend on no results — and fingerprinted for
- * the gates, which may have read them.
+ * the gates, which may have read them. A gate reads no more of a result than that fingerprint
+ * covers: its status, or why it no longer counts. When and how it ran is for the other readers.
  */
 export const evidenceView = (results: RunResults | undefined, now: Fingerprints, layer: Layer, vocabulary: Vocabulary) =>
   (specs: ReadonlyArray<Spec>): LayeredResults => {
@@ -115,35 +125,17 @@ export const evidenceView = (results: RunResults | undefined, now: Fingerprints,
     const settle = (scenario: Scenario, ordinary: string): Settled => {
       const result = results?.scenarios[scenario.id]
       if (!result) return unrun
-      const stale = staleness(result, scenario, { ...now, results: ordinary })
-      return { status: stale ? undefined : result.status, stale, lastRun: result.runAt }
+      const stale = staleness(result, scenario, now, ordinary)
+      return { status: stale ? undefined : result.status, stale, lastRun: layer === "all" ? result.runAt : undefined }
     }
     const ordinaryScenarios = specs.flatMap((spec) => spec.scenarios).filter((scenario) => !gates.has(scenario.id))
     const ordinary = digest(ordinaryScenarios.map((scenario) => {
       const { stale, status } = settle(scenario, "")
-      return `${scenario.id}=${status ?? (stale ? "stale" : "unrun")}`
+      return `${scenario.id}=${status ?? stale ?? "unrun"}`
     }))
-    const shown = (id: string) => layer === "all" || !gates.has(id)
-    const visible = Object.entries(results?.scenarios ?? {}).filter(([id]) => shown(id))
     return {
       ordinary,
-      results: results && { ...results, scenarios: Object.fromEntries(visible) },
-      settle: (scenario) => shown(scenario.id) ? settle(scenario, ordinary) : unrun
+      results: layer === "all" ? results : undefined,
+      settle: (scenario) => layer === "all" || !gates.has(scenario.id) ? settle(scenario, ordinary) : unrun
     }
   }
-
-/** How many stored results are stale, by reason, measured against the workspace as it is now. */
-export const staleCounts = (
-  specs: ReadonlyArray<Spec>,
-  results: RunResults | undefined,
-  now: Fingerprints,
-  vocabulary: Vocabulary
-): Readonly<Record<string, number>> => {
-  const view = evidenceView(results, now, "all", vocabulary)(specs)
-  const counts = new Map<string, number>()
-  for (const scenario of specs.flatMap((spec) => spec.scenarios)) {
-    const { stale } = view.settle(scenario)
-    if (stale) counts.set(stale, (counts.get(stale) ?? 0) + 1)
-  }
-  return Object.fromEntries(counts)
-}
