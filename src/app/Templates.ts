@@ -159,6 +159,9 @@ const nextIteration = (graph: Graph, vocabulary: Vocabulary, today: string) => {
   return { start: addDays(end(last), 1), phase: graph.out(last).find((edge) => hasRelation(vocabulary, "phase", edge.rel))?.to }
 }
 
+/** Whether a kind is work: what a discipline names, which is still to come at a maturity and planned. */
+const isWork = (vocabulary: Vocabulary, kind: string) => [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
+
 /**
  * The content of a new spec. The words sdp interprets — kinds, relations, attributes — are written
  * as the workspace's vocabulary names them, so what a template writes is what sdp reads.
@@ -202,8 +205,9 @@ const specTemplate = (options: {
       return feature([...identity, ...inPhase, `@${startKey}=${start}`, `@${endKey}=${addDays(start, 13)}`])
     }
   }
-  // Still to come, at whatever maturity it starts: what it says next is the author's.
-  return feature([...identity, `@maturity=${maturity}`])
+  // Work is still to come, at whatever maturity it starts, and what it says next is the author's; any
+  // other kind has no maturity.
+  return feature([...identity, ...(isWork(vocabulary, kind) ? [`@maturity=${maturity}`] : [])])
 }
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
@@ -272,12 +276,17 @@ const guidance = (options: {
         `code that applies it says so in its doc comment with \`@sdp plays ${id}\`: sdp arch shows the pattern with the code that plays it and the elements that code is`
       ]
     case "generic":
-      return [
-        "write the idea in a sentence under the title",
-        "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
-        "link it: @realized-by:ARCH-…",
-        `plan it: ${plan}`
-      ]
+      return isWork(vocabulary, kind)
+        ? [
+          "write the idea in a sentence under the title",
+          "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
+          "link it: @realized-by:ARCH-…",
+          `plan it: ${plan}`
+        ]
+        : [
+          "say under the title what it is",
+          "link it to what it concerns, `@<relation>:<id>`, and write what must hold of it as a `Rule:` with scenarios as its examples"
+        ]
   }
 }
 

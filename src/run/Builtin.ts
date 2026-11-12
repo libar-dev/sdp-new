@@ -19,7 +19,7 @@ import { defineSteps, type StepContext } from "./Steps.ts"
 
 type Asserting = Pick<StepContext<unknown, ReadonlyArray<unknown>>, "project" | "scenario">
 
-/** Attributes a node has only through results; `status` is one on scenarios, while decisions and risks declare theirs. */
+/** Attributes a node has only through results; `status` is one on a scenario, and on no other kind. */
 const resultAttributes: ReadonlySet<string> = new Set(made.resultAttributes)
 const isResult = (key: string, onScenario: boolean) => resultAttributes.has(key) || (key === "status" && onScenario)
 

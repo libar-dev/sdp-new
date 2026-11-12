@@ -31,7 +31,8 @@ Feature: Start a spec
 
   Rule: A new spec holds only what stays in it, and the answer says what to write next
 
-    Advice written into the file would outlive its use as prose nobody wrote.
+    Advice written into the file would outlive its use as prose nobody wrote. Only work, a kind a
+    discipline names, is still to come at a maturity, and planned.
 
     Scenario Outline: The file says what the spec is, and the answer what to write in it
       When I run "sdp new <kind> '<title>' <options>"
@@ -43,11 +44,12 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind  | title         | options | file                                 | tags                                    | next                                                                |
-        | gizmo | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
-        | idea  | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea        | say under the title who needs what, and why, before any solution    |
-        | risk  | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk @maturity=idea    | write the idea in a sentence under the title                        |
-        | phase | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
+        | kind  | title         | options | file                                 | tags                                       | next                                                                |
+        | gizmo | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo                   | say under the title what it is                                      |
+        | idea  | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea           | say under the title who needs what, and why, before any solution    |
+        | risk  | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk                      | say under the title what it is                                      |
+        | phase | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                           | say under the title what this phase takes on, and why in this order |
+        | story | Saved carts   |         | specs/story/saved-carts.feature      | @id=saved-carts @kind=story @maturity=idea | write the idea in a sentence under the title                        |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"

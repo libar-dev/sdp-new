@@ -249,21 +249,28 @@ Feature: Ask the graph
 
   Rule: Each node in an answer comes with its kind, its state and the file and line it is written at
 
-    Its state is the status it declares, else its stage. The count goes to stderr, so stdout is the
-    answer alone.
+    Its state is its status, as a scenario's last run left it, else its stage. The count goes to
+    stderr, so stdout is the answer alone.
 
     Scenario: A node per line, only the ids, or the routes
-      Given these specs:
-        | tags                                                   | Feature                   |
-        | @id=index-outgrows-memory @kind=risk @status=tolerated | The index outgrows memory |
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay
+        Feature: Pay
+
+          Rule: A card is charged once
+
+            Scenario: Charged
+              Then the query "feature" returns at least 1 result
+        """
       When I run "sdp q '#checkout -realized-by-> element'"
       Then the exit code is 0
       And the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
       And the output contains "1 node(s)"
-      When I run "sdp q 'feature|risk'"
+      When I run "sdp q 'feature|scenario'"
       Then the exit code is 0
       And the output contains "checkout\tfeature\tready"
-      And the output contains "index-outgrows-memory\trisk\ttolerated"
+      And the output contains "pay#charged\tscenario\tunrun"
       When I run "sdp q 'element' --ids"
       Then the exit code is 0
       And the output lines are "ARCH-orders, ARCH-billing, ARCH-ledger"

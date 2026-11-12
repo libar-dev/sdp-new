@@ -414,7 +414,7 @@ Feature: Write step definitions
         """
         vocabulary:
           words: { kinds: [incident], relations: [leaks-to], attributes: [exposure] }
-        ids: { risk: RISK }
+        ids: { runbook: RB }
         """
       And a file "specs/guard.feature" containing:
         """
@@ -426,13 +426,13 @@ Feature: Write step definitions
       Then the step '<step>' has status "<status>"
 
       Examples:
-        | step                                                  | status |
-        | the query "* -leaks-to-> *" returns no results        | passed |
-        | the query "incident[!owner]" returns no results       | failed |
-        | the query "incident" returns no results               | passed |
-        | the query "feature[exposure=high]" returns no results | passed |
-        | the query "risk[status=open]" returns no results      | passed |
-        | the query "* -leaks-into-> *" returns no results      | failed |
+        | step                                                   | status |
+        | the query "* -leaks-to-> *" returns no results         | passed |
+        | the query "incident[!owner]" returns no results        | failed |
+        | the query "incident" returns no results                | passed |
+        | the query "feature[exposure=high]" returns no results  | passed |
+        | the query "runbook[maturity=ready]" returns no results | passed |
+        | the query "* -leaks-into-> *" returns no results       | failed |
 
     Scenario: A graph that could not be fully read proves nothing, so a query step fails
       Given a file "src/search.ts" containing:
