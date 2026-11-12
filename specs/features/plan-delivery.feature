@@ -303,7 +303,8 @@ Feature: Plan delivery
   Rule: A rule is planned on its own, as work of its spec's kind
 
     A change to a built feature is planned rule by rule. Planning a spec plans its rules, and a rule
-    that plans itself is one more item of its iteration.
+    that plans itself is one more item of its iteration, whose evidence its examples are: each
+    example is counted in one iteration.
 
     Scenario: A rule still to come of a built feature, planned into IT-baseline
       Given a file "specs/cart.feature" containing:
@@ -334,6 +335,39 @@ Feature: Plan delivery
       And the planned activity is:
         | discipline   | IT-prototype | IT-baseline |
         | requirements | 1            | 1           |
+
+    Scenario Outline: A rule planned <planned>, and the evidence of its example
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=draft @iteration:IT-prototype
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+          @maturity=draft @iteration:<iteration>
+          Rule: A wishlist is shared with a friend
+
+            Scenario: Share the list
+              Then the wishlist holds a desk
+        """
+      And a step definition "the wishlist holds a {word}" that passes
+      When the workspace is run
+      And the lifecycle is computed
+      Then the iterations are:
+        | id           | scenarios   |
+        | IT-scope     |             |
+        | IT-prototype | <prototype> |
+        | IT-baseline  | <baseline>  |
+
+      Examples:
+        | planned                | iteration    | prototype | baseline |
+        | with its feature       | IT-prototype | passed:2  |          |
+        | apart from its feature | IT-baseline  | passed:1  | passed:1 |
 
   Rule: Work still to come, at every maturity, is unplanned until it is planned
 
