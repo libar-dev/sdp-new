@@ -27,8 +27,10 @@ cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v
 edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
 ```
 
-- **Nodes.** A query starts from every node matching its first selector. `#ID` selects by id (an
-  unknown id selects nothing). All conditions must hold, whether written in one `[…]` group,
+- **Nodes.** A query starts from every node matching its first selector. `#ID` selects by id. A word
+  the workspace does not know — an id, a kind, a relation, an attribute — is no error, it just
+  matches nothing: a query explores, so `sdp q` answers and notes the word, while an assertion
+  built on the same query fails ([[REQ-builtin-steps]]). All conditions must hold, whether written in one `[…]` group,
   separated by commas, or in several groups.
 - **Values.** `id`, `kind`, `title` and `source` (`file:line`) are keys like any attribute; `a.b`
   reaches into a nested attribute. A key reads only what the node itself holds — `toString` is no
@@ -69,7 +71,8 @@ sdp q 'requirement|nfr[stage!=verified] ?-iteration-> iteration[phase=constructi
 ```
 
 A query returns nodes or paths, nothing more. Counting and grouping are left to standard tools:
-`sdp q '…' --json | jq …`.
+`sdp q '…' --ids | wc -l`, `sdp q '…' --json | jq '.data.nodes | group_by(.kind)'`. And nothing is
+answerable only here: the graph itself is plain data for the same tools ([[REQ-graph-export]]).
 
 ## Scenarios
 

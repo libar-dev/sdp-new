@@ -19,7 +19,7 @@ themselves, plans that name iterations nobody declared, annotations sdp does not
 text nobody replaced. Every diagnostic names its rule, a severity and the `file:line` to look at, and most
 carry a hint phrased as an instruction, so a person or an agent can fix it without reading sdp's
 code. `sdp check --json` prints the same as objects (`rule`, `severity`, `message`, `node`,
-`source`, `hint`); agents also get them from the MCP tool `sdp_check` ([[REQ-mcp-server]]).
+`file`, `line`, `hint`); agents also get them from the MCP tool `sdp_check` ([[REQ-mcp-server]]).
 
 An **error** means the graph is wrong or a claim is false; `sdp check` exits with 1 while there is
 one ([[REQ-cli]]). A **warning** means something was ignored or is probably a slip, and an **info**

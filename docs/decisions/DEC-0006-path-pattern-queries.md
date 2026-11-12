@@ -30,7 +30,7 @@ decision". The question has to fit a shell argument and a single Gherkin step.
 Option 3: `requirement[maturity<ready] -realized-by-> element !-decided-by-> decision`. An edge prefixed
 with `!` or `?` keeps the nodes without or with such a neighbour; a trailing `+` follows a
 relation transitively. A query returns nodes or paths, nothing more — aggregation stays with
-`jq`/`awk` over `--json` output, and the JSON/JSONL exports remain for jq users. The language is
+`jq`/`awk` over `--json` output, and the graph as records (`sdp graph`) remains for jq users. The language is
 specified in [[REQ-graph-query]].
 
 ## Consequences

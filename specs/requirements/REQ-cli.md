@@ -111,9 +111,10 @@ Background:
 A command that reads the graph prints its answer on stdout and everything about the answer on
 stderr, so stdout can always be piped.
 
-- **Text.** A command that lists things prints one per line with its fields separated by tabs —
-  the nodes of `sdp q`, the definitions of `sdp steps`, the records of `sdp graph` — so the output
-  pipes into grep, cut and jq. On a terminal the same fields are aligned in columns.
+- **Text.** A command that lists things prints one per line, so its output pipes into grep, cut
+  and jq: the nodes of `sdp q` and the definitions of `sdp steps` with their fields separated by
+  tabs (on a terminal the same fields are aligned in columns), the records of `sdp graph` as JSON,
+  the diagnostics of `sdp check` each on a line that starts with its severity and rule.
 - **JSON.** `--json` prints one envelope, the same for every command:
 
   | Field | Holds |
@@ -124,8 +125,9 @@ stderr, so stdout can always be piped.
 
 - **Complete or not.** An answer is incomplete when something that could change it was not read —
   a spec whose front matter or Gherkin does not parse, a file meant as a spec without an id, an id
-  declared twice, a code annotation or a step registration sdp cannot read statically — or not
-  followed: a query stopped by a limit ([[ARCH-query-engine]]). sdp still answers from what it has,
+  declared twice, a code annotation sdp cannot read statically and, for an answer about steps, a
+  step registration it cannot read — or not followed: a query stopped by a limit
+  ([[ARCH-query-engine]]). sdp still answers from what it has,
   says `incomplete:` and each note on stderr, and exits with 2 — in every output mode, because the
   reader of `--ids` or `--json` is the one most likely to conclude that something is absent.
 
@@ -469,7 +471,7 @@ stale results by what changed since they ran ([[REQ-executable-specs]]), how man
 architectural kind, and diagnostics by severity.
 
 ```sh
-sdp status --json | jq .scenarios
+sdp status --json | jq .data.scenarios
 ```
 
 ~~~gherkin

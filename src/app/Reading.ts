@@ -45,7 +45,7 @@ export interface QueryData {
   readonly paths?: ReadonlyArray<QueryPath> | undefined
 }
 
-/** The graph a query runs on with its result; `missing` when a limit cut the evaluation short. */
+/** A query's result, and what to say about it: the limits that cut it short and the words the workspace does not know. */
 const evaluate = Effect.fnUntraced(function*(project: Project, expression: string) {
   const parsed = parseQuery(expression)
   if (Result.isFailure(parsed)) return yield* parsed.failure
@@ -78,15 +78,18 @@ export const show = Effect.fn("show")(function*(root: string, input: { readonly 
   const project = yield* loadProject(root)
   const node = yield* known(project, input.id)
   const { graph } = project
-  const around = graph.subgraph(graph.neighbours(node.id).map(({ other }) => other).filter((other) => other !== node.id))
+  const others = new Set(graph.neighbours(node.id).map(({ other }) => other).filter((other) => other !== node.id))
   const data: ShowData = {
     node: nodeRecord(node),
     out: graph.out(node.id).map(edgeRecord),
     in: graph.in(node.id).map(edgeRecord),
-    neighbours: around.nodes().map(nodeRecord)
+    neighbours: graph.nodes().filter((other) => others.has(other.id)).map(nodeRecord)
   }
   return answer(project, data)
 })
+
+/** A step listing or matching is complete only when every registration in the step files was read. */
+const stepsMissing = (project: Project) => stepProblems(project).map((problem) => `not read: ${problem}`)
 
 /** How far a context bundle may reach: beyond a handful of hops it is the whole graph. */
 const maxDepth = 6
@@ -101,7 +104,7 @@ export const context = Effect.fn("context")(function*(root: string, input: { rea
   const node = yield* known(project, input.id)
   // The bundle matches the steps of the node's scenarios: a registration that was not read may define one of them.
   const matched = (project.specById.get(node.id)?.scenarios.length ?? 0) > 0
-  const missing = matched ? stepProblems(project).map((problem) => `not read: ${problem}`) : []
+  const missing = matched ? stepsMissing(project) : []
   return answer(project, contextBundle(project, node, depth, readSteps(project)), { missing })
 })
 
@@ -133,9 +136,6 @@ export const check = Effect.fn("check")(function*(root: string, input: { readonl
   const found = checkProject(project).filter((diagnostic) => atLeast(diagnostic.severity, input.severity ?? "info"))
   return answer(project, found.map(diagnosticRecord))
 })
-
-/** A step listing or matching is complete only when every registration in the step files was read. */
-const stepsMissing = (project: Project) => stepProblems(project).map((problem) => `not read: ${problem}`)
 
 /** `sdp steps`: the step definitions a run would know, read from the step files without running them. */
 export const steps = Effect.fn("steps")(function*(root: string, input: { readonly text?: string | undefined } = {}) {
