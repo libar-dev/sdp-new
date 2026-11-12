@@ -362,9 +362,9 @@ const readFeature = (
   }
 
   // A rule is named by what it says, so two alike are one id twice: the graph reports it. A
-  // scenario's name says its case, and cases alike are numbered.
+  // scenario's name says its case, and a case named like another or like a rule is numbered.
   const ruleIds = new Map(writtenRules.map((rule, index) => [rule, `${specId}#${slugify(rule.name) || `rule-${index + 1}`}`]))
-  const usedIds = new Set<string>()
+  const usedIds = new Set<string>(ruleIds.values())
   const unique = (slug: string) => {
     let id = `${specId}#${slug}`
     for (let n = 2; usedIds.has(id); n++) id = `${specId}#${slug}-${n}`

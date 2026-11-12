@@ -332,12 +332,12 @@ Feature: Spec parser
         | rule                  | severity | at                      | message                                         |
         | scenario-outside-rule | error    | specs/REQ-pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
 
-  Rule: A rule or a scenario is identified by the slug of its name: scenarios alike are numbered, a rule alike is an error
+  Rule: A rule or a scenario is identified by the slug of its name: a scenario named like another or like a rule is numbered, a rule alike is an error
 
     Not a position, which every edit above it would change, nor a tag kept unique by hand. A rule's
     name says what must hold, so two alike are one rule written twice.
 
-    Scenario: An id is the slug of the name, numbered when the file has the name twice, and by position when there is no name
+    Scenario: An id is the slug of the name, numbered when the file has the name twice or a rule has it, and by position when there is no name
       Given a file "specs/REQ-pay.feature" containing:
         """
         @id=REQ-pay
@@ -353,18 +353,23 @@ Feature: Spec parser
 
             Scenario:
               Given no card
+
+            Scenario: A declined card is retried
+              Given a card declined twice
         """
       When "specs/REQ-pay.feature" is parsed
       Then the parsed spec has rules:
         | id                                 | line |
         | REQ-pay#a-declined-card-is-retried | 4    |
       And the parsed spec has scenarios:
-        | id                 | line |
-        | REQ-pay#retry      | 6    |
-        | REQ-pay#retry-2    | 9    |
-        | REQ-pay#scenario-3 | 12   |
+        | id                                   | line |
+        | REQ-pay#retry                        | 6    |
+        | REQ-pay#retry-2                      | 9    |
+        | REQ-pay#scenario-3                   | 12   |
+        | REQ-pay#a-declined-card-is-retried-2 | 15   |
+      And sdp reports nothing
 
-    Scenario: Two rules alike, or a rule and a scenario named alike, are one id twice, which stops a run
+    Scenario: Two rules alike are one id twice, which stops a run
       Given a file "specs/REQ-pay.feature" containing:
         """
         @id=REQ-pay
@@ -372,7 +377,7 @@ Feature: Spec parser
 
           Rule: A card is charged once
 
-            Scenario: A card is charged once
+            Scenario: Twice
               Then one charge is made
 
           Rule: A card is charged once
@@ -380,8 +385,7 @@ Feature: Spec parser
       When the workspace is loaded
       Then sdp reports:
         | rule         | at                      | message                                                                          |
-        | duplicate-id | specs/REQ-pay.feature:4 | id REQ-pay#a-card-is-charged-once is already declared at specs/REQ-pay.feature:6 |
-        | duplicate-id | specs/REQ-pay.feature:9 | id REQ-pay#a-card-is-charged-once is already declared at specs/REQ-pay.feature:6 |
+        | duplicate-id | specs/REQ-pay.feature:9 | id REQ-pay#a-card-is-charged-once is already declared at specs/REQ-pay.feature:4 |
       When I run "sdp run"
       Then the exit code is 1
       And the output contains "specs/REQ-pay.feature:9 [duplicate-id]"
