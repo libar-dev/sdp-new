@@ -313,8 +313,8 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!reserved && !written) return true
     diagnostics.push(diagnostic("link-syntax", {
       message: reserved
-        ? `${edge.from} -${edge.rel}-> ${edge.to}: no link can be named ${edge.rel}, which sdp reads as an attribute; the link is ignored`
-        : `${edge.from} -${edge.rel}-> ${edge.to}: ${edge.rel} is an attribute of ${edge.from}, so no link of it can have that name; the link is ignored`,
+        ? `${edge.from} -${edge.rel}-> ${edge.to}: no link can be named ${edge.rel}, which sdp reads as an attribute of a node; the link is ignored`
+        : `${edge.from} -${edge.rel}-> ${edge.to}: ${edge.rel} is already an attribute of ${edge.from}, so a link from it cannot have that name; the link is ignored`,
       node: edge.from,
       source: edge.source,
       hint: "give the relation another name: a link reads as an attribute of the node it starts from, so `[key=value]` must mean one thing"

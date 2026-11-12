@@ -223,7 +223,7 @@ Scenario Outline: A link cannot take the name of an attribute, wherever it is de
     | specs/REQ-a.md | ---\nid: REQ-a\nnodes:\n  - id: REQ-b\n    links:\n      verification: verified\n---\n# A | specs/REQ-a.md:6 | verification | no link can be named verification |
     | specs/REQ-a.md | ---\nid: REQ-a\n---\n# A\n\nmaturity:: [[verified]]                     | specs/REQ-a.md:6 | maturity | no link can be named maturity     |
     | src/a.py       | # @sdp status verified\ndef a(): pass                                  | src/a.py:1       | status   | no link can be named status       |
-    | specs/REQ-a.md | ---\nid: REQ-a\nowner: payments\nlinks: { owner: verified }\n---\n# A   | specs/REQ-a.md:4 | owner    | owner is an attribute of REQ-a    |
+    | specs/REQ-a.md | ---\nid: REQ-a\nowner: payments\nlinks: { owner: verified }\n---\n# A   | specs/REQ-a.md:4 | owner    | owner is already an attribute of REQ-a |
 
 Scenario: A kind sdp makes itself cannot be written; the node has the kind its id says
   Given a file "specs/REQ-a.md" containing:
