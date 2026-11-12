@@ -253,7 +253,7 @@ const phaseId = (config: Config, name: string) => `${prefixOf(wordFor(config.voc
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
-  "requirement `@realized-by:ARCH-…` and `@refines:EPIC-…`; element `@decided-by:DEC-…`, `@instance-of:PAT-…`, `@constrained-by:NFR-…`"
+  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; element `@instance-of:PAT-…`; risk `@affects:<feature>` and `@mitigated-by:<feature>`"
 
 /**
  * What the author of a new spec writes next, in the workspace's own words. It is the answer of
@@ -320,19 +320,19 @@ const guidance = (options: {
     case "risk":
       return [
         "say under the title what could go wrong, and what it would cost",
-        "link it: @affects:REQ-… @mitigated-by:REQ-… @due:MS-…",
+        "link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…",
         "it is retired when the work that mitigates it is verified; `@status=tolerated` says we live with it instead"
       ]
     case "element":
       return [
         "say under the title what it is responsible for and why that is architecture",
         `anchor it next to the declaration that is it: annotate(Thing, { ${anchor}: "${id}" }) from "sdp/annotations" (sdp types makes the id typed), or an \`@sdp ${anchor} ${id}\` comment in other languages`,
-        "link what shaped it: @decided-by:DEC-… @instance-of:PAT-… @constrained-by:NFR-…"
+        "link what shaped it: @instance-of:PAT-…, and @decided-by:<decision> on a rule that rests on a decision"
       ]
     case "pattern":
       return [
         "say under the title which problem the pattern solves, and how",
-        `elements that apply it link \`@instance-of:${id}\`; what decided it, \`@decided-by:DEC-…\``
+        `elements that apply it link \`@instance-of:${id}\`; what decided it, \`@decided-by:<decision>\``
       ]
     case "generic": {
       const level = levels.indexOf(maturity)
@@ -351,7 +351,7 @@ const guidance = (options: {
             ? "fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
             : "fill in the rule and its scenario: the rule's name says what must hold, the lines under it why, and each scenario is an example"]
           : []),
-        quality ? "link it: @refines:EPIC-…; elements it constrains link to it with @constrained-by:" : "link it: @refines:EPIC-… @realized-by:ARCH-…",
+        quality ? `elements it constrains link to it with @constrained-by:${id}` : "link it: @realized-by:ARCH-…",
         `plan it: ${plan}`
       ]
     }

@@ -34,7 +34,7 @@ Feature: Start a spec
     Advice written into the file would outlive its use as prose nobody wrote.
 
     Scenario Outline: The file says what the spec is, and the answer what to write in it
-      When I run "sdp new <kind> '<title>'"
+      When I run "sdp new <kind> '<title>' <options>"
       Then the file "<file>" is:
         """
         <tags>
@@ -43,12 +43,12 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind        | title       | file                                       | tags                               | next                                                                                 |
-        | requirement | Saved carts | specs/requirements/REQ-saved-carts.feature | @id=REQ-saved-carts @maturity=idea | write the idea in a sentence under the title                                         |
-        | element     | Orders      | specs/architecture/ARCH-orders.feature     | @id=ARCH-orders                    | anchor it next to the declaration that is it: annotate(Thing, { is: "ARCH-orders" }) |
-        | pattern     | Outbox      | specs/architecture/PAT-outbox.feature      | @id=PAT-outbox                     | elements that apply it link `@instance-of:PAT-outbox`                                |
-        | risk        | Outage      | specs/risks/RISK-outage.feature            | @id=RISK-outage                    | link it: @affects:REQ-… @mitigated-by:REQ-… @due:MS-…                                |
-        | phase       | Hardening   | specs/delivery/PH-hardening.feature        | @id=PH-hardening                   | say under the title what this phase takes on, and why in this order                  |
+        | kind        | title       | options          | file                                   | tags                                             | next                                                                                 |
+        | requirement | Saved carts | --id saved-carts | specs/requirements/saved-carts.feature | @id=saved-carts @kind=requirement @maturity=idea | write the idea in a sentence under the title                                         |
+        | element     | Orders      |                  | specs/architecture/ARCH-orders.feature | @id=ARCH-orders                                  | anchor it next to the declaration that is it: annotate(Thing, { is: "ARCH-orders" }) |
+        | pattern     | Outbox      |                  | specs/architecture/PAT-outbox.feature  | @id=PAT-outbox                                   | elements that apply it link `@instance-of:PAT-outbox`                                |
+        | risk        | Outage      | --id outage      | specs/risks/outage.feature             | @id=outage @kind=risk                            | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…                        |
+        | phase       | Hardening   |                  | specs/delivery/PH-hardening.feature    | @id=PH-hardening                                 | say under the title what this phase takes on, and why in this order                  |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -92,17 +92,17 @@ Feature: Start a spec
 
     Scenario Outline: A change that names no feature
       Given these specs:
-        | tags           | Feature |
-        | @id=REQ-search | Search  |
+        | tags                                  | Feature            |
+        | @id=search-in-postgres @kind=decision | Search in Postgres |
       When I run "sdp new change 'Voice search' <arguments>"
       Then the exit code is 1
       And the output contains "a change names the feature it changes, and <found>"
 
       Examples:
-        | arguments            | found                       |
-        |                      | it names none               |
-        | --changes REQ-search | REQ-search is a requirement |
-        | --changes voice      | no spec has the id voice    |
+        | arguments                    | found                            |
+        |                              | it names none                    |
+        | --changes search-in-postgres | search-in-postgres is a decision |
+        | --changes voice              | no spec has the id voice         |
 
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 
@@ -129,36 +129,36 @@ Feature: Start a spec
       And the file "<file>" contains "@id=<id>"
 
       Examples:
-        | arguments                                                       | id                  | file                                           |
-        | requirement 'Kasse für Gäste'                                   | REQ-kasse-fur-gaste | specs/requirements/REQ-kasse-fur-gaste.feature |
-        | requirement 'Корзина'                                           | REQ-0001            | specs/requirements/REQ-0001.feature            |
-        | idea 'Gift wrapping'                                            | gift-wrapping       | specs/incoming/gift-wrapping.feature           |
-        | feature 'Корзина'                                               | feature-0001        | specs/incoming/feature-0001.feature            |
-        | decision 'Ödeme yöntemi'                                        | odeme-yontemi       | specs/decisions/odeme-yontemi.feature          |
-        | risk 'Vendor lock-in'                                           | RISK-vendor-lock-in | specs/risks/RISK-vendor-lock-in.feature        |
-        | requirement 'Gift cards' --id REQ-vouchers --dir specs/payments | REQ-vouchers        | specs/payments/REQ-vouchers.feature            |
-        | requirement 'Gift cards' --dir $PWD/specs/payments              | REQ-gift-cards      | specs/payments/REQ-gift-cards.feature          |
+        | arguments                                               | id                   | file                                            |
+        | element 'Kasse für Gäste'                               | ARCH-kasse-fur-gaste | specs/architecture/ARCH-kasse-fur-gaste.feature |
+        | element 'Корзина'                                       | ARCH-0001            | specs/architecture/ARCH-0001.feature            |
+        | idea 'Gift wrapping'                                    | gift-wrapping        | specs/incoming/gift-wrapping.feature            |
+        | feature 'Корзина'                                       | feature-0001         | specs/incoming/feature-0001.feature             |
+        | decision 'Ödeme yöntemi'                                | odeme-yontemi        | specs/decisions/odeme-yontemi.feature           |
+        | milestone 'Go-live'                                     | MS-go-live           | specs/delivery/MS-go-live.feature               |
+        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers             | specs/payments/vouchers.feature                 |
+        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards           | specs/payments/gift-cards.feature               |
 
     Scenario: A title that leaves no ASCII letter or digit to slug is numbered after the highest number its kind has
       Given these specs:
-        | tags             | Feature  |
-        | @id=REQ-0007     | Корзина  |
-        | @id=REQ-checkout | Checkout |
-      When I run "sdp new requirement 'Платёж'"
-      Then the output lines are "REQ-0008\tspecs/requirements/REQ-0008.feature"
-      When I run "sdp new requirement 'Платёж 2'"
-      Then the output lines are "REQ-2\tspecs/requirements/REQ-2.feature"
+        | tags              | Feature  |
+        | @id=ARCH-0007     | Корзина  |
+        | @id=ARCH-checkout | Checkout |
+      When I run "sdp new element 'Платёж'"
+      Then the output lines are "ARCH-0008\tspecs/architecture/ARCH-0008.feature"
+      When I run "sdp new element 'Платёж 2'"
+      Then the output lines are "ARCH-2\tspecs/architecture/ARCH-2.feature"
 
     Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so
       Given a file "shop/sdp.config.yaml" containing:
         """
         features: ["requirements/**/*.feature"]
         """
-      When I run "sdp -C shop new requirement 'Gift cards'"
-      Then the output contains "specs/requirements/REQ-gift-cards.feature is matched by no features glob (requirements/**/*.feature)"
-      When I run "sdp -C shop new requirement 'Gift cards' --dir $PWD/elsewhere"
-      Then the output contains "/elsewhere/REQ-gift-cards.feature is outside the workspace"
-      When I run "sdp -C shop new requirement 'Gift cards' --dir requirements"
+      When I run "sdp -C shop new feature 'Gift cards'"
+      Then the output contains "specs/incoming/gift-cards.feature is matched by no features glob (requirements/**/*.feature)"
+      When I run "sdp -C shop new feature 'Gift cards' --dir $PWD/elsewhere"
+      Then the output contains "/elsewhere/gift-cards.feature is outside the workspace"
+      When I run "sdp -C shop new feature 'Gift cards' --dir requirements"
       Then the output does not contain "note:"
 
   Rule: A new spec fails the check only for what its author has yet to write
@@ -174,25 +174,25 @@ Feature: Start a spec
         | phase       | Elaboration   |           |               |
         | milestone   | Launch        |           |               |
         | risk        | Outage        |           |               |
-        | requirement | Gift cards    | draft     |               |
-        | requirement | Returns       | specified |               |
+        | feature     | Gift cards    | draft     |               |
+        | feature     | Returns       | specified |               |
         | nfr         | Availability  | ready     |               |
         | decision    | Use Postgres  |           |               |
       When the workspace is checked
       Then sdp reports:
         | rule                 | node             | line |
         | maturity-criteria    | NFR-availability | 1    |
-        | maturity-criteria    | REQ-gift-cards   | 1    |
-        | maturity-criteria    | REQ-returns      | 1    |
-        | template-placeholder | REQ-returns      | 4    |
+        | maturity-criteria    | gift-cards       | 1    |
+        | maturity-criteria    | returns          | 1    |
+        | template-placeholder | returns          | 4    |
         | template-placeholder | NFR-availability | 4    |
         | template-placeholder | use-postgres     | 4    |
 
     Scenario: From specified on, the file has a rule with a scenario to fill in
-      When I run "sdp new nfr 'Checkout latency' --maturity specified"
-      Then the file "specs/quality/NFR-checkout-latency.feature" is:
+      When I run "sdp new nfr 'Checkout latency' --id checkout-latency --maturity specified"
+      Then the file "specs/quality/checkout-latency.feature" is:
         """
-        @id=NFR-checkout-latency @maturity=specified
+        @id=checkout-latency @kind=nfr @maturity=specified
         Feature: Checkout latency
 
           Rule: <the rule, in one sentence>
@@ -210,10 +210,10 @@ Feature: Start a spec
     author to the file.
 
     Scenario Outline: A rule, a scenario and a step as the template wrote them
-      Given a file "specs/REQ-a.feature" containing:
+      Given a file "specs/reports.feature" containing:
         """
-        @id=REQ-a
-        Feature: Example
+        @id=reports
+        Feature: Reports
 
           Analysts export reports.
 
@@ -224,8 +224,8 @@ Feature: Start a spec
         """
       When the workspace is checked
       Then sdp reports:
-        | rule                 | node  | at                         | message   |
-        | template-placeholder | REQ-a | specs/REQ-a.feature:<line> | <message> |
+        | rule                 | node    | at                           | message   |
+        | template-placeholder | reports | specs/reports.feature:<line> | <message> |
 
       Examples:
         | rule                        | scenario                | outcome              | line | message                                          |
@@ -236,23 +236,23 @@ Feature: Start a spec
 
     Scenario: An id or a file that exists
       Given these specs:
-        | tags           | Feature |
-        | @id=REQ-search | Search  |
-      When I run "sdp new requirement Search"
+        | tags       | Feature |
+        | @id=search | Search  |
+      When I run "sdp new feature Search"
       Then the exit code is 1
-      And the output contains "id REQ-search already exists at specs/REQ-search.feature:1"
-      Given a file "specs/requirements/REQ-carts.feature" containing:
+      And the output contains "id search already exists at specs/search.feature:1"
+      Given a file "specs/incoming/carts.feature" containing:
         """
         Notes on carts, not a spec.
         """
-      When I run "sdp new requirement Carts"
+      When I run "sdp new feature Carts"
       Then the exit code is 1
-      And the output contains "specs/requirements/REQ-carts.feature already exists"
+      And the output contains "specs/incoming/carts.feature already exists"
 
     Scenario: An id that only a dangling link names is free: creating it resolves the link
       Given these specs:
-        | tags                                     | Feature |
-        | @id=REQ-filters @realized-by:ARCH-facets | Filters |
+        | tags                                 | Feature |
+        | @id=filters @realized-by:ARCH-facets | Filters |
       When I run "sdp new element Facets"
       Then the output contains "ARCH-facets\tspecs/architecture/ARCH-facets.feature"
       When I run "sdp check"
@@ -260,24 +260,24 @@ Feature: Start a spec
 
     Scenario Outline: A title reads back as written, however it looks
       Given specs created from the sdp new templates:
-        | kind        | title   |
-        | requirement | <title> |
+        | kind    | title   |
+        | feature | <title> |
       When the workspace is checked
       Then sdp reports nothing
       And node "<id>" has attribute title = "<title>"
 
       Examples:
-        | title                | id                      |
-        | Checkout: guest flow | REQ-checkout-guest-flow |
-        | Cart #2              | REQ-cart-2              |
-        | 'Quoted' carts       | REQ-quoted-carts        |
-        | true                 | REQ-true                |
-        | 2026-11-12           | REQ-2026-11-12          |
-        | [draft] Wishlist     | REQ-draft-wishlist      |
-        | - Returns            | REQ-returns             |
-        | @team: Invoices      | REQ-team-invoices       |
+        | title                | id                  |
+        | Checkout: guest flow | checkout-guest-flow |
+        | Cart #2              | cart-2              |
+        | 'Quoted' carts       | quoted-carts        |
+        | true                 | true                |
+        | 2026-11-12           | 2026-11-12          |
+        | [draft] Wishlist     | draft-wishlist      |
+        | - Returns            | returns             |
+        | @team: Invoices      | team-invoices       |
 
     Scenario: An id that would not read back
-      When I run "sdp new requirement Carts --id ' '"
+      When I run "sdp new feature Carts --id ' '"
       Then the exit code is 1
       And the output contains "would not read back"

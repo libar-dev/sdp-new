@@ -19,26 +19,26 @@ Feature: Configure a workspace
 
     Scenario Outline: Each key, in YAML or JSON
       Given these specs:
-        | tags                          | Feature |
-        | @id=REQ-login @maturity=ready | Login   |
-      And a file "notes/REQ-scratch.feature" containing:
+        | tags                      | Feature |
+        | @id=login @maturity=ready | Login   |
+      And a file "notes/scratch.feature" containing:
         """
-        @id=REQ-scratch @maturity=idea
+        @id=scratch @maturity=idea
         Feature: Scratch
         """
-      And a file "node_modules/kit/REQ-vendored.feature" containing:
+      And a file "node_modules/kit/vendored.feature" containing:
         """
-        @id=REQ-vendored @maturity=idea
+        @id=vendored @maturity=idea
         Feature: Vendored
         """
       And a file "src/orders.ts" containing:
         """
-        // @sdp implements REQ-login
+        // @sdp implements login
         export function order() {}
         """
       And a file "tools/report.ts" containing:
         """
-        // @sdp implements REQ-login
+        // @sdp implements login
         export function report() {}
         """
       And a file "<file>" containing:
@@ -49,16 +49,16 @@ Feature: Configure a workspace
       Then the result is "<result>"
 
       Examples:
-        | key             | file            | config                                                              | query                           | result                                           |
-        | none            | sdp.config.yaml |                                                                     | requirement\|code               | REQ-login, REQ-scratch, code:src/orders.ts#order |
-        | features        | sdp.config.yaml | features: ["specs/**/*.feature"]                                    | requirement                     | REQ-login                                        |
-        | code            | sdp.config.yaml | code: ["tools/**/*.ts"]                                             | code                            | code:tools/report.ts#report                      |
-        | exclude         | sdp.config.yaml | exclude: ["notes/**"]                                               | requirement                     | REQ-login                                        |
-        | ids             | sdp.config.yaml | ids: { nfr: QR }                                                    | requirement                     | REQ-login, REQ-scratch                           |
-        | vocabulary      | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | requirement[maturity<approved]  | REQ-scratch                                      |
-        | vocabulary role | sdp.config.yaml | vocabulary: { kinds: { decision: [adr] } }                          | requirement[maturity<specified] | REQ-scratch                                      |
-        | json            | sdp.config.json | { "exclude": ["notes/**"] }                                         | requirement                     | REQ-login                                        |
-        | yml             | sdp.config.yml  | exclude: ["notes/**"]                                               | requirement                     | REQ-login                                        |
+        | key             | file            | config                                                              | query                       | result                                   |
+        | none            | sdp.config.yaml |                                                                     | feature\|code               | login, scratch, code:src/orders.ts#order |
+        | features        | sdp.config.yaml | features: ["specs/**/*.feature"]                                    | feature                     | login                                    |
+        | code            | sdp.config.yaml | code: ["tools/**/*.ts"]                                             | code                        | code:tools/report.ts#report              |
+        | exclude         | sdp.config.yaml | exclude: ["notes/**"]                                               | feature                     | login                                    |
+        | ids             | sdp.config.yaml | ids: { nfr: QR }                                                    | feature                     | login, scratch                           |
+        | vocabulary      | sdp.config.yaml | vocabulary: { maturity: [idea, draft, specified, approved, ready] } | feature[maturity<approved]  | scratch                                  |
+        | vocabulary role | sdp.config.yaml | vocabulary: { kinds: { decision: [adr] } }                          | feature[maturity<specified] | scratch                                  |
+        | json            | sdp.config.json | { "exclude": ["notes/**"] }                                         | feature                     | login                                    |
+        | yml             | sdp.config.yml  | exclude: ["notes/**"]                                               | feature                     | login                                    |
 
     Scenario: Step modules only where steps says, and results where results says
       Given a file "sdp.config.yaml" containing:
@@ -74,9 +74,9 @@ Feature: Configure a workspace
         """
         export default {}
         """
-      And a file "specs/REQ-cart.feature" containing:
+      And a file "specs/cart.feature" containing:
         """
-        @id=REQ-cart
+        @id=cart
         Feature: Cart
 
           Rule: A cart starts empty
@@ -87,8 +87,8 @@ Feature: Configure a workspace
       And a step definition "the cart is empty" that passes
       Then sdp run loads the step modules "acceptance/steps/cart.ts"
       When the workspace is run
-      Then the file "out/results.json" contains '"REQ-cart#a-new-cart-is-empty"'
-      And node "REQ-cart" has attribute verification = "passing"
+      Then the file "out/results.json" contains '"cart#a-new-cart-is-empty"'
+      And node "cart" has attribute verification = "passing"
 
   Rule: An id's prefix says its kind, in any case, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
@@ -127,11 +127,11 @@ Feature: Configure a workspace
       And these specs:
         | tags          | Feature |
         | @id=US-signup | Sign-up |
-        | @id=REQ-login | Login   |
+        | @id=login     | Login   |
       When I query "requirement"
       Then the result is "US-signup"
       And a new requirement titled "Guest checkout" gets the id "US-guest-checkout"
-      And a new nfr titled "Checkout latency" gets the id "NFR-checkout-latency"
+      And a new element titled "Orders" gets the id "ARCH-orders"
 
   @decided-by:free-vocabulary
   Rule: The vocabulary says which of the team's words play the roles sdp interprets, and every command reads them
@@ -146,10 +146,10 @@ Feature: Configure a workspace
         vocabulary: { kinds: { architectural: [component], decision: [adr], driver: [adr, nfr, risk] } }
         """
       And these specs:
-        | tags                                                                                   | Feature                 |
-        | @id=CMP-orders @kind=component @decided-by:ADR-use-postgres @threatened-by:RISK-outage | Orders                  |
-        | @id=ARCH-legacy                                                                        | Legacy                  |
-        | @id=RISK-outage                                                                        | Payment provider outage |
+        | tags                                                                              | Feature                 |
+        | @id=CMP-orders @kind=component @decided-by:ADR-use-postgres @threatened-by:outage | Orders                  |
+        | @id=ARCH-legacy                                                                   | Legacy                  |
+        | @id=outage @kind=risk                                                             | Payment provider outage |
       And a file "specs/ADR-use-postgres.feature" containing:
         """
         @id=ADR-use-postgres @kind=adr
@@ -159,7 +159,7 @@ Feature: Configure a workspace
         """
       When I ask for the architecture view
       Then the output contains "CMP-orders -decided-by-> ADR-use-postgres"
-      And the output contains "CMP-orders -threatened-by-> RISK-outage"
+      And the output contains "CMP-orders -threatened-by-> outage"
       And the output does not contain "ARCH-legacy"
       When the workspace is checked
       Then sdp reports at least:
@@ -172,18 +172,18 @@ Feature: Configure a workspace
         vocabulary: { relations: { plan: [sprint], phase: [part-of] }, disciplines: { operations: [runbook] } }
         """
       And these specs:
-        | tags                                         | Feature             |
-        | @id=PH-build                                 | Build               |
-        | @id=S1 @kind=iteration @part-of:PH-build     | S1                  |
-        | @id=S2 @kind=iteration @phase:PH-build       | S2                  |
-        | @id=REQ-search @maturity=idea @sprint:S1     | Search              |
-        | @id=REQ-filters @maturity=idea @iteration:S1 | Filters             |
-        | @id=RB-restore @kind=runbook @sprint:S1      | Restore from backup |
+        | tags                                     | Feature             |
+        | @id=PH-build                             | Build               |
+        | @id=S1 @kind=iteration @part-of:PH-build | S1                  |
+        | @id=S2 @kind=iteration @phase:PH-build   | S2                  |
+        | @id=search @maturity=idea @sprint:S1     | Search              |
+        | @id=filters @maturity=idea @iteration:S1 | Filters             |
+        | @id=RB-restore @kind=runbook @sprint:S1  | Restore from backup |
       When the lifecycle is computed
       Then the iterations are:
-        | id | phase    | plans                  |
-        | S1 | PH-build | RB-restore, REQ-search |
-        | S2 |          |                        |
+        | id | phase    | plans              |
+        | S1 | PH-build | RB-restore, search |
+        | S2 |          |                    |
       And the planned activity is:
         | discipline   | S1 |
         | requirements | 1  |
@@ -310,4 +310,4 @@ Feature: Configure a workspace
         | vocabulary: { relations: { plan: [in sprint] } } | `in sprint` cannot be the key of a tag             | at ["vocabulary"]["relations"]["plan"]      |
         | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                 | at ["vocabulary"]["kinds"]["phase"]         |
         | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
-        | ids: { story: REQ }                              | requirement and story share the prefix REQ         | at ["ids"]                                  |
+        | ids: { component: ARCH }                         | element and component share the prefix ARCH        | at ["ids"]                                  |
