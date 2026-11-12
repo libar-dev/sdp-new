@@ -52,6 +52,9 @@ Feature: Start a spec
 
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 
+    Kinds are the team's own words, not a list sdp keeps: a kind without a template gets a spec with
+    its id and its kind.
+
     Scenario: A kind without a template
       When I run "sdp new --help"
       Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan, phase, iteration, risk"
@@ -61,6 +64,9 @@ Feature: Start a spec
       And the file "specs/gizmo/GIZM-sprocket.feature" contains "@id=GIZM-sprocket @kind=gizmo"
 
   Rule: A new spec's id is the kind's prefix and an ASCII slug of its title, or a number, and its file is named by it
+
+    An id says what it names, so whoever reads a message that cites it needs no lookup; only a title
+    with no letters to slug gets a number.
 
     Scenario Outline: By kind and title, or as --id and --dir say, relative to the workspace root or absolute
       When I run "sdp new <arguments>"
@@ -151,6 +157,9 @@ Feature: Start a spec
       And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off"
 
   Rule: Text a template wrote is flagged until it is filled in, once per spec, at the first
+
+    A template writes text to replace in several places, and one finding is enough to send its
+    author to the file.
 
     Scenario Outline: A rule, a scenario and a step as the template wrote them
       Given a file "specs/REQ-a.feature" containing:

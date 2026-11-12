@@ -222,14 +222,14 @@ Feature: Configure a workspace
       When I run the pipeline:
         """
         sdp new era Elaboration
-        sdp new sprint Baseline --id E1
+        sdp new sprint Baseline --id IT-baseline
         sdp new checkpoint Launch
         """
       Then the exit code is 0
-      And the file "specs/delivery/E1.feature" contains "@id=E1 @kind=sprint @part-of:ERA-elaboration @from=2026"
+      And the file "specs/delivery/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
       And the file "specs/delivery/CHEC-launch.feature" contains "@ends:ERA-elaboration"
       When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
-      Then the output lines are "E1"
+      Then the output lines are "IT-baseline"
       When I run "sdp check --json"
       Then the exit code is 0
       And the JSON output has:

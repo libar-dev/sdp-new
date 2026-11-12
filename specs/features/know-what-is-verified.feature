@@ -138,14 +138,18 @@ Feature: Know what is verified
 
   Rule: Every report counts stages the same way, and failing ranks with in-progress
 
+    So status, the lifecycle and a query agree. A failing spec is no further along than one being
+    automated, so the two share a place in the order; a regression is not work in progress, so
+    failing keeps a name of its own.
+
     Scenario: An idea, a failing and a verified spec in one iteration
       Given these specs:
-        | tags                                   | Feature |
-        | @id=I1 @kind=iteration                 | I1      |
-        | @id=REQ-b @maturity=idea @iteration:I1 | B       |
+        | tags                                        | Feature |
+        | @id=IT-beta                                 | Beta    |
+        | @id=REQ-b @maturity=idea @iteration:IT-beta | B       |
       And a file "specs/REQ-a.feature" containing:
         """
-        @id=REQ-a @maturity=specified @iteration:I1
+        @id=REQ-a @maturity=specified @iteration:IT-beta
         Feature: A
 
           Something to export.
@@ -157,7 +161,7 @@ Feature: Know what is verified
         """
       And a file "specs/NFR-fast.feature" containing:
         """
-        @id=NFR-fast @iteration:I1
+        @id=NFR-fast @iteration:IT-beta
         Feature: Exports are fast
 
           Rule: A report exports within a second
@@ -171,8 +175,8 @@ Feature: Know what is verified
       Then sdp status counts the stages "failing:1 idea:1 ready:1 verified:1"
       When the lifecycle is computed
       Then the iterations are:
-        | id | stages                      |
-        | I1 | failing:1 idea:1 verified:1 |
+        | id      | stages                      |
+        | IT-beta | failing:1 idea:1 verified:1 |
       When I query "*[stage>ready]"
       Then the result is "NFR-fast, REQ-a"
       When I query "*[stage<verified]"
@@ -549,12 +553,12 @@ Feature: Know what is verified
     Scenario Outline: Which edits change a scenario's hash
       Given a file "specs/REQ-pay.feature" containing:
         """
-        @id=REQ-pay @maturity=draft @iteration:E1
+        @id=REQ-pay @maturity=draft @iteration:IT-payments
         Feature: Pay
 
           Shoppers pay.
 
-          @decided-by:DEC-0001
+          @decided-by:DEC-pay-before-shipping
           Rule: An order needs a payment
 
             No goods leave without one.
@@ -571,17 +575,17 @@ Feature: Know what is verified
       Then the hash of "REQ-pay#card-payment" <hash>
 
       Examples:
-        | text                        | replacement             | hash           |
-        | 2 items                     | 3 items                 | changes        |
-        | 4242                        | 4000                    | changes        |
-        | @slow                       | @fast                   | changes        |
-        | @id=REQ-pay                 | @id=REQ-pay @kind=story | changes        |
-        | @maturity=draft             | @maturity=ready         | stays the same |
-        | @iteration:E1               | @iteration:E2           | stays the same |
-        | @decided-by:DEC-0001        | @decided-by:DEC-0002    | stays the same |
-        | Feature: Pay                | Feature: Payment        | stays the same |
-        | Shoppers pay.               | Shoppers pay by card.   | stays the same |
-        | No goods leave without one. | Nothing ships unpaid.   | stays the same |
+        | text                                | replacement                  | hash           |
+        | 2 items                             | 3 items                      | changes        |
+        | 4242                                | 4000                         | changes        |
+        | @slow                               | @fast                        | changes        |
+        | @id=REQ-pay                         | @id=REQ-pay @kind=story      | changes        |
+        | @maturity=draft                     | @maturity=ready              | stays the same |
+        | @iteration:IT-payments              | @iteration:IT-checkout       | stays the same |
+        | @decided-by:DEC-pay-before-shipping | @decided-by:DEC-pay-up-front | stays the same |
+        | Feature: Pay                        | Feature: Payment             | stays the same |
+        | Shoppers pay.                       | Shoppers pay by card.        | stays the same |
+        | No goods leave without one.         | Nothing ships unpaid.        | stays the same |
 
   Rule: No scenario reads the layer of evidence it belongs to
 

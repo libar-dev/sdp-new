@@ -96,7 +96,7 @@ Feature: Use the command line
         | specs/copy.feature | 1    | duplicate-id          | @id=REQ-search\nFeature: Search again                                                                                              |
         | src/search.ts      | 4    | annotation-unreadable | import { annotate } from "sdp/annotations"\nexport const search = 0\nconst id = "REQ-search"\nannotate(search, { implements: id }) |
         | specs/b.feature    | 1    | annotation            | @uses:REQ-search,ARCH-index\nFeature: B                                                                                            |
-        | specs/b.feature    | 1    | link-syntax           | @iteration=C1\nFeature: B                                                                                                          |
+        | specs/b.feature    | 1    | link-syntax           | @iteration=IT-beta\nFeature: B                                                                                                     |
 
   Rule: With --json, stdout is one envelope: whether the answer is complete, the notes, and the data
 

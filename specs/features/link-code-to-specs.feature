@@ -149,6 +149,9 @@ Feature: Link code to specs
 
   Rule: An annotation links its target to each id it names, at the target's declaration and with its doc comment
 
+    An answer leads to the code itself rather than to the annotation, and the code's own words reach
+    the graph and the context bundles.
+
     Scenario: A typed annotation links a symbol, and brings its declaration's line and description
       Given a file "src/graph.ts" containing:
         """
@@ -367,6 +370,9 @@ Feature: Link code to specs
         | annotation-ignored | src/help.ts:4 |
 
   Rule: In TypeScript and JavaScript only a real comment annotates, never a string; in other languages any line that reads like a comment does, best effort
+
+    sdp parses TypeScript and JavaScript, so it tells a comment from a string; it has no parser for
+    other languages, and reads them line by line.
 
     Scenario: In TypeScript and JavaScript a string is never an annotation
       Given a file "src/example.ts" containing:
