@@ -106,8 +106,8 @@ export interface WorkspaceRun {
 /**
  * One `sdp run`: ordinary scenarios first, their results committed, then the gates against a graph
  * that shows them. A process imports step modules once, so a run whose step files or their imports
- * changed after that fails before it records anything: its results would be about code that did
- * not run.
+ * changed after that, or that finds a step file it did not load, fails before it records a batch:
+ * its results would be about code that did not run.
  */
 export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, options: {
   readonly modules: ReadonlyArray<StepModule<any>>
@@ -116,7 +116,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
    * are part of what the results are evidence about, and are asked for again after each batch, for
    * files a handler imported while it ran.
    */
-  readonly loaded?: Pick<LoadedSteps, "imports" | "changed"> | undefined
+  readonly loaded?: Pick<LoadedSteps, "imports" | "changed" | "added"> | undefined
   readonly selection?: Selection | undefined
   readonly timeout?: Duration.Input | undefined
   /** Scenarios run at once; `@serial` scenarios always run alone. */
@@ -126,15 +126,16 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
 }) {
   const selected = yield* selects(options.selection ?? {})
   const imports = options.loaded?.imports ?? (() => [])
-  const asLoaded = (sources: Workspace["sources"]) => {
+  const asLoaded = (workspace: Workspace, sources: Workspace["sources"] = workspace.sources) => {
     const changed = options.loaded?.changed(sources) ?? []
-    return changed.length === 0 ? Effect.void : Effect.fail(new SourcesChanged({ files: changed }))
+    const added = options.loaded?.added(workspace.project.steps.files) ?? []
+    return changed.length === 0 && added.length === 0 ? Effect.void : Effect.fail(new SourcesChanged({ files: changed, added }))
   }
 
   // Ordinary scenarios see no results at all, so none of them can depend on another's outcome.
   const before = yield* loadWorkspace(root, { results: "none", imports: imports() })
   yield* ensureReadable(before.project)
-  yield* asLoaded(before.sources)
+  yield* asLoaded(before)
   const unknown = unmatched(before.project, options.selection?.targets ?? [])
   if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
   const { config } = before.project
@@ -168,7 +169,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     const known = new Set(ranAgainst.sources.map((file) => file.path))
     const late = yield* readFiles(root, imports().filter((file) => !known.has(file)))
     const files = [...ranAgainst.sources, ...late]
-    yield* asLoaded(files)
+    yield* asLoaded(ranAgainst, files)
     const sources = late.length === 0 ? ranAgainst.now.sources : fingerprint(files)
     const executed = batch.map((result) => complete({ ...result, evidence: { ...result.evidence, sources } }))
     return { sources, executed, results: yield* commitResults(root, config, { executed, gone, imports: imports() }) }

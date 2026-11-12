@@ -627,11 +627,11 @@ Feature: Know what is verified
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "wishlist#keep-a-lamp"
 
-  Rule: A long-lived process records no run once a module it imported changed or was deleted
+  Rule: A process records no result once a module it imported changed or was deleted, or a step file was added since it loaded them
 
-    Node.js keeps a module for the life of a process: the changed code did not run, and a result
-    would certify code that never ran. A module that is gone is as changed as one whose content
-    differs.
+    A process loads the step files once, and Node.js keeps a module for the life of a process: the
+    code there now did not run, and a result would certify code that never ran. A module that is
+    gone is as changed as one whose content differs.
 
     Background:
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -677,6 +677,33 @@ Feature: Know what is verified
       Then the output contains "specs/steps/lamps.ts changed after this process imported it"
       When I run "sdp q feature[stage=verified] --ids"
       Then the output lines are ""
+
+    Scenario: A step file is added while the run runs
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "cart" has stage "verified"
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {
+            writeFileSync(new URL("./more.steps.ts", import.meta.url), "export const lamps = 2")
+          })
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "specs/steps/more.steps.ts was added after this process loaded the step modules"
+      And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
 
   Rule: A result goes stale when a lockfile at the workspace root changes
 

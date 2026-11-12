@@ -34,14 +34,21 @@ export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoad
   message: Schema.String
 }) {}
 
-/** Files this process imported as modules have changed since: what it would run is no longer what is on disk. */
+/** The step files or the files they import have changed since this process loaded them: what it would run is no longer what is on disk. */
 export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("SourcesChanged", {
-  files: Schema.Array(Schema.String)
+  /** Files this process imported that changed or are gone. */
+  files: Schema.Array(Schema.String),
+  /** Step files this process did not load: they were added after it loaded the step modules. */
+  added: Schema.Array(Schema.String)
 }) {
   override get message() {
-    return `${this.files.join(", ")} changed after this process imported ${
-      this.files.length === 1 ? "it" : "them"
-    }, and Node.js keeps a module for the life of a process: the changed code did not run, so nothing is recorded. Run again in a new process`
+    const changes = [
+      ...(this.files.length > 0 ? [`${this.files.join(", ")} changed after this process imported ${this.files.length === 1 ? "it" : "them"}`] : []),
+      ...(this.added.length > 0 ? [`${this.added.join(", ")} ${this.added.length === 1 ? "was" : "were"} added after this process loaded the step modules`] : [])
+    ]
+    return `${
+      changes.join(", and ")
+    }: a process loads its step modules once, and Node.js keeps a module for the life of a process, so the code there now did not run, and what would rest on it is not recorded. Run again in a new process`
   }
 }
 
@@ -294,6 +301,8 @@ export interface LoadedSteps {
    * did not run.
    */
   readonly changed: (sources: ReadonlyArray<SourceFile>) => ReadonlyArray<string>
+  /** The step files of `steps` that this process did not load, which were added since: their definitions did not run either. */
+  readonly added: (steps: ReadonlyArray<string>) => ReadonlyArray<string>
 }
 
 /** Imports every step definition module matched by `config.steps`: this runs workspace code, so only `sdp run` and `sdp gate` do it. */
@@ -344,7 +353,8 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
       return loaded !== content
     }).sort()
   }
-  return { files, modules, empty, imports, changed } satisfies LoadedSteps
+  const added = (steps: ReadonlyArray<string>) => steps.filter((file) => !files.includes(file))
+  return { files, modules, empty, imports, changed, added } satisfies LoadedSteps
 })
 
 /** The first line of what went wrong; Node appends the code frame and a stack nobody needs here. */
