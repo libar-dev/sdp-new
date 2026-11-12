@@ -178,7 +178,7 @@ const archCommand = Command.make(
     if (mermaid) return yield* print(yield* Reading.diagram(root, "architecture"), false, (diagram) => diagram.trimEnd())
     yield* print(yield* Reading.architecture(root), json, Text.architecture)
   })
-).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it"))
+).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it or to the features it realizes"))
 
 const lifecycleCommand = Command.make(
   "lifecycle",

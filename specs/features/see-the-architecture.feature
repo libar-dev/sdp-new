@@ -18,7 +18,18 @@ Feature: See the architecture
       | @id=publish-through-an-outbox @kind=decision                                                               | Orders publish events through an outbox |
       | @id=json-logs @kind=decision                                                                               | Logs are JSON                           |
       | @id=order-latency @kind=nfr                                                                                | Order latency                           |
-      | @id=receipts @realized-by:ARCH-orders                                                                      | Receipts                                |
+      | @id=receipt-delay @kind=nfr                                                                                | A receipt within a minute               |
+      | @id=numbered-receipts @kind=decision                                                                       | Receipts are numbered without gaps      |
+      | @id=refunds @depends-on:receipts @decided-by:credit-notes                                                  | Refunds                                 |
+      | @id=credit-notes @kind=decision                                                                            | A refund is a credit note               |
+    And a file "specs/receipts.feature" containing:
+      """
+      @id=receipts @realized-by:ARCH-orders @constrained-by:receipt-delay
+      Feature: Receipts
+
+        @decided-by:numbered-receipts
+        Rule: Every receipt is numbered
+      """
     And a file "specs/ARCH-billing.feature" containing:
       """
       @id=ARCH-billing
@@ -44,20 +55,24 @@ Feature: See the architecture
       annotate(place, { is: "ARCH-orders" })
       """
 
-  Rule: The architecture is every element and pattern declared in a spec or anchored in code, with the decisions and quality requirements linked to it, and nothing else
+  Rule: The architecture is every element and pattern declared in a spec or anchored in code, with the decisions and quality requirements linked to it, to a feature linked to it or to a rule of that feature, and nothing else
 
     Which few parts are significant — they carry quality attributes, are costly to change or
     constrain many others — is a judgement, not a metric of the code, and a list of every
-    abstraction buries them. A decision only named in a description is not linked.
+    abstraction buries them. A feature names the elements that realize it, and a rule the
+    decision it rests on: what shaped the feature shaped them, and the view gives the route. A
+    decision only named in a description is not linked, and one linked further away — to a
+    feature that depends on that one — shaped that other feature, not the element.
 
-    Scenario: Elements and patterns from specs and code, with the decisions and quality requirements linked to them, and the links among them
+    Scenario: Elements and patterns from specs and code, with the decisions and quality requirements that shaped them, and the links among them
       When I run "sdp arch --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox      |
-        | data.drivers      | publish-through-an-outbox, order-latency                |
-        | data.anchors      | code:src/mailer.ts#Mailer, code:src/orders.ts#place     |
-        | data.edges.rel    | constrained-by, decided-by, imports, instance-of, is, is |
+        | data.architecture          | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox                                                                 |
+        | data.drivers               | publish-through-an-outbox, order-latency, receipt-delay, numbered-receipts                                         |
+        | data.drivers.through.nodes | ARCH-orders, receipts, receipt-delay, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts |
+        | data.anchors               | code:src/mailer.ts#Mailer, code:src/orders.ts#place                                                                |
+        | data.edges.rel             | constrained-by, decided-by, imports, instance-of, is, is                                                           |
 
   Rule: Each element is shown with what it is for, from its spec or else from the doc comment of its code, and with its links
 
@@ -79,6 +94,8 @@ Feature: See the architecture
         ARCH-orders -constrained-by-> order-latency  Order latency
         ARCH-orders -imports-> ARCH-mailer
         ARCH-orders <-is- code:src/orders.ts#place  place
+        receipt-delay, through receipts  A receipt within a minute
+        numbered-receipts, through receipts  Receipts are numbered without gaps
 
         PAT-outbox — Transactional outbox (pattern)
         PAT-outbox <-instance-of- ARCH-orders  Orders
@@ -146,6 +163,7 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains "flowchart LR"
       And the output contains "-->|decided-by|"
+      And the output contains "-->|realized-by|"
       And the output contains "-->|imports|"
       And the output contains '["ARCH-mailer"]'
 

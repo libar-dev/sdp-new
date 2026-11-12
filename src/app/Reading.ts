@@ -169,13 +169,23 @@ export const snippets = Effect.fn("snippets")(function*(root: string, input: { r
   return answer(project, document, about)
 })
 
+/** A decision or a quality requirement in the view. */
+export interface DriverRecord extends NodeRecord {
+  /**
+   * How it shaped an architectural node through a feature linked to that node, as `sdp q --paths`
+   * gives a route: from the node, through the feature and the rule that is linked, if it is one, to
+   * this driver. A link to the node itself is one of `edges`.
+   */
+  readonly through: ReadonlyArray<QueryPath>
+}
+
 export interface ArchitectureData {
   /** The kinds whose nodes are the architecture in this workspace. */
   readonly kinds: ReadonlyArray<string>
   /** Every node of one of those kinds. */
   readonly architecture: ReadonlyArray<NodeRecord>
-  /** The decisions and quality requirements linked to them. */
-  readonly drivers: ReadonlyArray<NodeRecord>
+  /** The decisions and quality requirements that shaped them. */
+  readonly drivers: ReadonlyArray<DriverRecord>
   /** The code anchored to them, each with what its own comment says of it (`attrs.doc`). */
   readonly anchors: ReadonlyArray<NodeRecord>
   /** The links among all of these. */
@@ -197,7 +207,11 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
   const data: ArchitectureData = {
     kinds: vocabulary.kinds.architectural,
     architecture: architecture.map(nodeRecord),
-    drivers: view.nodes.filter((node) => !architectural(node.kind)).map(nodeRecord),
+    drivers: view.nodes.filter((node) => !architectural(node.kind)).map((node) => ({
+      ...nodeRecord(node),
+      through: view.routes.filter((route) => route.nodes.at(-1) === node.id)
+        .map((route) => ({ nodes: route.nodes, edges: route.edges.map(({ from, rel, to }) => ({ from, rel, to })) }))
+    })),
     anchors: graph.nodes().filter((node) => code.has(node.id)).map(nodeRecord),
     edges: [...view.edges, ...anchored].map(edgeRecord)
   }
@@ -284,11 +298,18 @@ export const graph = Effect.fn("graph")(function*(root: string, input: { readonl
   return answer(project, data, about)
 })
 
+/** The architecture view as a graph to draw: its nodes and links, and the features and rules its drivers came through. */
+const architectureGraph = (project: Project): Graph => {
+  const { edges, nodes, routes } = architectureView(project)
+  const through = routes.flatMap((route) => route.nodes).flatMap((id) => project.graph.node(id) ?? [])
+  return new Graph([...nodes, ...through], [...edges, ...routes.flatMap((route) => route.edges)])
+}
+
 /** `sdp graph --mermaid`, `sdp arch --mermaid`: that graph, or the architecture, as a Mermaid flowchart. */
 export const diagram = Effect.fn("diagram")(function*(root: string, input: { readonly select?: string | undefined } | "architecture" = {}) {
   const project = yield* loadProject(root)
   const { about, graph } = input === "architecture"
-    ? { about: {}, graph: project.graph.subgraph(architectureView(project).nodes.map((node) => node.id)) }
+    ? { about: {}, graph: architectureGraph(project) }
     : yield* selected(project, input.select)
   return answer(project, mermaid(graph, project.config.vocabulary), about)
 })
