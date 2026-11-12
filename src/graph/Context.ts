@@ -2,8 +2,8 @@
  * A context bundle: everything an agent (or a new team member) needs to work
  * on one node, as a single Markdown document. It leads with the contract —
  * the node's rules with their state and reason, the names of its scenarios
- * with their status and the step definitions still to write — then the spec
- * itself, why it is not ready yet, what rests on it rule by rule,
+ * with their status and the step definitions still to write — then the rest
+ * of the spec as written, why it is not ready yet, what rests on it rule by rule,
  * its relationships, and the architecture, quality requirements, decisions
  * and code within reach of its links.
  */
@@ -111,7 +111,8 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     }
   }
 
-  if (spec) out.push("## Specification", "", spec.body.trim(), "")
+  const written = spec ? specification(spec) : ""
+  if (written !== "") out.push("## Specification", "", written, "")
 
   // A scenario and a rule are the contract above, not relationships.
   const structural = (e: GraphEdge) => e.rel === vocabulary.relations.scenario || e.rel === made.relations.rule
@@ -200,6 +201,29 @@ const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
       : [`Maturity is ${maturity}, but the content already meets the criteria of ${ready}: write \`@maturity=${ready}\` if the team agrees.`]),
     ""
   ]
+}
+
+const blockStart = /^\s*(@|(Scenario|Scenario Outline|Scenario Template|Example|Background|Rule):)/
+
+/**
+ * The spec as written, without what the contract shows: its tag lines and name, and each rule's
+ * tags, name and reason. What is left is its intent, its backgrounds and its examples.
+ */
+const specification = (spec: Spec): string => {
+  const lines = spec.body.split(/\r?\n/)
+  const shown = new Set<number>()
+  const feature = lines.findIndex((line) => /^\s*Feature:/.test(line))
+  for (let index = 0; index <= feature; index++) shown.add(index)
+  for (const rule of spec.rules) {
+    let first = rule.line - 1
+    while (first > 0 && lines[first - 1]!.trimStart().startsWith("@")) first--
+    let end = rule.line
+    while (end < lines.length && !blockStart.test(lines[end]!)) end++
+    for (let index = first; index < end; index++) shown.add(index)
+  }
+  const kept = lines.filter((line, index) => !shown.has(index) && !(line.trim() === "" && lines[index - 1]?.trim() === ""))
+  const indent = Math.min(...kept.filter((line) => line.trim() !== "").map((line) => line.length - line.trimStart().length))
+  return kept.map((line) => line.slice(indent).trimEnd()).join("\n").trim()
 }
 
 /** What a quality requirement measures: the outcome steps of each of its scenarios. */

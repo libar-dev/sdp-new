@@ -86,6 +86,14 @@ Feature: Context bundles for agents
         ### Does a cart expire?
         [open] — specs/REQ-cart.feature:17
         """
+      And the output contains:
+        """
+        Shoppers collect items before paying.
+
+          Scenario: Adding an item twice raises its quantity
+            Then the cart holds 1 item
+        """
+      And the output section "Specification" does not contain "Rule:"
       When I ask for the context of "DEC-0001"
       Then the output section "Rules that rest on this" contains "- [unrun] A cart holds each item once (decided-by) — REQ-cart specs/REQ-cart.feature:7"
 
