@@ -670,7 +670,7 @@ Feature: Know what is verified
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "wishlist#keep-a-lamp"
 
-  Rule: A process records no result once a module it imported changed or was deleted, or a step file was added since it loaded them
+  Rule: A process records no result on step code it did not load: a module it imported that changed or is gone, or a step file added since; a result from before the change is stale
 
     A process loads the step files once, and Node.js keeps a module for the life of a process: the
     code there now did not run, and a result would certify code that never ran. A module that is
@@ -747,6 +747,8 @@ Feature: Know what is verified
       Then the exit code is 1
       And the output contains "specs/steps/more.steps.ts was added after this process loaded the step modules"
       And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
 
   Rule: A result goes stale when a lockfile at the workspace root changes
 
