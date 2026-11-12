@@ -111,10 +111,10 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
  * through feature`. What it is for is the first paragraph of its spec — or, for a node declared
  * without one, what the code anchored to it says of itself. Under each piece of code that is it
  * comes its surface: a declaration's shape, or what a file exports. Code that links to it otherwise
- * — that plays a pattern — is followed by the elements that code is. Then the work on it: what is
- * live, and what is still to come, ready first. A node no file declares is still to come, named by
- * the work still to come that names it. A title that only repeats the id, as that of an element declared by its code,
- * is left out.
+ * — that plays a pattern — is followed by the elements that code, or the file that holds it, is.
+ * Then the work on it: what is live, and what is still to come, ready first. A node no file declares
+ * is still to come, named by the work still to come that names it. A title that only repeats the
+ * id, as that of an element declared by its code, is left out.
  */
 export const architecture = ({ anchor, anchors, architecture, drivers, edges, kinds, work }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
@@ -140,8 +140,10 @@ export const architecture = ({ anchor, anchors, architecture, drivers, edges, ki
         for (const shape of [linked.attrs.shape, linked.attrs.exports].flat()) if (typeof shape === "string") lines.push(`    ${shape}`)
         continue
       }
-      // The elements that code is apply what it links to.
-      for (const is of edges.filter((e) => e.from === linked.id && e.rel === anchor && e.to !== node.id)) {
+      // The elements that code is apply what it links to, and so do those the file that holds it is.
+      const file = anchors.find((record) => record.attrs.file === linked.attrs.file && record.attrs.symbol === undefined)
+      const holding = new Set([linked.id, file?.id])
+      for (const is of edges.filter((e) => holding.has(e.from) && e.rel === anchor && e.to !== node.id)) {
         lines.push(`  ${node.id} <-${edge.rel}- ${is.to}, through ${linked.id}  ${title(is.to)}`.trimEnd())
       }
     }

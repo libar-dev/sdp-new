@@ -403,8 +403,8 @@ Feature: See the architecture
     The code every instance goes through is the pattern's, and its comment says what the pattern
     is; an anchor declares a node of the kind its id's prefix names. `plays` is the team's word, and
     like any link it only names a pattern, which an anchor declares: the view shows every link from
-    code to a pattern, and the elements that code is. Elements
-    import elements: a pattern imports nothing, and nothing imports it.
+    code to a pattern, and the elements that code is, or the file that holds it. Elements import
+    elements: a pattern imports nothing, and nothing imports it.
 
     Scenario: A retry pattern, declared by its code and played by billing
       Given a file "src/retry.ts" containing:
@@ -444,6 +444,33 @@ Feature: See the architecture
         Calls again while the provider is down, waiting longer each time.
         """
       And the output contains "PAT-retry <-is- code:src/retry.ts#retry  retry"
+      And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
+      And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
+
+    Scenario: A retry pattern played by a declaration of the file that is billing
+      Given a file "src/retry.ts" containing:
+        """
+        /** @sdp is PAT-retry */
+        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
+        """
+      And a file "src/billing.ts" containing:
+        """
+        /**
+         * Charges cards.
+         *
+         * @sdp is ARCH-billing
+         */
+        import { retry } from "./retry.ts"
+
+        /**
+         * Charges the card on file.
+         *
+         * @sdp plays PAT-retry
+         */
+        export const charge = (): Promise<number> => retry(async () => 0)
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
       And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
       And the output contains "PAT-retry <-plays- ARCH-billing, through code:src/billing.ts#charge  Billing"
 
