@@ -51,6 +51,33 @@ export const noRevisions: RevisionsReader = {
 /** Where `sdp check` reads its base from; by default nowhere. */
 export const Revisions = Context.Reference<RevisionsReader>("sdp/Revisions", { defaultValue: () => noRevisions })
 
+/**
+ * The variables git reads to locate a repository, its work tree, its index or its objects, as
+ * `git rev-parse --local-env-vars` lists them: left out even when that list cannot be had.
+ */
+const repositoryVariables = [
+  "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_CONFIG", "GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT",
+  "GIT_OBJECT_DIRECTORY", "GIT_DIR", "GIT_WORK_TREE", "GIT_IMPLICIT_WORK_TREE", "GIT_GRAFT_FILE",
+  "GIT_INDEX_FILE", "GIT_NO_REPLACE_OBJECTS", "GIT_REPLACE_REF_BASE", "GIT_PREFIX", "GIT_SHALLOW_FILE",
+  "GIT_COMMON_DIR"
+]
+
+/**
+ * `env` without a variable that names a repository, its work tree or its index — set for a hook, or
+ * left in a shell — and would have git read another repository than the one its directory is in:
+ * those git `listed`, and those it is known to read. On Windows a name is matched whatever its case,
+ * as the system matches it.
+ */
+export const withoutRepositoryVariables = (
+  env: Readonly<Record<string, string | undefined>>,
+  listed: string | undefined,
+  platform: string = process.platform
+): Record<string, string | undefined> => {
+  const fold = (name: string) => platform === "win32" ? name.toUpperCase() : name
+  const dropped = new Set([...repositoryVariables, ...(listed?.split("\n") ?? [])].map((name) => fold(name.trim())))
+  return Object.fromEntries(Object.entries(env).filter(([name]) => !dropped.has(fold(name))))
+}
+
 /** The base as git finds it, in the repository the workspace is in. */
 export const gitRevisions = Layer.effect(
   Revisions,
@@ -74,10 +101,7 @@ export const gitRevisions = Layer.effect(
     const base = Effect.fn("Revisions.base")(function*(root: string, named: string | undefined) {
       const missing = (reason: string): Effect.Effect<BaseRead, BaseNotFound> =>
         named === undefined ? Effect.succeed({ none: reason }) : Effect.fail(new BaseNotFound({ base: named, reason }))
-      // A variable that names a repository, its work tree or its index — set for a hook, or left in a
-      // shell — would have git read another repository than the one the workspace is in: git lists them.
-      const located = new Set(text(yield* git(root, ["rev-parse", "--local-env-vars"]))?.split("\n"))
-      const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !located.has(name)))
+      const env = withoutRepositoryVariables(process.env, text(yield* git(root, ["rev-parse", "--local-env-vars"])))
       const inWorkspace = (args: ReadonlyArray<string>, input?: string) => git(root, args, input, env)
       const inside = yield* inWorkspace(["rev-parse", "--is-inside-work-tree"])
       if (inside === undefined) return yield* missing("git did not run in this workspace")

@@ -12,20 +12,17 @@ import { execFile, spawnSync } from "node:child_process"
 import { realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
+import { withoutRepositoryVariables } from "../../src/workspace/Revisions.ts"
 import { produce, settled, type World } from "./world.ts"
 
 export const repository = resolve(fileURLToPath(new URL("../..", import.meta.url)))
 export const cli = join(repository, "src/cli/main.ts")
-/**
- * The variables that name a repository, its work tree or its index, as git lists them: set for a
- * hook or left in a shell, they would have a scenario's git commit to that repository, not its own.
- */
-const located = new Set(spawnSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).stdout?.split("\n"))
-
 // Every command is a fresh Node process; a shared compile cache keeps start-up short.
-// No repository above the temporary directory is one of a scenario's, whatever the machine has there.
+// No repository above the temporary directory is one of a scenario's, whatever the machine has there,
+// and none that git's variables name: set for a hook or left in a shell, they would have a scenario's
+// git commit to that repository, not its own.
 export const env = {
-  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !located.has(name))),
+  ...withoutRepositoryVariables(process.env, spawnSync("git", ["rev-parse", "--local-env-vars"], { encoding: "utf8" }).stdout),
   PATH: [join(repository, "node_modules/.bin"), process.env.PATH].filter(Boolean).join(delimiter),
   NO_COLOR: "1",
   NODE_COMPILE_CACHE: join(tmpdir(), "sdp-compile-cache"),
