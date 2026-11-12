@@ -1,14 +1,15 @@
 /**
  * A context bundle: everything an agent (or a new team member) needs to work
- * on one node, as a single Markdown document — the spec itself, why it is not
- * ready yet, its relationships (a term comes with its definition), scenario status with the step definitions still
- * to write, the architecture, quality requirements and decisions in reach,
- * and the code locations already linked to it. What is in reach is reached
- * through links: a prose mention is listed as a relationship but leads no
- * further.
+ * on one node, as a single Markdown document. It leads with the contract —
+ * the names of the node's scenarios with their status and the step
+ * definitions still to write — then the spec itself, why it is not ready yet,
+ * its relationships, the architecture, quality requirements and decisions in
+ * reach, and the code linked to it. What is in reach is reached through
+ * links: a prose mention is listed as a relationship but leads no further.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
+import { description } from "../arch/Architecture.ts"
 import { unmetCriteria } from "../check/Check.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, criteria, hasKind, isDerived, isDriver, isMention, made, type Vocabulary } from "../model/Vocabulary.ts"
@@ -27,7 +28,7 @@ export interface ContextSteps {
   readonly problems: ReadonlyArray<string>
 }
 
-/** Everything needed to work on one node, as one Markdown document: spec, links, readiness, scenarios, curated architecture, decisions, code. */
+/** Everything needed to work on one node, as one Markdown document: readiness, the scenarios, the spec, links, curated architecture, decisions, code. */
 export const contextBundle = (project: Project, node: GraphNode, depth = 2, steps?: ContextSteps): string => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
@@ -44,33 +45,14 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("```yaml", ...attrs.map(([k, v]) => `${k}: ${JSON.stringify(v)}`), "```", "")
   }
   if (spec) out.push(...notReady(project, spec))
-  if (spec) out.push("## Specification", "", spec.body.trim(), "")
 
-  const outgoing = graph.out(id).filter((e) => e.rel !== vocabulary.relations.scenario)
-  const incoming = graph.in(id).filter((e) => e.rel !== vocabulary.relations.scenario)
-  if (outgoing.length + incoming.length > 0) {
-    out.push("## Relationships", "")
-    // A node that several links lead to says what it is once.
-    const said = new Set<string>()
-    const words = (other: GraphNode | undefined) => {
-      if (!other || said.has(other.id)) return []
-      said.add(other.id)
-      return ownWords(other)
-    }
-    for (const e of outgoing) {
-      const other = graph.node(e.to)
-      out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`, ...words(other))
-    }
-    for (const e of incoming) {
-      const other = graph.node(e.from)
-      out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`, ...words(other))
-    }
-    out.push("")
-  }
-
+  // The contract first: a scenario's name is the rule it pins, so the names with their status are the reference page.
   if (spec && spec.scenarios.length > 0) {
     out.push(`## Scenarios (${spec.scenarios.length})`, "")
+    let rule: string | undefined
     for (const s of spec.scenarios) {
+      if (s.rule !== undefined && s.rule !== rule) out.push("", `### ${s.rule}`)
+      rule = s.rule
       const status = graph.node(s.id)?.attrs.status ?? "unrun"
       out.push(`- [${String(status)}] ${s.name} — ${spec.file}:${s.line}`)
       // What only a run knows (failures, pending steps) comes from fresh results; what is not
@@ -116,6 +98,30 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     }
   }
 
+  if (spec) out.push("## Specification", "", spec.body.trim(), "")
+
+  const outgoing = graph.out(id).filter((e) => e.rel !== vocabulary.relations.scenario)
+  const incoming = graph.in(id).filter((e) => e.rel !== vocabulary.relations.scenario)
+  if (outgoing.length + incoming.length > 0) {
+    out.push("## Relationships", "")
+    // A node that several links lead to says what it is once.
+    const said = new Set<string>()
+    const words = (other: GraphNode | undefined) => {
+      if (!other || said.has(other.id)) return []
+      said.add(other.id)
+      return ownWords(other)
+    }
+    for (const e of outgoing) {
+      const other = graph.node(e.to)
+      out.push(`- ${node.id} -${e.rel}-> ${other ? describe(other) : e.to}`, ...words(other))
+    }
+    for (const e of incoming) {
+      const other = graph.node(e.from)
+      out.push(`- ${node.id} <-${e.rel}- ${other ? describe(other) : e.from}`, ...words(other))
+    }
+    out.push("")
+  }
+
   // Context within reach: the architecture, quality requirements and decisions.
   const reach = neighbourhood(project, id, depth).filter((n) => n.id !== id)
   const isDecision = (n: GraphNode) => hasKind(vocabulary, "decision", n.kind)
@@ -125,9 +131,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   const qualities = reach.filter((n) => !isDecision(n) && isDriver(vocabulary, n))
   if (architecture.length > 0) {
     out.push(`## Architecture within ${depth} hops`, "")
-    for (const n of architecture) {
-      out.push(`- ${describe(n)}${Predicate.isString(n.attrs.summary) ? `\n  ${n.attrs.summary}` : ""}`)
-    }
+    for (const n of architecture) out.push(`- ${describe(n)}`, ...description(project, n).map((line) => `  ${line}`))
     out.push("")
   }
   if (qualities.length > 0) {

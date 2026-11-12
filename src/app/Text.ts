@@ -104,16 +104,23 @@ export const diagnostics = (found: ReadonlyArray<DiagnosticRecord>): string => {
 export const steps = (listed: ReadonlyArray<ListedStep>): string =>
   rows(listed.map((step) => [`${step.file}:${step.line}`, step.keyword, step.expression]))
 
-/** Each architectural node with what its spec says it is for and its links; drivers appear as the nodes it links to. */
-export const architecture = ({ architecture, drivers, edges, kinds }: ArchitectureData): string => {
-  const titles = new Map([...architecture, ...drivers].map((node) => [node.id, node.title]))
+/**
+ * Each architectural node with what it is for and its links; drivers and anchored code appear as
+ * the nodes it links to. What it is for is the first paragraph of its spec — or, for a node
+ * declared without one, what the code anchored to it says of itself.
+ */
+export const architecture = ({ anchors, architecture, drivers, edges, kinds }: ArchitectureData): string => {
+  const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
   const title = (id: string) => titles.get(id) ?? ""
+  const docs = new Map(anchors.map((code) => [code.id, code.attrs.doc]))
   const lines = [`Architecture: ${architecture.length} node(s) of the kinds ${kinds.join(", ")}`]
   for (const node of architecture) {
+    const incoming = edges.filter((e) => e.to === node.id)
+    const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : incoming.map((e) => docs.get(e.from))
     lines.push("", `${node.id} — ${node.title} (${node.kind})  ${where(node)}`.trimEnd())
-    if (typeof node.attrs.summary === "string") lines.push(`  ${node.attrs.summary}`)
+    for (const text of described) if (typeof text === "string") lines.push(`  ${text}`)
     for (const edge of edges.filter((e) => e.from === node.id)) lines.push(`  ${node.id} -${edge.rel}-> ${edge.to}  ${title(edge.to)}`)
-    for (const edge of edges.filter((e) => e.to === node.id)) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`)
+    for (const edge of incoming) lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`)
   }
   return lines.join("\n")
 }

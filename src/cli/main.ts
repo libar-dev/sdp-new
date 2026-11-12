@@ -326,7 +326,7 @@ const newCommand = Command.make(
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it (decisions and risks are numbered)")),
     id: Flag.String("id").pipe(Flag.withDescription("Use this id instead of one made from the title"), Flag.optional),
     maturity: Flag.String("maturity").pipe(
-      Flag.withDescription("Start at this maturity — idea (default), draft, specified or ready, or your configured ladder; the template grows with it"),
+      Flag.withDescription("Start at this maturity — idea (default), draft, specified or ready, or your configured ladder; from specified on the file has a scenario to fill in"),
       Flag.optional
     ),
     dir: Flag.String("dir").pipe(
@@ -344,13 +344,14 @@ const newCommand = Command.make(
       dir: Option.getOrUndefined(dir)
     })
     yield* Console.log(`${created.id}\t${created.file}`)
+    for (const line of created.next) yield* Console.error(Text.c.dim(`next: ${line}`))
     if (!created.inside) {
       yield* Console.error(Text.c.yellow(`note: ${created.file} is outside the workspace ${root}, so it is not part of its graph`))
     }
   })
 ).pipe(
   Command.withDescription(
-    `Create a spec, decision, element, plan, ... from a template and print its id and file. Templates: ${templateKinds.join(", ")}`
+    `Create a spec, decision, element, plan, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
   ),
   Command.withExamples([
     { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
@@ -370,10 +371,10 @@ const initCommand = Command.make(
       yield* Console.log(created ? `created ${file}` : Text.c.dim(`exists  ${file}`))
     }
     yield* Console.log(
-      Text.c.dim("next: sdp new idea \"My first idea\"  ·  sdp new plan \"Delivery plan\"  ·  point your AGENTS.md or CLAUDE.md at AGENTS.sdp.md")
+      Text.c.dim("next: sdp new idea \"My first idea\"  ·  sdp new plan \"Delivery plan\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill")
     )
   })
-).pipe(Command.withDescription("Create sdp.config.yaml and an agent guide (AGENTS.sdp.md, itself a spec) in the workspace"))
+).pipe(Command.withDescription("Create sdp.config.yaml and the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) in the workspace"))
 
 const typesCommand = Command.make(
   "types",

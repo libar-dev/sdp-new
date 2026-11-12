@@ -4,20 +4,25 @@
  */
 import { annotate } from "sdp/annotations"
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
+import { fileURLToPath } from "node:url"
 import { idsDeclaration } from "../graph/Types.ts"
 import { formatSource } from "../model/Graph.ts"
 import { made } from "../model/Vocabulary.ts"
 import { loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
-import { agentsTemplate, configTemplate, newSpec } from "./Templates.ts"
+import { configTemplate, newSpec } from "./Templates.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
 
-/** `sdp init`: a configuration and an agent guide; files that exist are left alone. */
+/** The skill that teaches an agent to work with sdp, where agents look for skills. sdp ships the one it is developed with. */
+const skillFile = ".claude/skills/sdp/SKILL.md"
+
+/** `sdp init`: a configuration and the skill; files that exist are left alone. */
 export const init = Effect.fn("init")(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  const files = [["sdp.config.yaml", configTemplate], ["AGENTS.sdp.md", agentsTemplate]] as const
+  const skill = yield* fs.readFileString(fileURLToPath(new URL(`../../${skillFile}`, import.meta.url)))
+  const files = [["sdp.config.yaml", configTemplate], [skillFile, skill]] as const
   const written: Array<{ readonly file: string; readonly created: boolean }> = []
   for (const [file, content] of files) {
     const target = path.join(root, file)
@@ -86,8 +91,8 @@ export const create = Effect.fn("create")(function*(root: string, input: CreateI
   const file = inside ? relative : target
   if (yield* fs.exists(target)) return yield* new Refused({ reason: `${file} already exists` })
   yield* fs.writeFileString(target, created.content)
-  /** `inside` is false for a file outside the workspace, which is therefore not part of its graph. */
-  return { id: created.id, file, inside }
+  /** `inside` is false for a file outside the workspace, which is therefore not part of its graph; `next` is what to write in it. */
+  return { id: created.id, file, inside, next: created.next }
 })
 
 /** `sdp types`: the id declarations that type `annotate()`, written to the configured path. */

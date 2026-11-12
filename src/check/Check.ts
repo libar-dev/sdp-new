@@ -81,29 +81,22 @@ const achievableMaturity = (content: Content): string => {
 
 /** How lines of `sdp new` templates begin that ask the author to write something in their place. */
 const placeholderLines = [
-  "One sentence capturing the idea.",
-  "Who needs what, and why.",
-  "Which quality matters, for whom, and why.",
   "What forces are at play?",
   "1. **Option A** — pros / cons",
   "We will …",
   "What becomes easier or harder.",
-  "Responsibility in one or two sentences.",
-  "The problem this pattern solves and how",
   "What must be true to pass this milestone."
 ]
-const placeholderQuestion = "What is still unknown?"
 /** Template scenarios name their parts in angle brackets: `Given <context>`. */
 const placeholderStep = /^<[^<>]+>$/
 
-/** Template text still in a spec, with its line: prose, the open question, scenario names and steps. */
+/** Template text still in a spec, with its line: prose, scenario names and steps. */
 export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
   const found: Array<{ text: string; line: number }> = []
   for (const prose of spec.prose) {
     const placeholder = placeholderLines.find((p) => prose.text.startsWith(p))
     if (placeholder) found.push({ text: placeholder, line: prose.line })
   }
-  for (const question of spec.openQuestions) if (question.text === placeholderQuestion) found.push(question)
   for (const scenario of spec.scenarios) {
     if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })
     for (const step of scenario.steps) if (placeholderStep.test(step.text)) found.push({ text: `${step.keyword} ${step.text}`, line: step.line })

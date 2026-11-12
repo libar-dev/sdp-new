@@ -143,6 +143,8 @@ export const made = {
   attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "declaredIn"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", "tags", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash"],
+  /** What sdp records on a code node: where the annotated declaration is and what its own comment says of it. */
+  codeAttributes: ["file", "symbol", "doc"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
   resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
   /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
@@ -228,6 +230,8 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     attributes: made.attributes,
     /** The attributes of a scenario node. */
     scenarioAttributes: made.scenarioAttributes,
+    /** The attributes of a code node. */
+    codeAttributes: made.codeAttributes,
     /** The stages beyond the maturity ladder. */
     stages: Object.values(made.stages),
     /** The names no link can have. */

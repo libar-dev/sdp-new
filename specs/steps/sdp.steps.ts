@@ -150,8 +150,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
   })
 
-  Then("the check reports nothing but {string}", ({ args: [rule], world }) => {
-    const found = (world.diagnostics ?? []).filter((d) => d.rule !== rule)
+  // One rule, or several separated by commas.
+  Then("the check reports nothing but {string}", ({ args: [rules], world }) => {
+    const found = (world.diagnostics ?? []).filter((d) => !ids(rules).includes(d.rule))
     assert.equal(found.length, 0, found.map((d) => `[${d.rule}] ${d.message}`).join("\n"))
   })
 
