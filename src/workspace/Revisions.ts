@@ -143,14 +143,20 @@ export const gitRevisions = Layer.effect(
       if (links === undefined) return yield* missing(`git cat-file could not read the symbolic links of ${at}`)
       const committed = treeFiles(entries, new Map(links.map(({ content, path }) => [path, content])))
       const workspace = prefix.replace(/\/$/, "")
+      const fromTop = (path: string) => workspace === "" ? path : `${workspace}/${path}`
       // Each path of the workspace with the blob of the file it leads to at the base, if it leads to one.
-      const inCommit = (paths: ReadonlyArray<string>) =>
-        paths.map((path) => ({ path, object: committed.blob(workspace === "" ? path : `${workspace}/${path}`) }))
+      const inCommit = (paths: ReadonlyArray<string>) => paths.map((path) => ({ path, object: committed.blob(fromTop(path)) }))
       const held = (wanted: ReturnType<typeof inCommit>) =>
         wanted.flatMap(({ object, path }) => object === undefined ? [] : [{ path, object }])
 
-      // The base is read as it was configured: its features globs, its exclusions and its vocabulary.
-      const configFile = held(inCommit(configFileNames))[0]
+      // The base is read as it was configured — its features globs, its exclusions and its vocabulary —
+      // from the first configuration file it has, as on disk. One that is a link to no file git holds
+      // may lead to a file of this machine, so the configuration the base would use is not known.
+      const configName = configFileNames.find((name) => committed.has(fromTop(name)))
+      const configFile = configName === undefined ? undefined : held(inCommit([configName]))[0]
+      if (configName !== undefined && configFile === undefined) {
+        return yield* missing(`the configuration of ${at} is not known: its ${configName} is a link to no file git holds`)
+      }
       const configFiles = yield* read(configFile === undefined ? [] : [configFile])
       if (configFiles === undefined) return yield* missing(`git cat-file could not read the configuration of ${at}`)
       const parsed = yield* Effect.result(parseConfig(configFiles[0]))
@@ -290,12 +296,14 @@ const treeFiles = (
         : Effect.succeed(target)
     }
   }))
+  /** Whether `written` names an entry of the tree, a link whatever it leads to. */
+  const has = (written: string) => resolve(written, false) !== undefined
   const blob = (written: string): string | undefined => {
     const found = resolve(written, true)
     const entry = found === undefined ? undefined : entries.get(found)
     return entry === undefined || entry.mode === submodule ? undefined : entry.object
   }
-  return { fileSystem, blob, unknown, folded }
+  return { fileSystem, has, blob, unknown, folded }
 }
 
 /**

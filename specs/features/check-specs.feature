@@ -625,6 +625,31 @@ Feature: Check specs
         | a features glob out of the repository      | sdp.config.yaml     | features: ["specs/**/*.feature", "../*.feature"] | sdp check --json        | 1         | false    | cart#add-an-item |
         | a features glob in another case than git's | sdp.config.yaml     | features: ["Specs/**/*.feature"]                 | sdp check --json        | 2         | false    | nothing          |
 
+    Scenario Outline: The configuration of the base is <case>
+      Given a file ".gitignore" containing:
+        """
+        untracked.yaml
+        """
+      And a file "untracked.yaml" containing:
+        """
+        # every key at its default
+        """
+      When I run the pipeline:
+        """
+        <configuration>
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | complete | <complete> |
+
+      Examples:
+        | case                               | configuration                                  | exit code | complete |
+        | a link to a file git does not hold | ln -s untracked.yaml sdp.config.yaml           | 2         | false    |
+        | a link out of the repository       | ln -s /nowhere/sdp.config.yaml sdp.config.yaml | 2         | false    |
+
     Scenario: A spec deleted, from a workspace whose directory's name starts with a space
       Given a file " app/sdp.config.yaml" containing:
         """
