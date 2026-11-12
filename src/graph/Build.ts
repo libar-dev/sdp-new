@@ -119,7 +119,7 @@ export const buildProject = (input: ProjectInput): Project => {
         source: { file: file.path, line: problem.line },
         hint: problem.rule === "step-expression"
           ? "fix the Cucumber Expression: {int}, {float}, {word}, {string} and {} are the parameters, and ( ) / { } \\ are escaped with a backslash"
-          : "register steps in a top-level `defineSteps(world, ({ Given }) => { Given(\"…\", …) })` with literal expressions; until then context, snippets and `sdp steps` do not know them"
+          : "register each step with a statement of its own, `Given(\"…\", …)` with a literal expression, in a top-level `defineSteps(world, ({ Given }) => { … })`; until then context, snippets and `sdp steps` do not know it"
       }))
     }
   }

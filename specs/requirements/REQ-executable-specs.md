@@ -78,8 +78,9 @@ executes none of its code:
 | In a step file | Read as |
 | --- | --- |
 | `defineSteps(world, ({ Given, When, Then, Step }) => { … })` at the top level, `defineSteps` imported from `sdp/steps` | a step module; the registrar may be destructured, renamed (`{ Given: given }`) or taken whole (`(steps) => steps.Given(…)`) |
-| `Given("a cart with {int} items", …)`, a template without placeholders, or `Given(/^a cart$/, …)` anywhere in that callback | a step definition, with its keyword, expression and `file:line` |
-| a registration whose expression is computed, or a step file without such a `defineSteps` call | `step-unreadable` ([[REQ-check-rules]]): only a run knows that step |
+| `Given("a cart with {int} items", …)`, a template without placeholders, or `Given(/^a cart$/, …)` as a statement of that callback | a step definition, with its keyword, expression and `file:line` |
+| a registration under a condition, in a loop, through another name for the registrar or a helper, or with a computed expression; a step file without such a `defineSteps` call | `step-unreadable` ([[REQ-check-rules]]): only a run knows that step |
+| anything inside a handler | not read: a handler registers nothing |
 | a Cucumber Expression that is malformed | `step-expression`, an error: `sdp run` refuses to start, naming its `file:line` |
 
 `sdp steps [text]` lists what was read, sdp's built-in steps included ([[REQ-cli]]). What could
@@ -938,6 +939,30 @@ Scenario Outline: Reading a workspace runs none of its step files
     | sdp check            | does not exist                 |
     | sdp status           | does not exist                 |
     | sdp run              | contains "this step file ran"  |
+
+Scenario: A step registered other than by a statement of its own is reported, never guessed
+  Given a file "specs/steps/cart.steps.ts" containing:
+    """
+    import { defineSteps } from "sdp/steps"
+
+    export default defineSteps(() => ({}), ({ Given, When, Then }) => {
+      Given("an empty cart", () => {
+        const When = (text: string) => text
+        When("a phantom step")
+      })
+      if (process.env.NO_LAMPS === undefined) When("I add a lamp", () => {})
+      const outcome = Then
+      outcome("the cart holds {int} item(s)", () => {})
+    })
+    """
+  When I run "sdp steps cart"
+  Then the exit code is 2
+  And the output contains "specs/steps/cart.steps.ts:4\tGiven\tan empty cart"
+  And the output contains "1 step definition(s)"
+  And the output contains "not read: specs/steps/cart.steps.ts:8: this statement registers steps under a condition, in a loop or through another name"
+  And the output contains "not read: specs/steps/cart.steps.ts:9:"
+  When I run "sdp run"
+  Then the output contains "1 scenario(s): 1 passed"
 
 Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
   Given a file "specs/steps/cart.steps.ts" containing:

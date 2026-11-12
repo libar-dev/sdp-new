@@ -815,8 +815,8 @@ files — one per line: `file:line`, keyword and expression, separated by tabs. 
 the definitions whose expression contains it or that match it as a step, which answers "is there
 a step for this already?" before a near-duplicate is written. The step files are read, not run
 ([[REQ-executable-specs]]); a registration that cannot be read that way — its expression is
-computed — is noted and leaves the listing incomplete, since a step may be defined there. With
-`--json`, `data` is the same list as objects with `file`, `line`, `keyword` and `expression`.
+computed, or it is not a statement of its own — is noted and leaves the listing incomplete,
+since a step may be defined there. With `--json`, `data` is the same list as objects with `file`, `line`, `keyword` and `expression`.
 
 ```sh
 sdp steps catalogue

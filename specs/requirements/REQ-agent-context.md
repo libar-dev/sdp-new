@@ -365,7 +365,7 @@ Scenario: A registration that cannot be read is named, so its step is not mistak
   When I run "sdp context REQ-cart"
   Then the exit code is 2
   And the output section "Scenarios" contains "undefined: Given an empty cart"
-  And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: the expression of this Given definition is computed"
+  And the output section "Step definitions" contains "specs/steps/cart.steps.ts:5: this statement registers steps under a condition, in a loop or through another name"
   When I run "sdp steps cart"
   Then the exit code is 2
   And the output contains "note: not read: specs/steps/cart.steps.ts:5"
