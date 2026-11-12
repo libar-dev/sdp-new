@@ -6,7 +6,8 @@
  */
 import { annotate } from "sdp/annotations"
 import { Result } from "effect"
-import { Document, isMap, isNode, isSeq } from "yaml"
+import { Document, isMap, isSeq } from "yaml"
+import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import { criteria, hasKind, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
@@ -116,18 +117,17 @@ export const newSpec = (options: {
   return Result.succeed({ id, file, content, next: guidance({ kind, id, maturity, config }) })
 }
 
-/** A front matter key, its value, and a comment to write after the value. */
-type Field = readonly [key: string, value: unknown, comment?: string]
+/** A front matter key and its value. */
+type Field = readonly [key: string, value: unknown]
 
-/** Front matter: the fields as YAML data, a list of records one record per line, then fixed lines. */
-const frontMatter = (fields: ReadonlyArray<Field>, fixed: ReadonlyArray<string> = []): string => {
-  const doc = new Document(Object.fromEntries(fields.map(([key, value]) => [key, value])))
-  for (const [key, , comment] of fields) {
+/** Front matter: the fields as YAML data, a list of records one record per line. */
+const frontMatter = (fields: ReadonlyArray<Field>): string => {
+  const doc = new Document(Object.fromEntries(fields))
+  for (const [key] of fields) {
     const node = doc.get(key, true)
-    if (comment !== undefined && isNode(node)) node.comment = ` ${comment}`
     if (isSeq(node)) for (const item of node.items) if (isMap(item)) item.flow = true
   }
-  return ["---", doc.toString({ lineWidth: 0 }).trimEnd(), ...fixed, "---", ""].join("\n")
+  return ["---", doc.toString({ lineWidth: 0 }).trimEnd(), "---", ""].join("\n")
 }
 
 /** The levels whose criteria are built in: a template grows with them. */
@@ -154,13 +154,9 @@ const specTemplate = (options: {
   const { config, id, kind, maturity, title, today } = options
   const { vocabulary } = config
   const level = Math.max(0, levels.indexOf(maturity))
-  const plan = wordFor(vocabulary.relations.plan)
   const phase = wordFor(vocabulary.relations.phase)
   const closes = wordFor(vocabulary.relations.closes)
-  const { activity } = vocabulary.attributes
-  // Prefixed like every other id, so a phase is one grep away and no ordinary word is an id.
   const phaseKind = wordFor(vocabulary.kinds.phase)
-  const phaseId = (name: string) => `${config.ids[phaseKind] ?? "PH"}-${name.toLowerCase()}`
   const phases = ["Inception", "Elaboration", "Construction", "Transition"]
   // Front matter says only what the file does not say elsewhere: the kind when the id's prefix
   // does not give it, the title when the heading would not read back as it.
@@ -171,16 +167,10 @@ const specTemplate = (options: {
   ]
   switch (templateOf(kind, vocabulary)) {
     case "decision":
-      return `${
-        frontMatter(identity, [
-          "# Only for a choice that is hard to reverse, surprising without context and a real trade-off;",
-          "# any other choice is a sentence in the spec it concerns. What rests on a decision links to it",
-          "# with `decided-by`, its rules are scenarios there, and its price is a risk."
-        ])
-      }
+      return `${frontMatter(identity)}
 # ${title}
 
-Not <what a reasonable person would have chosen>, because <why>.
+${decisionPlaceholder}
 `
     case "element":
     case "pattern":
@@ -188,12 +178,7 @@ Not <what a reasonable person would have chosen>, because <why>.
 # ${title}
 `
     case "milestone":
-      return `${
-        frontMatter([
-          ...identity,
-          [closes, phaseId("Elaboration"), "the phase or the iteration this milestone ends (sdp lifecycle shows them)"]
-        ])
-      }
+      return `${frontMatter([...identity, [closes, phaseId(config, "Elaboration")]])}
 # ${title}
 
 \`\`\`gherkin
@@ -206,39 +191,23 @@ Scenario: No errors in the specification graph
       const iterations = [["I1", "Vision and scope"], ["E1", "Architecture baseline"], ["C1", "First increment"], ["T1", "Beta"]]
       const { end, start } = vocabulary.attributes
       const nodes = [
-        ...phases.map((name) => ({ id: phaseId(name), kind: phaseKind, title: name })),
+        ...phases.map((name) => ({ id: phaseId(config, name), kind: phaseKind, title: name })),
         ...iterations.map(([iteration, name], index) => ({
           id: iteration,
           kind: wordFor(vocabulary.kinds.iteration),
           title: name,
-          [phase]: phaseId(phases[index]!),
+          [phase]: phaseId(config, phases[index]!),
           [start]: addDays(today, 14 * index),
           [end]: addDays(today, 14 * index + 13)
         }))
       ]
-      return `${
-        frontMatter([...identity, ["nodes", nodes]], [
-          `# Work is planned on the work itself: \`${plan}: E1\` on a spec says when it is written,`,
-          `# \`${activity}: { implementation: C1, test: [C1, T1] }\` when other disciplines work on it.`,
-          `# A milestone ends a phase or an iteration: sdp new ${wordFor(vocabulary.kinds.milestone)} "<title>", then \`${closes}: ${phaseId("Elaboration")}\`.`
-        ])
-      }
+      return `${frontMatter([...identity, ["nodes", nodes]])}
 # ${title}
 `
     }
     case "risk":
-      return `${
-        frontMatter(identity, [
-          "# A risk is retired when the work that mitigates it is verified; `status: tolerated` says we live with it instead.",
-          "links:",
-          "  # affects: REQ-…",
-          "  # mitigated-by: REQ-…",
-          "  # due: MS-…"
-        ])
-      }
+      return `${frontMatter(identity)}
 # ${title}
-
-What could go wrong, and what it would cost.
 `
   }
   const header = `${frontMatter([["id", id], ["kind", kind], ["title", title], ["maturity", maturity]])}
@@ -257,6 +226,9 @@ What could go wrong, and what it would cost.
   return [header, "## Scenarios", "", "```gherkin", ...steps, "```", ""].join("\n")
 }
 
+/** Prefixed like every other id, so a phase is one grep away and no ordinary word is an id. */
+const phaseId = (config: Config, name: string) => `${config.ids[wordFor(config.vocabulary.kinds.phase)] ?? "PH"}-${name.toLowerCase()}`
+
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
   "requirement `realized-by: ARCH-…` and `refines: CAP-…`; element `decided-by: DEC-…`, `instance-of: PAT-…`, `constrained-by: NFR-…`"
@@ -274,7 +246,31 @@ const guidance = (options: {
   const { config, id, kind, maturity } = options
   const { vocabulary } = config
   const { anchor } = vocabulary.relations
+  const plan = `\`${wordFor(vocabulary.relations.plan)}: E1\` says when it is written, \`${vocabulary.attributes.activity}: { implementation: C1, test: [C1, T1] }\` when it is built and tested`
+  const closes = wordFor(vocabulary.relations.closes)
   switch (templateOf(kind, vocabulary)) {
+    case "decision":
+      return [
+        "write what was chosen over, and why, in one to three sentences",
+        "record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off; any other is a sentence in the spec it concerns",
+        `what rests on it links to it with \`decided-by: ${id}\`; its rules are scenarios there, and its price is a risk`
+      ]
+    case "milestone":
+      return [
+        `set \`${closes}\` to the phase or the iteration this milestone ends: sdp lifecycle shows them`,
+        `write what must hold as scenarios: they are its gate, and sdp gate ${id} says whether it is met`
+      ]
+    case "plan":
+      return [
+        `plan work on the work itself: on a spec, ${plan}`,
+        `end each phase with a milestone: sdp new ${wordFor(vocabulary.kinds.milestone)} "<title>" writes one that \`${closes}: ${phaseId(config, "Elaboration")}\``
+      ]
+    case "risk":
+      return [
+        "say under the title what could go wrong, and what it would cost",
+        "link it: links: { affects: REQ-…, mitigated-by: REQ-…, due: MS-… }",
+        "it is retired when the work that mitigates it is verified; `status: tolerated` says we live with it instead"
+      ]
     case "element":
       return [
         "say under the title what it is responsible for and why that is architecture",
@@ -302,11 +298,9 @@ const guidance = (options: {
             : "fill in the scenario, and add one for every rule: its name is the rule"]
           : []),
         quality ? "link it: links: { refines: CAP-… }; elements it constrains link to it with constrained-by" : "link it: links: { refines: CAP-…, realized-by: ARCH-… }",
-        `plan it: \`${wordFor(vocabulary.relations.plan)}: E1\` says when it is written, \`${vocabulary.attributes.activity}: { implementation: C1, test: [C1, T1] }\` when it is built and tested`
+        `plan it: ${plan}`
       ]
     }
-    default:
-      return []
   }
 }
 

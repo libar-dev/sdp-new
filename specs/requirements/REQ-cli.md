@@ -101,6 +101,8 @@ Background:
 ## Answers
 
 An answer goes to stdout and everything about the answer to stderr, so stdout can always be piped.
+An answer that may miss something exits with 2 in every output mode: the reader of `--ids` or
+`--json` is the one most likely to conclude that something is absent.
 
 ~~~gherkin
 Scenario Outline: The exit code is 0 when the command did what it was asked and 1 when it did not
@@ -358,11 +360,41 @@ Scenario: Above the first level a new spec claims what its author has yet to wri
   And the check reports "template-placeholder" for "REQ-returns"
   And the check reports "template-placeholder" for "NFR-availability"
 
-Scenario: What the decision and milestone templates produce passes the check, flagged until its text is replaced
+Scenario: A decision starts as the sentence it must become, and the check flags it until it is written
+  When I run "sdp new decision 'Use Postgres'"
+  Then the file "specs/decisions/DEC-0002-use-postgres.md" is:
+    """
+    ---
+    id: DEC-0002
+    ---
+
+    # Use Postgres
+
+    Not <what a reasonable person would have chosen>, because <why>.
+    """
+  And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off"
+  When I run "sdp check --json"
+  Then the output contains '"rule": "template-placeholder"'
+
+Scenario: A risk is its title, and the answer says what to write and how a risk is linked and retired
+  When I run "sdp new risk Outage"
+  Then the file "specs/risks/RISK-0001-outage.md" is:
+    """
+    ---
+    id: RISK-0001
+    ---
+
+    # Outage
+    """
+  And the output contains "next: link it: links: { affects: REQ-…, mitigated-by: REQ-…, due: MS-… }"
+  And the output contains "next: it is retired when the work that mitigates it is verified; `status: tolerated` says we live with it instead"
+
+Scenario: What the decision, milestone and risk templates write passes the check but for the decision's sentence
   Given specs created from the sdp new templates:
     | kind        | title            | maturity  |
     | decision    | Use Postgres     |           |
     | milestone   | Launch           |           |
+    | risk        | Outage           |           |
   When the workspace is checked
   Then the check reports nothing but "template-placeholder"
   And the check reports "template-placeholder" for "DEC-0002"
@@ -523,7 +555,7 @@ Scenario: q --paths prints each path on one line, every edge as it points
   Then the output lines are "ARCH-index <-realized-by- REQ-search"
 
 Scenario: q lists a node by the status it declares, else by its stage
-  Given a file "docs/RISK-0001.md" containing:
+  Given a file "specs/RISK-0001.md" containing:
     """
     ---
     id: RISK-0001
@@ -730,8 +762,10 @@ Scenario: Before there is a plan lifecycle says how to write one, and a mileston
   And the output contains "- { id: E1, kind: iteration"
   When I run "sdp -C fresh new plan 'Delivery plan'"
   Then the output contains "PLAN-delivery-plan\tspecs/delivery/PLAN-delivery-plan.md"
+  And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `closes: PH-elaboration`'
   When I run "sdp -C fresh new milestone 'Architecture baseline'"
   Then the output contains "MS-architecture-baseline\tspecs/delivery/MS-architecture-baseline.md"
+  And the output contains "next: set `closes` to the phase or the iteration this milestone ends: sdp lifecycle shows them"
   When I run "sdp -C fresh lifecycle"
   Then the output line with "MS-architecture-baseline" contains "Elaboration"
   And the output line with "MS-architecture-baseline" contains "I1* E1"
@@ -995,7 +1029,7 @@ sdp gate MS-beta --record
 
 ~~~gherkin
 Scenario: A gate whose steps are not all automated is not met
-  Given a file "docs/MS-release.md" containing:
+  Given a file "specs/MS-release.md" containing:
     """
     ---
     id: MS-release
@@ -1029,7 +1063,7 @@ Scenario: gate --record records nothing while the gate does not pass
   And the file "specs/MS-beta.md" does not contain "met:"
 
 Scenario: gate --record writes met into a milestone whose gate passes, and the next one is where the project is
-  Given a file "docs/MS-alpha.md" containing:
+  Given a file "specs/MS-alpha.md" containing:
     """
     ---
     id: MS-alpha
@@ -1044,14 +1078,14 @@ Scenario: gate --record writes met into a milestone whose gate passes, and the n
     """
   When I run "sdp gate MS-alpha --record"
   Then the exit code is 0
-  And the file "docs/MS-alpha.md" contains "met: 20"
+  And the file "specs/MS-alpha.md" contains "met: 20"
   When I run "sdp q milestone[met] --ids"
   Then the output lines are "MS-alpha"
   When I run "sdp lifecycle --json"
   Then the output contains '"milestone": "MS-beta"'
 
 Scenario: A milestone that is met is closed: its gate does not run again
-  Given a file "docs/MS-alpha.md" containing:
+  Given a file "specs/MS-alpha.md" containing:
     """
     ---
     id: MS-alpha

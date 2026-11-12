@@ -18,7 +18,8 @@ Agents and scripts take data structures apart faster than they learn a query lan
 hands its graph — a derived index of the files ([[DEC-0003]]) — over as plain data for ordinary
 tools: `sdp graph` prints one record per line, and grep, jq or a few lines of script answer from
 it what `sdp q` answers ([[NFR-greppable]]). SDPQ ([[REQ-graph-query]]) stays as a convenience; it
-is never the only door.
+is never the only door. It writes nothing to disk: a dump cannot say that it is stale or
+incomplete.
 
 The field names are a public contract: they do not change with the workspace, and every JSON
 answer of sdp and of its programmatic API is made of the same records, so a script written
@@ -53,7 +54,7 @@ Background:
     ---
     Beta comes second.
     """
-  And a file "docs/ARCH-x.md" containing:
+  And a file "specs/architecture/ARCH-x.md" containing:
     """
     ---
     id: ARCH-x
@@ -63,12 +64,10 @@ Background:
     ---
     # X
     """
-  And a file "docs/DEC-0001.md" containing:
+  And a file "specs/DEC-0001.md" containing:
     """
     ---
     id: DEC-0001
-    kind: decision
-    status: accepted
     ---
     # Use X
     """
@@ -84,7 +83,7 @@ Rule: The record
       | a node with its attributes       | {"type":"node","id":"REQ-a","kind":"requirement","title":"Alpha","file":"specs/REQ-a.md","line":1,"attrs":{"maturity":"idea","realized-by":"ARCH-x","file":"specs/REQ-a.md","scenarios":0,"verification":"none","stage":"idea"}} |
       | a node nothing declares          | {"type":"node","id":"REQ-gone","kind":"missing","title":"REQ-gone","file":null,"line":null,"attrs":{}}                                                                                          |
       | an edge stated in two places     | {"type":"edge","from":"REQ-a","rel":"realized-by","to":"ARCH-x","attrs":{"since":2026},"declared":[{"file":"specs/REQ-a.md","line":5},{"file":"specs/REQ-a.md","line":7}]}                      |
-      | an edge without attributes       | {"type":"edge","from":"ARCH-x","rel":"decided-by","to":"DEC-0001","attrs":{},"declared":[{"file":"docs/ARCH-x.md","line":5}]}                                                                   |
+      | an edge without attributes       | {"type":"edge","from":"ARCH-x","rel":"decided-by","to":"DEC-0001","attrs":{},"declared":[{"file":"specs/architecture/ARCH-x.md","line":5}]}                                                                   |
 
   Scenario: One record per line, whatever the text
     When the graph is exported
@@ -104,7 +103,7 @@ Rule: The record
     Then the output lines are "node, edge"
     When I run "sdp graph"
     Then the exit code is 0
-    And the output contains '{"type":"node","id":"DEC-0001","kind":"decision","title":"Use X","file":"docs/DEC-0001.md","line":1,'
+    And the output contains '{"type":"node","id":"DEC-0001","kind":"decision","title":"Use X","file":"specs/DEC-0001.md","line":1,'
     And the output contains '{"type":"edge","from":"ARCH-x","rel":"decided-by","to":"DEC-0001"'
 
 Rule: A part of the graph, and a picture of it
@@ -137,7 +136,7 @@ Rule: Ordinary tools answer what sdp q answers
     Examples:
       | query                                 | answer         | jq                                                                              |
       | requirement[maturity=ready]           | REQ-b          | select(.type == "node" and .kind == "requirement" and .attrs.maturity == "ready") \| .id |
-      | *[source~^docs/]                      | ARCH-x, DEC-0001 | select(.type == "node" and (.file // "" \| startswith("docs/"))) \| .id       |
+      | *[source~^specs/architecture/]        | ARCH-x         | select(.type == "node" and (.file // "" \| startswith("specs/architecture/"))) \| .id |
       | #ARCH-x <-realized-by- *              | REQ-a          | select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-x") \| .from  |
       | missing                               | REQ-gone       | select(.type == "node" and .file == null) \| .id                                |
 
@@ -171,7 +170,7 @@ Rule: Ordinary tools answer what sdp q answers
       """
       sdp graph | grep '"rel":"decided-by"' | jq -r '.declared[] | "\(.file):\(.line)"'
       """
-    Then the output lines are "docs/ARCH-x.md:5"
+    Then the output lines are "specs/architecture/ARCH-x.md:5"
 
   Scenario: Another format is a line of jq
     When I run the pipeline:

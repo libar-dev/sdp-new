@@ -24,9 +24,13 @@ the skill, `.claude/skills/sdp/SKILL.md`: read it first. Here is only what is sp
   in `node_modules/effect/AGENTS.md` — use it, not memory of Effect 2 or 3.
 - The few words sdp interprets are roles of the vocabulary profile (`src/model/Vocabulary.ts`):
   ask it, never compare with one of its words as a literal — a scenario fails the run if you do.
-- While the project is in Inception, a decision that changes is rewritten or deleted, not
-  superseded.
-- A risk links what it threatens (`affects`) and the work that retires it (`mitigated-by`).
+- A decision that changes is rewritten or deleted: its history is git's.
+- A risk links what it threatens (`affects`), the work that retires it (`mitigated-by`) and the
+  milestone that work is `due` at; `status: tolerated` says we live with it instead.
+- An id's prefix says its kind, and a kind has one prefix.
+- Three attributes are this repository's own: `quality` names the quality attribute of an `NFR-`,
+  `role` on an `instance-of` link the part an element plays in the pattern, and
+  `planned: after-the-fact` an iteration written down after its work.
 - One word for one thing: a word this repository replaced does not come back.
 
 ~~~gherkin

@@ -54,7 +54,8 @@ Background:
 ### Evidence
 
 A spec's scenario statuses roll up into its `verification` and `stage`, and a result counts only
-while what it ran against is unchanged: after that it is stale — kept, but not counted.
+while what it ran against is unchanged: after that it is stale — kept, but not counted. The files
+a run imported are compared per result, because which they are is a fact about one run.
 
 ~~~gherkin
 Scenario: Until its scenarios run, a spec's stage is its declared maturity
@@ -277,7 +278,7 @@ Scenario: A scenario that reads the graph also goes stale when a spec changes
   And node "REQ-cart#add-an-item" has attribute status = "passed"
 
 Scenario: Changing what step definitions import leaves their results stale, and a gate on them unmet
-  Given a file "docs/MS-beta.md" containing:
+  Given a file "specs/MS-beta.md" containing:
     """
     ---
     id: MS-beta
@@ -1041,7 +1042,7 @@ no results, a gate what the ordinary ones say.
 Rule: Gates run last
 
   Background:
-    Given a file "docs/MS-beta.md" containing:
+    Given a file "specs/MS-beta.md" containing:
       """
       ---
       id: MS-beta
@@ -1142,7 +1143,7 @@ Rule: Gates run last
     Given a step definition "an empty cart" that passes
     And a step definition "I add a lamp" that passes
     And a step definition "the cart holds {int} item(s)" that passes
-    And a file "docs/MS-audit.md" containing:
+    And a file "specs/MS-audit.md" containing:
       """
       ---
       id: MS-audit
@@ -1166,7 +1167,7 @@ Rule: Gates run last
     And the step 'the query "scenario[lastRun]" returns at least 1 result' reports "which no scenario sees"
 
   Scenario: A gate never sees the result of a gate, so none depends on another or on itself
-    Given a file "docs/MS-alpha.md" containing:
+    Given a file "specs/MS-alpha.md" containing:
       """
       ---
       id: MS-alpha

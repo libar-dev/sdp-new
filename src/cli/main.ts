@@ -277,7 +277,9 @@ const runCommand = Command.make(
       Flag.withDefault(false)
     ),
     concurrency: Flag.Int("concurrency").pipe(
-      Flag.withDescription("Scenarios to run at once (scenarios tagged @serial always run alone)"),
+      Flag.withDescription(
+        "Scenarios to run at once; one by default, since steps written for a sequential run may share state (scenarios tagged @serial always run alone)"
+      ),
       Flag.withDefault(1)
     ),
     verbose: Flag.Boolean("verbose").pipe(Flag.withDescription("Show passed steps too"), Flag.withDefault(false)),

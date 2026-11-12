@@ -79,20 +79,16 @@ const achievableMaturity = (content: Content): string => {
   return best
 }
 
-/** How lines of `sdp new` templates begin that ask the author to write something in their place. */
-const placeholderLines = [
-  "Not <what a reasonable person would have chosen>, because <why>.",
-  "What could go wrong, and what it would cost."
-]
-/** Template scenarios name their parts in angle brackets: `Given <context>`. */
+/** What `sdp new` writes for the author to replace. A decision starts as its shape: */
+export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>."
+/** and template scenarios name their parts in angle brackets: `Given <context>`. */
 const placeholderStep = /^<[^<>]+>$/
 
 /** Template text still in a spec, with its line: prose, scenario names and steps. */
 export const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
   const found: Array<{ text: string; line: number }> = []
   for (const prose of spec.prose) {
-    const placeholder = placeholderLines.find((p) => prose.text.startsWith(p))
-    if (placeholder) found.push({ text: placeholder, line: prose.line })
+    if (prose.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: prose.line })
   }
   for (const scenario of spec.scenarios) {
     if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })
