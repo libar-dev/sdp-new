@@ -1,9 +1,9 @@
 /**
  * A TypeScript or JavaScript file, parsed and never run: what sdp reads out of
- * code statically — annotations and step definitions — it reads from this one
- * parse, with the line of everything it finds.
+ * code statically — annotations, the modules it imports and step definitions —
+ * it reads from this one parse, with the line of everything it finds.
  */
-import { parseSync } from "oxc-parser"
+import { type EcmaScriptModule, parseSync } from "oxc-parser"
 
 export interface Comment {
   readonly type: "Line" | "Block"
@@ -11,6 +11,12 @@ export interface Comment {
   readonly value: string
   readonly start: number
   readonly end: number
+}
+
+/** A module a file loads code from, named as the file names it, at the line that names it. */
+export interface Import {
+  readonly specifier: string
+  readonly line: number
 }
 
 export type Node = { readonly type: string; readonly start: number; readonly end: number; readonly [key: string]: unknown }
@@ -22,6 +28,11 @@ export interface Script {
   /** The first syntax error, when the file does not parse. */
   readonly error: { readonly line: number; readonly message: string } | undefined
   readonly lineOf: (offset: number) => number
+  /**
+   * The modules the file imports or re-exports a value from, or loads with `import()`: an import of
+   * types alone loads no code, and an `import()` of a computed name names no module.
+   */
+  readonly imports: () => ReadonlyArray<Import>
 }
 
 const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
@@ -57,6 +68,30 @@ export const parseScript = (file: string, content: string): Script | undefined =
     program: parsed.program as unknown as Script["program"],
     comments: parsed.comments,
     error: error && { line: lineOf(error.labels[0]?.start ?? 0), message: error.message },
-    lineOf
+    lineOf,
+    imports: () => valueImports(content, parsed.module, lineOf)
   }
+}
+
+/** A string literal, or a template literal with nothing in it computed: what `import()` names statically. */
+const literalName = /^(?:"([^"\\]*)"|'([^'\\]*)'|`([^`\\$]*)`)$/
+
+const valueImports = (content: string, module: EcmaScriptModule, lineOf: (offset: number) => number): ReadonlyArray<Import> => {
+  const named = [
+    ...module.staticImports.filter((i) => i.entries.length === 0 || i.entries.some((entry) => !entry.isType)).map((i) => i.moduleRequest),
+    ...module.staticExports.flatMap((e) => e.entries.flatMap((entry) => entry.moduleRequest && !entry.isType ? [entry.moduleRequest] : [])),
+    ...module.dynamicImports.flatMap(({ moduleRequest: { end, start } }) => {
+      const match = literalName.exec(content.slice(start, end))
+      return match ? [{ value: match[1] ?? match[2] ?? match[3]!, start }] : []
+    })
+  ]
+  // One statement re-exports several names from one module: it is one import.
+  const seen = new Set<string>()
+  return named.flatMap(({ start, value }) => {
+    const line = lineOf(start)
+    const key = `${line}\u0000${value}`
+    if (seen.has(key)) return []
+    seen.add(key)
+    return [{ specifier: value, line }]
+  })
 }

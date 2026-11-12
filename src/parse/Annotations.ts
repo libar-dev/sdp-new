@@ -10,13 +10,14 @@
  * same line (`total() // @sdp implements X`) is not read, and is reported.
  *
  * A TypeScript or JavaScript file is parsed once: its comment annotations come
- * from the parser's comments, so a string is never one, and its typed
- * `annotate()` calls from the same parse (TypedAnnotations.ts). Other languages
- * have no parser here: a line whose text opens with a comment marker and `@sdp`
- * is an annotation, even inside a multi-line string — best effort.
+ * from the parser's comments, so a string is never one, its typed `annotate()`
+ * calls from the same parse (TypedAnnotations.ts), and, when it anchors a node,
+ * so do the modules it imports. Other languages have no parser here: a line
+ * whose text opens with a comment marker and `@sdp` is an annotation, even
+ * inside a multi-line string — best effort — and their imports are not read.
  */
 import { annotate } from "sdp/annotations"
-import { parseScript, type Script } from "./Script.ts"
+import { type Import, parseScript, type Script } from "./Script.ts"
 import { readTypedAnnotations, type TypedAnnotationProblem } from "./TypedAnnotations.ts"
 
 annotate(import.meta, { is: "ARCH-code-annotations" })
@@ -41,9 +42,11 @@ export interface CodeScan {
   readonly unreadable: ReadonlyArray<TypedAnnotationProblem>
   /** Comment annotations after code on the same line, which are not read. */
   readonly ignored: ReadonlyArray<{ readonly line: number; readonly text: string }>
+  /** The modules a TypeScript or JavaScript file that anchors a node loads code from. */
+  readonly imports: ReadonlyArray<Import>
 }
 
-const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [] }
+const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], imports: [] }
 
 /** One of the annotation modules named in a string literal: a file that means to annotate, even when it does not parse. */
 const mentionsAnnotationModule = /["'`]sdp(\/annotations)?["'`]/
@@ -56,7 +59,7 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
   if (!content.includes("@sdp") && !content.includes("annotate")) return nothing
   const script = parseScript(file, content)
   if (script === undefined) {
-    return { annotations: scanLines(file, content), unreadable: [], ignored: ignoredLines(content) }
+    return { annotations: scanLines(file, content), unreadable: [], ignored: ignoredLines(content), imports: [] }
   }
   if (script.error) {
     // Unread annotations would silently drop out of the graph: say so, for files that annotate.
@@ -68,12 +71,16 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
         message: `the file does not parse, so its annotations cannot be read: ${script.error.message}`,
         hint: "fix the syntax error; until then none of the file's annotations are in the graph"
       }],
-      ignored: []
+      ignored: [],
+      imports: []
     }
   }
   const comments = readComments(file, content, script)
   const typed = readTypedAnnotations(file, content, script, anchor)
-  return { annotations: [...comments.annotations, ...typed.annotations], unreadable: typed.problems, ignored: comments.ignored }
+  const annotations = [...comments.annotations, ...typed.annotations]
+  // Only a module anchored to a node depends on another through what it imports.
+  const imports = annotations.some((annotation) => annotation.rel === anchor) ? script.imports() : []
+  return { annotations, unreadable: typed.problems, ignored: comments.ignored, imports }
 }
 annotate(scanCode, { is: "ARCH-code-annotations" })
 

@@ -2,6 +2,8 @@
  * Builds the whole-system graph from parsed sources. Files are the source of
  * truth; the graph is a derived, disposable index that can be rebuilt at any
  * time (and exported for grep/jq). Building is pure: no IO happens here.
+ * Besides what authors link, it derives which element imports which from the
+ * code anchored to them.
  */
 import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
@@ -11,6 +13,7 @@ import { type Attrs, formatSource, Graph, type GraphEdge, type GraphNode, type S
 import { type RunResults, type StepStatus, type Verification, verificationOf } from "../model/Results.ts"
 import { activityRelation, hasKind, hasRelation, isDerived, linkKeys, made, reservedRelations, type Vocabulary, type Words } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
+import type { Import } from "../parse/Script.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import { parseFeatureSpec, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
@@ -97,9 +100,11 @@ export const buildProject = (input: ProjectInput): Project => {
     }))
   }
   const annotations: Array<Annotation> = []
+  const importsOf = new Map<string, ReadonlyArray<Import>>()
   for (const file of input.codeFiles) {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
+    if (scan.imports.length > 0) importsOf.set(file.path, scan.imports)
     for (const problem of scan.unreadable) {
       diagnostics.push(diagnostic("annotation-unreadable", {
         message: problem.message,
@@ -133,6 +138,17 @@ export const buildProject = (input: ProjectInput): Project => {
 
   const nodes = new Map<string, GraphNode>()
   const edges: Array<GraphEdge> = []
+  const madeRelations: ReadonlyArray<string> = Object.values(made.relations)
+  /** A link an author wrote. One named like a relation sdp makes would pass for it: it is reported where it is written, and dropped. */
+  const written = (edge: GraphEdge) => {
+    if (!madeRelations.includes(edge.rel)) return edges.push(edge)
+    diagnostics.push(diagnostic("derived-attribute", {
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: sdp makes the ${edge.rel} links itself, so the link written here is ignored`,
+      node: edge.from,
+      source: edge.source,
+      hint: "delete it; `sdp vocabulary` lists the relations sdp makes"
+    }))
+  }
   const declare = (node: GraphNode) => {
     const existing = nodes.get(node.id)
     if (existing) {
@@ -289,14 +305,14 @@ export const buildProject = (input: ProjectInput): Project => {
   // A tag `@rel:ID` links the Feature, the Rule or the Scenario it sits on.
   for (const spec of specs) {
     for (const { id, links } of [{ id: spec.id, links: spec.links }, ...spec.rules, ...spec.scenarios]) {
-      for (const link of links) edges.push({ from: id, rel: link.rel, to: link.to, source: { file: spec.file, line: link.line } })
+      for (const link of links) written({ from: id, rel: link.rel, to: link.to, source: { file: spec.file, line: link.line } })
     }
   }
   for (const annotation of annotations) {
     const from = codeNodeId(annotation)
     const { kind: _k, title: _t, ...attrs } = annotation.attrs
     for (const to of annotation.targets) {
-      edges.push({
+      written({
         from,
         rel: annotation.rel,
         to,
@@ -355,7 +371,7 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const graph = new Graph(nodes.values(), links)
+  const graph = new Graph(nodes.values(), [...links, ...importsBetweenElements(annotations, importsOf, nodes, vocabulary)])
   for (const conflict of graph.conflicts) {
     const { edge, key } = conflict
     diagnostics.push(diagnostic("link-conflict", {
@@ -382,6 +398,63 @@ export const buildProject = (input: ProjectInput): Project => {
   }
 }
 annotate(buildProject, { is: "ARCH-graph-builder", "instance-of": ["PAT-derived-index", "PAT-pipes-and-filters"] })
+
+/**
+ * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
+ * constant from a module anchored to element B, at the line that names the module: the
+ * dependencies between elements as the code has them. An import of types alone calls nothing, and
+ * no element imports itself.
+ */
+const importsBetweenElements = (
+  annotations: ReadonlyArray<Annotation>,
+  importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
+  nodes: ReadonlyMap<string, GraphNode>,
+  vocabulary: Vocabulary
+): ReadonlyArray<GraphEdge> => {
+  const elementsOf = new Map<string, Set<string>>()
+  for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
+    const elements = annotation.targets.filter((id) => hasKind(vocabulary, "architectural", nodes.get(id)?.kind ?? ""))
+    if (elements.length > 0) elementsOf.set(annotation.file, new Set([...elementsOf.get(annotation.file) ?? [], ...elements]))
+  }
+  const modules = new Set(elementsOf.keys())
+  const edges: Array<GraphEdge> = []
+  for (const [file, elements] of elementsOf) {
+    for (const { line, specifier } of importsOf.get(file) ?? []) {
+      const module = resolveModule(file, specifier, modules)
+      for (const used of module === undefined ? [] : elementsOf.get(module)!) {
+        for (const element of elements) {
+          if (element !== used) edges.push({ from: element, rel: made.relations.imports, to: used, source: { file, line } })
+        }
+      }
+    }
+  }
+  return edges
+}
+
+const extensions = [".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs"]
+
+/**
+ * The module of `modules` that a relative specifier written in `file` names, as TypeScript resolves
+ * it: the file as written, the source of a `.js` name, the name with an extension, or a directory's
+ * index. A package name names no module of the workspace.
+ */
+const resolveModule = (file: string, specifier: string, modules: ReadonlySet<string>): string | undefined => {
+  if (!/^\.\.?(\/|$)/.test(specifier)) return undefined
+  const parts: Array<string> = []
+  for (const part of [...directoryOf(file).split("/"), ...specifier.split("/")]) {
+    if (part === "" || part === ".") continue
+    if (part !== "..") parts.push(part)
+    else if (parts.pop() === undefined) return undefined
+  }
+  const path = parts.join("/")
+  const candidates = [
+    path,
+    path.replace(/\.([cm]?)js(x?)$/, ".$1ts$2"),
+    ...extensions.map((extension) => `${path}${extension}`),
+    ...extensions.map((extension) => `${path}/index${extension}`)
+  ]
+  return candidates.find((candidate) => modules.has(candidate))
+}
 
 /**
  * Where a node is in delivery: `verified` once all its scenarios pass, `failing` while any fails (a

@@ -149,12 +149,13 @@ const builtGraph = (world: World) => {
 /**
  * Every node and link of the graph, followed back to its file and line: those whose line does not
  * exist, and the links whose line does not name their target. A scenario's link to its spec is
- * made by sdp, at the scenario's line: no author wrote an id there.
+ * made by sdp, at the scenario's line, and an element's import at the line that names the module:
+ * no author wrote an id there.
  */
 const followed = async (project: Project) => {
   const { config, graph, root } = project
   // A scenario's edges and a rule's edge to its spec are at their keyword line, which names neither end.
-  const structural = [config.vocabulary.relations.scenario, made.relations.rule]
+  const structural = [config.vocabulary.relations.scenario, made.relations.rule, made.relations.imports]
   const lines = new Map<string, ReadonlyArray<string>>()
   const lineAt = async (source: SourceRef | undefined) => {
     if (!source) return undefined

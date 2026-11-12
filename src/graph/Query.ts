@@ -566,7 +566,7 @@ const universalKeys = ["id", "kind", "title", "source", "maturity", "status"]
 
 /**
  * What a query names that the workspace does not know, one line each with the closest word it does
- * know: an id no node has, a kind or relation it neither uses nor names in its vocabulary, an
+ * know: an id no node has, a kind or relation it neither uses, makes nor names in its vocabulary, an
  * attribute that no node its selector could match carries. Almost always a typo — and a typo in
  * an assertion that there is none of something would pass. Empty when every word is known.
  */
@@ -580,6 +580,7 @@ export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<str
   const relations = new Set([
     ...graph.relations().keys(),
     ...words.relations,
+    ...Object.values(made.relations),
     ...words.disciplines.map((discipline) => activityRelation(vocabulary, discipline))
   ])
   const everywhere = new Set([...universalKeys, ...made.attributes, ...made.scenarioAttributes, ...words.attributes, ...relations])

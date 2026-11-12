@@ -262,8 +262,8 @@ Feature: Link specs into one graph
 
   Rule: What sdp derives cannot be written, wherever a node is declared
 
-    A stage is read from what ran, and a kind such as `missing` or `code` from what sdp found:
-    written by hand, either would claim what nothing showed.
+    A stage is read from what ran, and a kind such as `missing` or `code` or a link such as
+    `imports` from what sdp found: written by hand, any of them would claim what nothing showed.
 
     Scenario Outline: A stage written on a spec, a rule, a scenario or in code
       Given a file "<file>" containing:
@@ -302,6 +302,26 @@ Feature: Link specs into one graph
         | derived-attribute | REQ-pay | src/pay.py:1          | sdp makes the nodes of kind code itself    |
       And node "REQ-a" has attribute kind = "requirement"
       And node "REQ-pay" has attribute kind = "element"
+
+    Scenario: A link sdp makes itself, written in a spec and in code
+      Given a file "specs/ARCH-a.feature" containing:
+        """
+        @id=ARCH-a @imports:ARCH-b
+        Feature: A
+        """
+      And a file "src/b.py" containing:
+        """
+        # @sdp is ARCH-b
+        # @sdp rule-of ARCH-a
+        def b(): pass
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule              | node            | at                     | message                            |
+        | derived-attribute | ARCH-a          | specs/ARCH-a.feature:1 | sdp makes the imports links itself |
+        | derived-attribute | code:src/b.py#b | src/b.py:2             | sdp makes the rule-of links itself |
+      When I query "* -imports|rule-of-> *"
+      Then the result is "nothing"
 
   Rule: A link cannot take the name of an attribute, wherever it is declared
 
