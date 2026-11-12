@@ -25,7 +25,8 @@ import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
 import { commitResults } from "../run/Store.ts"
 import { loadConfig, loadProject, loadSteps, loadWorkspace, readFiles, type Workspace } from "../workspace/Workspace.ts"
-import { type Answer, problemLine, unread } from "./Answer.ts"
+import { problemLine } from "../model/Diagnostic.ts"
+import { type Answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })

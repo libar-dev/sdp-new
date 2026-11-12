@@ -11,8 +11,7 @@
  */
 import { annotate } from "sdp/annotations"
 import type { Project } from "../graph/Build.ts"
-import type { Diagnostic, RuleId } from "../model/Diagnostic.ts"
-import { formatSource } from "../model/Graph.ts"
+import { type Diagnostic, problemLine, unreadRules } from "../model/Diagnostic.ts"
 
 annotate(import.meta, { is: "ARCH-reports" })
 
@@ -22,13 +21,6 @@ export interface Answer<A> {
   readonly notes: ReadonlyArray<string>
   readonly data: A
 }
-
-/** Rules that report part of the workspace as not read: what they name is not in the graph. */
-const unreadRules: ReadonlySet<RuleId> = new Set(["front-matter", "gherkin-syntax", "missing-id", "duplicate-id", "annotation-unreadable"])
-
-/** A diagnostic on one line: `file:line [rule] message`. */
-export const problemLine = (diagnostic: Diagnostic): string =>
-  `${formatSource(diagnostic.source) || "?"} [${diagnostic.rule}] ${diagnostic.message.replace(/\s*\n\s*/g, " ")}`
 
 /** What of the workspace's specs and code could not be read into the graph. */
 export const unread = (project: Project): ReadonlyArray<Diagnostic> => project.diagnostics.filter((diagnostic) => unreadRules.has(diagnostic.rule))

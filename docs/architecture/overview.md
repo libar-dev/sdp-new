@@ -122,6 +122,11 @@ Scenario: The uses links between elements are the imports between their modules
 Scenario: No element depends on itself through others
   Then no element reaches itself over "uses" links
 
+Scenario: Nothing depends on a transport, except the command line that starts the server
+  Then the query "#ARCH-cli <-uses- *" returns no results
+  And the query "#ARCH-mcp <-uses- *" returns:
+    | ARCH-cli |
+
 Scenario: The pipeline reads a workspace in memory as it reads one on disk
   Given a file "notes/NOTE-outside.md" containing:
     """

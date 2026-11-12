@@ -125,6 +125,12 @@ Rule: The record
     When the graph is exported
     Then the output has one line per node and edge
 
+  Scenario: The programmatic API answers with the same records, in the envelope of every answer
+    When a program asks the API for "requirement[maturity=ready]"
+    Then the output contains '"complete": true'
+    And the output field "data.nodes" holds "REQ-b"
+    And the output contains '"file": "specs/REQ-b.md"'
+
   Scenario: sdp graph prints the records
     When I run "sdp graph"
     Then the exit code is 0

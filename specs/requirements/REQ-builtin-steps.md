@@ -43,7 +43,10 @@ by accident. So a step fails, whatever it asserts, when its query
   typo. A rule about something the workspace does not have yet declares its word under
   `vocabulary.words` ([[REQ-configuration]]); then "there is none" is a statement, not an accident;
 - was cut short by a limit ([[ARCH-query-engine]]): what lies beyond it could prove the assertion
-  wrong. The message names the limit.
+  wrong. The message names the limit;
+- was asked of a graph that could not be fully read. Specs that do not parse stop the run before
+  any step ([[REQ-cli]]); a code annotation sdp cannot read statically does not, so the step says
+  which one, for the link it would have added is exactly what the assertion may be about.
 
 `sdp q` and the MCP tool run the same query without complaint and print the same observations as
 notes ([[REQ-cli]]): exploring is not asserting. Known everywhere are `id`, `kind`, `title`,
@@ -175,6 +178,25 @@ Scenario Outline: A word the vocabulary declares can be asserted absent
     | the query "incident" returns no results                    | passed |
     | the query "requirement[exposure=high]" returns no results  | passed |
     | the query "* -leaks-into-> *" returns no results           | failed |
+
+Scenario: A graph that could not be fully read proves nothing, so a query step fails
+  Given a file "src/search.ts" containing:
+    """
+    import { annotate } from "sdp/annotations"
+
+    export const search = () => []
+    const requirement = "REQ-search"
+    annotate(search, { implements: requirement })
+    """
+  And a file "specs/guard.feature" containing:
+    """
+    Feature: Guard
+      Scenario: Guard
+        Then the query "code -implements-> #REQ-search" returns no results
+    """
+  When the scenarios are run
+  Then the step 'the query "code -implements-> #REQ-search" returns no results' has status "failed"
+  And the step 'the query "code -implements-> #REQ-search" returns no results' reports "src/search.ts:5 [annotation-unreadable]"
 
 Scenario Outline: A query cut short by a limit proves nothing, so the step fails
   Given a chain of 14 nodes linked by "next"

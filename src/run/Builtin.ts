@@ -11,7 +11,7 @@ import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { parseQuery, projectQueryOptions, type Query, runQuery, unknownWords } from "../graph/Query.ts"
-import { isRuleId, rules, type Severity } from "../model/Diagnostic.ts"
+import { isRuleId, problemLine, rules, type Severity, unreadRules } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, made } from "../model/Vocabulary.ts"
 import { defineSteps, type StepContext } from "./Steps.ts"
@@ -42,14 +42,23 @@ const resultsRead = (project: Project, query: Query): ReadonlyArray<string> =>
 
 /**
  * Runs a query for an assertion, which must not pass for the wrong reason: a word the workspace
- * does not know is a typo until it is declared, a result cut short by a limit could be proved
- * wrong by what lies beyond it, and an ordinary scenario cannot see the results a condition names.
+ * does not know is a typo until it is declared, a graph that was not fully read or a result cut
+ * short by a limit could be proved wrong by what is missing, and an ordinary scenario cannot see
+ * the results a condition names.
  */
 const run = (context: Asserting, source: string): ReadonlyArray<GraphNode> => {
   const { project } = context
   const parsed = parseQuery(source)
   if (Result.isFailure(parsed)) throw new Error(`invalid query: ${parsed.failure.message}`)
   for (const attribute of resultsRead(project, parsed.success)) gatesOnly(context, `${attribute} in query "${source}"`)
+  const unread = project.diagnostics.filter((diagnostic) => unreadRules.has(diagnostic.rule))
+  if (unread.length > 0) {
+    throw new Error(
+      `query "${source}" was asked of a graph that could not be fully read, so its result proves nothing; fix: ${
+        unread.map(problemLine).join("; ")
+      }`
+    )
+  }
   const unknown = unknownWords(project, parsed.success)
   if (unknown.length > 0) {
     throw new Error(

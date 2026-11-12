@@ -10,10 +10,11 @@ import { strict as assert } from "node:assert"
 import { readFile } from "node:fs/promises"
 import { dirname, join, normalize } from "node:path"
 import { parseSync } from "oxc-parser"
+import * as Api from "../../src/index.ts"
 import * as Reading from "../../src/app/Reading.ts"
 import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
-import { graphRecords, jsonLines, mermaid } from "../../src/graph/Export.ts"
+import { graphRecords, jsonLines } from "../../src/graph/Export.ts"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
@@ -174,10 +175,12 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       world.output = jsonLines(graphRecords(project.graph))
     }))
 
-  When("the graph is drawn as a Mermaid flowchart", ({ world }) =>
-    Effect.map(load(world), (project) => {
-      world.output = mermaid(project.graph, project.config.vocabulary)
-    }))
+  // The programmatic API as a program calls it: `query` from the package's entry point, on these files.
+  When("a program asks the API for {string}", ({ args: [expression], world }) =>
+    Effect.map(Api.query(memoryRoot, { expression }), (answer) => {
+      world.output = JSON.stringify(answer, null, 2)
+      world.scratch.stdout = world.output
+    }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
 
   // `\t` and `\n` in the expected text stand for a tab and a line break.
   Then("the output contains {string}", ({ args: [text], world }) => {
