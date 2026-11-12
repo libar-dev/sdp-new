@@ -152,7 +152,6 @@ Feature: sdp, shown by running it
       Examples:
         | prefix | kind        |
         | ARCH   | element     |
-        | PAT    | pattern     |
         | MS     | milestone   |
         | IT     | iteration   |
 
@@ -175,7 +174,16 @@ Feature: sdp, shown by running it
       And the query "feature|change[file!~^specs/(features|incoming)/]" returns no results
       And the query "change[file!~^specs/incoming/]" returns no results
       And the query "change !-changes-> *[file~^specs/features/]" returns no results
-      And the query "element|pattern[file!~^specs/architecture/]" returns no results
+
+  Rule: Architecture is a decision, a rule of a spec, or what sdp shows from the code's annotations
+
+    A rule this repository's code keeps is in specs/ARCHITECTURE.feature. An element is the code
+    anchored to it, and that code's doc comment says what it is for, so no prose about it can stop
+    being true.
+
+    Scenario: No spec declares an element
+      Then the query "element" returns at least 1 result
+      And the query "element|pattern[file]" returns no results
 
   Rule: A decision is in specs/decisions, and only what no feature's rule can hold is one
 

@@ -8,8 +8,9 @@ Feature: Link code to specs
   `sdp/annotations`, whose ids the compiler checks once `sdp types` has declared them; in any
   language it can be a comment.
 
-  Not a discovery of the architecture: sdp links what an annotation states and infers nothing from
-  names, imports or the layout of files.
+  Not a discovery of the architecture: an element is what an annotation states, never inferred
+  from names, imports or the layout of files; between the elements stated, sdp derives which
+  imports which (see-the-architecture).
 
   Background:
     Given these specs:

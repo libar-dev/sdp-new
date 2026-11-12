@@ -211,7 +211,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
 export const loadProject = Effect.fn("loadProject")(function*(root: string, options: { readonly withResults?: boolean } = {}) {
   return (yield* loadWorkspace(root, { results: options.withResults === false ? "none" : "all" })).project
 })
-annotate(loadProject, { is: "ARCH-workspace", "instance-of": "PAT-pipes-and-filters" })
+annotate(loadProject, { is: "ARCH-workspace" })
 
 /** sdp's package exports (see package.json), as the files of the running sdp. */
 const sdpExports = new Map([

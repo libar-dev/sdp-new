@@ -8,7 +8,8 @@
  * Each role has a default word, and a workspace renames a role under
  * `vocabulary:` in its configuration (configure-a-workspace). `sdp vocabulary`
  * prints the active profile. Words sdp makes itself (the `scenario` and `code`
- * kinds, derived attributes such as `stage`) are fixed and listed here too.
+ * kinds, derived attributes such as `stage`, the `imports` between elements)
+ * are fixed and listed here too.
  */
 import { annotate } from "sdp/annotations"
 
@@ -130,8 +131,12 @@ export const made = {
     /** What an unresolved reference points at. */
     missing: "missing"
   },
-  /** From a rule to the spec it is a rule of. */
-  relations: { rule: "rule-of" },
+  relations: {
+    /** From a rule to the spec it is a rule of. */
+    rule: "rule-of",
+    /** From an element to one it calls: a module anchored to the first imports a value from a module anchored to the second. */
+    imports: "imports"
+  },
   /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
   /** Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error. */
@@ -246,7 +251,7 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     scenarioAttributes: made.scenarioAttributes,
     /** The attributes of a rule node. */
     ruleAttributes: made.ruleAttributes,
-    /** The relations sdp makes between the nodes it makes and their specs. */
+    /** The relations sdp makes: from a rule to its spec, and from an element to those it imports code from. */
     relations: Object.values(made.relations),
     /** The Cucumber tags sdp reads. */
     tags: Object.values(made.tags),

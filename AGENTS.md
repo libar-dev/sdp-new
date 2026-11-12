@@ -37,9 +37,12 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   - `decisions/` — few. Only a choice that is hard to reverse, surprising without context and a
     real trade-off, and that spans features: a title and one to three sentences. A reason that
     concerns one feature is written under the rule it explains.
-  - `architecture/` — the elements code is anchored to, and the rules between them.
+  - Architecture is a decision when it is significant and universal, a rule in a spec otherwise —
+    `ARCHITECTURE` holds the rules this repository's code keeps — or a view sdp generates from the
+    code's annotations (`sdp arch`): an element is the code anchored to it, that code's doc comment
+    says what it is for, and sdp derives which element imports which. No architecture is prose.
   - `plan/` — the order of incoming work: iterations and the milestone they lead to, MVP first.
-  - `VISION` and `GUIDE` are about the whole; `ask-the-graph` is the example to follow.
+  - `VISION`, `GUIDE` and `ARCHITECTURE` are about the whole; `ask-the-graph` is the example to follow.
 - A feature is written as a requirements document would be: under its name, who needs what and
   why, then what it is not; a `Rule:` per requirement, quality ones included, stated as what a user
   can observe, with its reason under it; its scenarios are the acceptance examples. It names a

@@ -256,7 +256,7 @@ Feature: Configure a workspace
         | data.vocabulary.kinds.decision | adr                                                                                          |
         | data.vocabulary.maturity       | idea, draft, specified, ready                                                                |
         | data.made.kinds                | scenario, rule, code, missing                                                                |
-        | data.made.relations            | rule-of                                                                                      |
+        | data.made.relations            | rule-of, imports                                                                             |
         | data.made.tags                 | @gate, @serial, @open                                                                        |
         | data.made.stages               | failing, in-progress, verified                                                               |
         | data.made.attributes           | stage, verification, scenarios, summary, file, openQuestions                                 |

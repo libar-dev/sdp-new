@@ -1,10 +1,11 @@
 @id=see-the-architecture @maturity=ready
-@realized-by:ARCH-architecture-view @realized-by:ARCH-reports
+@realized-by:ARCH-architecture-view @realized-by:ARCH-reports @realized-by:ARCH-graph-builder @realized-by:ARCH-code-annotations
 Feature: See the architecture
 
   Architects, and anyone designing a change, person or agent, need the few elements and patterns
-  that shape the system, the decisions and quality requirements around them and the code that is
-  each of them, in one view: `sdp arch`, or the MCP tool `sdp_architecture`.
+  that shape the system, the decisions and quality requirements around them, the code that is
+  each of them and which of them it calls, in one view: `sdp arch`, or the MCP tool
+  `sdp_architecture`.
 
   Not a discovery of the architecture: sdp never judges what belongs in it. Nor are quality
   requirements a document apart: they are specs, and their scenarios run with the rest.
@@ -34,6 +35,14 @@ Feature: See the architecture
       export class MailTemplates {}
       annotate(Mailer, { is: "ARCH-mailer" })
       """
+    And a file "src/orders.ts" containing:
+      """
+      import { annotate } from "sdp/annotations"
+      import { Mailer } from "./mailer.ts"
+
+      export const place = () => new Mailer()
+      annotate(place, { is: "ARCH-orders" })
+      """
 
   Rule: The architecture is every element and pattern declared in a spec or anchored in code, with the decisions and quality requirements linked to it, and nothing else
 
@@ -41,13 +50,14 @@ Feature: See the architecture
     constrain many others — is a judgement, not a metric of the code, and a list of every
     abstraction buries them. A decision only named in a description is not linked.
 
-    Scenario: Elements and patterns from specs and code, with the decisions and quality requirements linked to them
+    Scenario: Elements and patterns from specs and code, with the decisions and quality requirements linked to them, and the links among them
       When I run "sdp arch --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox |
-        | data.drivers      | DEC-outbox, NFR-latency                            |
-        | data.anchors      | code:src/mailer.ts#Mailer                          |
+        | data.architecture | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox      |
+        | data.drivers      | DEC-outbox, NFR-latency                                 |
+        | data.anchors      | code:src/mailer.ts#Mailer, code:src/orders.ts#place     |
+        | data.edges.rel    | constrained-by, decided-by, imports, instance-of, is, is |
 
   Rule: Each element is shown with what it is for, from its spec or else from the doc comment of its code, and with its links
 
@@ -65,14 +75,65 @@ Feature: See the architecture
         ARCH-orders -decided-by-> DEC-outbox  Orders publish events through an outbox
         ARCH-orders -instance-of-> PAT-outbox  Transactional outbox
         ARCH-orders -constrained-by-> NFR-latency  Order latency
+        ARCH-orders -imports-> ARCH-mailer  ARCH-mailer
+        ARCH-orders <-is- code:src/orders.ts#place  place
 
         PAT-outbox — Transactional outbox (pattern)
         PAT-outbox <-instance-of- ARCH-orders  Orders
 
         ARCH-mailer — ARCH-mailer (element)
         Sends receipts, and retries while the provider is down.
+        ARCH-mailer <-imports- ARCH-orders  Orders
         ARCH-mailer <-is- code:src/mailer.ts#Mailer  Mailer
         """
+
+    Scenario: An element anchored in two places is described by each, in the order of their files
+      Given a file "src/outbox.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+
+        /** Keeps each receipt until the provider has taken it. */
+        export const outbox = new Set<string>()
+        annotate(outbox, { is: "ARCH-mailer" })
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains:
+        """
+        ARCH-mailer — ARCH-mailer (element)
+        Sends receipts, and retries while the provider is down.
+        Keeps each receipt until the provider has taken it.
+        """
+
+  Rule: sdp derives which element imports which from the code
+
+    An element imports another when a module anchored to it imports a function, a class or a
+    constant from a module anchored to the other; an import of types alone calls no code of it.
+    Derived, the dependencies cannot drift from the code, and none is written by hand (link-specs).
+    Only TypeScript and JavaScript are read for imports: code in any other language imports no
+    element.
+
+    Scenario Outline: The billing module imports from the mailer's module
+      Given a file "src/billing.ts" containing:
+        """
+        import { annotate } from "sdp/annotations"
+        <import>
+
+        export const bill = () => 0
+        annotate(bill, { is: "ARCH-billing" })
+        """
+      When I query "#ARCH-billing -imports-> *"
+      Then the result is "<imports>"
+
+      Examples:
+        | import                                     | imports     |
+        | import { Mailer } from "./mailer.ts"       | ARCH-mailer |
+        | import { Mailer } from "./mailer.js"       | ARCH-mailer |
+        | import { Mailer } from "./mailer"          | ARCH-mailer |
+        | export { Mailer } from "./mailer.ts"       | ARCH-mailer |
+        | const mailer = () => import("./mailer.ts") | ARCH-mailer |
+        | import type { Mailer } from "./mailer.ts"  | nothing     |
+        | import { type Mailer } from "./mailer.ts"  | nothing     |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 
@@ -81,6 +142,7 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains "flowchart LR"
       And the output contains "-->|decided-by|"
+      And the output contains "-->|imports|"
 
   Rule: A quality requirement, of kind nfr or of any kind whose type says so, is shown beside what it constrains
 

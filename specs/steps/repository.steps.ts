@@ -1,12 +1,12 @@
 /**
  * What is specific to this repository: the guards over its own source — the words only the
- * vocabulary profile may name, the imports between its elements, the lines its graph points at —
+ * vocabulary profile may name, the cycles between its elements, the lines its graph points at —
  * the immutable graph, and the time its pipeline takes.
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { readdir, readFile } from "node:fs/promises"
-import { dirname, join, normalize, relative } from "node:path"
+import { join, relative } from "node:path"
 import { parseSync } from "oxc-parser"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../../src/model/Graph.ts"
@@ -16,35 +16,6 @@ import type { Project } from "../../src/graph/Build.ts"
 import { existsSync } from "node:fs"
 import { rules } from "../../src/model/Diagnostic.ts"
 import { newWorld, reload, type World } from "./world.ts"
-
-/**
- * `A -rel-> B` for every value import from a module anchored to element A to a module anchored to
- * element B: the dependencies between elements as the code has them. A module is anchored by an
- * anchor annotation; an import or re-export of types alone calls nothing, so it does not count.
- */
-const importsBetweenElements = async (project: Project, rel: string): Promise<ReadonlyArray<string>> => {
-  const anchor = project.config.vocabulary.relations.anchor
-  const elementsOf = new Map<string, Set<string>>()
-  for (const annotation of project.annotations.filter((a) => a.rel === anchor)) {
-    elementsOf.set(annotation.file, new Set([...(elementsOf.get(annotation.file) ?? []), ...annotation.targets]))
-  }
-  const links = new Set<string>()
-  for (const [file, elements] of elementsOf) {
-    const content = await readFile(join(project.root, file), "utf8")
-    const { module } = parseSync(file, content)
-    const imported = [
-      ...module.staticImports.filter((i) => i.entries.length === 0 || i.entries.some((entry) => !entry.isType)).map((i) => i.moduleRequest.value),
-      ...module.staticExports.flatMap((e) => e.entries.flatMap((entry) => entry.moduleRequest && !entry.isType ? [entry.moduleRequest.value] : [])),
-      ...module.dynamicImports.map((i) => content.slice(i.moduleRequest.start + 1, i.moduleRequest.end - 1))
-    ]
-    for (const specifier of imported.filter((specifier) => specifier.startsWith("."))) {
-      for (const used of elementsOf.get(normalize(join(dirname(file), specifier))) ?? []) {
-        for (const element of elements) if (element !== used) links.add(`${element} -${rel}-> ${used}`)
-      }
-    }
-  }
-  return [...links].sort()
-}
 
 type Node = { readonly type: string; readonly start: number; readonly [key: string]: unknown }
 
@@ -149,12 +120,13 @@ const builtGraph = (world: World) => {
 /**
  * Every node and link of the graph, followed back to its file and line: those whose line does not
  * exist, and the links whose line does not name their target. A scenario's link to its spec is
- * made by sdp, at the scenario's line: no author wrote an id there.
+ * made by sdp, at the scenario's line, and an element's import at the line that names the module:
+ * no author wrote an id there.
  */
 const followed = async (project: Project) => {
   const { config, graph, root } = project
   // A scenario's edges and a rule's edge to its spec are at their keyword line, which names neither end.
-  const structural = [config.vocabulary.relations.scenario, made.relations.rule]
+  const structural = [config.vocabulary.relations.scenario, made.relations.rule, made.relations.imports]
   const lines = new Map<string, ReadonlyArray<string>>()
   const lineAt = async (source: SourceRef | undefined) => {
     if (!source) return undefined
@@ -198,21 +170,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(found, "search the files first")
     assert.deepEqual([...found].sort(), expected.split(",").map((s) => s.trim()).filter((s) => s !== "nothing").sort())
   })
-
-  Then("the {string} links between elements are the value imports between the modules anchored to them", ({ args: [rel], project }) =>
-    Effect.promise(async () => {
-      const architectural = (id: string) => hasKind(project.config.vocabulary, "architectural", project.graph.node(id)?.kind ?? "")
-      const declared = project.graph.edges()
-        .filter((edge) => edge.rel === rel && architectural(edge.from) && architectural(edge.to))
-        .map((edge) => `${edge.from} -${rel}-> ${edge.to}`)
-      const imported = await importsBetweenElements(project, rel)
-      const undeclared = imported.filter((link) => !declared.includes(link))
-      const unfounded = declared.filter((link) => !imported.includes(link))
-      assert.deepEqual(
-        { "imported but not declared": undeclared, "declared but not imported": unfounded },
-        { "imported but not declared": [], "declared but not imported": [] }
-      )
-    }))
 
   Then("no element reaches itself over {string} links", ({ args: [rel], project }) => {
     const elements = project.graph.nodes().filter((n) => hasKind(project.config.vocabulary, "architectural", n.kind))
