@@ -9,6 +9,7 @@ const Word = Schema.String
 /** The `vocabulary:` section: every role is optional and replaces its default. */
 const VocabularyFile = Schema.Struct({
   kinds: Schema.optional(Schema.Struct({
+    feature: Schema.optional(Words),
     decision: Schema.optional(Words),
     milestone: Schema.optional(Words),
     phase: Schema.optional(Words),

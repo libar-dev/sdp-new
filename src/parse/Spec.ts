@@ -8,7 +8,7 @@ import { Predicate, Result } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
-import { isLinkKey, made } from "../model/Vocabulary.ts"
+import { isLinkKey, made, wordFor } from "../model/Vocabulary.ts"
 import { type GherkinError, type GherkinResult, type LinkDecl, type Paragraph, parseFeatureFile, type Rule, type Scenario } from "./Gherkin.ts"
 
 /** A Rule or a Scenario tagged `@open`: its name is the question. */
@@ -144,7 +144,7 @@ export const writtenKind = (
   return undefined
 }
 
-/** `REQ-foo` → `requirement` when the config maps that prefix; otherwise `spec`. */
+/** `REQ-foo` → `requirement` when the config maps that prefix; otherwise, as `guest-checkout`, a feature. */
 export const inferKind = (id: string, config: Config): string => {
   const prefix = /^([A-Za-z]+)[-_]/.exec(id)?.[1]
   if (prefix) {
@@ -152,5 +152,5 @@ export const inferKind = (id: string, config: Config): string => {
       if (p.toLowerCase() === prefix.toLowerCase()) return kind
     }
   }
-  return "spec"
+  return wordFor(config.vocabulary.kinds.feature)
 }

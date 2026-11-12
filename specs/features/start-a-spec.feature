@@ -50,6 +50,60 @@ Feature: Start a spec
         | risk        | Outage      | specs/risks/RISK-outage.feature            | @id=RISK-outage                    | link it: @affects:REQ-… @mitigated-by:REQ-… @due:MS-…                                |
         | phase       | Hardening   | specs/delivery/PH-hardening.feature        | @id=PH-hardening                   | say under the title what this phase takes on, and why in this order                  |
 
+    Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
+      When I run "sdp new decision 'Use Postgres'"
+      Then the file "specs/decisions/use-postgres.feature" is:
+        """
+        @id=use-postgres @kind=decision
+        Feature: Use Postgres
+
+          Not <what a reasonable person would have chosen>, because <why>.
+        """
+      And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains"
+
+  Rule: A new feature and a change to one are work still to come: they start in specs/incoming, and the answer says how each is written
+
+    A feature is built when its scenarios pass, and a change once its rules have joined those of the
+    feature it changes; until then neither is what the product does. A change that names no feature
+    has no rules to join, so it is refused.
+
+    Scenario: A feature, and a change to it
+      When I run "sdp new feature 'Saved carts'"
+      Then the file "specs/incoming/saved-carts.feature" is:
+        """
+        @id=saved-carts @maturity=idea
+        Feature: Saved carts
+        """
+      And the output contains:
+        """
+        next: say under the title who needs what, and why, before any solution; then what it is not
+        next: write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples
+        next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
+        """
+      And the output contains "next: once its scenarios pass it is built: move it to specs/features/"
+      When I run "sdp new change 'Shared carts' --changes saved-carts"
+      Then the file "specs/incoming/shared-carts.feature" is:
+        """
+        @id=shared-carts @kind=change @changes:saved-carts @maturity=idea
+        Feature: Shared carts
+        """
+      And the output contains "next: say under the title what changes in saved-carts, for whom, and why"
+      And the output contains "next: once it is built its rules join those of saved-carts, and this file is deleted"
+
+    Scenario Outline: A change that names no feature
+      Given these specs:
+        | tags           | Feature |
+        | @id=REQ-search | Search  |
+      When I run "sdp new change 'Voice search' <arguments>"
+      Then the exit code is 1
+      And the output contains "a change names the feature it changes, and <found>"
+
+      Examples:
+        | arguments            | found                       |
+        |                      | it names none               |
+        | --changes REQ-search | REQ-search is a requirement |
+        | --changes voice      | no spec has the id voice    |
+
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 
     Kinds are the team's own words, not a list sdp keeps: a kind without a template gets a spec with
@@ -57,16 +111,17 @@ Feature: Start a spec
 
     Scenario: A kind without a template
       When I run "sdp new --help"
-      Then the output contains "requirement, idea, nfr, decision, element, pattern, milestone, plan, phase, iteration, risk"
+      Then the output contains "feature, idea, change, decision, requirement, nfr, element, pattern, milestone, plan, phase, iteration, risk"
       And the output contains "idea (default), draft, specified or ready"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "GIZM-sprocket\tspecs/gizmo/GIZM-sprocket.feature"
       And the file "specs/gizmo/GIZM-sprocket.feature" contains "@id=GIZM-sprocket @kind=gizmo"
 
-  Rule: A new spec's id is the kind's prefix and an ASCII slug of its title, or a number, and its file is named by it
+  Rule: A new spec's id is an ASCII slug of its title, or a number, after its kind's prefix where it has one, and its file is named by it
 
-    An id says what it names, so whoever reads a message that cites it needs no lookup; only a title
-    with no letters to slug gets a number.
+    An id says what it names, so whoever reads a message that cites it needs no lookup. What a
+    feature, a change or a decision says is name enough: their kinds have no prefix unless the
+    workspace gives them one. Only a title with no letters to slug gets a number.
 
     Scenario Outline: By kind and title, or as --id and --dir say, relative to the workspace root or absolute
       When I run "sdp new <arguments>"
@@ -77,8 +132,9 @@ Feature: Start a spec
         | arguments                                                       | id                  | file                                           |
         | requirement 'Kasse für Gäste'                                   | REQ-kasse-fur-gaste | specs/requirements/REQ-kasse-fur-gaste.feature |
         | requirement 'Корзина'                                           | REQ-0001            | specs/requirements/REQ-0001.feature            |
-        | idea 'Gift wrapping'                                            | REQ-gift-wrapping   | specs/requirements/REQ-gift-wrapping.feature   |
-        | decision 'Ödeme yöntemi'                                        | DEC-odeme-yontemi   | specs/decisions/DEC-odeme-yontemi.feature      |
+        | idea 'Gift wrapping'                                            | gift-wrapping       | specs/incoming/gift-wrapping.feature           |
+        | feature 'Корзина'                                               | feature-0001        | specs/incoming/feature-0001.feature            |
+        | decision 'Ödeme yöntemi'                                        | odeme-yontemi       | specs/decisions/odeme-yontemi.feature          |
         | risk 'Vendor lock-in'                                           | RISK-vendor-lock-in | specs/risks/RISK-vendor-lock-in.feature        |
         | requirement 'Gift cards' --id REQ-vouchers --dir specs/payments | REQ-vouchers        | specs/payments/REQ-vouchers.feature            |
         | requirement 'Gift cards' --dir $PWD/specs/payments              | REQ-gift-cards      | specs/payments/REQ-gift-cards.feature          |
@@ -109,18 +165,19 @@ Feature: Start a spec
 
     Scenario: Every template, at its first maturity level and above it
       Given specs created from the sdp new templates:
-        | kind        | title         | maturity  |
-        | requirement | Wishlist      | idea      |
-        | idea        | Gift wrapping |           |
-        | element     | Orders        |           |
-        | pattern     | Outbox        |           |
-        | phase       | Elaboration   |           |
-        | milestone   | Launch        |           |
-        | risk        | Outage        |           |
-        | requirement | Gift cards    | draft     |
-        | requirement | Returns       | specified |
-        | nfr         | Availability  | ready     |
-        | decision    | Use Postgres  |           |
+        | kind        | title         | maturity  | changes       |
+        | requirement | Wishlist      | idea      |               |
+        | idea        | Gift wrapping |           |               |
+        | change      | Gift messages |           | gift-wrapping |
+        | element     | Orders        |           |               |
+        | pattern     | Outbox        |           |               |
+        | phase       | Elaboration   |           |               |
+        | milestone   | Launch        |           |               |
+        | risk        | Outage        |           |               |
+        | requirement | Gift cards    | draft     |               |
+        | requirement | Returns       | specified |               |
+        | nfr         | Availability  | ready     |               |
+        | decision    | Use Postgres  |           |               |
       When the workspace is checked
       Then sdp reports:
         | rule                 | node             | line |
@@ -129,7 +186,7 @@ Feature: Start a spec
         | maturity-criteria    | REQ-returns      | 1    |
         | template-placeholder | REQ-returns      | 4    |
         | template-placeholder | NFR-availability | 4    |
-        | template-placeholder | DEC-use-postgres | 4    |
+        | template-placeholder | use-postgres     | 4    |
 
     Scenario: From specified on, the file has a rule with a scenario to fill in
       When I run "sdp new nfr 'Checkout latency' --maturity specified"
@@ -146,17 +203,6 @@ Feature: Start a spec
               Then <response measure, e.g. confirmation is shown within 300 ms at p95>
         """
       And the output contains "next: fill in the rule and its scenario: Given the source and environment, When the stimulus, Then the response and its measure"
-
-    Scenario: A decision starts as the sentence it must become
-      When I run "sdp new decision 'Use Postgres'"
-      Then the file "specs/decisions/DEC-use-postgres.feature" is:
-        """
-        @id=DEC-use-postgres
-        Feature: Use Postgres
-
-          Not <what a reasonable person would have chosen>, because <why>.
-        """
-      And the output contains "next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off"
 
   Rule: Text a template wrote is flagged until it is filled in, once per spec, at the first
 

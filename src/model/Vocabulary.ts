@@ -19,6 +19,8 @@ export type Words = ReadonlyArray<string>
 export interface Vocabulary {
   /** Kinds sdp reads meaning into; each role lists the kinds that play it. */
   readonly kinds: {
+    /** Features: what a user can do, one spec each. An id with no prefix sdp knows names one, and a change changes one. */
+    readonly feature: Words
     /** Decisions: a title and a sentence, shown with what rests on them. */
     readonly decision: Words
     /** Milestones: their scenarios are gates, and `met` records that the gate passed. */
@@ -73,6 +75,7 @@ export interface Vocabulary {
 /** What an empty configuration means. */
 export const defaultVocabulary: Vocabulary = {
   kinds: {
+    feature: ["feature"],
     decision: ["decision"],
     milestone: ["milestone"],
     phase: ["phase"],

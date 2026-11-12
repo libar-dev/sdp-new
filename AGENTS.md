@@ -28,11 +28,12 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   a plan of work that is done, a note nobody acts on — is not written, and is deleted where found.
 - `specs/` is organised by what a spec is for:
   - `features/` — what sdp does, one file per feature, named for what its users do
-    (`ask-the-graph`, `@kind=feature`). The file is the feature's requirements document and its
-    test suite at once: every rule has an example, and every example passes.
+    (`ask-the-graph`: an id with no prefix is a feature's). The file is the feature's requirements
+    document and its test suite at once: every rule has an example, and every example passes.
   - `incoming/` — what is still to come: a new feature, or a change to a built one
-    (`@kind=change @changes:<feature>`). A new feature moves to `features/` when its scenarios
-    pass; a change's rules move into the feature it changes, and the change is deleted.
+    (`@kind=change @changes:<feature>`), which `sdp new feature` and `sdp new change --changes`
+    write here. A new feature moves to `features/` when its scenarios pass; a change's rules move
+    into the feature it changes, and the change is deleted.
   - `decisions/` — few. Only a choice that is hard to reverse, surprising without context and a
     real trade-off, and that spans features: a title and one to three sentences. A reason that
     concerns one feature is written under the rule it explains.
@@ -45,7 +46,8 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
   technology only where users see one: a command, an output, a bound an answer reports.
 - An id names what it is, so that a reader of a message that cites it needs no lookup:
   `files-are-the-source-of-truth`, not `DEC-0003`; `IT-packaging`, not `E2`. A feature, a change
-  and a decision say their kind with `@kind=`; elements, milestones and iterations keep a prefix.
+  and a decision have no prefix: a feature is what an id without one names, and a change and a
+  decision say their kind with `@kind=`. Elements, milestones and iterations keep a prefix.
 - A decision that changes is rewritten or deleted: its history is git's.
 - One word for one thing: a word this repository replaced does not come back.
 

@@ -45,11 +45,11 @@ Feature: Guest checkout
   neither is a Cucumber tag, and one whose key is not a word (`@1st=x`) is an error. Above
   `Feature:` they are about the spec, above `Rule:` about the rule, above `Scenario:` about the
   scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is
-  not written. A key written twice is a list, `@owner.team=core` nests, and a value that reads
-  back as a number is one. Annotations are not tags: they are not inherited, not matched by
-  `--tags` and not part of a scenario's hash, so re-planning a spec leaves the results of its
-  scenarios valid — except those of scenarios that read the graph, which any change to a spec
-  makes stale.
+  not written, and an id with no prefix sdp knows is a feature's. A key written twice is a list,
+  `@owner.team=core` nests, and a value that reads back as a number is one. Annotations are not
+  tags: they are not inherited, not matched by `--tags` and not part of a scenario's hash, so
+  re-planning a spec leaves the results of its scenarios valid — except those of scenarios that
+  read the graph, which any change to a spec makes stale.
 - **The Feature is the node**: its name is the title, its first paragraph the intent.
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
@@ -61,8 +61,9 @@ Feature: Guest checkout
   waits on someone is written this way, on the spec it concerns, never kept in a chat or an
   agent's memory: `sdp q 'rule[tags~open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
-  what it is — `DEC-use-postgres`, `IT-payments`, not `DEC-0007` or `E2` — so that whoever reads a
-  message citing it needs no lookup.
+  what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `DEC-0007` or `E2` — so that
+  whoever reads a message citing it needs no lookup. A feature, a change and a decision need no
+  prefix; the other kinds keep theirs.
 
 The sharp edges of the format, each what the official parser does:
 
@@ -146,8 +147,8 @@ faster than grepping for a guess.
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
 
-Plain grep is still right for what tags make literal: `grep -rn '@id=DEC-use-postgres'` is the
-declaration, `grep -rn ':DEC-use-postgres\b'` every link to it, `grep -rn -A1 '@open'` every open question.
+Plain grep is still right for what tags make literal: `grep -rn '@id=use-postgres'` is the
+declaration, `grep -rn ':use-postgres\b'` every link to it, `grep -rn -A1 '@open'` every open question.
 
 **An answer says when it is incomplete.** If sdp could not read a file, dropped a tag it could not
 read as written, or cut a traversal short, it prints `incomplete:` and `note:` lines on stderr and exits with code 2; with `--json` the
@@ -158,9 +159,10 @@ typed does not exist and which one is closest.
 
 ## Changing behaviour
 
-1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new requirement "…"`
-   writes the file and says what to write in it next. What a user sees belongs to a requirement;
-   how one part does its job belongs to that element.
+1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"`
+   for what is still to build, `sdp new change "…" --changes <feature>` for a change to a built
+   one, each written to `specs/incoming` with what to write in it next. What a user sees belongs
+   to a feature; how one part does its job belongs to that element.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for

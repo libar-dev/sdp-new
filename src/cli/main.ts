@@ -321,10 +321,10 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a requirement at maturity idea). Any other kind gets the generic template`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a feature at maturity idea). Any other kind gets the generic template`
       )
     ),
-    title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it (decisions and risks are numbered)")),
+    title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it")),
     id: Flag.String("id").pipe(Flag.withDescription("Use this id instead of one made from the title"), Flag.optional),
     maturity: Flag.String("maturity").pipe(
       Flag.withDescription("Start at this maturity — idea (default), draft, specified or ready, or your configured ladder; from specified on the file has a scenario to fill in"),
@@ -333,16 +333,18 @@ const newCommand = Command.make(
     dir: Flag.String("dir").pipe(
       Flag.withDescription("Directory to write to, relative to the workspace root or absolute (default depends on kind)"),
       Flag.optional
-    )
+    ),
+    changes: Flag.String("changes").pipe(Flag.withDescription("The id of the feature a change changes; a change needs it"), Flag.optional)
   },
-  Effect.fn(function*({ dir, id, kind, maturity, title }) {
+  Effect.fn(function*({ changes, dir, id, kind, maturity, title }) {
     const root = yield* workspaceRoot
     const created = yield* Authoring.create(root, {
       kind,
       title,
       id: Option.getOrUndefined(id),
       maturity: Option.getOrUndefined(maturity),
-      dir: Option.getOrUndefined(dir)
+      dir: Option.getOrUndefined(dir),
+      changes: Option.getOrUndefined(changes)
     })
     yield* Console.log(`${created.id}\t${created.file}`)
     for (const line of created.next) yield* Console.error(Text.c.dim(`next: ${line}`))
@@ -350,13 +352,14 @@ const newCommand = Command.make(
   })
 ).pipe(
   Command.withDescription(
-    `Create a spec, decision, element, plan, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
+    `Create a feature, change, decision, element, plan, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
   ),
   Command.withExamples([
-    { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
-    { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a requirement at maturity idea" },
-    { command: "sdp new plan 'Delivery plan'", description: "The plan; each phase and iteration is a file of its own" },
-    { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision: a title and a sentence" }
+    { command: "sdp new feature 'Saved carts' --maturity draft", description: "A feature still to build, with who needs it and why to write" },
+    { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a feature at maturity idea" },
+    { command: "sdp new change 'Shared carts' --changes saved-carts", description: "A change to a built feature: its rules join that feature's once built" },
+    { command: "sdp new decision 'Use Postgres for orders'", description: "A decision: a title and a sentence" },
+    { command: "sdp new plan 'Delivery plan'", description: "The plan; each phase and iteration is a file of its own" }
   ])
 )
 

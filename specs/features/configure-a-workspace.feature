@@ -90,10 +90,11 @@ Feature: Configure a workspace
       Then the file "out/results.json" contains '"REQ-cart#a-new-cart-is-empty"'
       And node "REQ-cart" has attribute verification = "passing"
 
-  Rule: An id's prefix says its kind, in any case, before - or _, and an unknown one is a spec; ids adds prefixes or renames them
+  Rule: An id's prefix says its kind, in any case, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
     So an id says what it is wherever it is cited, and a team's own prefixes name the specs sdp new
-    writes.
+    writes. Most specs are features, and a feature is named by what it says, so its id needs no
+    prefix.
 
     Scenario Outline: The default prefixes, and two that are none
       Given these specs:
@@ -115,8 +116,8 @@ Feature: Configure a workspace
         | PH-construction     | phase       |
         | IT-beta             | iteration   |
         | req_guest_login     | requirement |
-        | TODO-1              | spec        |
-        | checkout            | spec        |
+        | TODO-1              | feature     |
+        | checkout            | feature     |
 
     Scenario: A prefix of the team's own, beside the defaults
       Given a file "sdp.config.yaml" containing:
@@ -135,8 +136,9 @@ Feature: Configure a workspace
   @decided-by:free-vocabulary
   Rule: The vocabulary says which of the team's words play the roles sdp interprets, and every command reads them
 
-    A team keeps its own words, and sdp still knows which nodes are the architecture and what shapes
-    it, which are decisions and milestones, and which links plan work into iterations.
+    A team keeps its own words, and sdp still knows which nodes are its features, which are the
+    architecture and what shapes it, which are decisions and milestones, and which links plan work
+    into iterations.
 
     Scenario: A component plays the role of the architecture, an ADR that of a decision, and a risk that of a driver
       Given a file "sdp.config.yaml" containing:
@@ -212,7 +214,7 @@ Feature: Configure a workspace
         """
         ids: { adr: ADR, era: ERA }
         vocabulary:
-          kinds: { decision: [adr], milestone: [checkpoint], phase: [era], iteration: [sprint], driver: [adr, nfr] }
+          kinds: { feature: [story], decision: [adr], milestone: [checkpoint], phase: [era], iteration: [sprint], driver: [adr, nfr] }
           relations: { plan: [sprint], phase: [part-of], closes: [ends], anchor: implements-element }
           attributes: { start: from, end: until }
         """
@@ -224,10 +226,14 @@ Feature: Configure a workspace
         sdp new era Elaboration
         sdp new sprint Baseline --id IT-baseline
         sdp new checkpoint Launch
+        sdp new story Wishlist
+        sdp new change 'Shared wishlists' --changes wishlist
         """
       Then the exit code is 0
       And the file "specs/delivery/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
       And the file "specs/delivery/CHEC-launch.feature" contains "@ends:ERA-elaboration"
+      And the file "specs/incoming/wishlist.feature" contains "@id=wishlist @maturity=idea"
+      And the file "specs/incoming/shared-wishlists.feature" contains "@changes:wishlist"
       When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
       Then the output lines are "IT-baseline"
       When I run "sdp check --json"
