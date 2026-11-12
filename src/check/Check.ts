@@ -12,7 +12,7 @@
  *   specified  at least one scenario stating an outcome (`Then`)
  *   ready      no open questions, every scenario has an outcome, gherkin parses
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { Project } from "../graph/Build.ts"

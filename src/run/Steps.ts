@@ -17,7 +17,7 @@
  *   // cart.steps.ts and checkout.steps.ts
  *   export default defineSteps(newWorld, ({ Given }) => { ... })
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Data, Effect } from "effect"
 import { fileURLToPath } from "node:url"
 import type { Project } from "../graph/Build.ts"

@@ -12,7 +12,7 @@
  * The discipline × iteration activity matrix is computed from that work, so
  * the familiar "hump chart" reflects the actual plan instead of a drawing.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { GraphNode } from "../model/Graph.ts"
 import type { Project } from "../graph/Build.ts"

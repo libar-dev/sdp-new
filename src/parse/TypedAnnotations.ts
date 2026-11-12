@@ -1,14 +1,17 @@
 /**
  * Reads typed annotations — `annotate(target, links, declaration?)` calls
- * imported from "sdp/annotations" — out of TypeScript and JavaScript source.
- * Statically: the code is parsed, never run. Only literal ids and attributes
- * count; anything computed is reported as unreadable rather than guessed.
+ * imported from "sdp/annotations" (or "sdp") — out of TypeScript and JavaScript
+ * source. Statically: the code is parsed, never run. Only literal ids and
+ * attributes count; anything computed is reported as unreadable rather than
+ * guessed, and so is a file that does not parse. A call counts where its name
+ * still refers to the import: a parameter or declaration of the same name in an
+ * enclosing scope shadows it, as it would at run time.
  *
  * The annotated symbol's JSDoc (or the module's leading JSDoc for
  * `import.meta`) comes along as its description, so the code's own words reach
  * the graph and the context bundles.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { parseSync } from "oxc-parser"
 import type { Annotation } from "./Annotations.ts"
 
@@ -31,8 +34,11 @@ export interface TypedScan {
 
 const empty: TypedScan = { annotations: [], problems: [] }
 
-/** "sdp", "sdp/annotations", or a relative path to an annotations module (sdp's own source). */
-const annotationModule = /^sdp(\/annotations)?$|(^|\/)annotations(\.[cm]?[jt]sx?)?$/
+/** The modules that export `annotate`: the package and its dependency-free subpath. */
+const annotationModules: ReadonlySet<string> = new Set(["sdp", "sdp/annotations"])
+
+/** One of them named in a string literal: a file that means to annotate, even when it does not parse. */
+const mentionsAnnotationModule = /["'`]sdp(\/annotations)?["'`]/
 
 const languageOf = (file: string): "ts" | "tsx" | "js" | "jsx" | undefined => {
   const ext = /\.([cm]?[jt]sx?)$/.exec(file)?.[1]
@@ -49,25 +55,6 @@ const isNode = (value: unknown): value is Node =>
 export const scanTypedAnnotations = (file: string, content: string): TypedScan => {
   const lang = languageOf(file)
   if (!lang || !content.includes("annotate")) return empty
-  const parsed = parseSync(file, content, { lang, sourceType: "module" })
-  if (parsed.errors.length > 0) return empty
-  const program = parsed.program as unknown as Node & { readonly body: ReadonlyArray<Node> }
-
-  // Local names bound to `annotate`, and namespaces whose `.annotate` is it.
-  const direct = new Set<string>()
-  const namespaces = new Set<string>()
-  for (const statement of program.body) {
-    if (statement.type !== "ImportDeclaration") continue
-    const source = (statement.source as { value: string }).value
-    if (!annotationModule.test(source)) continue
-    for (const spec of statement.specifiers as ReadonlyArray<Node>) {
-      const local = (spec.local as { name: string }).name
-      if (spec.type === "ImportSpecifier" && importedName(spec) === "annotate") direct.add(local)
-      if (spec.type === "ImportNamespaceSpecifier") namespaces.add(local)
-    }
-  }
-  if (direct.size === 0 && namespaces.size === 0) return empty
-
   const lineStarts = [0]
   for (let i = 0; i < content.length; i++) if (content[i] === "\n") lineStarts.push(i + 1)
   const lineOf = (offset: number) => {
@@ -80,6 +67,31 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
     }
     return lo + 1
   }
+
+  const parsed = parseSync(file, content, { lang, sourceType: "module" })
+  if (parsed.errors.length > 0) {
+    // Unread annotations would silently drop out of the graph: say so, for files that annotate.
+    if (!mentionsAnnotationModule.test(content)) return empty
+    const error = parsed.errors[0]!
+    const line = lineOf(error.labels[0]?.start ?? 0)
+    return { annotations: [], problems: [{ line, message: `the file does not parse, so its annotations cannot be read: ${error.message}` }] }
+  }
+  const program = parsed.program as unknown as Node & { readonly body: ReadonlyArray<Node> }
+
+  // Local names bound to `annotate`, and namespaces whose `.annotate` is it. Type-only imports bind no value.
+  const direct = new Set<string>()
+  const namespaces = new Set<string>()
+  for (const statement of program.body) {
+    if (statement.type !== "ImportDeclaration" || statement.importKind === "type") continue
+    if (!annotationModules.has((statement.source as { value: string }).value)) continue
+    for (const spec of statement.specifiers as ReadonlyArray<Node>) {
+      const local = (spec.local as { name: string }).name
+      if (spec.type === "ImportSpecifier" && spec.importKind !== "type" && importedName(spec) === "annotate") direct.add(local)
+      if (spec.type === "ImportNamespaceSpecifier") namespaces.add(local)
+    }
+  }
+  if (direct.size === 0 && namespaces.size === 0) return empty
+  const imported = new Set([...direct, ...namespaces])
 
   const jsdocs = (parsed.comments as ReadonlyArray<{ type: string; value: string; start: number; end: number }>)
     .filter((c) => c.type === "Block" && c.value.startsWith("*"))
@@ -106,19 +118,22 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
 
   const annotations: Array<TypedAnnotation> = []
   const problems: Array<TypedAnnotationProblem> = []
-  const visit = (node: Node) => {
-    if (node.type === "CallExpression" && isAnnotate(node.callee as Node, direct, namespaces)) {
+  // `shadowed`: imported names that an enclosing scope declares again, so there they mean something else.
+  const visit = (node: Node, shadowed: ReadonlySet<string>) => {
+    const redeclared = scopeNames(node).filter((name) => imported.has(name) && !shadowed.has(name))
+    const inner = redeclared.length === 0 ? shadowed : new Set([...shadowed, ...redeclared])
+    if (node.type === "CallExpression" && isAnnotate(unwrap(node.callee as Node)!, direct, namespaces, inner)) {
       read(node)
       return
     }
     for (const value of Object.values(node)) {
-      if (Array.isArray(value)) for (const child of value) isNode(child) && visit(child)
-      else if (isNode(value)) visit(value)
+      if (Array.isArray(value)) for (const child of value) isNode(child) && visit(child, inner)
+      else if (isNode(value)) visit(value, inner)
     }
   }
   const read = (call: Node) => {
     const line = lineOf(call.start)
-    const [target, links, declaration] = call.arguments as ReadonlyArray<Node | undefined>
+    const [target, links, declaration] = (call.arguments as ReadonlyArray<Node | undefined>).map(unwrap)
     const problem = (message: string) => problems.push({ line, message })
     let symbol: string | undefined
     if (target?.type === "MetaProperty") symbol = undefined
@@ -158,7 +173,7 @@ export const scanTypedAnnotations = (file: string, content: string): TypedScan =
       })
     }
   }
-  visit(program)
+  visit(program, new Set())
   return { annotations, problems }
 }
 annotate(scanTypedAnnotations, { is: "ARCH-code-annotations" })
@@ -168,10 +183,113 @@ const importedName = (spec: Node): string | undefined => {
   return imported?.name ?? imported?.value
 }
 
-const isAnnotate = (callee: Node, direct: ReadonlySet<string>, namespaces: ReadonlySet<string>) =>
-  (callee.type === "Identifier" && direct.has(callee.name as string)) ||
-  (callee.type === "MemberExpression" && !callee.computed && (callee.object as Node).type === "Identifier" &&
-    namespaces.has((callee.object as Node).name as string) && ((callee.property as Node).name as string) === "annotate")
+const isAnnotate = (callee: Node, direct: ReadonlySet<string>, namespaces: ReadonlySet<string>, shadowed: ReadonlySet<string>) => {
+  if (callee.type === "Identifier") return direct.has(callee.name as string) && !shadowed.has(callee.name as string)
+  if (callee.type !== "MemberExpression" || callee.computed) return false
+  const object = callee.object as Node
+  return object.type === "Identifier" && namespaces.has(object.name as string) && !shadowed.has(object.name as string) &&
+    (callee.property as Node).name === "annotate"
+}
+
+/** Wrappers that change only types: parentheses, `as const`, `satisfies T`, `<T>x`, `x!`. */
+const typeOnly = new Set(["ParenthesizedExpression", "TSAsExpression", "TSSatisfiesExpression", "TSTypeAssertion", "TSNonNullExpression"])
+
+const unwrap = (node: Node | undefined): Node | undefined => node && typeOnly.has(node.type) ? unwrap(node.expression as Node) : node
+
+const functions = new Set(["FunctionDeclaration", "FunctionExpression", "ArrowFunctionExpression"])
+
+/**
+ * The names a node binds for the code inside it: a function's own name (for an
+ * expression), parameters and `var`s; a block's `let`, `const`, `class` and
+ * function declarations; a loop head's declarations; a catch parameter.
+ */
+const scopeNames = (node: Node): ReadonlyArray<string> => {
+  switch (node.type) {
+    case "FunctionDeclaration":
+    case "FunctionExpression":
+    case "ArrowFunctionExpression": {
+      const own = node.type === "FunctionExpression" && isNode(node.id) ? [node.id.name as string] : []
+      const params = (node.params as ReadonlyArray<Node>).flatMap(boundNames)
+      return [...own, ...params, ...(isNode(node.body) ? hoisted(node.body) : [])]
+    }
+    case "ClassExpression":
+      return isNode(node.id) ? [node.id.name as string] : []
+    case "CatchClause":
+      return isNode(node.param) ? boundNames(node.param) : []
+    case "BlockStatement":
+      return (node.body as ReadonlyArray<Node>).flatMap(lexicalNames)
+    case "StaticBlock":
+    case "TSModuleBlock":
+      return [...(node.body as ReadonlyArray<Node>).flatMap(lexicalNames), ...hoisted(node)]
+    case "SwitchStatement":
+      return (node.cases as ReadonlyArray<Node>).flatMap((c) => (c.consequent as ReadonlyArray<Node>).flatMap(lexicalNames))
+    case "ForStatement":
+      return isNode(node.init) ? lexicalNames(node.init) : []
+    case "ForInStatement":
+    case "ForOfStatement":
+      return lexicalNames(node.left as Node)
+    default:
+      return []
+  }
+}
+
+/** Value names a statement declares in its block (type-only declarations bind none). */
+const lexicalNames = (statement: Node): ReadonlyArray<string> => {
+  const declared = statement.type === "ExportNamedDeclaration" ? statement.declaration : statement
+  if (!isNode(declared)) return []
+  switch (declared.type) {
+    case "VariableDeclaration":
+      return (declared.declarations as ReadonlyArray<Node>).flatMap((d) => boundNames(d.id as Node))
+    case "FunctionDeclaration":
+    case "TSDeclareFunction":
+    case "ClassDeclaration":
+    case "TSEnumDeclaration":
+    case "TSModuleDeclaration":
+    case "TSImportEqualsDeclaration":
+      return isNode(declared.id) && declared.id.type === "Identifier" ? [declared.id.name as string] : []
+    default:
+      return []
+  }
+}
+
+/** `var`s declared anywhere in a body but not in a nested function: they are bound throughout it. */
+const hoisted = (body: Node): ReadonlyArray<string> => {
+  const names: Array<string> = []
+  const walk = (node: Node) => {
+    if (node.type === "VariableDeclaration" && node.kind === "var") {
+      names.push(...(node.declarations as ReadonlyArray<Node>).flatMap((d) => boundNames(d.id as Node)))
+    }
+    for (const value of Object.values(node)) {
+      for (const child of Array.isArray(value) ? value : [value]) {
+        if (isNode(child) && !functions.has(child.type) && child.type !== "StaticBlock") walk(child)
+      }
+    }
+  }
+  walk(body)
+  return names
+}
+
+/** The names a binding pattern declares: `a`, `{ a, b: c }`, `[a, ...b]`, `a = 1`, `private a`. */
+const boundNames = (pattern: Node): ReadonlyArray<string> => {
+  switch (pattern.type) {
+    case "Identifier":
+      return [pattern.name as string]
+    case "ObjectPattern":
+      return (pattern.properties as ReadonlyArray<Node>).flatMap(boundNames)
+    case "Property":
+      return boundNames(pattern.value as Node)
+    case "ArrayPattern":
+      return (pattern.elements as ReadonlyArray<Node | null>).flatMap((element) => element ? boundNames(element) : [])
+    case "AssignmentPattern":
+      return boundNames(pattern.left as Node)
+    case "RestElement":
+      return boundNames(pattern.argument as Node)
+    case "TSParameterProperty":
+      return boundNames(pattern.parameter as Node)
+    default:
+      return []
+  }
+}
 
 const symbolName = (node: Node): string | undefined => {
   if (node.type === "Identifier") return node.name as string
@@ -190,6 +308,7 @@ const propertyKey = (property: Node): string | undefined => {
 
 /** A literal string, number or boolean, or an array of string literals; undefined for anything computed. */
 const literal = (node: Node): string | number | boolean | ReadonlyArray<string> | undefined => {
+  node = unwrap(node)!
   if (node.type === "Literal" && ["string", "number", "boolean"].includes(typeof node.value)) {
     return node.value as string | number | boolean
   }
@@ -200,7 +319,6 @@ const literal = (node: Node): string | number | boolean | ReadonlyArray<string> 
     const values = (node.elements as ReadonlyArray<Node | null>).map((element) => element && literal(element))
     return values.every((v): v is string => typeof v === "string") ? values : undefined
   }
-  if (node.type === "TSAsExpression" || node.type === "TSSatisfiesExpression") return literal(node.expression as Node)
   return undefined
 }
 

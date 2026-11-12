@@ -3,7 +3,7 @@
  * a failure: that is how a specification of something not yet built looks.
  * Statuses then roll up into each spec's `verification` and `stage`.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Cause, DateTime, Duration, Effect, Exit, Predicate } from "effect"
 import { isAbsolute, relative } from "node:path"
 import type { Project } from "../graph/Build.ts"

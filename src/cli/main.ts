@@ -3,7 +3,7 @@
  * default and JSON with `--json`, so people and agents use the same tool.
  */
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "effect"

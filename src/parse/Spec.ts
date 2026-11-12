@@ -3,7 +3,7 @@
  * covers an idea written in one line and a fully designed, executable
  * specification: maturity is a property of the content, not of the format.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import type { Diagnostic } from "../model/Diagnostic.ts"

@@ -14,7 +14,10 @@ import { isRuleId, rules, type Severity } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { defineSteps } from "./Steps.ts"
 
-/** Runs a query, refusing names nothing uses: a typo must not make an assertion pass vacuously. */
+/**
+ * Runs a query, refusing names nothing uses — a typo must not make an assertion pass vacuously —
+ * and results cut short by a limit: what lies beyond the limit could prove the assertion wrong.
+ */
 const run = (project: Project, source: string): ReadonlyArray<GraphNode> => {
   const parsed = parseQuery(source)
   if (Result.isFailure(parsed)) throw new Error(`invalid query: ${parsed.failure.message}`)
@@ -31,7 +34,13 @@ const run = (project: Project, source: string): ReadonlyArray<GraphNode> => {
       }`
     )
   }
-  return runQuery(project.graph, parsed.success, { orderings: projectOrderings(project.config.maturity) }).nodes
+  const result = runQuery(project.graph, parsed.success, { orderings: projectOrderings(project.config.maturity) })
+  if (result.truncated) {
+    throw new Error(
+      `query "${source}" was cut short (${result.limits.join("; ")}), so its result is incomplete and proves nothing; narrow the query`
+    )
+  }
+  return result.nodes
 }
 
 const severities: Record<string, Severity> = { error: "error", errors: "error", warning: "warning", warnings: "warning", info: "info" }

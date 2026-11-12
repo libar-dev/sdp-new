@@ -3,7 +3,7 @@
  * truth; the graph is a derived, disposable index that can be rebuilt at any
  * time (and exported for grep/jq). Building is pure: no IO happens here.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"

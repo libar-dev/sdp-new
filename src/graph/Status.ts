@@ -1,4 +1,4 @@
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { architectureSummary } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { isGate, type Project } from "./Build.ts"

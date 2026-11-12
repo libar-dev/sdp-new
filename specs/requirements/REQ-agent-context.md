@@ -30,8 +30,8 @@ tool `sdp_context` — and gets a single Markdown document with everything neede
    scenarios;
 8. the decisions within reach that still apply, each with what was decided — its `## Decision`
    section — while superseded, rejected and deprecated records are left out;
-9. the code linked by `@sdp` annotations within reach, each with its `file:line`, symbol and what it
-   links to.
+9. the code linked by annotations within reach — typed `annotate` calls or `@sdp` comments
+   ([[ARCH-code-annotations]]) — each with its `file:line`, symbol and what it links to.
 
 Only curated architecture is included. An element or pattern that no architect marked significant
 is design detail: it shows up as a direct relationship, never as architecture — the bundle does not

@@ -4,7 +4,7 @@
  * one virtual Feature, parsed and compiled by the official Cucumber parser, with
  * every line mapped back to the Markdown file.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"
 import { IdGenerator } from "@cucumber/messages"

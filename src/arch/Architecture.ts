@@ -6,7 +6,7 @@
  * and the decisions and quality requirements around it, and can suggest
  * candidates for an architect to consider.
  */
-import { annotate } from "../annotations.ts"
+import { annotate } from "sdp/annotations"
 import { Predicate } from "effect"
 import type { GraphEdge, GraphNode } from "../model/Graph.ts"
 import type { Project } from "../graph/Build.ts"

@@ -30,10 +30,13 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
   unknown id selects nothing). All conditions must hold, whether written in one `[…]` group,
   separated by commas, or in several groups.
 - **Values.** `id`, `kind`, `title` and `source` (`file:line`) are keys like any attribute; `a.b`
-  reaches into a nested attribute. Equality and regexes ignore case. A list matches when any of its
-  elements does. `false`, empty and missing values count as absent: `!key` and `key!=v` match them,
-  ordering never does. `<` and `>` compare along the maturity, stage and verification ladders,
-  then as numbers, then as text — so ISO dates order correctly. `|` separates alternatives except
+  reaches into a nested attribute. A bare `key` asks whether the key is set: missing, `null`,
+  `false`, empty text and empty lists are not, so `!key` finds them. Equality and regexes compare
+  the value itself, ignoring case — `key=false`, `key=0` and `key=""` find exactly those values —
+  and `key!=v` also matches nodes where the key is missing or `null`, which have no value to
+  compare. A list matches when any of its elements does. `<` and `>` compare only set values,
+  along the maturity, stage and verification ladders, then as numbers, then as text — so ISO dates
+  order correctly. `|` separates alternatives except
   in a regex; quote a value, in single or double quotes, when it contains a comma or a literal `|`.
   A regex may contain brackets.
 - **Edges.** `-rel->` follows outgoing edges, `<-rel-` incoming ones, `-rel-` both. `*` or nothing
@@ -43,7 +46,7 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
   that have none; neither moves.
 - **Results.** The result is the distinct end nodes; with `--paths`, every route that reached them,
   each hop with its direction and a closure hop written `-rel+->`. Evaluation is bounded, and a
-  result cut short says so ([[ARCH-query-engine]]).
+  result cut short says so and names the limit, even when it is empty ([[ARCH-query-engine]]).
 - **Errors.** A malformed query is rejected with a reason before anything runs.
 
 ```sh
@@ -97,6 +100,9 @@ Scenario Outline: Conditions compare attribute values
     | query                               | result                    |
     | element[significant]                | ARCH-orders               |
     | element[!significant]               | ARCH-billing, ARCH-ledger |
+    | element[significant=false]          | ARCH-billing              |
+    | element[significant!=false]         | ARCH-orders, ARCH-ledger  |
+    | element[significant=TRUE]           | ARCH-orders               |
     | element[significant, title~order]   | ARCH-orders               |
     | element[significant][title~order]   | ARCH-orders               |
     | requirement[tags=web]               | REQ-checkout              |
@@ -119,6 +125,39 @@ Scenario Outline: Conditions compare attribute values
     | *[id~^req-]                         | REQ-checkout, REQ-refunds |
     | *[source=model.md:7]                | ARCH-orders               |
     | *[owner.team=core]                  | ARCH-ledger               |
+
+Scenario Outline: Unset is told apart from false, zero and empty text
+  Given a file "flags.md" containing:
+    """
+    ---
+    id: FLAGS
+    kind: flags
+    nodes:
+      - { id: F-missing, kind: flag }
+      - { id: F-null, kind: flag, value: null }
+      - { id: F-false, kind: flag, value: false }
+      - { id: F-zero, kind: flag, value: 0 }
+      - { id: F-empty, kind: flag, value: "" }
+      - { id: F-none, kind: flag, value: [] }
+      - { id: F-true, kind: flag, value: true }
+    ---
+    # Flags
+    """
+  When I query '<query>'
+  Then the result is "<result>"
+
+  Examples:
+    | query              | result                                              |
+    | flag[value]        | F-zero, F-true                                      |
+    | flag[!value]       | F-missing, F-null, F-false, F-empty, F-none         |
+    | flag[value=false]  | F-false                                             |
+    | flag[value!=false] | F-missing, F-null, F-zero, F-empty, F-none, F-true  |
+    | flag[value=0]      | F-zero                                              |
+    | flag[value=""]     | F-empty                                             |
+    | flag[value!=""]    | F-missing, F-null, F-false, F-zero, F-none, F-true  |
+    | flag[value=null]   | nothing                                             |
+    | flag[value~^f]     | F-false                                             |
+    | flag[value<1]      | F-zero                                              |
 
 Scenario Outline: Edges follow relations in either direction
   When I query "<query>"
