@@ -128,6 +128,11 @@ Scenario: -C selects the workspace
   Then the output contains "REQ-export"
   And the output does not contain "REQ-search"
 
+Scenario: A workspace that does not exist is an error
+  When I run "sdp -C nowhere status"
+  Then the exit code is 1
+  And the output contains "no such directory"
+
 Scenario: A broken configuration is reported in one line that names the file
   Given a file "broken/sdp.config.yaml" containing:
     """
@@ -182,6 +187,17 @@ Scenario: new writes a spec from a template and refuses an existing id
   When I run "sdp new requirement 'Saved carts'"
   Then the exit code is 1
   And the output contains "id REQ-saved-carts already exists"
+
+Scenario Outline: Ids are readable ASCII, whatever the title's language
+  When I run "sdp new <kind> '<title>'"
+  Then the output contains "<id>\t<file>"
+
+  Examples:
+    | kind        | title           | id                  | file                                    |
+    | requirement | Kasse für Gäste | REQ-kasse-fur-gaste | specs/requirements/REQ-kasse-fur-gaste.md |
+    | requirement | Корзина         | REQ-0001            | specs/requirements/REQ-0001.md          |
+    | decision    | Ödeme yöntemi   | DEC-0002            | docs/decisions/DEC-0002-odeme-yontemi.md |
+    | decision    | Оплата          | DEC-0002            | docs/decisions/DEC-0002.md              |
 
 Scenario: Everything the templates produce passes the check
   Given specs created from the sdp new templates:
@@ -399,16 +415,51 @@ Scenario: A failing scenario fails the run
   When I run "sdp run"
   Then the exit code is 1
   And the output contains "ARCH-cdn"
+
+Scenario: A target that matches nothing is an error, not an empty run
+  When I run "sdp run REQ-serach"
+  Then the exit code is 1
+  And the output contains "nothing matches REQ-serach"
 ~~~
 
 ### `sdp gate <milestone>`
 
-Runs one milestone's gate scenarios against the current graph and exits 1 unless all pass — the
-command a release pipeline calls (see the scenario above).
+Runs one milestone's gate scenarios against the current graph and exits 0 only when the milestone
+has gate scenarios and every one of them passed — an undefined or pending step leaves the milestone
+unmet. It is the command a release pipeline calls. An id without gate scenarios is an error.
 
 ```sh
 sdp gate MS-beta
 ```
+
+~~~gherkin
+Scenario: A gate whose steps are not all automated is not met
+  Given a file "docs/MS-release.md" containing:
+    """
+    ---
+    id: MS-release
+    kind: milestone
+    ---
+    # Release
+
+    ```gherkin
+    Scenario: The package is published
+      Given the release candidate is tagged
+    ```
+    """
+  When I run "sdp gate MS-release"
+  Then the exit code is 1
+  And the output contains "1 undefined"
+
+Scenario: Only milestones and @gate scenarios can be gates
+  When I run "sdp gate REQ-search"
+  Then the exit code is 1
+  And the output contains "REQ-search has no gate scenarios"
+
+Scenario: gate --json prints nothing but JSON
+  When I run "sdp gate MS-beta --json"
+  Then the output is valid JSON
+~~~
 
 ## Agents
 

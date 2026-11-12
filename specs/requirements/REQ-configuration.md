@@ -15,7 +15,8 @@ links:
 A workspace is the directory sdp reads. Its root may hold `sdp.config.yaml` (or `sdp.config.yml`,
 or `sdp.config.json`; the first one found wins). Every key is optional and an empty or missing file
 means the defaults, so sdp works in any repository before anyone configures it. A malformed file
-is an error that names the file and the offending key.
+— or a key sdp does not know, such as a misspelled `spec:` — is an error that names the file and
+the offending key.
 
 | Key | Default | Effect |
 | --- | --- | --- |
@@ -236,4 +237,13 @@ Scenario: A malformed configuration names the file and the key
     """
   Then loading the workspace fails with "sdp.config.yaml"
   And loading the workspace fails with 'at ["specs"]'
+
+Scenario: A misspelled key is an error, not a silent default
+  Given a file "sdp.config.yaml" containing:
+    """
+    spec: ["docs/**/*.md"]
+    """
+  Then loading the workspace fails with "sdp.config.yaml"
+  And loading the workspace fails with 'excess property'
+  And loading the workspace fails with 'at ["spec"]'
 ~~~

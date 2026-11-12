@@ -12,7 +12,7 @@ import { promisify } from "node:util"
 import { architectureView, rankCandidates } from "../../src/arch/Architecture.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
 import { exportGraph, type GraphFormat } from "../../src/graph/Export.ts"
-import { projectOrderings, query } from "../../src/graph/Query.ts"
+import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { lifecycle } from "../../src/lifecycle/Lifecycle.ts"
 import { check } from "../../src/check/Check.ts"
 import { registrations } from "../../src/mcp/Server.ts"
@@ -81,7 +81,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("I query {string}", ({ args: [q], world }) =>
     Effect.map(load(world), (project) => {
-      const result = query(project.graph, q, { orderings: projectOrderings(project.config.maturity) })
+      const result = queryProject(project, q)
       world.result = Result.isSuccess(result) ? result.success : undefined
       world.queryError = Result.isFailure(result) ? result.failure.message : undefined
     }))

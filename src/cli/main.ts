@@ -9,17 +9,17 @@ import { Console, DateTime, Effect, FileSystem, Option, Path, Result } from "eff
 import { Argument, Command, Flag } from "effect/cli"
 import { architectureSummary, architectureView, rankCandidates } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
-import type { Project } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { exportGraph, graphFormats, nodeJson } from "../graph/Export.ts"
-import { formatPath, projectOrderings, query, querySyntax } from "../graph/Query.ts"
+import { formatPath, queryProject, querySyntax } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { lifecycle, renderLifecycle } from "../lifecycle/Lifecycle.ts"
+import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import type { ScenarioResult } from "../run/Results.ts"
 import { summarize } from "../run/Runner.ts"
-import { runWorkspace } from "../run/Session.ts"
+import { isGate, runWorkspace } from "../run/Session.ts"
 import { loadConfig, loadProject, loadStepModules } from "../workspace/Workspace.ts"
 import { c, formatDiagnostic, formatScenario, nodeRows, table } from "./format.ts"
 import { agentsTemplate, configTemplate, newSpec } from "./templates.ts"
@@ -53,9 +53,6 @@ const fail = (message: string) =>
 
 const printJson = (value: unknown) => Console.log(JSON.stringify(value, null, 2))
 
-const runQuery = (project: Project, source: string) =>
-  query(project.graph, source, { orderings: projectOrderings(project.config.maturity) })
-
 // --- graph ------------------------------------------------------------------
 
 const graphCommand = Command.make(
@@ -73,7 +70,7 @@ const graphCommand = Command.make(
     const project = yield* loadProject(root)
     let graph = project.graph
     if (Option.isSome(select)) {
-      const result = runQuery(project, select.value)
+      const result = queryProject(project, select.value)
       if (Result.isFailure(result)) return yield* fail(result.failure.message)
       graph = graph.subgraph(result.success.paths.flatMap((p) => [p.start, ...p.steps.map((s) => s.node)]))
     }
@@ -102,7 +99,7 @@ const queryCommand = Command.make(
   },
   Effect.fn(function*({ expression, ids, json, paths }) {
     const project = yield* loadProject(yield* workspaceRoot)
-    const result = runQuery(project, expression)
+    const result = queryProject(project, expression)
     if (Result.isFailure(result)) return yield* fail(`query error: ${result.failure.message}`)
     const { nodes, truncated } = result.success
     if (json) return yield* printJson(paths ? result.success.paths : nodes.map(nodeJson))
@@ -170,8 +167,7 @@ const checkCommand = Command.make(
   },
   Effect.fn(function*({ json, severity }) {
     const project = yield* loadProject(yield* workspaceRoot)
-    const rank = { error: 0, warning: 1, info: 2 } as const
-    const diagnostics = check(project).filter((d) => rank[d.severity] <= rank[severity])
+    const diagnostics = check(project).filter((d) => atLeast(d.severity, severity))
     if (diagnostics.some((d) => d.severity === "error")) process.exitCode = 1
     if (json) return yield* printJson(diagnostics)
     for (const d of diagnostics) yield* Console.log(formatDiagnostic(d))
@@ -204,9 +200,12 @@ const executeRun = Effect.fn("executeRun")(function*(options: {
   const { gates, scenarios } = run
   const counts = summarize(scenarios)
   const gateCounts = summarize(gates)
-  // A gate that is not met yet is information, not a broken build; `sdp gate <id>` enforces it.
-  const failed = options.enforceGates ? gateCounts.failed + gateCounts.ambiguous : counts.failed + counts.ambiguous
-  if (failed > 0) process.exitCode = 1
+  // A gate that is not met yet is information, not a broken build; `sdp gate <id>` enforces it:
+  // a milestone is met only when it has gate scenarios and every one of them passed.
+  const failed = options.enforceGates
+    ? gates.length === 0 || gateCounts.passed < gates.length
+    : counts.failed + counts.ambiguous > 0
+  if (failed) process.exitCode = 1
   if (options.json) return yield* printJson({ summary: counts, gates: gateCounts, scenarios: [...scenarios, ...gates] })
   const describe = (c: Readonly<Record<string, number>>) =>
     Object.entries(c).filter(([, n]) => n > 0).map(([s, n]) => `${n} ${s}`).join(", ") || "none"
@@ -241,7 +240,11 @@ const gateCommand = Command.make(
     const project = yield* loadProject(yield* workspaceRoot)
     const node = project.graph.node(milestone)
     if (!node) return yield* fail(`no node ${milestone}`)
-    yield* Console.log(`${c.bold(node.id)} ${node.title}`)
+    const spec = project.specById.get(milestone)
+    if (!spec?.scenarios.some((scenario) => isGate(scenario, spec))) {
+      return yield* fail(`${milestone} has no gate scenarios: gates are the scenarios of milestones and scenarios tagged @gate`)
+    }
+    if (!json) yield* Console.log(`${c.bold(node.id)} ${node.title}`)
     yield* executeRun({ targets: [milestone], tags: Option.none(), json, snippets: false, verbose: false, enforceGates: true })
   })
 ).pipe(Command.withDescription("Evaluate a milestone's gate scenarios against the current graph"))
@@ -433,6 +436,8 @@ sdp.pipe(
   Effect.catchTags({
     ConfigError: (e) => fail(`${e.file}: invalid configuration: ${e.message.replace(/\s*\n\s*/g, " ")}`),
     StepLoadError: (e) => fail(`${e.file}: could not load step definitions: ${e.message}`),
+    UnknownTargets: (e) => fail(e.message),
+    WorkspaceNotFound: (e) => fail(e.message),
     PlatformError: (e) => fail(e.message)
   }),
   Effect.provide(NodeServices.layer),

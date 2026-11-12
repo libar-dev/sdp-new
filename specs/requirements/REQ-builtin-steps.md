@@ -31,7 +31,9 @@ as everything else, and need no code.
 
 Queries are SDPQ path patterns ([[REQ-graph-query]]). A failing step says what it expected and
 lists up to ten offending nodes with their `file:line`; a malformed query fails the step with the
-parser's message. The steps assert against the graph as it was when the run started, so ordinary
+parser's message. A typo must not make a negative assertion pass by matching nothing, so a query
+naming a kind or relation that nothing in the project uses fails the step — kinds sdp creates itself
+and kinds named in the configuration count as known — and so do an unknown severity or rule. The steps assert against the graph as it was when the run started, so ordinary
 scenarios see the results of earlier runs and gate scenarios those of the current one
 ([[REQ-executable-specs]]). Like any step, they match by text, whatever the keyword.
 
@@ -132,6 +134,10 @@ Scenario Outline: A built-in step that fails says why
     | the node "REQ-search" has maturity "ready"                  | REQ-search.maturity is "draft", expected "ready" |
     | the node "REQ-lost" has stage "verified"                    | no node REQ-lost                                 |
     | the query "requirement[" returns no results                 | invalid query                                    |
+    | the query "requirment" returns no results                   | names kind requirment, which no node has         |
+    | the query "* -realised-by-> *" returns no results           | names relation realised-by, which no edge has    |
+    | there are no eror diagnostics                               | unknown severity "eror"                          |
+    | there are no diagnostics for rule "decision-stats"          | unknown rule "decision-stats"                    |
 
 Scenario: A query result is compared with a table of ids
   Given a file "specs/guard.feature" containing:

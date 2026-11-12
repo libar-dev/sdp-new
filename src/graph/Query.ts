@@ -20,6 +20,7 @@
  */
 import { Data, Predicate, Result } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
+import type { Project } from "./Build.ts"
 
 // @sdp is ARCH-query-engine
 
@@ -479,3 +480,32 @@ export const projectOrderings = (maturity: ReadonlyArray<string>): Readonly<Reco
   stage: [...maturity, "in-progress", "verified"],
   verification: ["none", "unrun", "undefined", "pending", "failing", "passing"]
 })
+
+/** Query a project's graph with its maturity and stage ladders. */
+export const queryProject = (project: Project, source: string): Result.Result<QueryResult, QueryError> =>
+  query(project.graph, source, { orderings: projectOrderings(project.config.maturity) })
+
+/** Kinds sdp itself creates, or the configuration names, count as known even before any node has them. */
+const conventionalKinds = ["scenario", "code", "missing", "phase", "iteration", "milestone"]
+const conventionalRelations = ["verifies", "mentions", "is"]
+
+/**
+ * Kinds and relations a query names that nothing in the project uses — almost
+ * always a typo, and a typo in a negative assertion would otherwise pass.
+ */
+export const unknownNames = (project: Project, parsed: Query): { readonly kinds: ReadonlyArray<string>; readonly relations: ReadonlyArray<string> } => {
+  const { config, graph } = project
+  const knownKinds = new Set([
+    ...graph.kinds().keys(),
+    ...conventionalKinds,
+    ...Object.keys(config.ids),
+    ...config.architecture.kinds,
+    ...config.architecture.drivers,
+    ...Object.values(config.disciplines).flat()
+  ])
+  const knownRelations = new Set([...graph.relations().keys(), ...conventionalRelations])
+  const selectors = [parsed.start, ...parsed.steps.map((step) => step.node)]
+  const kinds = selectors.flatMap((selector) => selector.kinds === "*" ? [] : selector.kinds).filter((kind) => !knownKinds.has(kind))
+  const relations = parsed.steps.flatMap((step) => step.edge.rels === "*" ? [] : step.edge.rels).filter((rel) => !knownRelations.has(rel))
+  return { kinds: [...new Set(kinds)], relations: [...new Set(relations)] }
+}

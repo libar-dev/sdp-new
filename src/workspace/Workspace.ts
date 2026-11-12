@@ -19,6 +19,14 @@ export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError"
   message: Schema.String
 }) {}
 
+export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()("WorkspaceNotFound", {
+  root: Schema.String
+}) {
+  override get message() {
+    return `no such directory: ${this.root}`
+  }
+}
+
 export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoadError", {
   file: Schema.String,
   message: Schema.String
@@ -27,6 +35,7 @@ export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoad
 export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
+  if (!(yield* fs.exists(root))) return yield* new WorkspaceNotFound({ root })
   for (const name of configFileNames) {
     const file = path.join(root, name)
     if (!(yield* fs.exists(file))) continue
@@ -35,7 +44,8 @@ export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
       try: () => name.endsWith(".json") ? JSON.parse(text) : parseYaml(text) ?? {},
       catch: (e) => new ConfigError({ file: name, message: e instanceof Error ? e.message : String(e) })
     })
-    const decoded = yield* Schema.decodeUnknownEffect(ConfigFile)(raw).pipe(
+    // Unknown keys are errors: a misspelled `spec:` must not silently fall back to the defaults.
+    const decoded = yield* Schema.decodeUnknownEffect(ConfigFile)(raw, { onExcessProperty: "error" }).pipe(
       Effect.mapError((e) => new ConfigError({ file: name, message: e.message }))
     )
     return resolveConfig(decoded)

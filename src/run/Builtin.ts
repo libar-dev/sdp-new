@@ -9,15 +9,32 @@
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { projectOrderings, query } from "../graph/Query.ts"
+import { parseQuery, projectOrderings, runQuery, unknownNames } from "../graph/Query.ts"
+import { isRuleId, rules, type Severity } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { defineSteps } from "./Steps.ts"
 
+/** Runs a query, refusing names nothing uses: a typo must not make an assertion pass vacuously. */
 const run = (project: Project, source: string): ReadonlyArray<GraphNode> => {
-  const result = query(project.graph, source, { orderings: projectOrderings(project.config.maturity) })
-  if (Result.isFailure(result)) throw new Error(`invalid query: ${result.failure.message}`)
-  return result.success.nodes
+  const parsed = parseQuery(source)
+  if (Result.isFailure(parsed)) throw new Error(`invalid query: ${parsed.failure.message}`)
+  const unknown = unknownNames(project, parsed.success)
+  if (unknown.kinds.length > 0) {
+    throw new Error(
+      `query "${source}" names kind ${unknown.kinds.join(", ")}, which no node has; kinds in use: ${[...project.graph.kinds().keys()].join(", ")}`
+    )
+  }
+  if (unknown.relations.length > 0) {
+    throw new Error(
+      `query "${source}" names relation ${unknown.relations.join(", ")}, which no edge has; relations in use: ${
+        [...project.graph.relations().keys()].join(", ")
+      }`
+    )
+  }
+  return runQuery(project.graph, parsed.success, { orderings: projectOrderings(project.config.maturity) }).nodes
 }
+
+const severities: Record<string, Severity> = { error: "error", errors: "error", warning: "warning", warnings: "warning", info: "info" }
 
 const list = (nodes: ReadonlyArray<GraphNode>, max = 10) =>
   nodes.slice(0, max).map((n) => `  - ${n.id} (${n.kind}) ${formatSource(n.source)}`).join("\n") +
@@ -61,7 +78,8 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
   })
 
   Then("there are no {word} diagnostics", ({ args: [severity], project }) => {
-    const wanted = severity.replace(/s$/, "")
+    const wanted = severities[severity]
+    if (!wanted) throw new Error(`unknown severity "${severity}"; use error, warning or info`)
     const found = check(project).filter((d) => d.severity === wanted)
     if (found.length > 0) {
       throw new Error(
@@ -71,6 +89,7 @@ export const builtinSteps = defineSteps(() => ({}), ({ Then }) => {
   })
 
   Then("there are no diagnostics for rule {string}", ({ args: [rule], project }) => {
+    if (!isRuleId(rule)) throw new Error(`unknown rule "${rule}"; rules: ${Object.keys(rules).join(", ")}`)
     const found = check(project).filter((d) => d.rule === rule)
     if (found.length > 0) throw new Error(found.map((d) => `  - ${d.message} ${formatSource(d.source)}`).join("\n"))
   })

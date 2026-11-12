@@ -77,6 +77,7 @@ Scenario: A malformed query comes back as a tool error that teaches the syntax
   Then the MCP tool reports an error
   And the output contains "query error"
   And the output contains "SDPQ path patterns"
+  And the output does not contain '"query error'
 
 Scenario Outline: An unknown id is a tool error
   When an agent calls the MCP tool "<tool>" with:

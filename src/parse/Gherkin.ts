@@ -220,8 +220,10 @@ const parserErrors = (error: unknown, mapLine: (line: number) => number): Readon
 
 const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : `@${tag.replace(/\s+/g, "-")}`
 
+/** Lower-case ASCII words joined by `-`; accents are dropped first, so "für Gäste" → "fur-gaste". */
 export const slugify = (text: string): string =>
-  text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 64).replace(/-+$/, "")
+  text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+    .slice(0, 64).replace(/-+$/, "")
 
 const hashPickles = (pickles: ReadonlyArray<Pickle>): string =>
   createHash("sha1")

@@ -8,10 +8,9 @@
 import { Duration, Effect, Layer, Path } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
-import { readdir, readFile } from "node:fs/promises"
-import { join } from "node:path"
 import { isDeepStrictEqual } from "node:util"
 import { registrations } from "../../src/mcp/Server.ts"
+import { rules } from "../../src/model/Diagnostic.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
 import type { StepResult } from "../../src/run/Results.ts"
 import { runScenarios } from "../../src/run/Runner.ts"
@@ -251,17 +250,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   // --- this repository ------------------------------------------------------
 
-  Then("every rule sdp reports has an example in this spec", ({ project, scenario }) =>
-    Effect.tryPromise(async () => {
-      const src = join(project.root, "src")
-      const rules = new Set<string>()
-      for (const file of (await readdir(src, { recursive: true })).filter((f) => f.endsWith(".ts"))) {
-        for (const m of (await readFile(join(src, file), "utf8")).matchAll(/rule: "([\w-]+)",\s*severity:/g)) rules.add(m[1]!)
-      }
-      const spec = project.specById.get(scenario.specId)
-      const steps = (spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.map((step) => step.text))).join("\n")
-      const missing = [...rules].filter((rule) => !steps.includes(`"${rule}"`))
-      assert.ok(rules.size > 0, "found no rules in src/")
-      assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
-    }))
+  Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
+    const spec = project.specById.get(scenario.specId)
+    const steps = (spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.map((step) => step.text))).join("\n")
+    const missing = Object.keys(rules).filter((rule) => !steps.includes(`"${rule}"`))
+    assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
+  })
 })

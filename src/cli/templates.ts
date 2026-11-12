@@ -1,5 +1,5 @@
 /** File templates for `sdp new` and `sdp init`. Templates grow with the requested maturity. */
-import type { Config } from "../model/Config.ts"
+import { type Config, defaults } from "../model/Config.ts"
 import { slugify } from "../parse/Gherkin.ts"
 
 export const directoryFor: Record<string, string> = {
@@ -15,15 +15,17 @@ export const directoryFor: Record<string, string> = {
 
 export const newId = (kind: string, title: string, config: Config, existing: ReadonlyArray<string>): string => {
   const prefix = config.ids[kind] ?? kind.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4)
-  if (kind === "decision" || kind === "risk") {
-    const numbers = existing.map((id) => new RegExp(`^${prefix}-(\\d+)`).exec(id)?.[1]).filter(Boolean).map(Number)
+  const slug = slugify(title)
+  // Decisions and risks are numbered; so is anything whose title has no ASCII letters to slug.
+  if (kind === "decision" || kind === "risk" || slug === "") {
+    const numbers = existing.map((id) => new RegExp(`^${prefix}-(\\d+)$`).exec(id)?.[1]).filter(Boolean).map(Number)
     return `${prefix}-${String(Math.max(0, ...numbers) + 1).padStart(4, "0")}`
   }
-  return `${prefix}-${slugify(title)}`
+  return `${prefix}-${slug}`
 }
 
 export const fileNameFor = (kind: string, id: string, title: string) =>
-  /^\w+-\d+$/.test(id) && (kind === "decision" || kind === "risk") ? `${id}-${slugify(title)}.md` : `${id}.md`
+  /^\w+-\d+$/.test(id) && (kind === "decision" || kind === "risk") && slugify(title) !== "" ? `${id}-${slugify(title)}.md` : `${id}.md`
 
 /** What `sdp new` writes: the new node's id, its file (relative to the workspace root) and content. */
 export const newSpec = (options: {
@@ -172,17 +174,25 @@ Scenario: <the main success case>
   return sections.join("\n")
 }
 
-export const configTemplate = `# sdp configuration. Every key is optional; defaults shown.
-specs: ["**/*.md"]              # Markdown files with an \`id:\` in front matter become graph nodes
-features: ["**/*.feature"]      # classic Gherkin files (metadata in @id:… @kind:… tags)
-code: ["src/**/*"]              # scanned for "@sdp <rel> <ID>" comments
-steps: ["**/*.steps.ts"]        # step definition modules (export default defineSteps(...))
-results: .sdp/results.json
-maturity: [idea, draft, specified, ready]
-architecture:
-  kinds: [element, pattern]     # architectural abstractions; architects mark the significant ones
-  drivers: [decision, nfr]      # shown next to significant elements in \`sdp arch\`
-`
+const yamlList = (values: ReadonlyArray<string>) => `[${values.map((v) => JSON.stringify(v)).join(", ")}]`
+
+/** The defaults, commented out: an empty configuration behaves exactly like this file. */
+export const configTemplate = [
+  "# sdp configuration. Every key is optional; uncomment one to change its default.",
+  "# Keys are described in REQ-configuration (sdp context REQ-configuration).",
+  `# specs: ${yamlList(defaults.specs)}          # Markdown with an \`id:\` in front matter becomes a graph node`,
+  `# features: ${yamlList(defaults.features)}    # classic Gherkin files (@id:… @kind:… tags)`,
+  `# code: ${yamlList(defaults.code)}`,
+  "#   (scanned for @sdp comments that link code to the graph)",
+  `# steps: ${yamlList(defaults.steps)}    # step definition modules`,
+  `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
+  `# results: ${defaults.results}`,
+  `# maturity: [${defaults.maturity.join(", ")}]`,
+  "# architecture:",
+  `#   kinds: [${defaults.architecture.kinds.join(", ")}]     # abstractions architects may mark significant`,
+  `#   drivers: [${defaults.architecture.drivers.join(", ")}]  # shown next to significant elements in \`sdp arch\``,
+  ""
+].join("\n")
 
 export const agentsTemplate = `---
 id: AGENTS-sdp

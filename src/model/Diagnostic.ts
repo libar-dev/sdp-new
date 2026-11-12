@@ -2,9 +2,35 @@ import type { SourceRef } from "./Graph.ts"
 
 export type Severity = "error" | "warning" | "info"
 
+/**
+ * Every rule sdp can report, with its severity. Diagnostics can only name a
+ * rule listed here, so this is the complete catalogue (specified, with an
+ * example per rule, in REQ-check-rules).
+ */
+export const rules = {
+  "front-matter": "error",
+  "missing-id": "warning",
+  "duplicate-id": "error",
+  "dangling-link": "error",
+  "link-syntax": "warning",
+  "inline-node": "warning",
+  "gherkin-syntax": "error",
+  "scenario-empty": "warning",
+  "maturity-value": "warning",
+  "maturity-gate": "error",
+  "maturity-promotable": "info",
+  "decision-status": "warning",
+  "decision-supersede": "warning",
+  "decision-content": "info"
+} as const satisfies Record<string, Severity>
+
+export type RuleId = keyof typeof rules
+
+export const isRuleId = (value: string): value is RuleId => Object.hasOwn(rules, value)
+
 export interface Diagnostic {
-  /** Stable rule id, e.g. `maturity-gate`. Grep for it in docs to learn more. */
-  readonly rule: string
+  /** Stable rule id, e.g. `maturity-gate`. Grep for it in specs to learn more. */
+  readonly rule: RuleId
   readonly severity: Severity
   readonly message: string
   readonly node?: string | undefined
@@ -13,7 +39,10 @@ export interface Diagnostic {
   readonly hint?: string | undefined
 }
 
-const severityRank: Record<Severity, number> = { error: 0, warning: 1, info: 2 }
+export const severityRank: Readonly<Record<Severity, number>> = { error: 0, warning: 1, info: 2 }
+
+/** Whether `severity` is at least as severe as `minimum`. */
+export const atLeast = (severity: Severity, minimum: Severity): boolean => severityRank[severity] <= severityRank[minimum]
 
 export const sortDiagnostics = (diagnostics: ReadonlyArray<Diagnostic>): ReadonlyArray<Diagnostic> =>
   [...diagnostics].sort((a, b) =>

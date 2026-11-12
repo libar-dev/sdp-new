@@ -13,7 +13,10 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
   const notFound = (method: string, path: string) =>
     systemError({ _tag: "NotFound", module: "FileSystem", method, pathOrDescriptor: path })
   return FileSystem.makeNoop({
-    exists: (path) => Effect.succeed(files.has(rel(path)) || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))),
+    exists: (path) =>
+      Effect.succeed(
+        path === memoryRoot || files.has(rel(path)) || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))
+      ),
     readFileString: (path) => {
       const content = files.get(rel(path))
       return content === undefined ? Effect.fail(notFound("readFileString", path)) : Effect.succeed(content)

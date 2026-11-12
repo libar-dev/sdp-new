@@ -6,7 +6,7 @@
  * `FileSystem`, so executable specs run it in memory.
  */
 import parseTagExpression from "@cucumber/tag-expressions"
-import { type Duration, Effect } from "effect"
+import { type Duration, Effect, Schema } from "effect"
 import { isActive, type Project } from "../graph/Build.ts"
 import type { Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
@@ -39,6 +39,20 @@ export const selects = (selection: Selection) => {
     (tags === undefined || scenario.pickles.some((pickle) => tags.evaluate([...pickle.tags])))
 }
 
+/** Targets that name no spec, scenario, file or directory — usually a typo that would select nothing. */
+export class UnknownTargets extends Schema.TaggedError<UnknownTargets>()("UnknownTargets", {
+  targets: Schema.Array(Schema.String)
+}) {
+  override get message() {
+    return `nothing matches ${this.targets.join(", ")}: name a spec id, a scenario id, a file or a directory`
+  }
+}
+
+const unmatched = (project: Project, targets: ReadonlyArray<string>): ReadonlyArray<string> =>
+  targets.filter((target) =>
+    !project.specs.some((spec) => spec.scenarios.some((scenario) => selects({ targets: [target] })(scenario, spec)) || spec.id === target || spec.file === target)
+  )
+
 export interface WorkspaceRun {
   readonly scenarios: ReadonlyArray<ScenarioResult>
   readonly gates: ReadonlyArray<ScenarioResult>
@@ -59,6 +73,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     runScenarios({ project, modules: options.modules, filter: filter(gates), timeout: options.timeout, onScenario: options.onScenario })
 
   let project = yield* loadProject(root)
+  const unknown = unmatched(project, options.selection?.targets ?? [])
+  if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
   const ordinary = yield* run(project, false)
   let results = mergeResults(project.results, ordinary, project)
   yield* writeResults(root, project.config, results)

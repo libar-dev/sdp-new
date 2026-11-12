@@ -10,8 +10,9 @@ import { architectureSummary, architectureView } from "../arch/Architecture.ts"
 import { check } from "../check/Check.ts"
 import { contextBundle } from "../graph/Context.ts"
 import { nodeJson, statusCell } from "../graph/Export.ts"
-import { formatPath, projectOrderings, query, querySyntax } from "../graph/Query.ts"
+import { formatPath, queryProject, querySyntax } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
+import { atLeast } from "../model/Diagnostic.ts"
 import { formatSource } from "../model/Graph.ts"
 import { loadProject } from "../workspace/Workspace.ts"
 
@@ -19,7 +20,12 @@ import { loadProject } from "../workspace/Workspace.ts"
 
 const queryHelp = `SDPQ path patterns, one line:\n${querySyntax}`
 
-const text = { success: Schema.String, failure: Schema.String, failureMode: "return" as const }
+/** A tool failure the agent should read: delivered as an MCP tool error whose text is the message. */
+class SdpToolError extends Schema.TaggedError<SdpToolError>()("SdpToolError", { message: Schema.String }) {}
+
+const toolError = (message: string) => Effect.fail(new SdpToolError({ message }))
+
+const text = { success: Schema.String, failure: SdpToolError, failureMode: "error" as const }
 
 const SdpQuery = Tool.make("sdp_query", {
   description: `Query the system graph (specs, decisions, architecture, scenarios, code links).\n${queryHelp}`,
@@ -70,12 +76,12 @@ export const SdpToolkit = Toolkit.make(SdpQuery, SdpShow, SdpContext, SdpCheck, 
 const handlers = (root: string) =>
   SdpToolkit.toLayer(Effect.gen(function*() {
     const services = yield* Effect.context<FileSystem.FileSystem | Path.Path>()
-    const load = loadProject(root).pipe(Effect.provide(services), Effect.mapError((e) => `could not load workspace: ${String(e)}`))
+    const load = loadProject(root).pipe(Effect.provide(services), Effect.mapError((e) => new SdpToolError({ message: `could not load workspace: ${"file" in e ? `${e.file}: ` : ""}${e.message}` })))
     return SdpToolkit.of({
       sdp_query: ({ expression, paths }) =>
         Effect.flatMap(load, (project) => {
-          const result = query(project.graph, expression, { orderings: projectOrderings(project.config.maturity) })
-          if (Result.isFailure(result)) return Effect.fail(`query error: ${result.failure.message}\n\n${queryHelp}`)
+          const result = queryProject(project, expression)
+          if (Result.isFailure(result)) return toolError(`query error: ${result.failure.message}\n\n${queryHelp}`)
           const { nodes } = result.success
           if (paths) return Effect.succeed(result.success.paths.map(formatPath).join("\n") || "no matches")
           return Effect.succeed(
@@ -92,19 +98,17 @@ const handlers = (root: string) =>
       sdp_show: ({ id }) =>
         Effect.flatMap(load, (project) => {
           const node = project.graph.node(id)
-          if (!node) return Effect.fail(`no node ${id}`)
+          if (!node) return toolError(`no node ${id}`)
           return Effect.succeed(JSON.stringify({ node: nodeJson(node), out: project.graph.out(id), in: project.graph.in(id) }, null, 2))
         }),
       sdp_context: ({ depth, id }) =>
         Effect.flatMap(load, (project) => {
           const bundle = contextBundle(project, id, depth ?? 2)
-          return bundle ? Effect.succeed(bundle) : Effect.fail(`no node ${id}`)
+          return bundle ? Effect.succeed(bundle) : toolError(`no node ${id}`)
         }),
       sdp_check: ({ severity }) =>
         Effect.map(load, (project) => {
-          const rank = { error: 0, warning: 1, info: 2 } as const
-          const limit = rank[severity ?? "warning"]
-          const found = check(project).filter((d) => rank[d.severity] <= limit)
+          const found = check(project).filter((d) => atLeast(d.severity, severity ?? "warning"))
           return found.length === 0
             ? "no diagnostics"
             : found.map((d) => `${d.severity} [${d.rule}] ${d.message} ${formatSource(d.source)}${d.hint ? `\n  → ${d.hint}` : ""}`).join("\n")
