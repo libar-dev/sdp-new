@@ -360,7 +360,7 @@ interface Example {
   readonly tests: string
 }
 
-/** The examples of a set of specs, and the Features and Rules that have a live example. */
+/** The examples of a set of specs, the Features and Rules that have a live example, and those that are live. */
 const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
   const examples = specs.flatMap((spec) => {
     const work = workOf(spec)
@@ -373,7 +373,12 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
     )
   })
   const tested = new Set(examples.flatMap(({ live, scenario, spec }) => live ? [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])] : []))
-  return { examples, tested }
+  // What is built is live whatever its examples are, gates and none included.
+  const built = new Set(specs.filter((spec) => isSuite(spec, vocabulary)).flatMap((spec) => {
+    const work = workOf(spec)
+    return [...(work.spec ? [] : [spec.id]), ...spec.rules.filter((rule) => !work.rule(rule).toCome).map((rule) => rule.id)]
+  }))
+  return { examples, tested, built }
 }
 
 /**
@@ -412,13 +417,13 @@ const pairExamples = (before: ReadonlyArray<Example>, now: ReadonlyArray<Example
 
 /**
  * Whether anything live at a base revision stops being live in the workspace, as errors: a maturity
- * or `@open` on a Feature or a Rule that had live examples there (`demotion`), and a live example of
- * the base that is gone, a gate or still to come here (`example-dropped`), unless what replaces its
- * rule or its feature — a rule or a feature linked to it, here or at the base — is live here and has
- * a live example: a replacement keeps the coverage it takes over. A link from a live rule names what
- * was live at the base, so a replacement can be designed and built in one change. The base is
- * parsed with its own configuration. An example whose Feature or Rule is reported as demoted is not
- * reported again. The notes say which files of the base could not be read.
+ * or `@open` on a Feature or a Rule that was live there, whatever its examples (`demotion`), and a
+ * live example of the base that is gone, a gate or still to come here (`example-dropped`), unless
+ * what replaces its rule or its feature — a rule or a feature linked to it, here or at the base — is
+ * live here and has a live example: a replacement keeps the coverage it takes over. A link from a
+ * live rule names what was live at the base, so a replacement can be designed and built in one
+ * change. The base is parsed with its own configuration. An example whose Feature or Rule is
+ * reported as demoted is not reported again. The notes say which files of the base could not be read.
  */
 export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly notes: ReadonlyArray<string> } => {
   const parsed = base.files.map((file) => ({ file: file.path, spec: parseFeatureSpec(file.path, file.content, base.config).spec }))
@@ -441,11 +446,11 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
   }
   for (const spec of project.specs) {
     const declared = attribute(spec, "maturity")
-    if (declared !== undefined && before.tested.has(spec.id)) {
+    if (declared !== undefined && before.built.has(spec.id)) {
       demote(spec.id, spec, spec.attrLines.maturity ?? 1, `${maturityTags(declared)} makes it still to come`)
     }
     for (const rule of spec.rules) {
-      if (!before.tested.has(rule.id)) continue
+      if (!before.built.has(rule.id)) continue
       const own = attribute(rule, "maturity")
       if (own !== undefined) demote(rule.id, spec, rule.attrLines.maturity ?? rule.line, `${maturityTags(own)} makes it still to come`)
       else if (isOpen(rule)) demote(rule.id, spec, rule.line, "@open makes it a question still to come")

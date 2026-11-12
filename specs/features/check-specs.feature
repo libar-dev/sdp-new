@@ -187,16 +187,16 @@ Feature: Check specs
   Rule: Nothing live stops being live without an error
 
     Built work cannot go back to work still to come, or a test is turned off in silence, so check
-    compares the specs with a base revision. A maturity or `@open` on a Feature or a Rule whose
-    examples were live there is an error, and so is a live example of the base that is gone, still
-    to come or a gate, unless what replaces its rule or its feature is live and has a live example of
-    its own: a gate enforces nothing, so it replaces no test. Examples are compared one for one, each
-    row of an outline on its own and a Background's steps with those of each example: by their id,
-    then by their steps, so a new name or a new place for one is no removal, and an example edited
-    under its name is the same example, while one that is gone is not made up for by another that
-    tests the same. The base is read with its own configuration, and the specs of today with today's,
-    so a live test that a configuration leaves out is dropped like any other, and a file is read
-    whatever its name.
+    compares the specs with a base revision. A maturity or `@open` on a Feature or a Rule that was
+    live there is an error, whatever its examples were, and so is a live example of the base that is
+    gone, still to come or a gate, unless what replaces its rule or its feature is live and has a
+    live example of its own: a gate enforces nothing, so it replaces no test. Examples are compared
+    one for one, each row of an outline on its own and a Background's steps with those of each
+    example: by their id, then by their steps, so a new name or a new place for one is no removal,
+    and an example edited under its name is the same example, while one that is gone is not made up
+    for by another that tests the same. The base is read with its own configuration, and the specs
+    of today with today's, so a live test that a configuration leaves out is dropped like any other,
+    and a file is read whatever its name.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -216,6 +216,12 @@ Feature: Check specs
 
             Scenario: Add a lamp twice
               Then the cart holds 1 lamp
+
+          Rule: A cart is kept for a week
+
+            @gate
+            Scenario: Come back after a day
+              Then the cart holds 1 item
         """
       And the files are committed on the branch "main"
 
@@ -235,6 +241,7 @@ Feature: Check specs
         | A maturity on the live feature                        | 1         | demotion                       | 1     | @id=cart @maturity=ready\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                  |
         | A maturity on the live rule                           | 1         | demotion                       | 3     | @id=cart\nFeature: Cart\n  @maturity=draft\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                    |
         | The live rule made a question                         | 1         | demotion                       | 4     | @id=cart\nFeature: Cart\n  @open\n  Rule: A cart holds what was added                                                                                                                                                          |
+        | A maturity on the live rule whose example is a gate   | 1         | demotion                       | 6     | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @maturity=draft\n  Rule: A cart is kept for a week\n    @gate\n    Scenario: Come back after a day\n      Then the cart holds 1 item |
         | The live example deleted                              | 1         | example-dropped, untested-rule | 3, 8  | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added                                                                                                                                                                   |
         | The live rule deleted with its example                | 1         | example-dropped                | 8     | @id=cart\nFeature: Cart\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                                                              |
         | The live example made a gate                          | 1         | example-dropped                | 5     | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @gate\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                         |
