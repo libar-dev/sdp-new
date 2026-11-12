@@ -27,7 +27,8 @@ import {
   isPlanKind,
   type KindRole,
   made,
-  type RelationRole
+  type RelationRole,
+  wordFor
 } from "../model/Vocabulary.ts"
 import type { Project } from "../graph/Build.ts"
 import { idsDeclaration } from "../graph/Types.ts"
@@ -147,8 +148,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         node: node.id,
         source,
         hint: spec
-          ? `fix the content or lower maturity to "${achievableMaturity(content)}"`
-          : `give it a spec file of its own for content beyond a title, or lower maturity to "${achievableMaturity(content)}"`
+          ? `fix the content, or lower it: @maturity=${achievableMaturity(content)}`
+          : `give it a spec file of its own for content beyond a title, or lower its maturity in the code to ${achievableMaturity(content)}`
       }))
     } else {
       // Only worth mentioning once there is behaviour to look at; idea → draft is noise.
@@ -161,7 +162,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
           message: `${node.id} meets the criteria of "${achievable}" but is marked "${maturity}"`,
           node: node.id,
           source,
-          hint: `set maturity: ${achievable} if the team agrees`
+          hint: `write @maturity=${achievable} if the team agrees`
         }))
       }
     }
@@ -178,7 +179,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
       node: node.id,
       source: at(spec, Math.min(rule?.line ?? Infinity, scenario?.line ?? Infinity)),
-      hint: "a rule is a scenario on what it constrains, which links here with `decided-by`; a cost is a risk; what is undecided is an open question on the spec it blocks"
+      hint: `a rule it imposes belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; a cost is a risk; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
     }))
   }
 
@@ -206,19 +207,19 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const problem = met === undefined
       ? {
         message: `${node.id}: ${metKey} is ${JSON.stringify(written)}, which is not a date, so it records nothing`,
-        hint: `write \`${metKey}: YYYY-MM-DD\`, or let \`sdp gate ${node.id} --record\` write it when the gate passes`
+        hint: `write \`@${metKey}=YYYY-MM-DD\`, or let \`sdp gate ${node.id} --record\` write it when the gate passes`
       }
       : earlier
       ? {
         message: `${node.id} is met, but ${earlier.node.id}, which is dated before it, is not`,
-        hint: `record ${earlier.node.id} first, or delete \`${metKey}\` from ${node.id}`
+        hint: `record ${earlier.node.id} first, or delete \`@${metKey}=\` from ${node.id}`
       }
       : undefined
     if (problem) out.push(diagnostic("milestone-met", { ...problem, node: node.id, source: writtenAt(node, metKey) }))
   }
 
   // Plans: what a plan, phase or closing relation names must be an iteration or a phase (a target
-  // that does not exist at all is a dangling link), and `activity:` must map disciplines to iterations.
+  // that does not exist at all is a dangling link), and `activity` must map disciplines to iterations.
   for (const node of authored) {
     const planReference = (rel: string, target: string, roles: ReadonlyArray<KindRole>, source: SourceRef | undefined) => {
       const known = roles.flatMap((role) => graph.ofKind(vocabulary.kinds[role]).map((n) => n.id))
@@ -229,7 +230,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         source,
         hint: known.length > 0
           ? `use one of the declared ${what} ids: ${known.join(", ")}`
-          : `declare the ${what} in a plan (sdp new plan) or remove \`${rel}: ${target}\``
+          : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``
       }))
     }
     const activityKey = vocabulary.attributes.activity

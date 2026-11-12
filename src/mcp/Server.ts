@@ -97,7 +97,7 @@ const SdpSnippets = readOnly(Tool.make("sdp_snippets", {
 }))
 
 const SdpCheck = readOnly(Tool.make("sdp_check", {
-  description: "Validate the workspace: dangling links, maturity criteria, decision hygiene. Each diagnostic has a rule, a file:line and a hint.",
+  description: "Validate the workspace: tags, links, Gherkin, maturity criteria, the shape of decisions and the plan. Each diagnostic has a rule, a file:line and a hint.",
   parameters: Schema.Struct({
     severity: Schema.optional(Schema.Literals(["error", "warning", "info"])).annotate({ description: "Minimum severity (default info: everything)" }),
     json

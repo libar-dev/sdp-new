@@ -102,7 +102,7 @@ export const defaultVocabulary: Vocabulary = {
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
     ["requirements", ["requirement", "nfr", "feature", "story", "use-case", "epic"]],
     ["analysis-design", ["element", "pattern"]],
-    // No kind is implementation or test work by itself: a spec plans them with `activity:`.
+    // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
     ["implementation", []],
     ["test", []],
     ["deployment", ["environment", "deployment"]]

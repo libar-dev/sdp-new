@@ -197,7 +197,7 @@ const notReady = (project: Project, spec: Spec): ReadonlyArray<string> => {
     "",
     ...(reasons.length > 0
       ? [`Maturity is ${maturity}; for ready:`, ...reasons.map((reason) => `- ${reason}`)]
-      : [`Maturity is ${maturity}, but the content already meets the criteria of ${ready}: set \`maturity: ${ready}\` if the team agrees.`]),
+      : [`Maturity is ${maturity}, but the content already meets the criteria of ${ready}: write \`@maturity=${ready}\` if the team agrees.`]),
     ""
   ]
 }

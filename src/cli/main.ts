@@ -297,7 +297,7 @@ const gateCommand = Command.make(
   {
     milestone: Argument.String("milestone").pipe(Argument.withDescription("Milestone id, e.g. MS-beta, or a spec with @gate scenarios")),
     record: Flag.Boolean("record").pipe(
-      Flag.withDescription("When the gate passes, write `met: <today>` into the milestone: it is closed, and the next one is where the project is"),
+      Flag.withDescription("When the gate passes, write `@met=<today>` on the milestone's tag line: it is closed, and the next one is where the project is"),
       Flag.withDefault(false)
     ),
     json
@@ -357,7 +357,7 @@ const newCommand = Command.make(
   Command.withExamples([
     { command: "sdp new requirement 'Saved carts' --maturity draft", description: "A requirement with a description to write" },
     { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a requirement at maturity idea" },
-    { command: "sdp new plan 'Delivery plan'", description: "Phases with an example iteration each" },
+    { command: "sdp new plan 'Delivery plan'", description: "The plan; each phase and iteration is a file of its own" },
     { command: "sdp new decision 'Use Postgres for orders'", description: "A numbered decision: a title and a sentence" }
   ])
 )

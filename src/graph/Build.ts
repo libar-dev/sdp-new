@@ -157,7 +157,7 @@ export const buildProject = (input: ProjectInput): Project => {
         message: `${id}: ${key} is derived by sdp, so the value written here is ignored`,
         node: id,
         source: at(key),
-        hint: `delete \`${key}\`; sdp computes it (\`sdp vocabulary\` lists what it derives)`
+        hint: `delete it: sdp computes ${key} (\`sdp vocabulary\` lists what it derives)`
       }))
     }
     // Not assigned one by one: `__proto__` is a key like any other.
@@ -340,7 +340,7 @@ export const buildProject = (input: ProjectInput): Project => {
       : undefined
     return known && known.ids.length > 0
       ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
-      : `create a spec with \`id: ${edge.to}\` (sdp new) or fix the reference`
+      : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
   }
   for (const edge of links) {
     if (declaredIds.has(edge.to)) continue

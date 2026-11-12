@@ -28,7 +28,7 @@ import type { Project } from "../graph/Build.ts"
 
 export interface IterationReport {
   readonly node: GraphNode
-  /** Work planned into the iteration, by a plan relation or by `activity:`; each node once. */
+  /** Work planned into the iteration, by a plan relation or by an `activity.<discipline>` link; each node once. */
   readonly items: ReadonlyArray<GraphNode>
   /** Evidence: planned items by stage, which maturity and scenario results decide. */
   readonly stages: Readonly<Record<string, number>>
