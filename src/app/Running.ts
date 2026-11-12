@@ -14,11 +14,12 @@
  */
 import parseTagExpression from "@cucumber/tag-expressions"
 import { posix } from "node:path"
-import { DateTime, Duration, Effect, FileSystem, Option, Path, Schema } from "effect"
+import { DateTime, type Duration, Effect, FileSystem, Path, Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
+import { readTimeout } from "../model/Config.ts"
 import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import { type Evidence, notPassing, type RunResults, type ScenarioResult, type StepStatus, worstStatus } from "../model/Results.ts"
@@ -127,6 +128,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
    */
   readonly loaded?: Pick<LoadedSteps, "imports" | "changed" | "added"> | undefined
   readonly selection?: Selection | undefined
+  /** How long a step may take; the workspace's `timeout` when not given. */
   readonly timeout?: Duration.Input | undefined
   /** Scenarios run at once; `@serial` scenarios always run alone. */
   readonly concurrency?: number | undefined
@@ -191,7 +193,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       against: workspace.now,
       select: select(gates),
       gates,
-      timeout: options.timeout,
+      timeout: options.timeout ?? config.timeout,
       concurrency: options.concurrency,
       onScenario: onScenario && ((result) => {
         const whole = complete(result)
@@ -288,8 +290,8 @@ export interface RunInput {
   /** Also suggest one step definition module for the undefined steps. */
   readonly snippets?: boolean | undefined
   readonly concurrency?: number | undefined
-  /** How long a step may take: a number and a unit, `60 seconds` or `2 minutes`, or `Infinity`; 30 seconds when not given. */
-  readonly timeout?: string | undefined
+  /** How long a step may take, e.g. `"90 seconds"` or `Duration.minutes(2)`; the workspace's `timeout` when not given. */
+  readonly timeout?: Duration.Input | undefined
   /** Called with each scenario's result as it is known, in order, and whether it is an example of work still to come. */
   readonly onScenario?: ((result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) | undefined
 }
@@ -323,12 +325,8 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     return yield* new Refused({ reason: `--concurrency ${concurrency}: the number of scenarios to run at once is 1 or more` })
   }
-  const timeout = input.timeout === undefined ? undefined : Option.getOrUndefined(Schema.decodeUnknownOption(Schema.DurationFromString)(input.timeout))
-  if (input.timeout !== undefined && (timeout === undefined || !Duration.isGreaterThan(timeout, Duration.zero))) {
-    return yield* new Refused({
-      reason: `--timeout ${input.timeout}: how long a step may take is more than nothing: a number and a unit, e.g. '60 seconds' or '2 minutes'`
-    })
-  }
+  const timeout = input.timeout === undefined ? undefined : readTimeout(input.timeout)
+  if (timeout !== undefined && Result.isFailure(timeout)) return yield* new Refused({ reason: `the timeout ${timeout.failure}` })
   const config = yield* loadConfig(root)
   const steps = yield* loadSteps(root, config)
   const run = yield* runWorkspace(root, {
@@ -336,7 +334,7 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     loaded: steps,
     selection: { targets: input.targets, tags: input.tags },
     concurrency: input.concurrency,
-    timeout,
+    timeout: timeout?.success,
     onScenario: input.onScenario
   })
   const summary = summarize(run.scenarios.filter((result) => !run.toCome.has(result.id)))

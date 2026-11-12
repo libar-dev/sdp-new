@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import { Duration, Option, Result, Schema } from "effect"
 import { defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
@@ -56,6 +56,7 @@ export const ConfigFile = Schema.Struct({
     env: Schema.optional(Schema.Array(Schema.String))
   })),
   results: Schema.optional(Schema.String),
+  timeout: Schema.optional(Schema.String),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   base: Schema.optional(Schema.String),
   vocabulary: Schema.optional(VocabularyFile)
@@ -76,6 +77,8 @@ export interface Config {
   }
   /** Where `sdp run` stores scenario results, relative to the workspace root. */
   readonly results: string
+  /** How long a step may take before it fails, unless `--timeout` says otherwise. */
+  readonly timeout: Duration.Duration
   /** Id prefixes used by `sdp new` and to infer a kind, keyed by kind (a record without a prototype). */
   readonly ids: Readonly<Record<string, string>>
   /**
@@ -112,6 +115,7 @@ export const defaults: Config = {
   exclude: ["**/node_modules/**", ".sdp/**", "**/dist/**", "**/build/**", ".git/**"],
   evidence: { inputs: [], env: [] },
   results: ".sdp/results.json",
+  timeout: Duration.seconds(30),
   ids: record(defaultIds),
   base: undefined,
   vocabulary: defaultVocabulary
@@ -144,6 +148,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
       env: file.evidence?.env ?? defaults.evidence.env
     },
     results: file.results ?? defaults.results,
+    timeout: file.timeout === undefined ? defaults.timeout : Result.getOrElse(readTimeout(file.timeout), () => defaults.timeout),
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
     base: file.base,
     vocabulary: resolveVocabulary(file.vocabulary)
@@ -235,13 +240,32 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   return issues
 }
 
+/** The units people write a duration with besides Effect's own words: `90s`, `500ms`, `2m`, `1h`. */
+const units: Readonly<Record<string, Duration.Unit>> = { ms: "millis", s: "seconds", m: "minutes", h: "hours" }
+
+/**
+ * How long a step may take, as `timeout:` or `--timeout` says it — `90s`, `500ms`, `2m`, `1h`, or
+ * as Effect writes it, `2 minutes` or `Infinity`, with or without a space — or what is wrong with it.
+ */
+export const readTimeout = (input: Duration.Input | string): Result.Result<Duration.Duration, string> => {
+  const written = typeof input === "string" ? /^(-?\d+(?:\.\d+)?)\s*([a-z]+)$/.exec(input.trim()) : null
+  const duration = Duration.fromInput((written ? `${written[1]} ${units[written[2]!] ?? written[2]}` : input) as Duration.Input)
+  if (Option.isNone(duration)) return Result.fail("is not a duration: a number and a unit, e.g. 90s, 500ms, 2m or 1h")
+  return Duration.isGreaterThan(duration.value, Duration.zero)
+    ? Result.succeed(duration.value)
+    : Result.fail("is not more than nothing: a step needs some time to run")
+}
+
 /**
  * What a configuration must satisfy beyond its shape, each problem at its path: a vocabulary sdp
  * can work with, a maturity ladder of distinct levels that cannot be mistaken for a derived stage,
- * and id prefixes that kind inference reads back (letters only, one kind each).
+ * id prefixes that kind inference reads back (letters only, one kind each), and a timeout that is
+ * a duration.
  */
 const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => {
   const issues: Array<Schema.FilterIssue> = file.vocabulary === undefined ? [] : [...vocabularyProblems(file.vocabulary)]
+  const timeout = file.timeout === undefined ? undefined : readTimeout(file.timeout)
+  if (timeout !== undefined && Result.isFailure(timeout)) issues.push({ path: ["timeout"], issue: `${file.timeout} ${timeout.failure}` })
   const vocabulary = file.vocabulary
   const ladder = vocabulary?.maturity
   if (ladder !== undefined) {

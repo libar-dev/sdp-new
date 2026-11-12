@@ -155,7 +155,7 @@ Feature: Write step definitions
       When the workspace is run and interrupted while "an empty cart" runs
       Then the handler of "an empty cart" saw its signal abort
 
-  Rule: A step runs in sdp's own thread, and fails once it outlasts its timeout, 30 seconds unless --timeout says otherwise
+  Rule: A step runs in sdp's own thread, and fails once it outlasts its timeout, 30 seconds unless the workspace's timeout or --timeout says otherwise
 
     Code that never yields cannot be stopped there: it fails once it returns.
 
@@ -170,8 +170,12 @@ Feature: Write step definitions
         | takes a second                   |
         | keeps the thread busy for 200 ms |
 
-    Scenario: --timeout says how long a step may take
-      Given a file "specs/steps/cart.steps.ts" containing:
+    Scenario Outline: The workspace's timeout says how long a step may take, and --timeout overrides it
+      Given a file "sdp.config.yaml" containing:
+        """
+        <configuration>
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
         """
         import { setTimeout } from "node:timers/promises"
         import { defineSteps } from "sdp/steps"
@@ -182,10 +186,15 @@ Feature: Write step definitions
           Step("the cart holds {int} item", () => {})
         })
         """
-      When I run "sdp run --timeout '50 millis'"
-      Then the exit code is 1
-      And the output line with "Given an empty cart" contains "✘"
-      And the output contains "step timed out"
+      When I run "sdp run <option>"
+      Then the exit code is <exit code>
+      And the output contains "<output>"
+
+      Examples:
+        | configuration              | option           | exit code | output                  |
+        | # every key at its default | --timeout 50ms   | 1         | step timed out          |
+        | timeout: 50ms              |                  | 1         | step timed out          |
+        | timeout: 50ms              | --timeout '5 s'  | 0         | 1 scenario(s): 1 passed |
 
   @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-fails-once-it-outlasts-its
   Rule: A step that overruns its timeout is stopped, whether or not it yields

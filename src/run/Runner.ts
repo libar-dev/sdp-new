@@ -36,8 +36,8 @@ export interface RunOptions {
   readonly select?: ((scenario: Scenario, spec: Spec) => ReadonlyArray<Pickle> | undefined) | undefined
   /** These are gates, run after the ordinary scenarios: a gate that reads the graph depends on their results. */
   readonly gates?: boolean | undefined
-  /** How long a step may take (default 30 seconds). Cooperative: a step that never yields is failed once it returns. */
-  readonly timeout?: Duration.Input | undefined
+  /** How long a step may take. Cooperative: a step that never yields is failed once it returns. */
+  readonly timeout: Duration.Input
   readonly concurrency?: number | undefined
   /** Called once per scenario, one call at a time and in order, e.g. for progress output. */
   readonly onScenario?: ((result: ScenarioResult) => Effect.Effect<void>) | undefined
@@ -68,7 +68,7 @@ export const runScenarios = Effect.fn("runScenarios")(function*(
       )
     })
   }
-  const timeout = Duration.fromInputUnsafe(options.timeout ?? "30 seconds")
+  const timeout = Duration.fromInputUnsafe(options.timeout)
 
   /** Runs one example; `reads.graph` records whether a step used the project, i.e. read the graph. */
   const runPickle = Effect.fnUntraced(function*(spec: Spec, scenario: Scenario, pickle: Pickle, reads: { graph: boolean }) {
