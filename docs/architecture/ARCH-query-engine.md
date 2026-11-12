@@ -6,7 +6,7 @@ iteration: I1
 links:
   decided-by: DEC-0006
   constrained-by: NFR-query-performance
-  reads: ARCH-graph
+  uses: ARCH-vocabulary
 ---
 
 # Query engine (SDPQ)

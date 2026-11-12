@@ -4,7 +4,7 @@ kind: element
 title: Code annotations
 links:
   instance-of: { to: PAT-pipes-and-filters, role: filter }
-  feeds: ARCH-graph-builder
+  uses: ARCH-vocabulary
   decided-by: DEC-0009
 ---
 

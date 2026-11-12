@@ -6,31 +6,42 @@ nodes:
   - id: ARCH-workspace
     kind: element
     title: Workspace IO
-    links: { feeds: [ARCH-spec-parser, ARCH-code-annotations], decided-by: DEC-0004 }
+    links: { uses: [ARCH-graph-builder, ARCH-runner], decided-by: DEC-0004 }
   - id: ARCH-checker
     kind: element
     title: Checker
-    links: { reads: ARCH-graph, uses: ARCH-lifecycle }
+    links: { uses: [ARCH-code-annotations, ARCH-lifecycle, ARCH-vocabulary] }
   - id: ARCH-architecture-view
     kind: element
     title: Architecture view
-    links: { reads: ARCH-graph, decided-by: DEC-0008 }
+    links: { uses: ARCH-vocabulary, decided-by: DEC-0008 }
   - id: ARCH-lifecycle
     kind: element
     title: Lifecycle view
-    links: { reads: ARCH-graph }
+    links: { uses: [ARCH-graph, ARCH-vocabulary] }
   - id: ARCH-reports
     kind: element
     title: Context bundles, exports and status
-    links: { reads: ARCH-graph, uses: [ARCH-architecture-view, ARCH-checker] }
+    links:
+      uses:
+        - ARCH-workspace
+        - ARCH-spec-parser
+        - ARCH-code-annotations
+        - ARCH-graph
+        - ARCH-vocabulary
+        - ARCH-query-engine
+        - ARCH-runner
+        - ARCH-checker
+        - ARCH-architecture-view
+        - ARCH-lifecycle
   - id: ARCH-cli
     kind: element
     title: Command line
-    links: { uses: [ARCH-workspace, ARCH-query-engine, ARCH-runner, ARCH-checker, ARCH-architecture-view, ARCH-lifecycle, ARCH-reports] }
+    links: { uses: [ARCH-reports, ARCH-mcp, ARCH-workspace, ARCH-query-engine] }
   - id: ARCH-mcp
     kind: element
     title: MCP server
-    links: { uses: [ARCH-workspace, ARCH-query-engine, ARCH-checker, ARCH-architecture-view, ARCH-reports], decided-by: DEC-0004 }
+    links: { uses: [ARCH-reports, ARCH-query-engine], decided-by: DEC-0004 }
 ---
 
 # Architecture overview
@@ -40,19 +51,36 @@ truth; the graph is rebuilt on every command ([[PAT-derived-index]]).
 
 ```mermaid
 flowchart LR
-  files[(Markdown, .feature, code)] --> ws[Workspace IO]
+  files[(Markdown, .feature, code, step files)] --> ws[Workspace IO]
   ws --> parser[Spec parser] & annotations[Code annotation scanner] --> builder[Graph builder] --> graph((System graph))
-  graph --> query[Query engine] & checker[Checker] & runner[Scenario runner] & lifecycle[Lifecycle view] & view[Architecture view] & reports[Context, export, status]
-  runner -- results.json --> builder
-  runner --> query & checker
-  reports --> view & checker
-  cli[CLI] --> query & checker & runner & lifecycle & view & reports
-  mcp[MCP server] --> query & checker & view & reports
+  graph --> views[Query engine, checker, lifecycle view, architecture view, reports] --> app[Use cases] --> cli[CLI] & mcp[MCP server]
+  graph --> runner[Scenario runner] -- results.json --> ws
 ```
+
+The picture is how data flows. Which element depends on which is not drawn: it is declared, as
+`uses` links, and checked.
 
 Every element and pattern declared here is the architecture, by the architects' act of declaring
 it ([[DEC-0008]]; `sdp arch` shows it). An element with its own file specifies its contract there,
 as scenarios.
+
+## What `uses` means
+
+`A uses B` says one thing: a module anchored to `A` imports a value — a function, a class, a
+constant — from a module anchored to `B`. A module is anchored by its `is` annotation
+(`annotate(import.meta, { is: "ARCH-runner" })`, [[ARCH-code-annotations]]); an import of types
+alone is not a use, since it calls no code of the other element, and a module that no annotation
+anchors belongs to no element. Elements are joined by no other relation: what an element reads
+or feeds is the data flow above, and saying it twice let the two disagree.
+
+Because the meaning is mechanical, the links are checked: the `uses` links declared between
+elements are exactly the value imports between their modules, so the declared architecture cannot
+drift from the code, and no cycle between elements goes unrecorded — there is none.
+
+```sh
+sdp graph --mermaid -q 'element -uses-> element'     # the dependency diagram
+sdp q 'element -uses+-> element' --paths             # what an element reaches
+```
 
 ## Implementation
 
@@ -88,6 +116,12 @@ Where the specifications of sdp itself live: [[VISION]], *Finding your way*.
 ## Scenarios
 
 ~~~gherkin
+Scenario: The uses links between elements are the imports between their modules
+  Then the "uses" links between elements are the value imports between the modules anchored to them
+
+Scenario: No element depends on itself through others
+  Then no element reaches itself over "uses" links
+
 Scenario: The pipeline reads a workspace in memory as it reads one on disk
   Given a file "notes/NOTE-outside.md" containing:
     """

@@ -6,7 +6,6 @@ iteration: I1
 links:
   decided-by: DEC-0001
   instance-of: { to: PAT-pipes-and-filters, role: filter }
-  feeds: ARCH-graph-builder
 ---
 
 # Spec parser

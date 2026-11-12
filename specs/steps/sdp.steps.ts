@@ -7,6 +7,9 @@
 import { Effect, Predicate, Result } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
 import { strict as assert } from "node:assert"
+import { readFile } from "node:fs/promises"
+import { dirname, join, normalize } from "node:path"
+import { parseSync } from "oxc-parser"
 import * as Reading from "../../src/app/Reading.ts"
 import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
@@ -17,9 +20,39 @@ import { check } from "../../src/check/Check.ts"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
-import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
+import { defaultVocabulary, hasKind } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
+import type { Project } from "../../src/graph/Build.ts"
 import { ids, load, newWorld, node, reload, setFile } from "./world.ts"
+
+/**
+ * `A -rel-> B` for every value import from a module anchored to element A to a module anchored to
+ * element B: the dependencies between elements as the code has them. A module is anchored by an
+ * anchor annotation; an import or re-export of types alone calls nothing, so it does not count.
+ */
+const importsBetweenElements = async (project: Project, rel: string): Promise<ReadonlyArray<string>> => {
+  const anchor = project.config.vocabulary.relations.anchor
+  const elementsOf = new Map<string, Set<string>>()
+  for (const annotation of project.annotations.filter((a) => a.rel === anchor)) {
+    elementsOf.set(annotation.file, new Set([...(elementsOf.get(annotation.file) ?? []), ...annotation.targets]))
+  }
+  const links = new Set<string>()
+  for (const [file, elements] of elementsOf) {
+    const content = await readFile(join(project.root, file), "utf8")
+    const { module } = parseSync(file, content)
+    const imported = [
+      ...module.staticImports.filter((i) => i.entries.length === 0 || i.entries.some((entry) => !entry.isType)).map((i) => i.moduleRequest.value),
+      ...module.staticExports.flatMap((e) => e.entries.flatMap((entry) => entry.moduleRequest && !entry.isType ? [entry.moduleRequest.value] : [])),
+      ...module.dynamicImports.map((i) => content.slice(i.moduleRequest.start + 1, i.moduleRequest.end - 1))
+    ]
+    for (const specifier of imported.filter((specifier) => specifier.startsWith("."))) {
+      for (const used of elementsOf.get(normalize(join(dirname(file), specifier))) ?? []) {
+        for (const element of elements) if (element !== used) links.add(`${element} -${rel}-> ${used}`)
+      }
+    }
+  }
+  return [...links].sort()
+}
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // --- workspace ------------------------------------------------------------
@@ -218,6 +251,32 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("an agent reads the MCP server's instructions", ({ world }) => {
     world.output = instructions
+  })
+
+  // --- this repository's architecture ---------------------------------------
+
+  Then("the {string} links between elements are the value imports between the modules anchored to them", ({ args: [rel], project }) =>
+    Effect.promise(async () => {
+      const architectural = (id: string) => hasKind(project.config.vocabulary, "architectural", project.graph.node(id)?.kind ?? "")
+      const declared = project.graph.edges()
+        .filter((edge) => edge.rel === rel && architectural(edge.from) && architectural(edge.to))
+        .map((edge) => `${edge.from} -${rel}-> ${edge.to}`)
+      const imported = await importsBetweenElements(project, rel)
+      const undeclared = imported.filter((link) => !declared.includes(link))
+      const unfounded = declared.filter((link) => !imported.includes(link))
+      assert.deepEqual(
+        { "imported but not declared": undeclared, "declared but not imported": unfounded },
+        { "imported but not declared": [], "declared but not imported": [] }
+      )
+    }))
+
+  Then("no element reaches itself over {string} links", ({ args: [rel], project }) => {
+    const elements = project.graph.nodes().filter((n) => hasKind(project.config.vocabulary, "architectural", n.kind))
+    const cyclic = elements.filter((element) => {
+      const back = queryProject(project, `#${element.id} -${rel}+-> #${element.id}`)
+      return Result.isSuccess(back) && back.success.nodes.length > 0
+    })
+    assert.deepEqual(cyclic.map((element) => element.id), [])
   })
 
   // --- quality attributes ---------------------------------------------------

@@ -5,8 +5,7 @@ title: Scenario runner
 iteration: I1
 links:
   decided-by: [DEC-0005, DEC-0004]
-  reads: ARCH-graph
-  uses: [ARCH-query-engine, ARCH-checker]
+  uses: [ARCH-spec-parser, ARCH-graph, ARCH-vocabulary, ARCH-query-engine, ARCH-checker]
 ---
 
 # Scenario runner
