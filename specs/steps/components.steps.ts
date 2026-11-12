@@ -1,23 +1,25 @@
 /**
  * Step definitions for component contracts: the spec parser, the code
  * annotation scanner, the graph builder and the query engine
- * (docs/architecture/ARCH-*.md), and query paths (REQ-graph-query). Parser
+ * (docs/architecture/ARCH-*.md), query paths (REQ-graph-query), and the
+ * in-memory file system the pipeline runs on (ARCH-overview). Parser
  * and scanner steps call the component on one file of the in-memory
  * workspace; graph and query steps run the whole pipeline. Expectations are
  * data tables whose header names the columns checked, so a scenario states
  * only what it is about.
  */
-import { Effect, Result } from "effect"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import { Effect, FileSystem, Path, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { formatPath, projectOrderings, query } from "../../src/graph/Query.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { type Attrs, formatSource } from "../../src/model/Graph.ts"
+import { type Attrs, formatSource, type Graph } from "../../src/model/Graph.ts"
 import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
 import type { Scenario } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, parseMarkdownSpec, type Spec } from "../../src/parse/Spec.ts"
 import { defineSteps } from "../../src/run/Steps.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { loadConfig } from "../../src/workspace/Workspace.ts"
+import { loadConfig, loadProject } from "../../src/workspace/Workspace.ts"
 import { ids, load, newWorld, setFile, type World } from "./world.ts"
 
 type Row = Readonly<Record<string, string>>
@@ -221,6 +223,32 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("building the graph reports:", ({ table, world }) =>
     Effect.map(load(world), (project) => assertRows("graph diagnostics", project.diagnostics.map(builderRow), table, "exactly")))
+
+  // --- memory and disk ------------------------------------------------------
+
+  When("the workspace {string} is loaded from memory and from disk", ({ args: [directory], world }) =>
+    Effect.gen(function*() {
+      const fromMemory = yield* loadProject(`${memoryRoot}/${directory}`).pipe(Effect.provide(layerMemoryWorkspace(world.files)))
+      const fromDisk = yield* Effect.scoped(Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        const path = yield* Path.Path
+        const root = yield* fs.makeTempDirectoryScoped()
+        for (const [file, content] of world.files) {
+          yield* fs.makeDirectory(path.dirname(path.join(root, file)), { recursive: true })
+          yield* fs.writeFileString(path.join(root, file), content)
+        }
+        return yield* loadProject(path.join(root, directory))
+      })).pipe(Effect.provide(NodeServices.layer))
+      world.scratch.graphs = [fromMemory.graph, fromDisk.graph]
+    }))
+
+  Then("both graphs have exactly the nodes {string}", ({ args: [expected], world }) => {
+    const graphs = world.scratch.graphs as ReadonlyArray<Graph> | undefined
+    assert.ok(graphs, "load the workspace from memory and from disk first")
+    const [memory, disk] = graphs.map((graph) => [...graph.nodes.keys()].sort())
+    assert.deepEqual(memory, ids(expected), "the nodes read from memory")
+    assert.deepEqual(disk, ids(expected), "the nodes read from disk")
+  })
 
   // --- query engine ---------------------------------------------------------
 

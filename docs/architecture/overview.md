@@ -80,3 +80,25 @@ pipeline runs against memory in executable specs; `Schema` for the config file a
 `McpServer`. The pure core — parsing, graph, query, checks — is plain functions over immutable data.
 
 Where the specifications of sdp itself live: [[VISION]], *Finding your way*.
+
+## Scenarios
+
+~~~gherkin
+Scenario: The pipeline reads a workspace in memory as it reads one on disk
+  Given a file "notes/NOTE-outside.md" containing:
+    """
+    ---
+    id: NOTE-outside
+    ---
+    # Outside the workspace
+    """
+  And a file "shop/specs/REQ-cart.md" containing:
+    """
+    ---
+    id: REQ-cart
+    ---
+    # Cart
+    """
+  When the workspace "shop" is loaded from memory and from disk
+  Then both graphs have exactly the nodes "REQ-cart"
+~~~
