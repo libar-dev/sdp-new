@@ -474,14 +474,27 @@ Feature: Link code to specs
       Then the output contains "/src/annotations.ts"
       And the output contains "/src/" 1 time
 
+  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+  @replaces:link-code-to-specs#in-typescript-and-javascript-an-annotation-can-be-a-call-to-the
+  @replaces:link-code-to-specs#a-target-is-a-module-level-declaration-a-property-of-one-or
+  @replaces:link-code-to-specs#annotating-costs-nothing-at-run-time-importing-sdp-annotations
+  Rule: A tag in a doc comment is the one form of annotation, in every language
+
+    The tag annotates the declaration the comment documents, or the file when the comment opens it,
+    and the rest of the comment is that code's description.
+
+  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+  @replaces:link-code-to-specs#sdp-types-declares-every-id-with-its-kind-for-annotate-to-accept
+  Rule: An id that no node declares is reported by sdp check where the tag names it
+
   @maturity=draft
-  Rule: sdp types and sdp check say when tsconfig leaves out the declarations
+  Rule: Annotated code carries its shape: a declaration's signature, members or type, and a file's exports
 
-    A compile without `.sdp/ids.d.ts` accepts every id without a word from sdp: a tsconfig that
-    names no `include` leaves it out, and so does one that includes the folder `.sdp`.
+    So the graph explains the code the architect annotated without the code being read. The shape
+    is read as written: a type the compiler would infer is not.
 
-  @open @maturity=draft
-  Rule: Are link attributes on code annotations worth link-conflict and merged declarations?
+  @maturity=draft
+  Rule: sdp check asks an annotated function to state its return type
 
-    Only a comment annotation gives a link attributes (`@sdp uses ARCH-ledger via=events`). Proposed:
-    remove them; nothing in this repository uses them.
+  @maturity=draft
+  Rule: A key=value on an annotation describes only the node it declares; a link has no attributes

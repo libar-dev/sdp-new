@@ -232,8 +232,24 @@ Feature: See the architecture
       When the workspace is checked
       Then sdp reports nothing
 
-  @open @maturity=idea
-  Rule: When an element is anchored in several places, which anchor declares it?
+  @maturity=draft
+  Rule: Every anchor of an element declares it, and two that disagree on an attribute are reported
 
     Today the anchor in the first file by path does, and what the others declare is dropped without
     a word, so renaming a file can change an element's title, kind or line.
+
+  @maturity=draft @decided-by:architecture-is-declared-in-doc-comments
+  Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp plays`
+
+  @maturity=draft
+  Rule: Each element is shown with its public surface: the shape of what its code exports
+
+  @maturity=draft
+  Rule: Each element is shown with the work implemented on it and the work still to come, ready first
+
+    Ready is designed and all but final: it weighs nearly what implemented does.
+
+  @maturity=draft
+  Rule: An element that work still to come names, and no code declares yet, is shown as planned
+
+    Once that work is implemented, the element must be in the code.

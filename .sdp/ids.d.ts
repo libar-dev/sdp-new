@@ -18,6 +18,7 @@ declare module "sdp/annotations" {
     "ARCH-vocabulary": "element"
     "ARCH-workspace": "element"
     "ARCHITECTURE": "architecture"
+    "architecture-is-declared-in-doc-comments": "decision"
     "ask-the-graph": "feature"
     "check-specs": "feature"
     "configure-a-workspace": "feature"
