@@ -97,18 +97,23 @@ const globBase = (pattern: string): string => {
   return parts.slice(0, wild < 0 ? -1 : wild).join("/")
 }
 
-/** Expand globs relative to `root`, de-duplicated and sorted for stable output. */
+/** Expand globs relative to `root` to the files they match, de-duplicated and sorted for stable output. */
 export const findFiles = Effect.fn("findFiles")(function*(
   root: string,
   patterns: ReadonlyArray<string>,
   exclude: ReadonlyArray<string>
 ) {
   const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
   const found = new Set<string>()
   for (const pattern of patterns) {
     for (const file of yield* fs.glob(pattern, { root, exclude })) found.add(file)
   }
-  return [...found].sort()
+  // A glob matches directories too (`fixtures/**` is `fixtures` and all below it). A path whose
+  // type cannot be told is kept, so that reading it says what is wrong with it.
+  const isFile = (file: string) =>
+    fs.stat(path.join(root, file)).pipe(Effect.map((info) => info.type !== "Directory"), Effect.orElseSucceed(() => true))
+  return (yield* Effect.filter([...found], isFile, { concurrency: 32 })).sort()
 })
 
 const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {

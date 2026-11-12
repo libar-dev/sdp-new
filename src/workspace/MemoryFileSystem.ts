@@ -35,19 +35,29 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
       }),
     remove: (path) => Effect.sync(() => void files.delete(rel(path))),
     makeDirectory: () => Effect.void,
-    // Like the real one: paths under `root`, relative to it.
+    // Like the real one: paths under `root`, relative to it, the directories that match among them.
     glob: (pattern, options) =>
       Effect.sync(() => {
         const glob = Glob.make(pattern, { dot: options?.dot ?? false })
         const excludes = (options?.exclude ?? []).map((p) => Glob.make(p, { dot: true }))
         const root = rel(options?.root ?? memoryRoot)
         const prefix = root === "" ? "" : `${root}/`
-        return [...files.keys()]
-          .filter((file) => file.startsWith(prefix))
-          .map((file) => file.slice(prefix.length))
-          .filter((file) => Glob.match(glob, file) && !excludes.some((ex) => Glob.match(ex, file)))
-          .sort()
-      })
+        const under = [...files.keys()].filter((file) => file.startsWith(prefix)).map((file) => file.slice(prefix.length))
+        const directories = new Set(under.flatMap((file) => {
+          const parts = file.split("/")
+          return parts.slice(1).map((_, i) => parts.slice(0, i + 1).join("/"))
+        }))
+        // A trailing `/` marks a directory.
+        const matches = (path: string) => Glob.match(glob, path) && !excludes.some((ex) => Glob.match(ex, path))
+        return [...under.filter(matches), ...[...directories].filter((directory) => matches(`${directory}/`))].sort()
+      }),
+    // Only the type: whether a path is a file or a directory is all sdp asks.
+    stat: (path) =>
+      files.has(rel(path))
+        ? Effect.succeed({ type: "File" } as FileSystem.File.Info)
+        : path === memoryRoot || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))
+        ? Effect.succeed({ type: "Directory" } as FileSystem.File.Info)
+        : Effect.fail(notFound("stat", path))
   })
 }
 
