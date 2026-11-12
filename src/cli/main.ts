@@ -467,7 +467,7 @@ const newCommand = Command.make(
     if (Option.isSome(maturity) && !ladder.includes(maturity.value)) {
       return yield* fail(`unknown maturity ${maturity.value}: use one of ${ladder.join(", ")}`)
     }
-    const created = newSpec({
+    const result = newSpec({
       kind,
       title,
       maturity: Option.getOrUndefined(maturity),
@@ -477,6 +477,8 @@ const newCommand = Command.make(
       id: Option.getOrUndefined(id),
       dir: Option.getOrUndefined(dir)
     })
+    if (Result.isFailure(result)) return yield* fail(result.failure)
+    const created = result.success
     // An id only a dangling link names is waiting for exactly this node.
     const existing = project.graph.node(created.id)
     if (existing && existing.kind !== "missing") return yield* fail(`id ${created.id} already exists at ${formatSource(existing.source)}`)

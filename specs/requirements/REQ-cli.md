@@ -204,7 +204,9 @@ milestones and plans have their own templates (`sdp new --help` lists them); any
 generic one. `sdp new idea` writes a requirement at maturity `idea` to `specs/ideas`. Ids come from
 `ids:` in the config (`REQ-guest-checkout`); decisions and risks are numbered (`DEC-0007`). An id
 that only a link names so far — a dangling link — is free: creating it resolves the link. An
-existing id or file is never overwritten.
+existing id or file is never overwritten. The front matter is written as YAML data, so a title
+reads back as written whatever it looks like to YAML; and `sdp new` reads the spec before writing
+it, refusing one that would not read back with its id, kind and title.
 
 Templates suggest links as comments, in one vocabulary: a requirement is `realized-by` elements
 and `refines` a capability; an element is `decided-by` decisions, an `instance-of` patterns and
@@ -236,6 +238,31 @@ Scenario: new writes a spec from a template and refuses an existing id
   When I run "sdp new requirement 'Saved carts'"
   Then the exit code is 1
   And the output contains "id REQ-saved-carts already exists"
+
+Scenario Outline: A title reads back as written, whatever it looks like to YAML
+  Given specs created from the sdp new templates:
+    | kind        | title   |
+    | requirement | <title> |
+  When the workspace is checked
+  Then the check reports nothing but "template-placeholder"
+  And node "<id>" has attribute title = "<title>"
+
+  Examples:
+    | title                | id                      |
+    | Checkout: guest flow | REQ-checkout-guest-flow |
+    | Cart #2              | REQ-cart-2              |
+    | 'Quoted' carts       | REQ-quoted-carts        |
+    | true                 | REQ-true                |
+    | null                 | REQ-null                |
+    | 2026-11-12           | REQ-2026-11-12          |
+    | [draft] Wishlist     | REQ-draft-wishlist      |
+    | - Returns            | REQ-returns             |
+    | @team: Invoices      | REQ-team-invoices       |
+
+Scenario: new refuses to write a spec that would not read back
+  When I run "sdp new requirement Carts --id ' '"
+  Then the exit code is 1
+  And the output contains "would not read back"
 
 Scenario: An id that only a dangling link names is free
   Given a file "specs/REQ-filters.md" containing:
