@@ -236,7 +236,8 @@ Feature: See the architecture
 
     An element anchored in several places is one element whichever file is read first: what each
     anchor declares holds, and where two disagree the spec's value, or else the first file's, is
-    kept.
+    kept. A kind that no anchor writes and no prefix names is no declaration, and gives way to one
+    that is written.
 
     Scenario Outline: Two anchors that agree, each with what it adds
       Given a file "src/courier/retry.ts" containing:
@@ -301,6 +302,28 @@ Feature: See the architecture
         | owner=post     | owner=billing    | element | ARCH-courier | post  | ARCH-courier: owner is "billing" here but "post" at src/courier/retry.ts:4, which is kept |
         | title=Courier  | title=Post       | element | Courier      |       | ARCH-courier: title is "Post" here but "Courier" at src/courier/retry.ts:4, which is kept  |
         | kind=component |                  | component | ARCH-courier |     | ARCH-courier: kind is "element" here but "component" at src/courier/retry.ts:4, which is kept |
+
+    Scenario Outline: One anchor writes the kind and the other none, <first> first
+      Given a file "src/<plain>" containing:
+        """
+        /** @sdp is retry */
+        export const again = (): number => 3
+        """
+      And a file "src/<written>" containing:
+        """
+        /** @sdp is retry kind=pattern */
+        export const wait = (): number => 1
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id    | kind    |
+        | retry | pattern |
+      And sdp reports nothing
+
+      Examples:
+        | first                   | plain | written |
+        | the one that writes none | a.ts  | b.ts    |
+        | the one that writes it   | b.ts  | a.ts    |
 
     Scenario: An anchor that disagrees with the spec
       Given these specs:

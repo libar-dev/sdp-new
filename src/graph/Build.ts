@@ -307,15 +307,19 @@ export const buildProject = (input: ProjectInput): Project => {
   // id's prefix names, a title and attributes. What a spec, or else an earlier anchor, gives holds;
   // a value given differently is reported where it is written.
   const declaredBy = new Map<string, Map<string, SourceRef>>()
+  // The kind sdp gives an anchored node that names none is no kind it declares: one written later replaces it.
+  const unnamedKind = new Set<string>()
   for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
     for (const target of annotation.targets) {
       const existing = nodes.get(target)
       const { kind: rawKind, title, ...rest } = annotation.attrs
       const at: SourceRef = { file: annotation.file, line: annotation.line }
       const where = { file: annotation.file, owner: target, line: annotation.line }
-      // The kind sdp gives an anchored node that names none is no kind it declares.
       const declaredKind = writtenKind(rawKind, where, diagnostics) ?? prefixKind(target, input.config)
-      const kind = existing?.kind ?? declaredKind ?? vocabulary.kinds.anchored
+      const named = existing !== undefined && unnamedKind.has(target) ? declaredKind : undefined
+      const kind = named ?? existing?.kind ?? declaredKind ?? vocabulary.kinds.anchored
+      if (existing === undefined && declaredKind === undefined) unnamedKind.add(target)
+      if (named !== undefined) unnamedKind.delete(target)
       const { attrs, links } = codeLinks(authored(target, kind, rest, () => at), vocabulary, where, diagnostics)
       const declared: Array<readonly [string, unknown]> = [
         ...(declaredKind === undefined ? [] : [["kind", declaredKind] as const]),
@@ -337,7 +341,11 @@ export const buildProject = (input: ProjectInput): Project => {
       } else {
         // A title that only repeats the id was given by no one.
         const given = (key: string): unknown =>
-          key === "kind" ? existing.kind : key === "title" ? (existing.title === target ? undefined : existing.title) : attribute(existing, key)
+          key === "kind"
+            ? (named === undefined && !unnamedKind.has(target) ? existing.kind : undefined)
+            : key === "title"
+            ? (existing.title === target ? undefined : existing.title)
+            : attribute(existing, key)
         for (const [key, value] of declared) {
           const kept = given(key)
           if (kept === undefined || JSON.stringify(kept) === JSON.stringify(value)) continue
@@ -350,8 +358,8 @@ export const buildProject = (input: ProjectInput): Project => {
           }))
         }
         const added = Object.fromEntries(Object.entries(attrs).filter(([key]) => !Object.hasOwn(existing.attrs, key)))
-        const named = Predicate.isString(title) && given("title") === undefined ? { title } : {}
-        nodes.set(target, { ...existing, ...named, attrs: staged(target, kind, { ...existing.attrs, ...added }) })
+        const titled = Predicate.isString(title) && given("title") === undefined ? { title } : {}
+        nodes.set(target, { ...existing, kind, ...titled, attrs: staged(target, kind, { ...existing.attrs, ...added }) })
       }
       for (const [key] of declared) if (!sources.has(key)) sources.set(key, at)
       for (const link of links) edges.push({ from: target, rel: link.rel, to: link.to, source: at })
