@@ -51,6 +51,7 @@ export const rules = {
   "import-unresolved": "warning",
   "return-type": "warning",
   "step-unreadable": "warning",
+  "results-unreadable": "warning",
   "step-expression": "error",
   "import-config-outside": "info"
 } as const satisfies Record<string, Severity>
@@ -75,7 +76,8 @@ export const unreadRules: ReadonlySet<RuleId> = new Set([
   "annotation-unreadable",
   "annotation-ignored",
   "import-unresolved",
-  "declaration-conflict"
+  "declaration-conflict",
+  "results-unreadable"
 ])
 
 /** A diagnostic on one line: `file:line [rule] message`. */

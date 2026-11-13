@@ -615,7 +615,7 @@ const namesNoCode = (path: string) => {
  * The key of a map of names that `name` matches: itself, or else the one with a `*` whose prefix
  * and suffix it has, the longest prefix first, with what the `*` stands for.
  */
-const matchKey = (keys: ReadonlyArray<string>, name: string): { readonly key: string; readonly star: string } | undefined => {
+export const matchKey = (keys: ReadonlyArray<string>, name: string): { readonly key: string; readonly star: string } | undefined => {
   if (keys.includes(name) && !name.includes("*")) return { key: name, star: "" }
   return keys.flatMap((key) => {
     const [prefix, suffix, ...more] = key.split("*")

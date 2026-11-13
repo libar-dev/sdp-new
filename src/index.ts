@@ -16,7 +16,7 @@
  * @sdp is ARCH-application
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Effect, type FileSystem, Layer, type Path } from "effect"
+import { Effect, type FileSystem, Layer, ManagedRuntime, type Path } from "effect"
 import * as Api from "./effect.ts"
 
 export type {
@@ -38,9 +38,11 @@ export type {
 } from "./effect.ts"
 export { describe, isAppError } from "./effect.ts"
 
+const runtime = ManagedRuntime.make(Layer.provideMerge(Api.gitRevisions, NodeServices.layer))
+
 /** Runs a use case on the files on disk, and `check` against its git base; aborting `signal` interrupts it, and the promise rejects. */
 const runOnDisk = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>, signal?: AbortSignal) =>
-  Effect.runPromise(effect.pipe(Effect.provide(Layer.provideMerge(Api.gitRevisions, NodeServices.layer))), { signal })
+  runtime.runPromise(effect, { signal })
 
 /** A use case of "sdp/effect" as a function that runs it on the files on disk. */
 const onDisk = <Args extends ReadonlyArray<unknown>, A, E>(
@@ -71,7 +73,7 @@ export const vocabulary = onDisk(Api.vocabulary)
 export type OnScenario = (result: Api.ScenarioResult, toCome: boolean) => void | PromiseLike<void>
 
 const reporting = (onScenario: OnScenario | undefined) =>
-  onScenario && ((result: Api.ScenarioResult, toCome: boolean) => Effect.promise(async () => onScenario(result, toCome)))
+  onScenario && ((result: Api.ScenarioResult, toCome: boolean) => Effect.tryPromise({ try: async () => onScenario(result, toCome), catch: (error) => error }).pipe(Effect.orDie))
 
 export interface RunInput extends Omit<Api.RunInput, "onScenario"> {
   readonly onScenario?: OnScenario | undefined

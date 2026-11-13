@@ -82,8 +82,11 @@ export const ScenarioResult = Schema.Struct({
 })
 export type ScenarioResult = typeof ScenarioResult.Type
 
+/** The version of the results file this sdp reads and writes: a file of another is not read as its own. */
+export const resultsVersion = 4
+
 export const RunResults = Schema.Struct({
-  version: Schema.Literal(4),
+  version: Schema.Literal(resultsVersion),
   /**
    * For each `evidence.sources` fingerprint of a stored result: the workspace files the step
    * definitions had imported, besides the step files, when the run that recorded it ended.

@@ -30,7 +30,7 @@ import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { digest, fingerprint, isClosed, isGate } from "../run/Evidence.ts"
 import { snippetModule } from "../run/Match.ts"
-import { runScenarios, summarize } from "../run/Runner.ts"
+import { failingOnUnawaited, runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
 import { commitResults } from "../run/Store.ts"
 import {
@@ -221,6 +221,9 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       gates,
       timeout: options.timeout ?? config.timeout,
       concurrency: options.concurrency,
+      onStop: (finished) => commit(
+        finished.filter((result) => gates || !partlyGates.has(result.id)), workspace, (result) => complete(result)!
+      ).pipe(Effect.asVoid),
       onScenario: onScenario && ((result) => {
         const whole = complete(result)
         return whole ? onScenario(whole, toCome(workspace.project.graph, whole.id)) : Effect.void
@@ -365,14 +368,14 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   if (timeout !== undefined && Result.isFailure(timeout)) return yield* new Refused({ reason: `the timeout ${timeout.failure}` })
   const config = yield* loadConfig(root)
   const steps = yield* loadSteps(root, config)
-  const run = yield* runWorkspace(root, {
+  const run = yield* failingOnUnawaited(runWorkspace(root, {
     modules: [builtinSteps, ...steps.modules],
     loaded: steps,
     selection: { targets: input.targets, tags: input.tags },
     concurrency: input.concurrency,
     timeout: timeout?.success,
     onScenario: input.onScenario
-  })
+  }))
   const summary = summarize(run.scenarios.filter((result) => !run.toCome.has(result.id)))
   const gates = summarize(run.gates)
   const scenarios = [...run.scenarios, ...run.gates]
