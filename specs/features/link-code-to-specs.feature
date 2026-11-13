@@ -257,6 +257,10 @@ Feature: Link code to specs
         | Go       | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error { | code:src/pay.go#Pay |
         | Ruby     | src/pay.rb | # @sdp implements pay\n# Charges the card on file.\ndef pay                   | code:src/pay.rb#pay |
         | Python, with a linter's directive | src/pay.py | # Charges the card on file.\n# @sdp implements pay\n# pylint: disable=invalid-name\ndef pay(): pass | code:src/pay.py#pay |
+      | Rust, above an attribute | src/pay.rs | /// Charges the card on file.\n/// @sdp implements pay\n#[derive(Debug)]\npub struct Payment {} | code:src/pay.rs#Payment |
+      | Rust, above an attribute of several lines | src/pay.rs | /// Charges the card on file.\n/// @sdp implements pay\n#[derive(\n    Debug,\n)]\npub struct Payment {} | code:src/pay.rs#Payment |
+      | PHP, above an attribute | src/pay.php | <?php\n// Charges the card on file.\n// @sdp implements pay\n#[Route("/pay")]\nfunction pay() {} | code:src/pay.php#pay |
+      | C#, below a directive of the preprocessor | src/Pay.cs | #region Payments\n/// Charges the card on file.\n/// @sdp implements pay\npublic class Payment {} | code:src/Pay.cs#Payment |
 
     Scenario Outline: In Python, a docstring is the doc comment of the module, the class or the function it opens: <opens>
       Given a file "src/pay.py" containing:

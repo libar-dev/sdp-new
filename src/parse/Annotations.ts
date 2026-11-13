@@ -387,6 +387,10 @@ const placeholder = /^<[^<>\s]+>$/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
+/** A line that opens with `#` as a comment does, and is code: an attribute (`#[derive(Debug)]`), or a directive of the preprocessor. */
+const hashCode = /^\s*#(?:!?\[|(?:if|ifdef|ifndef|elif|else|endif|define|undef|include|pragma|region|endregion|nullable)\b)/
+/** A comment's line, with nothing else on it. */
+const commentLine = (line: string): boolean => commentOnly.test(line) && !hashCode.test(line)
 
 /** Languages without a parser: comment lines that open with the tag, line by line, but for code a doc comment shows. */
 const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" | "unreadable" | "ignored"> => {
@@ -424,7 +428,7 @@ const fencedLines = (lines: ReadonlyArray<string>, docstrings: ReadonlyArray<Doc
   lines.forEach((line, index) => {
     const docstring = docstrings.find(({ first, last }) => first <= index && index <= last)
     const opens = !block && blockStart.test(line)
-    if (docstring === undefined && !block && !opens && !commentOnly.test(line)) {
+    if (docstring === undefined && !block && !opens && !commentLine(line)) {
       fenced = false
       return
     }
@@ -513,7 +517,7 @@ const commentText = (line: string): string =>
 
 /** What the comment lines around a tag say, as one comment: those on lines of their own, up to a blank line or code. */
 const lineCommentDoc = (lines: ReadonlyArray<string>, at: number): string | undefined => {
-  const comment = (index: number) => index >= 0 && index < lines.length && commentOnly.test(lines[index]!)
+  const comment = (index: number) => index >= 0 && index < lines.length && commentLine(lines[index]!)
   let first = at
   let last = at
   while (comment(first - 1)) first--
@@ -529,7 +533,7 @@ const ignoredLines = (lines: ReadonlyArray<string>, shown: ReadonlySet<number>):
   lines.flatMap((text, index) => {
     if (shown.has(index) || lineMarker.test(text)) return []
     // A comment line that mentions a tag in its words is prose, unless the tag is one as written.
-    if (commentOnly.test(text)) return wordsBefore(text, index + 1)
+    if (commentLine(text)) return wordsBefore(text, index + 1)
     const match = trailing.exec(text)
     return match
       ? [{ line: index + 1, message: `"${match[1]!}" follows code on the same line, so it is not read as an annotation`, hint: trailingHint }]
