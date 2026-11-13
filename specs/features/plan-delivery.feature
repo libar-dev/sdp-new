@@ -422,6 +422,35 @@ Feature: Plan delivery
         | IT-prototype | ARCH-x, alpha |
         | IT-baseline  |               |
 
+  Rule: A rule of the architecture is analysis and design work, so one still to come declares a maturity as a feature's rule does
+
+    A rule only the code observes, such as which element may import which, is no feature's: it is a
+    rule of a spec of kind architecture, planned like any other work.
+
+    Scenario: A rule of the architecture still to come, and a new spec of the architecture's rules at a maturity
+      Given a file "specs/ARCHITECTURE.feature" containing:
+        """
+        @id=ARCHITECTURE @kind=architecture
+        Feature: Architecture
+
+          Rule: No element depends on itself through others
+
+            Scenario: The elements
+              Then there are no error diagnostics
+
+          @maturity=draft
+          Rule: Only the workspace reads files
+        """
+      When I run "sdp check --base none"
+      Then the exit code is 0
+      And the output contains "0 error(s), 0 warning(s)"
+      When I run "sdp new architecture 'Rules of the shop' --maturity draft"
+      Then the exit code is 0
+      And the file "specs/architecture/rules-of-the-shop.feature" contains "@id=rules-of-the-shop @kind=architecture @maturity=draft"
+      When I run "sdp lifecycle --json"
+      Then the JSON output has:
+        | data.unplanned | ARCHITECTURE#only-the-workspace-reads-files, rules-of-the-shop |
+
   Rule: A kind no discipline names is no work: nothing lists it as unplanned, and check reports a maturity on it
 
     Work is what a discipline takes, and only work is still to come at a maturity, and planned. An
@@ -443,9 +472,9 @@ Feature: Plan delivery
       Then the unplanned work is "nothing"
       When the workspace is checked
       Then sdp reports:
-        | rule           | node                                    | at                         | message                                                                                       | hint                                                                                                                                                                  |
-        | plan-reference | outage                                  | specs/outage.feature:1     | outage: kind risk belongs to no discipline, so its maturity marks work that nothing can plan | delete the maturity — what is no work is live, and its rules have examples — or add risk to a discipline under vocabulary.disciplines                                 |
-        | untested-rule  | slow-index#the-index-may-outgrow-memory | specs/slow-index.feature:4 | slow-index#the-index-may-outgrow-memory is live, so it needs an example                       | write a Scenario under it; kind risk belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines |
+        | rule                | node                                    | at                         | message                                                                                      | hint                                                                                                                                                            |
+        | maturity-on-no-work | outage                                  | specs/outage.feature:1     | outage: kind risk belongs to no discipline, so its maturity marks work that nothing can plan | delete the maturity — what is no work is live, and its rules have examples — or add risk to a discipline under vocabulary.disciplines                           |
+        | untested-rule       | slow-index#the-index-may-outgrow-memory | specs/slow-index.feature:4 | slow-index#the-index-may-outgrow-memory is live, so it needs an example                      | write a Scenario under it; kind risk belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines |
 
     Scenario: Once a discipline names risk, a risk at a maturity is work to plan
       Given a file "sdp.config.yaml" containing:

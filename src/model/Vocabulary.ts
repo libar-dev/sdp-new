@@ -31,6 +31,8 @@ export interface Vocabulary {
     readonly pattern: Words
     /** The kinds whose nodes are the architecture: declaring one is the architect's call. */
     readonly architectural: Words
+    /** The kinds of the specs that hold the architecture's rules: what only the code observes, such as which element may import which. */
+    readonly architecture: Words
     /** Architectural drivers, shown next to the architecture they shape: a team that keeps quality requirements as specs of a kind of its own names that kind here. */
     readonly driver: Words
     /** The kind of a node an anchor declares when it writes none and its id has no prefix that names one. */
@@ -86,20 +88,21 @@ const defaultKinds: Vocabulary["kinds"] = {
   iteration: ["iteration"],
   pattern: ["pattern"],
   architectural: ["element", "pattern"],
+  architecture: ["architecture"],
   driver: ["decision"],
   anchored: "element"
 }
 
 /**
  * The disciplines of a workspace that names none of its own, and the kinds whose planned nodes are
- * work in each: its features are requirements work, and its architecture analysis and design, in
- * the words its vocabulary gives them.
+ * work in each: its features are requirements work, and its architecture and the rules of it
+ * analysis and design, in the words its vocabulary gives them.
  */
 export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
   new Map<string, Words>([
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
     ["requirements", [...new Set(["requirement", ...kinds.feature, "story", "use-case", "epic"])]],
-    ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern])]],
+    ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern, ...kinds.architecture])]],
     // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
     ["implementation", []],
     ["test", []],

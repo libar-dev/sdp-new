@@ -203,10 +203,12 @@ closest.
 
 ## Changing behaviour
 
-1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"`
-   writes it where it stays, and says what to write in it next. A change to a built feature is
-   rules of it, each with a maturity of its own until it is built. What a user sees belongs to a
-   feature; a rule only the code observes, to the rules of the architecture.
+1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"` writes
+   it where it stays, and says what to write in it next. A change to a built feature is rules of it,
+   each with a maturity of its own until it is built. What a user sees belongs to a feature; a rule
+   only the code observes, to a spec of kind architecture (`@kind=architecture`;
+   `sdp new architecture "…"` starts one), whose rules still to come declare a maturity as a
+   feature's do.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for

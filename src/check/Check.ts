@@ -379,7 +379,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     // Said once: a node its iteration plans is told so above, and one an activity tag plans is work.
     const unplannable = !planned && !isWorkNode(node) && !isPlanKind(vocabulary, kind)
     if (attribute(node, "maturity") !== undefined && unplannable) {
-      out.push(diagnostic("plan-reference", {
+      out.push(diagnostic("maturity-on-no-work", {
         message: `${node.id}: kind ${kind} belongs to no discipline, so its maturity marks work that nothing can plan`,
         node: node.id,
         source: writtenAt(node, "maturity"),
