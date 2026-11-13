@@ -7,5 +7,4 @@
 Feature: Scenarios run in a host runner
 
   A team whose code only its test runner can load runs its scenarios there, and sdp still knows what
-  is verified. In this order: a result for each way a scenario runs, so that one way's pass cannot
-  hide another's failure; cleanup after each scenario; then the host runner itself.
+  is verified.

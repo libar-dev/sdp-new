@@ -3,5 +3,4 @@
 @includes:ask-the-graph#an-answer-names-the-commit-it-was-read-at-says-when-the-files
 Feature: Answers shaped for agents
 
-  An agent gets what its job needs in one call that fits its context, from a question asked once, by
-  name, and answered to the line.
+  An agent gets what its job needs in one call that fits its context, from a question asked by name.

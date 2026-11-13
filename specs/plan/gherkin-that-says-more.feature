@@ -8,5 +8,4 @@
 @includes:write-step-definitions#is-a-step-matched-only-by-a-definition-of-its-own-kind-given
 Feature: Gherkin that says more
 
-  The tools teams already use — Cucumber's runner and reporters, their editors — read and run specs,
-  and step definitions say more about what they match and what they leave behind.
+  The tools teams already use, Cucumber's runner and reporters and their editors, read and run specs.

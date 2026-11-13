@@ -4,15 +4,12 @@
 Feature: Start from the state of the repository
 
   An agent that starts on a repository, and a person who reviews one, need first what the files do
-  not say at a glance: the words that can be modeled, the parts that are significant and how they
-  relate, the rules that hold and those still to come, and where each is written. `sdp graph`
-  prints that state.
+  not say at a glance: the words in use, the significant parts and how they relate, the rules that
+  hold and those still to come, and where each is written. `sdp graph` prints that state.
 
-  Not the specs or the code again: a record says where they are written, and they are read there.
+  Not the specs or the code again: a record says where they are written.
 
   Rule: The state opens with its vocabulary: each kind, relation and fact in use, what it means, and whether sdp makes, interprets or carries it
-
-    A word whose meaning is not in the state is guessed from its name.
 
     Scenario: The words of a small workspace
       Given these specs:
@@ -28,8 +25,6 @@ Feature: Start from the state of the repository
         | maturity   | fact     | interprets | 2    |
 
   Rule: Work still to come is in the state as built work is, at every maturity, and each record of work says which it is
-
-    An implementer must never take a rule still to come for one that holds.
 
     Scenario: An idea, work that is ready, and a rule still to come in a built feature
       Given these specs:
@@ -61,8 +56,6 @@ Feature: Start from the state of the repository
 
   Rule: An element and a pattern carry what they are for, in the words of the doc comment that declares them
 
-    An agent navigates by elements.
-
     Scenario: An element declared in a doc comment
       Given a file "src/orders.ts" containing:
         """
@@ -82,12 +75,12 @@ Feature: Start from the state of the repository
   @open
   Rule: Where does the architect write once what an element is for, when several files declare it?
 
-    The first doc comment found need not be the one that describes the element.
+    The first doc comment found may not describe it.
 
   @open
   Rule: How large may the state be: the hook's 2,000 characters, a larger first fetch with the hook a part of it, or a share of the specs and code it is read from?
 
-    A state an agent cannot read whole before its first step is not the first thing it fetches.
+    An agent must read it whole before its first step.
 
   @open
   Rule: How does an element that has no code yet enter the state, so that work still to come reaches the code it will change?

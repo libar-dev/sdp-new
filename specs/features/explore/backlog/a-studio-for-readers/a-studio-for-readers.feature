@@ -2,6 +2,5 @@
 @includes:browse-the-graph-in-obsidian @includes:draw-diagrams-from-the-graph
 Feature: A studio for readers
 
-  People who read the delivery state rather than query it browse it as linked notes in Obsidian, or
-  as the same pages published to the web, with standing views of the work and a diagram of each node,
-  generated from the graph.
+  People who read the delivery state rather than query it browse it as linked notes, in Obsidian
+  or on the web, with a diagram of each node.

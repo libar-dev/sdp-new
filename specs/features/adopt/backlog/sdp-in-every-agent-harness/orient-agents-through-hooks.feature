@@ -2,11 +2,10 @@
 @iteration:IT-agent-plugin
 Feature: Orient agents through hooks
 
-  An agent that starts a session does not know where the project stands, and does not think to ask.
-  The plugin's hook tells it, in a few lines, before its first step.
+  An agent that starts a session does not know where the project stands, and does not think to ask:
+  the plugin's hook tells it, in a few lines, before its first step.
 
-  Not instructions: the hook shows what sdp answers, never what an agent should do, which the skill
-  teaches.
+  Not instructions: the hook shows what sdp answers, never what an agent should do.
 
   Background:
     Given a file "shop/sdp.config.yaml" containing:
@@ -36,9 +35,6 @@ Feature: Orient agents through hooks
 
   Rule: At session start the agent is shown what sdp lifecycle --brief prints for the workspace sdp finds from where the session started
 
-    A person who runs the command sees what the agent was shown, and a session in one package of a
-    monorepo is told about its own.
-
     Scenario: A session started below the workspace's root
       When the plugin's hook runs at session start in "shop/src"
       Then the output contains "MS-beta"
@@ -50,8 +46,6 @@ Feature: Orient agents through hooks
   @quality
   Rule: The orientation fits in 2,000 characters and arrives within 5 seconds, or one line says it did not and names the command to run
 
-    Harnesses cut what a hook adds, and a slow hook holds up the first reply.
-
     Scenario: A workspace of 500 specs
       Given a generated workspace of 500 specs
       When the plugin's hook runs at session start in the workspace
@@ -59,8 +53,6 @@ Feature: Orient agents through hooks
       And the hook answered within 5000 ms
 
   Rule: Outside an sdp workspace the hook shows nothing; a hook that fails says so in one line and lets the session go on
-
-    A plugin installed for a person runs in every repository they open, most of them without sdp.
 
     Scenario: A directory with no sdp.config
       When the plugin's hook runs at session start in "elsewhere"
@@ -80,8 +72,6 @@ Feature: Orient agents through hooks
 
   Rule: Run on an event that recurs — a prompt, a tool call — the hook shows the orientation once per session, the first time
 
-    A second copy costs every later turn its context. Of two runs that overlap, one shows it.
-
     Scenario: Two tool calls of one session, then a new session
       When the plugin's hook runs on "PreToolUse" for session "a" in "shop"
       Then the output contains "MS-beta"
@@ -91,8 +81,6 @@ Feature: Orient agents through hooks
       Then the output contains "MS-beta"
 
   Rule: The orientation is answered by the sdp the workspace installed, and says so when the plugin is of another version
-
-    A plugin installed for a person serves every repository, each with sdp at a version of its own.
 
     Scenario: A plugin newer than the workspace's sdp
       Given the workspace "shop" installed sdp "0.1.0"

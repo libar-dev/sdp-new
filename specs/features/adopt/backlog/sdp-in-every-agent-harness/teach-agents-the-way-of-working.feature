@@ -3,14 +3,12 @@
 Feature: Teach agents the way of working
 
   An agent in a repository specified with sdp asks the graph before it greps, writes the rule and its
-  example before the code, leaves open what nobody decided, and never edits what sdp derives. The
-  plugin's one skill teaches that; what only writing a spec needs is read when a spec is written.
+  example before the code, leaves open what nobody decided, and never edits what sdp derives: the
+  plugin's one skill teaches it that.
 
   Not a second statement of sdp's rules: where the skill and `sdp check` differ, check is right.
 
   Rule: The plugin has one skill, and it teaches the whole way of working: orient, find the spec that owns a behaviour, change the rule and its example, write the steps, check and run, plan
-
-    Skills that overlap are slower to learn than one.
 
     Scenario: The skills the plugin ships
       When I run "ls skills" in the repository
@@ -25,16 +23,11 @@ Feature: Teach agents the way of working
   @quality
   Rule: The skill an agent loads first fits in 10,000 characters
 
-    It is read whole in every session, by every agent: what most work does not need costs each of
-    them.
-
     Scenario: The size of the skill
       When I run "sh -c 'test $(wc -c < skills/sdp/SKILL.md) -le 10000'" in the repository
       Then the exit code is 0
 
   Rule: Every sdp command the skill and its references show runs as written in a workspace sdp init started, and exits as they say
-
-    A command that no longer runs teaches the agent a step that fails, and nothing else would notice.
 
     Scenario: The commands of the skill, run
       Given the workspace is a copy of "examples/shop"
@@ -43,5 +36,3 @@ Feature: Teach agents the way of working
 
   @maturity=idea
   Rule: Agents taught by the skill leave open what a request left open: a choice the requester did not make is a rule tagged @open, not a rule they chose
-
-    Agents settle such a choice in valid syntax, and a check of the format cannot see it.

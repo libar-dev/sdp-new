@@ -2,17 +2,13 @@
 @iteration:IT-agent-plugin
 Feature: Install the agent plugin
 
-  Teams run their agents in several harnesses, and every agent must learn the same way of working,
-  of the sdp version the repository installed. Installed once, the package is the plugin of each
-  supported harness, laid out as the Agent Plugins standard says, and gives each the skill and the
-  session hook of that version.
+  Teams run agents in several harnesses, and each must learn the way of working of the sdp version
+  the repository installed: the package is the plugin of each, as the Agent Plugins standard lays
+  it out, with the skill and the session hook of that version.
 
-  Not the MCP server, which `serve-agents` specifies, and no harness's settings are written: where a
-  harness needs a step in a person's own settings, sdp names it.
+  Not the MCP server, which `serve-agents` specifies, and no harness's settings are written.
 
   Rule: One package is the plugin of every supported harness: one manifest, one folder of skills and one hook script
-
-    A copy per harness would drift from the others and from the sdp installed beside it.
 
     Scenario: The plugin is the package
       When I run "npm pack --dry-run --json" in the repository
@@ -22,8 +18,6 @@ Feature: Install the agent plugin
       And "plugin.json" in the repository conforms to the Agent Plugins 1.0.0 schema
 
   Rule: Where the standard does not reach a harness, a shim of that harness's own names the plugin and where its skills are, and holds no skill text
-
-    A shim that held text would be one more copy to keep in step.
 
     Scenario Outline: The shim of <harness>
       When I run "cat <shim>" in the repository
@@ -38,9 +32,6 @@ Feature: Install the agent plugin
         | Kimi Code | kimi.plugin.json          |
 
   Rule: Each supported harness finds one wiring of the hook in the plugin, or in the one setting sdp names, and run as that harness runs it, it orients the session
-
-    Kimi Code and Grok Build show a session-start hook's output to the person only, so theirs runs on
-    the first prompt or the first tool call.
 
     Background:
       Given these specs:
@@ -66,8 +57,6 @@ Feature: Install the agent plugin
 
   Rule: init starts a workspace with a configuration that shows every default and overwrites nothing, writes no skill, and names how each supported harness installs the plugin
 
-    A copy of the skill in the repository is one version behind as soon as sdp is upgraded.
-
     Scenario: Run twice, below another workspace
       Given a file "sdp.config.yaml" containing:
         """
@@ -90,9 +79,6 @@ Feature: Install the agent plugin
       Then the exit code is 0
 
   Rule: A harness is supported only where its model, at a version of the harness the example names, received the skill and the orientation, the orientation once
-
-    Files in the right place prove nothing about what a model reads, and harnesses change it from
-    one version to the next. It is checked where the harness is installed, so it is a gate.
 
     @gate
     Scenario Outline: <harness> <version>

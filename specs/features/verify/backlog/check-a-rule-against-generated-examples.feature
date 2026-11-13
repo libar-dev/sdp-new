@@ -2,7 +2,6 @@
 @realized-by:ARCH-runner
 Feature: Check a rule against generated examples
 
-  A rule holds for every input it covers, and a handful of examples samples a few. A scenario that
-  states the rule once, over generated inputs, finds the case nobody wrote down.
+  Generated inputs find the case of a rule that nobody wrote down as an example.
 
   Rule: A scenario tagged as a property runs with generated inputs, and a failure is shrunk to its smallest case
