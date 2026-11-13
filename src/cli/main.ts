@@ -9,11 +9,11 @@
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Console, Duration, Effect, FileSystem, Layer, Option, Path, Result } from "effect"
-import { Argument, CliError, CliOutput, Command, Flag, TerminalCapabilities } from "effect/cli"
+import { Console, Duration, Effect, FileSystem, Layer, Option, Path, Result, Runtime } from "effect"
+import { Argument, CliOutput, Command, Flag, TerminalCapabilities } from "effect/cli"
 import type { Answer } from "../app/Answer.ts"
 import * as Authoring from "../app/Authoring.ts"
-import { describe, isAppError, Refused } from "../app/Errors.ts"
+import { Refused } from "../app/Errors.ts"
 import * as Reading from "../app/Reading.ts"
 import * as Running from "../app/Running.ts"
 import { templateKinds } from "../app/Templates.ts"
@@ -70,13 +70,6 @@ const failed = 1
 /** The command answered, but from a workspace it could not fully read or a search it could not finish. */
 const incomplete = 2
 
-/** Errors owned elsewhere keep their wording until they declare a CLI user message themselves. */
-const told = <A, E, R>(self: Effect.Effect<A, E, R>) =>
-  Effect.mapError(self, (error) =>
-    isAppError(error) && CliError.getUserMessage(error) === undefined
-      ? new CliError.UserError({ cause: error, userMessage: describe(error) })
-      : error)
-
 /**
  * Prints an answer: its data as text — or, with `--json`, the envelope — on stdout, so the lines
  * stay clean for a pipe, and what the reader should know about it on stderr. An incomplete answer
@@ -96,7 +89,7 @@ const statusCommand = Command.make(
   { json },
   Effect.fn("statusCommand")(function*({ json }) {
     yield* print(yield* Reading.status(yield* workspaceRoot), json, Text.status)
-  }, told)
+  })
 ).pipe(Command.withDescription("One-screen summary of the delivery state"))
 
 const queryCommand = Command.make(
@@ -111,7 +104,7 @@ const queryCommand = Command.make(
     const found = yield* Reading.query(yield* workspaceRoot, { expression, paths })
     yield* print(found, json, (data) => ids ? data.nodes.map((node) => node.id).join("\n") : Text.query(data))
     if (!ids && !json) yield* Console.error(Text.c.dim(`${found.data.nodes.length} node(s)`))
-  }, told)
+  })
 ).pipe(
   Command.withAlias("q"),
   Command.withShortDescription("Query the graph with a path pattern"),
@@ -130,7 +123,7 @@ const showCommand = Command.make(
   { id, json },
   Effect.fn("showCommand")(function*({ id, json }) {
     yield* print(yield* Reading.show(yield* workspaceRoot, { id }), json, Text.show)
-  }, told)
+  })
 ).pipe(Command.withDescription("Show one node with its attributes and edges"))
 
 const contextCommand = Command.make(
@@ -144,7 +137,7 @@ const contextCommand = Command.make(
   },
   Effect.fn("contextCommand")(function*({ depth, id }) {
     yield* print(yield* Reading.context(yield* workspaceRoot, { id, depth }), false, (document) => document)
-  }, told)
+  })
 ).pipe(
   Command.withDescription(
     "Markdown context bundle for one node: its rules with their state and reason, scenarios with the step definitions still to write, spec, links, architecture, quality requirements, decisions, code"
@@ -162,7 +155,7 @@ const graphCommand = Command.make(
     const input = { select: Option.getOrUndefined(select) }
     if (mermaid) return yield* print(yield* Reading.diagram(root, input), false, (diagram) => diagram.trimEnd())
     yield* print(yield* Reading.graph(root, input), false, (records) => jsonLines(records).trimEnd())
-  }, told)
+  })
 ).pipe(
   Command.withDescription("The state as plain data: each spec, its rules and examples by their one line, the architecture and the links written between them; one JSON record per line"),
   Command.withExamples([
@@ -179,7 +172,7 @@ const archCommand = Command.make(
     const root = yield* workspaceRoot
     if (mermaid) return yield* print(yield* Reading.diagram(root, "architecture"), false, (diagram) => diagram.trimEnd())
     yield* print(yield* Reading.architecture(root), json, Text.architecture)
-  }, told)
+  })
 ).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it or to the features it realizes"))
 
 const lifecycleCommand = Command.make(
@@ -190,7 +183,7 @@ const lifecycleCommand = Command.make(
     if (json) return yield* print(yield* Reading.lifecycle(root), true, () => "")
     if (brief) return yield* print(yield* Reading.lifecycleBrief(root), false, (brief) => brief.trimEnd())
     yield* print(yield* Reading.lifecycleChart(root), false, (chart) => chart.trimEnd())
-  }, told)
+  })
 ).pipe(Command.withDescription("Milestones and where the project is, the work planned into each iteration, discipline activity and the evidence"))
 
 const vocabularyCommand = Command.make(
@@ -198,7 +191,7 @@ const vocabularyCommand = Command.make(
   { json },
   Effect.fn("vocabularyCommand")(function*({ json }) {
     yield* print(yield* Reading.vocabulary(yield* workspaceRoot), json, Text.vocabulary)
-  }, told)
+  })
 ).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, maturity, disciplines — as configured"))
 
 // --- checking and running ---------------------------------------------------
@@ -222,7 +215,7 @@ const checkCommand = Command.make(
     const found = yield* Reading.check(yield* workspaceRoot, { severity, base: Option.getOrUndefined(base) })
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
-  }, told)
+  })
 ).pipe(
   Command.withDescription(
     "Validate tags, links, Gherkin and the plan, and that nothing live at the git base stopped being live; exit 1 on errors"
@@ -246,7 +239,7 @@ const stepsCommand = Command.make(
     const listed = yield* Reading.steps(yield* workspaceRoot, { text: Option.getOrUndefined(text) })
     yield* print(listed, json, Text.steps)
     if (!json) yield* Console.error(Text.c.dim(`${listed.data.length} step definition(s)`))
-  }, told)
+  })
 ).pipe(
   Command.withDescription(
     "List step definitions, built-in ones included, one per line: file:line, keyword, expression. Read from the step files without running them"
@@ -325,7 +318,7 @@ const runCommand = Command.make(
     const root = yield* workspaceRoot
     const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency, timeout: yield* timeoutOf(timeout) }
     yield* printRun((onScenario) => Running.run(root, { ...input, onScenario }), { json, verbose })
-  }, told)
+  })
 ).pipe(Command.withDescription("Execute scenarios and record results (.sdp/results.json)"))
 
 const gateCommand = Command.make(
@@ -343,7 +336,7 @@ const gateCommand = Command.make(
     const root = yield* workspaceRoot
     const input = { milestone, record, timeout: yield* timeoutOf(timeout) }
     yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
-  }, told)
+  })
 ).pipe(
   Command.withDescription("Evaluate one milestone's gate scenarios against the current graph: it passes, and exits 0, when every one of them passed and its result still counts when the gate ends"),
   Command.withExamples([
@@ -387,7 +380,7 @@ const newCommand = Command.make(
     yield* Console.log(created.file === undefined ? created.id : `${created.id}\t${created.file}`)
     for (const line of created.next) yield* Console.error(Text.c.dim(`next: ${line}`))
     if (created.unread !== undefined) yield* Console.error(Text.c.yellow(`note: ${created.unread}`))
-  }, told)
+  })
 ).pipe(
   Command.withDescription(
     `Create a feature, decision, phase, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
@@ -414,7 +407,7 @@ const initCommand = Command.make(
         "next: sdp new feature \"My first feature\"  ·  a plan: sdp new phase \"Elaboration\", then sdp new iteration \"<title>\" and sdp new milestone \"<title>\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill"
       )
     )
-  }, told)
+  })
 ).pipe(Command.withDescription("Create sdp.config.yaml, the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) and, where git does not ignore .sdp/, a .gitignore of it in the workspace"))
 
 const mcpCommand = Command.make(
@@ -424,7 +417,7 @@ const mcpCommand = Command.make(
     // Loaded on demand: only `sdp mcp` needs the MCP stack.
     const { serveMcp } = yield* Effect.promise(() => import("../mcp/Server.ts"))
     yield* serveMcp(yield* workspaceRoot, sdpVersion)
-  }, told)
+  })
 ).pipe(Command.withDescription("Serve the graph to AI agents over MCP (stdio)"))
 
 sdp.pipe(
@@ -446,6 +439,13 @@ sdp.pipe(
     mcpCommand
   ]),
   Command.run({ version: sdpVersion }),
+  // Every error of sdp's own carries the one line Command.run prints for it; a file system error of
+  // Effect's carries none, so it is printed here, the same way, and not reported again.
+  Effect.tapErrorTag("PlatformError", (error) =>
+    Effect.andThen(
+      Console.error(Text.c.red(error.message)),
+      Effect.sync(() => Object.assign(error, { [Runtime.errorReported]: false }))
+    )),
   // A problem with the user's files or input is the one line its error words, not a stack trace or
   // an ERROR block; a command line that cannot be parsed keeps Effect's help and error output.
   Effect.provide(Layer.effect(CliOutput.Formatter)(Effect.map(

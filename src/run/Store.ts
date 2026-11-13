@@ -8,6 +8,7 @@
  * @sdp is ARCH-runner
  */
 import { Effect, FileSystem, Path, Schedule, Schema } from "effect"
+import * as CliError from "effect/cli/CliError"
 import { isDeepStrictEqual } from "node:util"
 import type { Config } from "../model/Config.ts"
 import { resultsVersion, RunResults, type ScenarioResult } from "../model/Results.ts"
@@ -19,6 +20,9 @@ export class ResultsLocked extends Schema.TaggedError<ResultsLocked>()("ResultsL
   override get message() {
     return `another sdp run is recording results (${this.lock} exists); run again when it has finished, or delete that file if no run is active`
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 /** A results file that exists but cannot be read by this version of sdp. */
@@ -28,6 +32,9 @@ export class ResultsUnreadable extends Schema.TaggedError<ResultsUnreadable>()("
 }) {
   override get message() {
     return `cannot record results: ${this.file} is not a results file this sdp reads (${this.problem}); move it aside or delete it, then run again`
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 

@@ -125,6 +125,13 @@ export const defaults: Config = {
   vocabulary: defaultVocabulary
 }
 
+/** A role group's defaults, each replaced by the words the file gives that role; a role given none keeps its default. */
+const replaced = <T extends object>(defaults: T, given: { readonly [Role in keyof T]?: T[Role] | undefined } | undefined): T => {
+  const roles = { ...defaults }
+  for (const [role, words] of Object.entries(given ?? {})) if (words !== undefined) Object.assign(roles, { [role]: words })
+  return roles
+}
+
 /**
  * Each role the file names replaces its default; disciplines merge one by one, over defaults that
  * name the kinds in the file's words.
@@ -132,14 +139,14 @@ export const defaults: Config = {
 const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
   const d = defaultVocabulary
   if (!file) return d
-  const kinds = { ...d.kinds, ...file.kinds }
+  const kinds = replaced(d.kinds, file.kinds)
   return {
     kinds,
-    relations: { ...d.relations, ...file.relations },
-    attributes: { ...d.attributes, ...file.attributes },
+    relations: replaced(d.relations, file.relations),
+    attributes: replaced(d.attributes, file.attributes),
     maturity: file.maturity ?? d.maturity,
     disciplines: { ...defaultDisciplines(kinds), ...file.disciplines },
-    words: { ...d.words, ...file.words }
+    words: replaced(d.words, file.words)
   }
 }
 

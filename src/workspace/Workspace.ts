@@ -6,6 +6,7 @@
  * only `loadSteps`, for `sdp run` and `sdp gate`, imports step modules.
  */
 import { Effect, FileSystem, Path, Result, Schema } from "effect"
+import * as CliError from "effect/cli/CliError"
 import type { PlatformError } from "effect/PlatformError"
 import { readFileSync, realpathSync } from "node:fs"
 import { createRequire, findPackageJSON, registerHooks } from "node:module"
@@ -31,6 +32,9 @@ export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError"
   override get message() {
     return this.problems.join("; ")
   }
+  override get [CliError.userMessage]() {
+    return this.problems.map((problem) => `${this.file}: invalid configuration: ${problem}`).join("\n")
+  }
 }
 
 export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()("WorkspaceNotFound", {
@@ -39,12 +43,19 @@ export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()("
   override get message() {
     return `no such directory: ${this.root}`
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoadError", {
   file: Schema.String,
   message: Schema.String
-}) {}
+}) {
+  override get [CliError.userMessage]() {
+    return `${this.file}: could not load step definitions: ${this.message}`
+  }
+}
 
 /** The step files or the files they import have changed since this process loaded them: what it would run is no longer what is on disk. */
 export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("SourcesChanged", {
@@ -68,6 +79,9 @@ export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("Source
     return `${
       changes.join(", and ")
     }: a process loads its step modules once, and Node.js keeps a module for the life of a process, so the code there now did not run, and what would rest on it is not recorded. Run again in a new process`
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 
