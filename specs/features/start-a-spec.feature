@@ -116,13 +116,10 @@ Feature: Start a spec
         """
       And the file "specs/architecture/ARCH-orders.feature" does not exist
 
-  Rule: A new spec is written where this repository keeps its kind, a feature where it stays, and a change has no file
+  Rule: A new spec is written in the directory sdp gives its kind in any workspace, a feature where it stays, and a change has no file
 
-    A feature under specs/features, a decision under specs/decisions, a milestone, a phase and an
-    iteration under specs/plan, and any other kind under specs/ and its name, unless `--dir` says
-    otherwise. Nothing moves when a feature is built. A change to it is rules of it, each with a
-    maturity of its own until it is built, so it has no file of its own, unless a team has a kind of
-    that name.
+    Nothing moves when a feature is built. A change to it is rules of it, each with a maturity of
+    its own until it is built, so it has no file of its own, unless a team has a kind of that name.
 
     Scenario: A feature, written where it stays
       When I run "sdp new feature 'Saved carts'"
@@ -179,6 +176,7 @@ Feature: Start a spec
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
 
+  @replaces:start-a-spec#a-new-spec-s-id-is-an-ascii-slug-of-its-title-or-a-number-after
   Rule: A new spec's id is the slug of its title, as a rule's is of its name, or a number, after its kind's prefix where it has one, and its file is named by it
 
     An id says what it names, so whoever reads a message that cites it needs no lookup. What a spec
@@ -203,7 +201,7 @@ Feature: Start a spec
         | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature         |
         | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature       |
 
-    Scenario: A title that leaves no ASCII letter or digit to slug is numbered only if it has no letter or digit in any script, after the highest number its kind has
+    Scenario: A title with no letter or digit in any script, a mark on nothing included, is numbered after the highest number its kind has
       Given these specs:
         | tags              | Feature  |
         | @id=ARCH-0007     | Корзина  |
