@@ -13,16 +13,14 @@ import * as Reading from "../../src/app/Reading.ts"
 import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
 import { jsonLines, stateRecords } from "../../src/graph/Export.ts"
-import { formatPath, projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
+import { formatPath, queryProject } from "../../src/graph/Query.ts"
 import { check } from "../../src/check/Check.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
-import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { newId, newSpec } from "../../src/app/Templates.ts"
-import { findFiles, loadProject } from "../../src/workspace/Workspace.ts"
-import { statusSummary } from "../../src/graph/Status.ts"
+import { newSpec } from "../../src/app/Templates.ts"
+import { loadProject } from "../../src/workspace/Workspace.ts"
 import { assertRows, ids, load, newWorld, node, produce, reload, reportRow, setFile, show, type World } from "./world.ts"
 import { directoryOf, exec, repository, workspace } from "./process.ts"
 
@@ -35,10 +33,6 @@ const queried = (world: World) => {
   assert.ok(world.result, `query failed: ${world.queryError ?? "no query was run"}`)
   return world.result
 }
-
-/** `draft:1 verified:2`, by stage name. */
-const counted = (record: Readonly<Record<string, number>>) =>
-  Object.entries(record).sort(([a], [b]) => a.localeCompare(b)).map(([stage, n]) => `${stage}:${n}`).join(" ") || "nothing"
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("a file {string} containing:", ({ args: [path], doc, world }) => setFile(world, path, doc ?? ""))
@@ -91,15 +85,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("a chain of {int} nodes linked by {string}", ({ args: [count, rel], world }) => {
     for (let i = 1; i <= count; i++) {
       setFile(world, `specs/N${i}.feature`, `@id=N${i} @kind=node${i}${i < count ? ` @${rel}:N${i + 1}` : ""}\nFeature: N${i}\n`)
-    }
-  })
-
-  // Members M1…Mn of kind "member": n × (n-1) edges, so two hops make n × (n-1)² paths.
-  Given("{int} nodes, each linked to all the others by {string}", ({ args: [count, rel], world }) => {
-    const members = Array.from({ length: count }, (_, i) => `M${i + 1}`)
-    for (const id of members) {
-      const links = members.filter((m) => m !== id).map((m) => `@${rel}:${m}`).join(" ")
-      setFile(world, `specs/${id}.feature`, `@id=${id} @kind=member ${links}\nFeature: ${id}\n`)
     }
   })
 
@@ -229,35 +214,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       world.queryError = Result.isFailure(result) ? result.failure.message : undefined
     }))
 
-  When("the query {string} runs on it with at most {int} paths", ({ args: [source, maxPaths], world }) => {
-    assert.ok(world.graph, "generate a graph first")
-    const result = query(world.graph, source, { maxPaths, orderings: projectOrderings(defaultVocabulary) })
-    if (Result.isFailure(result)) assert.fail(`query failed: ${result.failure.message}`)
-    world.result = result.success
-  })
-
   Then("the result is {string}", ({ args: [expected], world }) => {
     assert.ok(world.result, `query failed: ${world.queryError}`)
     assert.deepEqual(world.result.nodes.map((n) => n.id).sort(), ids(expected))
   })
 
-  Then("the result has {int} node(s)", ({ args: [count], world }) => assert.equal(queried(world).nodes.length, count))
-
-  Then("the result has {int} path(s)", ({ args: [count], world }) => assert.equal(queried(world).paths.length, count))
-
   Then("the paths are:", ({ table, world }) =>
     assertRows("paths", queried(world).paths.map((p) => ({ path: formatPath(p) })), [["path"], ...(table ?? [])], "exactly"))
-
-  Then("the result is complete", ({ world }) =>
-    assert.equal(queried(world).truncated, false, `the result is cut short: ${queried(world).limits.join("; ")}`))
-
-  Then("the result is truncated because {string}", ({ args: [limit], world }) =>
-    assert.deepEqual(queried(world).limits, [limit], "the limits that cut the result short"))
-
-  Then("the query is rejected with {string}", ({ args: [message], world }) => {
-    assert.ok(world.queryError, "expected the query to be rejected")
-    assert.match(world.queryError, new RegExp(message.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"))
-  })
 
   // The diagnostics of the last step that parsed a file, loaded or checked the workspace, or
   // scanned code. A table names the columns it checks: rule, severity, node, at (file:line), line,
@@ -275,9 +238,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("sdp reports:", ({ table, world }) => assertRows("diagnostics", reported(world), table, "exactly"))
 
   Then("sdp reports at least:", ({ table, world }) => assertRows("diagnostics", reported(world), table, "including"))
-
-  Then("sdp does not report {string}", ({ args: [rule], world }) =>
-    assertRows("diagnostics", reported(world).filter((row) => row.rule === rule), [["rule", "at", "message"]], "exactly"))
 
   When("I ask for the architecture view", ({ world }) =>
     Effect.map(Reading.architecture(memoryRoot), (answer) => {
@@ -322,23 +282,4 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     Effect.map(EffectApi.query(memoryRoot, { expression }), (answer) => {
       produce(world, JSON.stringify(answer, null, 2))
     }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
-
-  Then("sdp status counts the stages {string}", ({ args: [expected], world }) =>
-    Effect.map(load(world), (project) => {
-      const stages = statusSummary(project).stages
-      assert.equal(counted(stages), expected)
-    }))
-
-  Then("sdp run loads the step modules {string}", ({ args: [expected], world }) =>
-    Effect.gen(function*() {
-      const { config } = yield* load(world)
-      const files = yield* findFiles(memoryRoot, config.steps, config.exclude).pipe(
-        Effect.provide(layerMemoryWorkspace(world.files))
-      )
-      assert.deepEqual(files, ids(expected))
-    }))
-
-  Then("a new {word} titled {string} gets the id {string}", ({ args: [kind, title, expected], world }) =>
-    Effect.map(load(world), (project) =>
-      assert.equal(newId(kind, title, project.config, project.graph.nodes().map((n) => n.id)), expected)))
 })

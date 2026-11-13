@@ -2,17 +2,12 @@
  * The real `sdp` command line as a process, the way people and agents use it. The files a scenario
  * is given are written to a fresh temporary directory before the first command (process.ts).
  */
-import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { existsSync } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
-import * as Text from "../../src/app/Text.ts"
 import { defineSteps, Pending } from "sdp/steps"
-import * as NodeServices from "@effect/platform-node/NodeServices"
 import { execFile } from "node:child_process"
-import { describe } from "../../src/app/Errors.ts"
-import { run } from "../../src/app/Running.ts"
 import { promisify } from "node:util"
 import { exitCode, newWorld, output, produce } from "./world.ts"
 import { cli, env, exec, gitEnv, record, workspace } from "./process.ts"
@@ -57,17 +52,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     }
   })
 
-  // A repository that git init started on that branch, with nothing committed yet.
-  Given("the files are not yet committed on the branch {string}", async ({ args: [branch], world }) => {
-    await promisify(execFile)("git", ["init", "-q", "-b", branch], { cwd: await workspace(world), env: gitEnv })
-  })
-
-  Given("the files are in no git repository", async ({ world }) => {
-    const directory = await workspace(world)
-    const inside = await exec("git rev-parse --is-inside-work-tree", directory)
-    assert.notEqual(inside.code, 0, `${directory} is in a git repository`)
-  })
-
   Then("the exit code is {int}", ({ args: [code], world }) => {
     const actual = exitCode(world)
     assert.equal(actual, code, `exit code ${actual}, output:\n${output(world)}`)
@@ -83,12 +67,4 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const { stdout: loaded } = await promisify(execFile)(process.execPath, ["--input-type=module", "-e", script], { cwd: project.root })
     produce(world, loaded)
   })
-
-  // A program that runs a workspace more than once, as this process: it keeps the modules it imported.
-  When("this process runs the workspace through the API", ({ world }) =>
-    Effect.gen(function*() {
-      const directory = yield* Effect.promise(() => workspace(world))
-      const outcome = yield* Effect.result(run(directory))
-      produce(world, Result.isSuccess(outcome) ? Text.runSummary(outcome.success.data) : describe(outcome.failure))
-    }).pipe(Effect.provide(NodeServices.layer)))
 })

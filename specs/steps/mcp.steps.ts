@@ -1,6 +1,5 @@
 /**
- * The MCP server as a client sees it: in memory, in this process on the files on disk, and as the
- * process `sdp mcp` starts.
+ * The MCP server as a client sees it: in memory and as the process `sdp mcp` starts.
  */
 import { Effect, Predicate } from "effect"
 import { McpProtocol, McpTest } from "effect/ai"
@@ -8,7 +7,6 @@ import { strict as assert } from "node:assert"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import * as NodeServices from "@effect/platform-node/NodeServices"
 import { ids, newWorld, output, produce, type World } from "./world.ts"
 import { exec, workspace } from "./process.ts"
 
@@ -20,7 +18,7 @@ const listed = (world: World): ReadonlyArray<Tool> => {
   return tools
 }
 
-export default defineSteps(newWorld, ({ Given, Then, When }) => {
+export default defineSteps(newWorld, ({ Then, When }) => {
   // A tool error and a rejected call (invalid arguments) both count as the tool reporting an error.
   When("an agent calls the MCP tool {string} with:", ({ args: [tool], doc, world }) =>
     Effect.gen(function*() {
@@ -38,16 +36,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       Effect.scoped,
       Effect.provide(layerMemoryWorkspace(world.files))
     ))
-
-  // A server in this very process, on the files on disk: like a long-running `sdp mcp`, every call
-  // shares one module cache, so it shows whether edits to step files are seen.
-  When("an agent calls the MCP tool {string} on the workspace directory with:", ({ args: [tool], doc, world }) =>
-    Effect.gen(function*() {
-      const directory = yield* Effect.promise(() => workspace(world))
-      const client = yield* McpTest.makeClient(registrations(directory), { protocols: [McpProtocol.v2025_11_25] })
-      const result = yield* client.callTool({ name: tool, arguments: JSON.parse(doc ?? "{}") })
-      produce(world, result.content.map((c) => (c.type === "text" ? c.text : "")).join("\n"))
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)))
 
   When("an MCP client of {string} calls {string} with:", async ({ args: [command, tool], doc, world }) => {
     const messages = [

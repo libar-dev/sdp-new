@@ -35,7 +35,7 @@ const section = (output: string, heading: string): string => {
   return (end < 0 ? rest : rest.slice(0, end)).join("\n")
 }
 
-export default defineSteps(newWorld, ({ Given, Then, When }) => {
+export default defineSteps(newWorld, ({ Then }) => {
   // `\t` and `\n` in the expected text stand for a tab and a line break.
   Then("the output contains {string}", ({ args: [text], world }) => {
     const expected = text.replace(/\\t/g, "\t").replace(/\\n/g, "\n")
@@ -68,17 +68,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the output line with {string} contains {string}", ({ args: [anchor, text], world }) => {
     const line = outputLine(output(world), anchor)
     assert.ok(line.includes(text), `${JSON.stringify(line)} does not contain ${JSON.stringify(text)}`)
-  })
-
-  Then("the output line with {string} does not contain {string}", ({ args: [anchor, text], world }) => {
-    const line = outputLine(output(world), anchor)
-    assert.ok(!line.includes(text), `${JSON.stringify(line)} contains ${JSON.stringify(text)}`)
-  })
-
-  // The `## ` headings of a Markdown document, in the order they come.
-  Then("the sections of the output are {string}", ({ args: [expected], world }) => {
-    const headings = output(world).split("\n").filter((line) => line.startsWith("## ")).map((line) => line.slice(3))
-    assert.deepEqual(headings, expected.split(",").map((heading) => heading.trim()))
   })
 
   Then("the output section {string} contains {string}", ({ args: [heading, text], world }) => {
@@ -122,11 +111,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the file {string} contains {string}", async ({ args: [file, text], world }) => {
     const content = await existingFile(world, file)
     assert.ok(content.includes(text.replace(/\\t/g, "\t")), `${file} does not contain ${JSON.stringify(text)}:\n${content}`)
-  })
-
-  Then("the file {string} does not contain {string}", async ({ args: [file, text], world }) => {
-    const content = await existingFile(world, file)
-    assert.ok(!content.includes(text), `${file} contains ${JSON.stringify(text)}:\n${content}`)
   })
 
   Then("the file {string} does not exist", async ({ args: [file], world }) => {

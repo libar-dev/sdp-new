@@ -13,7 +13,7 @@ const computed = (world: World) => {
   return world.lifecycle
 }
 
-export default defineSteps(newWorld, ({ Given, Then, When }) => {
+export default defineSteps(newWorld, ({ Then, When }) => {
   When("the lifecycle is computed", ({ world }) =>
     Effect.map(load(world), (project) => {
       world.lifecycle = lifecycle(project)
@@ -41,24 +41,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       next: milestone === report.next ? "yes" : ""
     }))
     assertRows("milestones", rows, table, "in order")
-  })
-
-  // The iterations in the order of the timeline: id, phase, plans (the nodes planned into it),
-  // stages (of those nodes, as `draft:1 verified:2`), scenarios (their executed examples by status,
-  // as `passed:2`) and today (yes for the one the calendar is in).
-  Then("the iterations are:", ({ table, world }) => {
-    const report = computed(world)
-    const counts = (record: Readonly<Record<string, number>>) =>
-      Object.entries(record).sort(([a], [b]) => a.localeCompare(b)).map(([word, n]) => `${word}:${n}`).join(" ")
-    const rows = report.work.map((iteration): Row => ({
-      id: iteration.node.id,
-      phase: report.phases.find((phase) => phase.iterations.some((i) => i.node.id === iteration.node.id))?.node.id ?? "",
-      plans: iteration.items.map((item) => item.id).sort().join(", "),
-      stages: counts(iteration.stages),
-      scenarios: counts(iteration.scenarios),
-      today: report.current?.id === iteration.node.id ? "yes" : ""
-    }))
-    assertRows("iterations", rows, table, "in order")
   })
 
   // The ids of the work still to come that nothing plans, in order, or "nothing".

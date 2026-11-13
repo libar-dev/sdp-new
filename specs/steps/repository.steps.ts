@@ -14,8 +14,7 @@ import { defineSteps } from "sdp/steps"
 import { defaultVocabulary, hasKind, made, vocabularyWords } from "../../src/model/Vocabulary.ts"
 import type { Project } from "../../src/graph/Build.ts"
 import { existsSync } from "node:fs"
-import { rules } from "../../src/model/Diagnostic.ts"
-import { newWorld, reload, type World } from "./world.ts"
+import { newWorld, type World } from "./world.ts"
 
 type Node = { readonly type: string; readonly start: number; readonly [key: string]: unknown }
 
@@ -197,13 +196,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(found.length, 0, `build output found: ${found.join(", ")}`)
   })
 
-  Then("every rule sdp reports has an example in this spec", ({ project, scenario }) => {
-    const spec = project.specById.get(scenario.specId)
-    const cells = new Set((spec?.scenarios ?? []).flatMap((s) => s.pickles.flatMap((p) => p.steps.flatMap((step) => step.dataTable?.flat() ?? []))))
-    const missing = Object.keys(rules).filter((rule) => !cells.has(rule))
-    assert.equal(missing.length, 0, `rules without an example in ${scenario.specId}: ${missing.join(", ")}`)
-  })
-
   Given("a graph built from a node {string} linked to {string} by {string}", ({ args: [from, to, rel], world }) => {
     const nodes: Array<GraphNode> = [
       { id: from, kind: "element", title: from, attrs: { owner: { team: "core" }, tags: ["a"] } },
@@ -271,17 +263,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const node: GraphNode = { id: "a", kind: "element", title: "a", attrs: { nested: { value: values[what] } } }
     assert.throws(() => new Graph([node], []), new RegExp(`an attribute is JSON data, not a ${what}`))
   })
-
-  When("the graph is built from it", ({ world }) =>
-    Effect.gen(function*() {
-      const samples: Array<number> = []
-      for (let i = 0; i < 3; i++) {
-        const started = performance.now()
-        yield* reload(world)
-        samples.push(performance.now() - started)
-      }
-      world.durationMs = samples.sort((a, b) => a - b)[1]!
-    }))
 
   When("the query {string} runs on it", ({ args: [q], world }) => {
     const graph = world.graph!
