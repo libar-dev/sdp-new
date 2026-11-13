@@ -74,6 +74,7 @@ Feature: Check specs
         | template-placeholder  | warning  | specs/monthly-releases.feature | 3    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>. |
         | plan-reference        | warning  | specs/reports.feature          | 1    | @id=reports @iteration:reports\nFeature: Reports                                                                                                                              |
         | maturity-on-no-work   | warning  | specs/reports.feature          | 1    | @id=reports @kind=risk @maturity=idea\nFeature: Reports                                                                                                                       |
+      | not-a-kind            | error    | specs/reports.feature          | 1    | @id=reports @kind=idea\nFeature: Reports                                                                                                                                      |
         | plan-date             | warning  | specs/IT-beta.feature          | 1    | @id=IT-beta @kind=iteration @start=2026-11-16 @end=2026-11-31\nFeature: Beta                                                                                                  |
         | plan-date             | warning  | specs/IT-beta.feature          | 1    | @id=IT-beta @kind=iteration @start=2026-11-16\nFeature: Beta                                                                                                                  |
         | milestone-met         | warning  | specs/MS-beta.feature          | 1    | @id=MS-beta @met=2026-02-30\nFeature: Beta                                                                                                                                    |
@@ -333,6 +334,58 @@ Feature: Check specs
         | a stage                    | a rule    | ready     | verified | 6    | cart#a-cart-holds-what-was-added | @maturity=verified, which is no rung of the ladder                                         | sdp derives verified from the run; delete it                                                                                                 |
         | a word off the ladder      | a feature | someday   | idea     | 1    | cart                             | @maturity=someday, which is no rung of the ladder                                          | add someday to it under vocabulary.maturity                                                                                                  |
         | a rung in another case     | a rule    | idea      | Ready    | 6    | cart#a-cart-holds-what-was-added | @maturity=Ready, which is no rung of the ladder                                            | write ready, as the ladder does                                                                                                              |
+
+  @decided-by:free-vocabulary
+  Rule: A kind named like a rung of the ladder or a stage, or the kind sdp retired, is an error where it is written, as sdp new refuses it
+
+    How far work has come is its maturity, never its kind, and a change is rules of the feature it
+    changes: a spec of such a kind is no work, and never the feature that was meant. Any other kind
+    is the authors' word, and so is one of these that the workspace names as a kind of its own.
+
+    Scenario Outline: @kind=<kind>, <case>
+      Given a file "sdp.config.yaml" containing:
+        """
+        <config>
+        """
+      And a file "specs/gift-wrapping.feature" containing:
+        """
+        @id=gift-wrapping @kind=<kind>
+        Feature: Gift wrapping
+
+          Shoppers want gifts wrapped.
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule       | severity | node          | at                            | message   | hint   |
+        | not-a-kind | error    | gift-wrapping | specs/gift-wrapping.feature:1 | <message> | <hint> |
+
+      Examples:
+        | kind     | case                                 | config                                     | message                                                           | hint                                                                                                     |
+        | idea     | the first rung                       | # every key at its default                 | gift-wrapping declares @kind=idea: idea is a maturity, not a kind | write @maturity=idea in its place: the spec is then a feature at idea                                    |
+        | agreed   | a rung of a ladder of the team's own | vocabulary: { maturity: [sketch, agreed] } | agreed is a maturity, not a kind                                  | write @maturity=agreed in its place                                                                      |
+        | verified | a stage                              | # every key at its default                 | verified is a stage sdp derives from the run, not a kind          | delete it: what is built is a live feature, whose stage sdp derives from its run                         |
+        | change   | the kind sdp retired                 | # every key at its default                 | a change is rules of the feature it changes, not a kind           | write each as a `Rule:` in that feature's file, with @maturity=<rung> above it while it is still to come |
+
+    Scenario Outline: @kind=<kind>, <case>, is the authors' word
+      Given a file "sdp.config.yaml" containing:
+        """
+        <config>
+        """
+      And a file "specs/gift-wrapping.feature" containing:
+        """
+        @id=gift-wrapping @kind=<kind>
+        Feature: Gift wrapping
+
+          Shoppers want gifts wrapped.
+        """
+      When the workspace is checked
+      Then sdp reports nothing
+
+      Examples:
+        | kind   | case                                    | config                                     |
+        | done   | a word for built work                   | # every key at its default                 |
+        | idea   | no rung of a ladder of the team's own   | vocabulary: { maturity: [sketch, agreed] } |
+        | change | in a workspace with a kind of that name | vocabulary: { words: { kinds: [change] } } |
 
   Rule: Nothing live stops being live without an error
 

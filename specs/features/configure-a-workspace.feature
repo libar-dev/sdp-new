@@ -384,6 +384,7 @@ Feature: Configure a workspace
         | data.made.relations                         | rule-of, imports                                                                                     |
         | data.made.tags                              | @gate, @serial, @open                                                                                |
         | data.made.stages                            | unrun, failing, in-progress, verified                                                                |
+        | data.made.retiredKinds                      | change                                                                                               |
         | data.made.attributes                        | stage, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                            |
         | data.made.scenarioAttributes                | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome |
         | data.made.ruleAttributes                    | spec, description, tags, scenarios, stage, toCome                                                    |

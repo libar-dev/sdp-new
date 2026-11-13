@@ -7,10 +7,10 @@
  * @sdp is ARCH-application
  */
 import { Duration, Result } from "effect"
-import { decisionPlaceholder } from "../check/Check.ts"
+import { changeIsRules, decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, holdsCodeRules, idForm, isStage, isWork, offLadder, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, holdsCodeRules, idForm, isWork, notAKind, offLadder, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -83,9 +83,8 @@ export interface NewSpec {
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
  * workspace root unless `dir` is absolute. `sdp new element` or `sdp new pattern` writes no file:
  * only the id its code declares, and how.
- * Fails, with the reason, for a change, which is rules of the feature it changes, and for a kind
- * named like a rung of the ladder or a stage — each unless the workspace names a kind of that name
- * — for a maturity asked of a kind that is no work or that is no rung of the ladder, and
+ * Fails, with the reason, for a word that is no kind (`notAKind`): a rung of the ladder, a stage or a
+ * kind sdp retired, for a maturity asked of a kind that is no work or that is no rung of the ladder, and
  * when the content would not read back with its id, kind and title: the id of an element or a
  * pattern is read back too, though it has no file.
  */
@@ -108,24 +107,18 @@ export const newSpec = (options: {
   const maturity = options.maturity ?? vocabulary.maturity[0]!
   const id = options.id ?? newId(kind, title, config, graph.nodes().map((node) => node.id))
   const template = templateOf(kind, vocabulary)
-  // A change to a feature is no spec of its own, unless the workspace names a kind `change`.
-  if (kind === "change" && !vocabularyWords(vocabulary).kinds.includes(kind)) {
-    return Result.fail(
-      `a change is rules of the ${feature} it changes: write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
-    )
-  }
-  // How far work has come is its maturity, never its kind, unless the workspace names a kind of that name.
-  const first = vocabulary.maturity[0]!
-  const stage = isStage(kind)
-  if ((vocabulary.maturity.includes(kind) || stage) && !vocabularyWords(vocabulary).kinds.includes(kind)) {
+  // How far work has come is its maturity, and a change is rules of a feature: neither is a kind, as check reports.
+  const notKind = notAKind(vocabulary, kind)
+  if (notKind !== undefined) {
+    const first = vocabulary.maturity[0]!
     const start = `sdp new ${feature} ${JSON.stringify(title)}`
-    return Result.fail(
-      stage
-        ? `${kind} is a stage sdp derives from the run, so it is no kind: ${start} writes a ${feature} at ${first}, the first rung`
-        : kind === first
-        ? `${kind} is a maturity, not a kind: ${start} writes a ${feature} at ${kind}, the first rung`
-        : `${kind} is a maturity, not a kind: ${start} --maturity ${kind} writes a ${feature} at ${kind}`
-    )
+    return Result.fail(`${notKind.reason}: ${
+      notKind.is === "retired"
+        ? changeIsRules(feature)
+        : notKind.is === "stage" || kind === first
+        ? `${start} writes a ${feature} at ${first}, the first rung`
+        : `${start} --maturity ${kind} writes a ${feature} at ${kind}`
+    }`)
   }
   // Only work is still to come at a maturity: one asked for any other kind would not be written.
   if (options.maturity !== undefined && !isWork(vocabulary, kind)) {
@@ -254,12 +247,13 @@ const guidance = (options: {
   const phase = wordFor(vocabulary.relations.phase)
   // The one marker of a quality requirement, where the workspace has a value for it.
   const quality = vocabulary.qualities.length === 0 ? "" : `, tagged \`@${vocabulary.attributes.quality}=${wordFor(vocabulary.qualities)}\``
+  const qualityRule = `a quality requirement is a rule of the feature it constrains${quality}`
   switch (templateOf(kind, vocabulary)) {
     case "feature":
       return [
         "say under the title who needs what, and why, before any solution; then what it is not",
         "write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples",
-        `a quality requirement is a rule of the feature it constrains${quality}, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users`,
+        `${qualityRule}, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users`,
         "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         `plan it: ${plan}`,
         "it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"
@@ -306,17 +300,23 @@ const guidance = (options: {
         "it stays in this file: once it is built, delete its maturity, and it is live"
       ]
     case "generic":
-      return isWork(vocabulary, kind)
-        ? [
-          "write the idea in a sentence under the title",
-          "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
-          "link it: @realized-by:ARCH-…",
-          `plan it: ${plan}`
-        ]
-        : [
-          "say under the title what it is",
-          "link it to what it concerns, `@<relation>:<id>`, and write what must hold of it as a `Rule:` with scenarios as its examples"
-        ]
+      return [
+        // A kind named like the value that marks a quality requirement is a team's own word: the marker is a rule's.
+        ...vocabulary.qualities.includes(kind)
+          ? [`${qualityRule}, not a spec of its own; a team that keeps them as specs names their kind under vocabulary.kinds.driver`]
+          : [],
+        ...isWork(vocabulary, kind)
+          ? [
+            "write the idea in a sentence under the title",
+            "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
+            "link it: @realized-by:ARCH-…",
+            `plan it: ${plan}`
+          ]
+          : [
+            "say under the title what it is",
+            "link it to what it concerns, `@<relation>:<id>`, and write what must hold of it as a `Rule:` with scenarios as its examples"
+          ]
+      ]
   }
 }
 

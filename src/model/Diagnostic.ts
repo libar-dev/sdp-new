@@ -28,6 +28,7 @@ export const rules = {
   "replaces-nothing": "warning",
   "maturity-off-ladder": "error",
   "maturity-on-no-work": "warning",
+  "not-a-kind": "error",
   "demotion": "error",
   "example-dropped": "error",
   "decision-shape": "warning",

@@ -26,6 +26,7 @@ import {
   isWork,
   type KindRole,
   made,
+  notAKind,
   offLadder,
   type RelationRole,
   type Vocabulary,
@@ -44,6 +45,10 @@ const isSuite = (spec: Spec, vocabulary: Vocabulary) => !hasKind(vocabulary, "de
 
 /** The tags that declare a maturity, as written: `@maturity=ready`, or each value of one written twice. */
 export const maturityTags = (maturity: unknown): string => [maturity].flat().map((value) => `@maturity=${String(value)}`).join(" ")
+
+/** What a change to a feature is written as, which is no spec of its own: check and `sdp new` say it alike. */
+export const changeIsRules = (feature: string) =>
+  `write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
 
 /** What `sdp new` writes for the author to replace. A decision starts as its shape, what it was chosen over, why and at what cost: */
 export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>."
@@ -191,6 +196,25 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   }
   for (const node of authored.filter((candidate) => !project.specById.has(candidate.id) && candidate.kind !== made.kinds.rule)) {
     judge(node.id, attribute(node, "maturity"), node.source)
+  }
+
+  // How far work has come is its maturity, and a change is rules of a feature: a spec of either kind
+  // would be no work, never the feature that was meant. Any other kind is the authors' word.
+  const feature = wordFor(vocabulary.kinds.feature)
+  for (const spec of project.specs) {
+    const line = spec.attrLines.kind
+    const notKind = line === undefined ? undefined : notAKind(vocabulary, spec.kind)
+    if (notKind === undefined) continue
+    out.push(diagnostic("not-a-kind", {
+      message: `${spec.id} declares @kind=${spec.kind}: ${notKind.reason}`,
+      node: spec.id,
+      source: at(spec, line),
+      hint: notKind.is === "retired"
+        ? changeIsRules(feature)
+        : notKind.is === "stage"
+        ? `delete it: what is built is a live ${feature}, whose stage sdp derives from its run`
+        : `write @maturity=${spec.kind} in its place: the spec is then a ${feature} at ${spec.kind}`
+    }))
   }
 
   // A question is still to come, whatever maturity it would have: examples under it would be switched off with it.

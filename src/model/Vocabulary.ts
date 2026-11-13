@@ -212,6 +212,30 @@ export const made = {
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
+/** Words sdp once read and reads no more: a change to a feature is rules of it, not a spec of kind change. */
+export const retired = { kinds: ["change"] } as const
+
+/**
+ * Why a word cannot be a kind, or `undefined` for one that can: a rung of the ladder or a stage says
+ * how far work has come, and a kind sdp retired is read no more — each unless the workspace names a
+ * kind of that name. `is` says which, for what to write instead. Any other word is the authors' (the
+ * decision free-vocabulary); `sdp check` reports what this names where it is written, and `sdp new`
+ * refuses it.
+ */
+export const notAKind = (
+  vocabulary: Vocabulary,
+  kind: string
+): { readonly is: "rung" | "stage" | "retired"; readonly reason: string } | undefined =>
+  vocabularyWords(vocabulary).kinds.includes(kind)
+    ? undefined
+    : vocabulary.maturity.includes(kind)
+    ? { is: "rung", reason: `${kind} is a maturity, not a kind` }
+    : isStage(kind)
+    ? { is: "stage", reason: `${kind} is a stage sdp derives from the run, not a kind` }
+    : (retired.kinds as ReadonlyArray<string>).includes(kind)
+    ? { is: "retired", reason: `a ${kind} is rules of the ${wordFor(vocabulary.kinds.feature)} it changes, not a kind` }
+    : undefined
+
 /** Whether a word names a stage sdp derives from a run, in any case: no rung of a ladder can. */
 export const isStage = (word: string): boolean => (Object.values(made.stages) as ReadonlyArray<string>).includes(word.toLowerCase())
 
@@ -346,6 +370,8 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     codeAttributes: made.codeAttributes,
     /** The stages beyond the maturity ladder, which no rung can be. */
     stages: Object.values(made.stages),
+    /** The kinds sdp reads no more, which no spec can have unless the workspace names one. */
+    retiredKinds: retired.kinds,
     /** The names no link can have. */
     reservedRelations
   }

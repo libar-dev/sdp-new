@@ -151,8 +151,9 @@ The sharp edges of the format, each what the official parser does:
   rule's or a spec's stage: the maturity of work still to come, and unrun, failing, in-progress or
   verified for live work. A result goes stale when what it ran against changes, and none of these is
   written by hand: `@stage=` is an error.
-- **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
-  few words sdp itself interprets in this workspace.
+- **Free vocabulary.** Kinds and relation names are the team's words, but for a rung of the ladder
+  or a stage, which is a maturity, and `change`, which is rules of a feature: `sdp check` reports such
+  a kind. `sdp vocabulary` prints the few words sdp itself interprets in this workspace.
 
 ## Go through the graph first
 

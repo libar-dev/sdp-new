@@ -104,13 +104,14 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind         | title             | options | file                                         | tags                                                    | next                                                                |
-        | gizmo        | Sprocket          |         | specs/gizmo/sprocket.feature                 | @id=sprocket @kind=gizmo                                | say under the title what it is                                      |
-        | feature      | Gift wrapping     |         | specs/features/gift-wrapping.feature         | @id=gift-wrapping @maturity=idea                        | say under the title who needs what, and why, before any solution    |
-        | risk         | Outage            |         | specs/risk/outage.feature                    | @id=outage @kind=risk                                   | say under the title what it is                                      |
-        | phase        | Hardening         |         | specs/plan/PH-hardening.feature              | @id=PH-hardening                                        | say under the title what this phase takes on, and why in this order |
-        | story        | Saved carts       |         | specs/story/saved-carts.feature              | @id=saved-carts @kind=story @maturity=idea              | write the idea in a sentence under the title                        |
-        | architecture | Rules of the shop |         | specs/architecture/rules-of-the-shop.feature | @id=rules-of-the-shop @kind=architecture @maturity=idea | write a `Rule:` the code keeps, with an example                     |
+        | kind         | title             | options | file                                         | tags                                                    | next                                                                                                        |
+        | gizmo        | Sprocket          |         | specs/gizmo/sprocket.feature                 | @id=sprocket @kind=gizmo                                | say under the title what it is                                                                              |
+        | feature      | Gift wrapping     |         | specs/features/gift-wrapping.feature         | @id=gift-wrapping @maturity=idea                        | say under the title who needs what, and why, before any solution                                            |
+        | risk         | Outage            |         | specs/risk/outage.feature                    | @id=outage @kind=risk                                   | say under the title what it is                                                                              |
+        | phase        | Hardening         |         | specs/plan/PH-hardening.feature              | @id=PH-hardening                                        | say under the title what this phase takes on, and why in this order                                         |
+        | story        | Saved carts       |         | specs/story/saved-carts.feature              | @id=saved-carts @kind=story @maturity=idea              | write the idea in a sentence under the title                                                                |
+        | architecture | Rules of the shop |         | specs/architecture/rules-of-the-shop.feature | @id=rules-of-the-shop @kind=architecture @maturity=idea | write a `Rule:` the code keeps, with an example                                                             |
+        | quality      | Fast search       |         | specs/quality/fast-search.feature            | @id=fast-search @kind=quality                           | a quality requirement is a rule of the feature it constrains, tagged `@type=quality`, not a spec of its own |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -222,9 +223,9 @@ Feature: Start a spec
       And the output contains "<answer>"
 
       Examples:
-        | where                                   | config                                     | exit code | answer                                                                                      |
-        | as sdp has it                           | # every key at its default                 | 1         | a change is rules of the feature it changes: write each as a `Rule:` in that feature's file |
-        | in a workspace with a kind of that name | vocabulary: { words: { kinds: [change] } } | 0         | specs/change/shared-carts.feature                                                           |
+        | where                                   | config                                     | exit code | answer                                                                                                  |
+        | as sdp has it                           | # every key at its default                 | 1         | a change is rules of the feature it changes, not a kind: write each as a `Rule:` in that feature's file |
+        | in a workspace with a kind of that name | vocabulary: { words: { kinds: [change] } } | 0         | specs/change/shared-carts.feature                                                                       |
 
   Rule: A kind named like a maturity is refused, and the answer says how to start a feature at it
 
@@ -241,13 +242,13 @@ Feature: Start a spec
       And the output contains '<answer>'
 
       Examples:
-        | kind     | where                                        | config                                     | exit code | answer                                                                                                                   |
-        | idea     | the first rung                               | # every key at its default                 | 1         | idea is a maturity, not a kind: sdp new feature "Gift wrapping" writes a feature at idea, the first rung                 |
-        | ready    | a rung above it                              | # every key at its default                 | 1         | ready is a maturity, not a kind: sdp new feature "Gift wrapping" --maturity ready writes a feature at ready              |
-        | sketch   | the first rung of a ladder of the team's own | vocabulary: { maturity: [sketch, agreed] } | 1         | sketch is a maturity, not a kind: sdp new feature "Gift wrapping" writes a feature at sketch, the first rung             |
-        | idea     | no rung of a ladder of the team's own        | vocabulary: { maturity: [sketch, agreed] } | 0         | specs/idea/gift-wrapping.feature                                                                                         |
-        | verified | a stage                                      | # every key at its default                 | 1         | verified is a stage sdp derives from the run, so it is no kind: sdp new feature "Gift wrapping" writes a feature at idea |
-        | idea     | in a workspace with a kind of that name      | vocabulary: { words: { kinds: [idea] } }   | 0         | specs/idea/gift-wrapping.feature                                                                                         |
+        | kind     | where                                        | config                                     | exit code | answer                                                                                                             |
+        | idea     | the first rung                               | # every key at its default                 | 1         | idea is a maturity, not a kind: sdp new feature "Gift wrapping" writes a feature at idea, the first rung           |
+        | ready    | a rung above it                              | # every key at its default                 | 1         | ready is a maturity, not a kind: sdp new feature "Gift wrapping" --maturity ready writes a feature at ready        |
+        | sketch   | the first rung of a ladder of the team's own | vocabulary: { maturity: [sketch, agreed] } | 1         | sketch is a maturity, not a kind: sdp new feature "Gift wrapping" writes a feature at sketch, the first rung       |
+        | idea     | no rung of a ladder of the team's own        | vocabulary: { maturity: [sketch, agreed] } | 0         | specs/idea/gift-wrapping.feature                                                                                   |
+        | verified | a stage                                      | # every key at its default                 | 1         | verified is a stage sdp derives from the run, not a kind: sdp new feature "Gift wrapping" writes a feature at idea |
+        | idea     | in a workspace with a kind of that name      | vocabulary: { words: { kinds: [idea] } }   | 0         | specs/idea/gift-wrapping.feature                                                                                   |
 
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 

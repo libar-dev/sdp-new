@@ -356,7 +356,7 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (element and pattern: no file, for their code declares them). Any other kind gets the generic template, but for change and a maturity, which are no kind unless the workspace names one`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (element and pattern: no file, for their code declares them). Any other kind gets the generic template, but for a rung of the maturity ladder, a stage and change, which are no kind unless the workspace names one`
       )
     ),
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it")),
