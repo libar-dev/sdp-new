@@ -757,6 +757,11 @@ Feature: Plan delivery
     A gate scenario nobody has automated has not passed, and a result from before the graph changed,
     one that went stale while the gate ran included, says nothing of the graph as it is now.
 
+    Scenario: What sdp gate --help says it holds a gate to
+      When I run "sdp gate --help"
+      Then the exit code is 0
+      And the output contains "it passes, and exits 0, when every one of them passed and its result still counts when the gate ends"
+
     Scenario: A step not automated yet
       Given a file "specs/MS-release.feature" containing:
         """

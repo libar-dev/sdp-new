@@ -22,7 +22,7 @@ import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
-import { type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
+import { baseOption, type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
 import { type Answer, answer, unread } from "./Answer.ts"
 import { Refused, UnknownNode } from "./Errors.ts"
@@ -141,7 +141,7 @@ const comparedWith = (project: Project, read: BaseRead) => {
   if ("none" in read) {
     return {
       diagnostics: [],
-      missing: [`not compared: no live test was compared with a base: ${read.none}; ${read.remedy ?? "name one with --base"}, or waive the comparison with --base ${noBase}`],
+      missing: [`not compared: no live test was compared with a base: ${read.none}; ${read.remedy ?? "name one"}, or waive the comparison with the base ${noBase} (${baseOption})`],
       notes: []
     }
   }

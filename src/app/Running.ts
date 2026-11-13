@@ -496,8 +496,9 @@ const recordMet = Effect.fnUntraced(function*(root: string, milestone: string, r
 
 /**
  * `sdp gate`: evaluates one spec's gate scenarios against the current graph, and passes only when
- * every one of them passed. With `record`, a milestone whose gate passes is written down as met
- * today; one that is met already is closed, and nothing runs.
+ * every one of them passed and its result still counts when the gate ends. With `record`, a
+ * milestone whose gate passes is written down as met today; one that is met already is closed, and
+ * nothing runs.
  */
 export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) {
   const project = yield* loadProject(root)

@@ -17,9 +17,11 @@ Feature: Architecture
         | ARCH-cli |
 
   @decided-by:effect-for-io
-  Rule: Parsing, the model, the graph and the checks do no IO, and sdp reads and writes a workspace through the `FileSystem` service
+  Rule: Parsing, the model, the graph and the checks do no IO, and sdp reads and writes a workspace through the `FileSystem` service, but for what Node reads to load step code
 
-    That is what lets executable specs run the real pipeline against an in-memory file system.
+    That is what lets executable specs run the real pipeline against an in-memory file system. Node
+    loads step code from disk, and what sdp records of how it loaded it, its package.json files
+    included, is what Node read there.
 
     Scenario: The core does no IO
       When I run "grep -rlE FileSystem|node:fs|child_process|ChildProcess src/parse src/model src/graph src/check" in the repository

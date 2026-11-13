@@ -342,7 +342,7 @@ const gateCommand = Command.make(
     yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
   })
 ).pipe(
-  Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),
+  Command.withDescription("Evaluate one milestone's gate scenarios against the current graph: it passes, and exits 0, when every one of them passed and its result still counts when the gate ends"),
   Command.withExamples([
     { command: "sdp gate MS-beta", description: "Does this milestone's gate pass?" },
     { command: "sdp gate MS-beta --record", description: "Record it as met: its gate runs no more, so move what must keep holding to the spec it tests, in the same commit" }

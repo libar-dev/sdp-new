@@ -307,6 +307,7 @@ Feature: Serve AI agents
         | sdp_steps        | { "text": "returns no results", "json": true }        | "keyword": "Then"                                           |
         | sdp_check        | {}                                                    | 0 error(s), 0 warning(s), 0 info                            |
         | sdp_check        | { "json": true }                                      | "data": []                                                  |
+        | sdp_check        | { "severity": "error" }                               | name one, or waive the comparison with the base none (--base on the command line, base over MCP) |
         | sdp_architecture | {}                                                    | Architecture: 1 node(s)                                     |
         | sdp_architecture | { "json": true }                                      | "architecture": [                                           |
         | sdp_lifecycle    | {}                                                    | No plan yet                                                 |

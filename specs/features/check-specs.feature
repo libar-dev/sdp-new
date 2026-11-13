@@ -1195,10 +1195,10 @@ Feature: Check specs
       And the output contains "cannot compare live tests with the base main: <named>"
 
       Examples:
-        | case                     | where                                  | reason                                                                     | named                                    |
-        | outside git              | in no git repository                   | this workspace is in no git repository                                     | this workspace is in no git repository   |
-        | a branch of another name | committed on the branch "trunk"        | the repository has no origin/HEAD, main or master branch                   | git merge-base HEAD main found no commit |
-        | nothing committed yet    | not yet committed on the branch "main" | nothing is committed yet; commit, or waive the comparison with --base none | nothing is committed yet                 |
+        | case                     | where                                  | reason                                                                                                                   | named                                    |
+        | outside git              | in no git repository                   | this workspace is in no git repository                                                                                   | this workspace is in no git repository   |
+        | a branch of another name | committed on the branch "trunk"        | the repository has no origin/HEAD, main or master branch                                                                 | git merge-base HEAD main found no commit |
+        | nothing committed yet    | not yet committed on the branch "main" | nothing is committed yet; commit, or waive the comparison with the base none (--base on the command line, base over MCP) | nothing is committed yet                 |
 
     Scenario Outline: The comparison waived <how>
       Given a file "sdp.config.yaml" containing:

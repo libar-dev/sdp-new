@@ -23,6 +23,9 @@ import { findPaths, parseConfig } from "./Workspace.ts"
 /** The base that waives the comparison: `--base none`, or `base: none` in the configuration. */
 export const noBase = "none"
 
+/** Where a base is named, or the comparison waived, in each way sdp is asked: what a note that says to do so names. */
+export const baseOption = "--base on the command line, base over MCP"
+
 /** A base that `--base` or the configuration names, and that cannot be read. */
 export class BaseNotFound extends Schema.TaggedError<BaseNotFound>()("BaseNotFound", {
   base: Schema.String,
@@ -349,7 +352,7 @@ const commitFiles = (git: Git, top: Entry, checkout: string, shown: (path: strin
   const opened = Effect.fnUntraced(function*(path: string, entry: Entry) {
     const repository = `${checkout}${path}`
     const fetch = `git -C ${shown(path)} fetch origin ${entry.object}`
-    const otherwise = "or exclude it in the configuration of the default branch, and until then waive the comparison with --base none"
+    const otherwise = `or exclude it in the configuration of the default branch, and until then waive the comparison with the base ${noBase} (${baseOption})`
     const opens = yield* git(repository, ["rev-parse", "--show-prefix"])
     if (opens?.code !== 0 || opens.out.toString("utf8") !== "\n") {
       return `a submodule that is not checked out here (check it out with git submodule update --init ${shown(path)}, and fetch the ` +
