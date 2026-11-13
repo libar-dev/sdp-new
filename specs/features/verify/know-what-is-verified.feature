@@ -28,35 +28,38 @@ Feature: Know what is verified
   Rule: Work still to come stays at its maturity; live work, at what its examples did
 
     A live example must pass, so one that does not makes its work failing, not in progress; until
-    its examples run, live work is unrun.
+    its examples run, live work is unrun, and in progress while some have not.
 
-    Scenario Outline: A wishlist <declaring> whose example <holding>
+    Scenario Outline: A wishlist <declaring> run as <target>, its step <holding>
       Given a file "specs/wishlist.feature" containing:
         """
         @id=wishlist <declaring>
         Feature: Wishlist
 
-          Rule: A wishlist keeps a lamp
+          Rule: A wishlist keeps what a shopper wants for later
 
             Scenario: Keep a lamp
               Then the wishlist holds a lamp
+
+            Scenario: Keep a desk
+              Then the wishlist holds a lamp
         """
       And a step definition "the wishlist holds a lamp" that <holding>
-      When the workspace is run
+      When the workspace is run with "<target>"
       Then node "wishlist" has attribute stage = "<stage>"
 
       Examples:
-        | declaring           | holding | stage     |
-        | @maturity=specified | fails   | specified |
-        |                     | passes  | verified  |
-        |                     | fails   | failing   |
+        | declaring           | target               | holding | stage       |
+        | @maturity=specified | wishlist             | fails   | specified   |
+        |                     | wishlist#keep-a-lamp | passes  | in-progress |
+        |                     | wishlist             | fails   | failing     |
 
-  Rule: A live feature is verified when its live rules pass
+  Rule: A live feature is verified when every example of its live rules passed
 
     A rule still to come neither fails it nor makes it verified; a live rule without an example yet
-    keeps it from verified.
+    keeps it in progress.
 
-    Scenario Outline: A cart that holds what was added, with a rule still to come that <later> and a question
+    Scenario Outline: A cart that holds what was added <adding>, with a rule still to come that <later>
       Given a file "specs/cart.feature" containing:
         """
         @id=cart
@@ -75,6 +78,8 @@ Feature: Know what is verified
 
           @open
           Rule: Does a cart expire?
+
+          <more>
         """
       And a step definition "the cart holds {int} item(s)" that <adding>
       And a step definition "the cart is kept" that <later>
@@ -84,9 +89,10 @@ Feature: Know what is verified
       And node "cart#a-cart-is-kept-for-a-week" has attribute stage = "ready"
 
       Examples:
-        | adding | later  | stage    |
-        | passes | fails  | verified |
-        | fails  | passes | failing  |
+        | adding | later  | more                              | stage       |
+        | passes | fails  |                                   | verified    |
+        | fails  | passes |                                   | failing     |
+        | passes | passes | Rule: A cart is emptied once paid | in-progress |
 
   Rule: Every report counts stages the same way, and failing ranks with in-progress
 
@@ -120,7 +126,7 @@ Feature: Know what is verified
       When I query "feature[stage>=in-progress, stage<=failing]"
       Then the result is "export"
 
-  Rule: A result counts only while the code, the files its run imported, sdp's configuration, a lockfile and the inputs the workspace declares are unchanged
+  Rule: A result counts only while the code, the files its run loaded, a package.json that says how they load, sdp's configuration, a lockfile and the inputs the workspace declares are unchanged
 
     After that it is stale: kept, not counted, with the kind of change that made it so. Inputs are
     the files of `evidence.inputs` and the variables of `evidence.env`; nothing else is watched.
@@ -148,6 +154,26 @@ Feature: Know what is verified
         | src/cart.ts         | export const lamps = 1   | code-changed      |
         | package-lock.json   | { "lockfileVersion": 3 } | toolchain-changed |
         | fixtures/lamps.json | [{ "name": "Ada" }]      | inputs-changed    |
+
+  Rule: A variable of evidence.env counts by its value, which no result keeps
+
+    The environment may hold secrets.
+
+    Scenario: The region a run saw, and another
+      Given a file "sdp.config.yaml" containing:
+        """
+        evidence:
+          env: [SHOP_REGION]
+        """
+      When I run "SHOP_REGION=atlantis sdp run"
+      Then the exit code is 1
+      And the file ".sdp/results.json" does not contain "atlantis"
+      When I run "SHOP_REGION=atlantis sdp status --json"
+      Then the JSON output has:
+        | data.stale | {} |
+      When I run "SHOP_REGION=lemuria sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
 
   Rule: Editing a scenario, a tag it inherits included, makes its result stale; planning its spec, its maturity included, or rewording it does not
 
@@ -215,11 +241,12 @@ Feature: Know what is verified
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "cart#add-an-item"
 
-  Rule: A scenario that reads the graph goes stale when a spec, or a file that says what the code's imports mean, changes; one that does not keeps its result
+  Rule: A scenario that reads the graph also goes stale when a spec changes, Markdown is added where specs live, or a file that says what the code's imports mean changes
 
-    Such a file is a tsconfig.json, a package.json or the like.
+    Such a file is a tsconfig.json or the like. A scenario that does not read the graph keeps its
+    result through such a change, unless it changes how its own code loads.
 
-    Scenario: Another spec is added
+    Scenario Outline: <file> is written after a run
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
@@ -232,17 +259,22 @@ Feature: Know what is verified
               Then the query "#cart" returns 1 result
         """
       When the workspace is run
-      And these specs:
-        | tags         | Feature  |
-        | @id=wishlist | Wishlist |
+      And a file "<file>" containing:
+        """
+        <content>
+        """
       Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
       And node "catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
       And node "cart#add-an-item" has attribute status = "passed"
 
-  Rule: No scenario reads the layer of evidence it belongs to
+      Examples:
+        | file                   | content                         |
+        | specs/wishlist.feature | @id=wishlist\nFeature: Wishlist |
+        | specs/notes.md         | # Notes                         |
 
-    A gate, a scenario of a milestone or one tagged @gate, runs after the ordinary scenarios and sees
-    what they say; an ordinary scenario sees no results, and no gate sees a gate's.
+  Rule: An ordinary scenario sees no results, and one that asserts on them is told to become a gate
+
+    A gate is a scenario of a milestone or one tagged @gate; it runs after the ordinary scenarios.
 
     Scenario Outline: An ordinary scenario that asserts on results is told to become a gate
       Given a file "specs/progress.feature" containing:
@@ -263,9 +295,43 @@ Feature: Know what is verified
         | the query "scenario[status=failed]" returns no results |
         | the node "cart" has stage "unrun"                      |
 
-  Rule: A run records the scenarios it executed and what they ran against, drops the results of scenarios that were gone when it started, and leaves every other result as it found it
+  Rule: A gate sees what the ordinary scenarios say, not when they ran nor what a gate says, and goes stale when that changes
 
-    Runs overlap: agents, shells and CI jobs record into one store.
+    So no result depends on another of its own layer, or on itself.
+
+    Scenario: Two milestones, before and after the cart passes
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "cart" has stage "verified"
+        """
+      And a file "specs/MS-alpha.feature" containing:
+        """
+        @id=MS-alpha
+        Feature: Alpha
+          Rule: No scenario fails
+            Scenario: Nothing fails
+              Then the query "scenario[status=failed]" returns no results
+
+            Scenario: Ask when the cart last ran
+              Then the query "scenario[lastRun]" returns at least 1 result
+        """
+      When the workspace is run
+      And the workspace is run
+      Then node "MS-beta#the-cart-works" has attribute status = "failed"
+      And node "MS-alpha#nothing-fails" has attribute status = "passed"
+      And the step 'the query "scenario[lastRun]" returns at least 1 result' reports "which no scenario sees"
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      When the workspace is run with "cart"
+      Then node "MS-beta#the-cart-works" has attribute status = "stale"
+      And node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
+
+  Rule: A run records the scenarios it executed and what they ran against, and drops the results of scenarios that were gone when it started
 
     Scenario: A partial run keeps the results of everything else
       Given a step definition "an empty cart" that passes
@@ -292,6 +358,29 @@ Feature: Know what is verified
       Then node "wishlist#remember-a-lamp" has attribute status = "passed"
       And node "cart#add-an-item" has attribute status = "passed"
       And the file ".sdp/results.json" does not contain "wishlist#keep-a-lamp-for-later"
+
+  Rule: Runs that overlap each keep what they recorded: none restores or drops what another recorded
+
+    Agents, shells and CI jobs run at once and record into one store.
+
+    Scenario: Two runs at once each record what they executed
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given a wishlist
+        """
+      And a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that takes a moment
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a step definition "a wishlist" that passes
+      When the workspace is run
+      And a step definition "a wishlist" that fails
+      And the workspace is run for "cart" and for "wishlist" at the same time
+      Then node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
+      And node "cart#add-an-item" has attribute status = "passed"
 
   @maturity=idea
   Rule: A result CI recorded counts in every checkout that matches what it ran against

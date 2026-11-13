@@ -25,20 +25,50 @@ Feature: Write step definitions
             Then the cart holds 1 item
       """
 
-  Rule: What a handler returns or throws is its step's status
+  Rule: What a handler returns or throws — nothing, a Promise, an Effect or pending() — is its step's status, and reports its author's message
 
     Scenario Outline: A handler that <handler>
       Given a step definition "an empty cart" that <handler>
       When the workspace is run
       Then the step "an empty cart" has status "<status>"
+      And the step "an empty cart" reports '<message>'
 
       Examples:
-        | handler                    | status  |
-        | returns nothing            | passed  |
-        | returns a rejected Promise | failed  |
-        | returns pending()          | pending |
+        | handler                    | status  | message                               |
+        | returns a rejected Promise | failed  | deliberate failure in "an empty cart" |
+        | returns a failed Effect    | failed  | deliberate failure in "an empty cart" |
+        | returns pending()          | pending | not yet                               |
 
-  Rule: A handler gets typed arguments and a world fresh for each scenario, shared by the step modules on one world factory
+  Rule: A handler gets the step's arguments, typed by its expression or as the text a regular expression captured, and its doc string or data table
+
+    Scenario: Prices, a room, a note and a list
+      Given a file "specs/pricing.feature" containing:
+        """
+        Feature: Pricing
+          Scenario: Price a lamp
+            Given 3 lamps cost 19.5
+            And 4 lamps in the hall
+            And the note:
+              ```
+              Buy milk
+              ```
+            And the list:
+              | milk  | 1 |
+              | bread | 2 |
+        """
+      And a step definition "{int} lamps cost {float}" that records its arguments
+      And a step definition "/^(\d+) lamps in the (\w+)$/" that records its arguments
+      And a step definition "the note:" that records its arguments
+      And a step definition "the list:" that records its arguments
+      When the workspace is run
+      Then the handler received the arguments [3, 19.5]
+      And the handler received the arguments ["4", "hall"]
+      And the handler received the doc string "Buy milk"
+      And the handler received the table:
+        | milk  | 1 |
+        | bread | 2 |
+
+  Rule: A handler gets a world fresh for each scenario, shared by the step modules on one world factory
 
     Scenario Outline: Two scenarios count lamps in a world the <checkout> factory makes
       Given a file "specs/shop.feature" containing:
@@ -118,6 +148,13 @@ Feature: Write step definitions
         | waits for its signal                                       |
         | listens to its signal and keeps the thread busy for 200 ms |
 
+  Rule: Interrupting a run tells the running step through its signal to stop
+
+    Scenario: A run interrupted while a step waits
+      Given a step definition "an empty cart" that waits for its signal
+      When the workspace is run and interrupted while "an empty cart" runs
+      Then the handler of "an empty cart" saw its signal abort
+
   Rule: A step may take as long as the workspace's timeout says, 30 seconds unless it says otherwise, and --timeout overrides it
 
     Scenario Outline: The workspace's timeout, and --timeout
@@ -184,6 +221,27 @@ Feature: Write step definitions
       And the output contains 'Then("the wishlist holds {int} item"'
       And the output contains 'Then("the cart holds {int} item"' 1 time
       And the output does not contain 'Given("an empty cart"'
+
+  Rule: After a step that does not pass, the rest are skipped but still matched, and the scenario takes the worst status
+
+    A world factory that throws fails the step that needs the world.
+
+    Scenario Outline: A first step that <first step>, in a world <world>
+      Given the step definitions:
+        | module | world   | expression    | behaviour    |
+        | cart   | <world> | an empty cart | <first step> |
+        | steps  | steps   | I add a lamp  | passes       |
+      When the workspace is run
+      Then the step "an empty cart" has status "<status>"
+      And the step "I add a lamp" has status "skipped"
+      And the step "the cart holds 1 item" has status "undefined"
+      And node "cart#add-an-item" has attribute status = "<scenario>"
+
+      Examples:
+        | first step | world    | status  | scenario  |
+        | fails      | steps    | failed  | failed    |
+        | pends      | steps    | pending | undefined |
+        | passes     | throwing | failed  | failed    |
 
   Rule: A step module counts once, however many names and files export it
 
@@ -265,10 +323,15 @@ Feature: Write step definitions
     "There is none" is the easiest thing to prove by accident. `sdp q` only notes what a step fails
     on: exploring is not asserting.
 
-    Scenario Outline: A query that does not parse, or names what nothing in the workspace has
+    Scenario Outline: A query that <fails>
       Given these specs:
         | tags                                              | Feature |
         | @id=search @maturity=idea @realized-by:ARCH-index | Search  |
+      And a chain of 14 nodes linked by "next"
+      And a file "src/search.ts" containing:
+        """
+        <code>
+        """
       And a file "specs/guard.feature" containing:
         """
         Feature: Guard
@@ -280,12 +343,36 @@ Feature: Write step definitions
       And the step '<step>' reports '<reason>'
 
       Examples:
-        | step                                                   | reason                                     |
-        | the query "feature[" returns no results                | invalid query                              |
-        | the query "feture" returns no results                  | no kind feture; closest: feature           |
-        | the query "#serach[maturity=ready]" returns no results | no node has the id serach; closest: search |
+        | fails                                   | code                                                       | step                                                      | reason                                                                             |
+        | names what nothing in the workspace has | export const search = 1                                    | the query "feture" returns no results                     | no kind feture; closest: feature                                                   |
+        | is cut short by a limit                 | export const search = 1                                    | the query "#N1 -next+-> #N14" returns no results          | was cut short (a + edge reaches further than 12 hops), so its result is incomplete |
+        | runs on a graph not fully read          | // @sdp implements search\n\nexport const search = ( => [] | the query "code -implements-> #search" returns no results | src/search.ts:3 [annotation-unreadable]                                            |
 
-  Rule: Only a run runs step files; every other command reads them without running them, and says what it could not read
+  Rule: A word the vocabulary declares, or a kind an id prefix names, can be asserted absent though nothing has it
+
+    Scenario Outline: Nothing has the <word>
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary:
+          words: { kinds: [incident], relations: [leaks-to] }
+        ids: { runbook: RB }
+        """
+      And a file "specs/guard.feature" containing:
+        """
+        Feature: Guard
+          Scenario: Guard
+            Then <step>
+        """
+      When the workspace is run
+      Then the step '<step>' has status "<status>"
+
+      Examples:
+        | word                            | step                                                   | status |
+        | declared relation leaks-to      | the query "* -leaks-to-> *" returns no results         | passed |
+        | kind the prefix RB names        | the query "runbook[maturity=ready]" returns no results | passed |
+        | relation leaks-into, undeclared | the query "* -leaks-into-> *" returns no results       | failed |
+
+  Rule: Only a run runs step files; every other command reads them without running them
 
     Asking must be safe: reading a workspace runs none of its code.
 
@@ -310,6 +397,23 @@ Feature: Write step definitions
         | sdp context cart | 0    | does not exist                |
         | sdp steps        | 0    | does not exist                |
         | sdp run          | 1    | contains "this step file ran" |
+
+  Rule: A command that reads step files lists the steps it could read, and marks its answer incomplete where it could not, saying where
+
+    Scenario: A step registered under a condition
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Given, When }) => {
+          Given("an empty cart", () => {})
+          if (process.env.NO_LAMPS === undefined) When("I add a lamp", () => {})
+        })
+        """
+      When I run "sdp steps cart"
+      Then the exit code is 2
+      And the output line with "specs/steps/cart.steps.ts:4" contains "an empty cart"
+      And the output contains "not read: specs/steps/cart.steps.ts:5"
 
   Rule: Step modules, and the code they test, import sdp without installing it
 

@@ -87,7 +87,7 @@ Feature: Run specs as tests
 
   Rule: A run fails when a live example it ran does not pass
 
-    Each example is judged by what this run recorded of it; one that `--tags` left out fails no run.
+    Each example is judged by what this run recorded of it.
 
     Scenario Outline: An example of a live feature that <outcome>
       Given a file "specs/wishlist.feature" containing:
@@ -118,12 +118,85 @@ Feature: Run specs as tests
         | matches two definitions | Then("the wishlist holds a lamp", () => {}); Then("the wishlist holds a {word}", () => {}) | ambiguous | 1         |
         | passes                  | Then("the wishlist holds a lamp", () => {})                                                | passed    | 0         |
 
+  Rule: An example --tags left out fails no run, and its outline is not verified until every example of it has run
+
+    Scenario: An outline run with its failing example left out
+      Given a file "specs/payment.feature" containing:
+        """
+        @id=payment
+        Feature: Payment
+
+          Rule: A payment is made by card or by invoice
+
+            Scenario Outline: Pay by <method>
+              Then a payment by <method> is made
+
+              @fast
+              Examples:
+                | method |
+                | card   |
+
+              @slow
+              Examples:
+                | method  |
+                | invoice |
+        """
+      And a file "specs/steps/payment.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("a payment by {word} is made", ({ args: [method] }) => {
+            if (method === "invoice") throw new Error("no invoices yet")
+          })
+        })
+        """
+      When I run "sdp run payment --tags @fast"
+      Then the exit code is 0
+      And the output contains "1 scenario(s): 1 skipped"
+      When I run "sdp q 'feature[stage=in-progress]' --ids"
+      Then the output lines are "payment"
+      When I run "sdp run payment"
+      Then the exit code is 1
+
+  Rule: A row of an outline is judged on its own: one that is no gate fails the run though its outline runs with the gates
+
+    Scenario Outline: An outline that runs with the gates, its ordinary row <outcome>
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario Outline: Nothing of a kind
+              Then the query "<kind>" returns no results
+
+              Examples:
+                | kind       |
+                | <ordinary> |
+
+              @gate
+              Examples:
+                | kind |
+                | code |
+        """
+      When I run "sdp run"
+      Then the exit code is <exit code>
+      And the output contains "<said>"
+
+      Examples:
+        | outcome | ordinary | exit code | said                                                            |
+        | failing | feature  | 1         | an example of it that is no gate did not pass: it fails the run |
+        | passing | decision | 0         | 1 gate scenario(s): 1 passed                                    |
+
   Rule: A run points out work still to come whose every example passes, and the maturity to delete so that it is live
 
     Only on complete, current evidence, and naming every maturity to delete, so that following the
-    notes leaves none of that work still to come.
+    notes leaves none of that work still to come. When a feature still to come has rules still to
+    come, its maturity moves onto them.
 
-    Scenario: A feature whose every example passes, once the last of them has run
+    Scenario: A rule whose examples pass, in a feature still to come with a rule still without one
       Given a file "specs/wishlist.feature" containing:
         """
         @id=wishlist @maturity=ready
@@ -136,6 +209,8 @@ Feature: Run specs as tests
 
             Scenario: Keep a desk
               Then the wishlist holds a desk
+
+          Rule: A wishlist is shared with a friend
         """
       And a file "specs/steps/wishlist.steps.ts" containing:
         """
@@ -150,14 +225,34 @@ Feature: Run specs as tests
       And the output does not contain "note:"
       When I run "sdp run wishlist#keep-a-desk"
       Then the exit code is 0
-      And the output contains "delete @maturity=ready at specs/wishlist.feature:1"
+      And the output contains "delete @maturity=ready at specs/wishlist.feature:1, and write it above the rules still to come at specs/wishlist.feature:12"
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
 
-  Rule: A run executes the examples it was asked for, one at a time unless asked otherwise, and reports each once and in order
+          Rule: A wishlist keeps what a shopper wants for later
+
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
+
+            Scenario: Keep a desk
+              Then the wishlist holds a desk
+
+          @maturity=ready
+          Rule: A wishlist is shared with a friend
+        """
+      When I run "sdp check --base none"
+      Then the exit code is 0
+      When I run "sdp q 'scenario[!toCome]' --ids"
+      Then the output lines are "wishlist#keep-a-lamp, wishlist#keep-a-desk"
+
+  Rule: A run executes one scenario at a time unless asked otherwise, and never one tagged @serial beside another
 
     Step definitions written for a sequential run may share state, so running scenarios concurrently
-    is the caller's choice, and a scenario tagged @serial is never part of it.
+    is the caller's choice.
 
-    Scenario: Scenarios run concurrently when asked to, except those tagged @serial
+    Scenario Outline: Three scenarios, one of them @serial, run <how>
       Given a file "specs/timing.feature" containing:
         """
         @id=timing
@@ -174,11 +269,43 @@ Feature: Run specs as tests
               Given a slow step
         """
       And a step definition "a slow step" that takes a moment
-      When the workspace is run with "--concurrency 4"
-      Then the scenarios "One" and "Two" overlapped
+      When the workspace is <run>
+      Then the <timing>
       And the scenario "Alone" ran alone
 
-  Rule: A run's report says where to look: the definition of a failing step, the examples --tags left out, a step file that defines nothing
+      Examples:
+        | how                   | run                        | timing                               |
+        | without --concurrency | run                        | scenario "One" ran alone             |
+        | with --concurrency 4  | run with "--concurrency 4" | scenarios "One" and "Two" overlapped |
+
+  Rule: A run reports each example once and in order, whatever finishes first and however slow the reporter
+
+    Scenario Outline: A first scenario that <first step>, run three at a time
+      Given a file "specs/timing.feature" containing:
+        """
+        @id=timing
+        Feature: Timing
+          Rule: Every step finishes
+            Scenario: One
+              Given a first step
+
+            Scenario: Two
+              Given a step
+
+            Scenario: Three
+              Given a step
+        """
+      And a step definition "a step" that passes
+      And a step definition "a first step" that <first step>
+      When the workspace is run for "timing" with concurrency 3 and a reporter that takes a moment
+      Then the reporter saw "start One, end One, start Two, end Two, start Three, end Three"
+
+      Examples:
+        | first step     |
+        | passes         |
+        | takes a moment |
+
+  Rule: A run's report says where to look: the definition of a failing step, the examples --tags left out, a step file that defines nothing; --verbose adds the steps that passed
 
     Scenario: A failing step, an example left out, and a step file that defines nothing
       Given a file "specs/sort.feature" containing:
@@ -221,6 +348,10 @@ Feature: Run specs as tests
       And the output line with "Then the desk lamp is found" contains "specs/steps/search.steps.ts:6"
       And the output line with "example Sort by popularity" contains "not selected"
       And the output contains "specs/steps/sort.steps.ts defines no steps"
+      And the output does not contain "Given a catalogue with a desk lamp"
+      When I run "sdp run search --verbose"
+      Then the exit code is 0
+      And the output contains "Given a catalogue with a desk lamp"
 
   Rule: run and gate start only on a workspace they can read whole, whose scenarios sdp check accepts
 
