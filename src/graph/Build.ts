@@ -25,9 +25,9 @@ import {
 } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import type { Located, ModuleConfigs } from "../parse/ModuleConfigs.ts"
+import { cache, type Located, type ModuleConfigs } from "../parse/ModuleConfigs.ts"
 import { type Modules, readModules } from "../parse/Modules.ts"
-import type { Exports, Import } from "../parse/Script.ts"
+import { type Exports, type Import, parseScript } from "../parse/Script.ts"
 import { parseFeatureSpec, prefixCaseHint, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
@@ -102,6 +102,11 @@ export interface Project {
   readonly specs: ReadonlyArray<Spec>
   readonly specById: ReadonlyMap<string, Spec>
   readonly annotations: ReadonlyArray<Annotation>
+  /**
+   * Each element with code in a language whose imports sdp does not read, and that code: what the
+   * element imports there is not in the graph.
+   */
+  readonly importsUnread: ReadonlyArray<{ readonly element: string; readonly file: string }>
   readonly graph: Graph
   /** Problems found while reading sources and linking the graph (`sdp check` adds rule checks). */
   readonly diagnostics: ReadonlyArray<Diagnostic>
@@ -164,8 +169,10 @@ export const buildProject = (input: ProjectInput): Project => {
   for (const file of input.codeFiles) {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
-    if (scan.imports.length > 0) importsOf.set(file.path, scan.imports)
-    if (scan.exports !== undefined) exportsOf.set(file.path, scan.exports)
+    if (scan.exports !== undefined) {
+      importsOf.set(file.path, scan.imports)
+      exportsOf.set(file.path, scan.exports)
+    }
     for (const { hint, line, message } of scan.unreadable) {
       diagnostics.push(diagnostic("annotation-unreadable", { message, source: { file: file.path, line }, hint }))
     }
@@ -523,7 +530,7 @@ export const buildProject = (input: ProjectInput): Project => {
   const played = patternsOfElements(elements, present, nodes, vocabulary)
   const graph = new Graph(nodes.values(), [
     ...present,
-    ...importsBetweenElements(elements, importsOf, modules, diagnostics),
+    ...importsBetweenElements(elements, importsOf, input.codeFiles, modules, diagnostics),
     ...played
   ])
 
@@ -533,6 +540,8 @@ export const buildProject = (input: ProjectInput): Project => {
     specs,
     specById,
     annotations,
+    // Code of an element sdp parsed is a file whose exports it read.
+    importsUnread: [...elements].filter(([file]) => !exportsOf.has(file)).flatMap(([file, ids]) => [...ids].map((element) => ({ element, file }))),
     graph,
     diagnostics: sortDiagnostics(diagnostics),
     results: evidence?.results,
@@ -565,41 +574,76 @@ const elementsOf = (
 }
 
 /**
- * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
- * constant from a module anchored to element B, at the line that names the module: the
- * dependencies between elements as the code has them. An import of types alone calls nothing —
- * written with `type`, or of names the module exports as types alone — and no element imports
- * itself. A name means the code file TypeScript resolves it to (`readModules`), whether or not
- * that file anchors an element; one sdp cannot follow, though it could name the workspace's code,
- * is reported where it is written, and what sdp could not read of a configuration file such a name
- * depends on is reported once, where that is written, as is a tsconfig.json that extends one outside
- * the repository. A pattern imports nothing and nothing imports it.
+ * `A -imports-> B` for each import in code of element A that loads code of element B, at the line
+ * of that import: directly, or through code of no element, which is followed, whatever of it is
+ * imported, until it reaches code of an element — so a dependency through a helper, and a cycle, is
+ * in the graph. An import of types alone loads no code — written with `type`, or of names the module
+ * exports as types alone — and no element imports itself. A pattern is no element: its code is
+ * followed like code of no element. A name means the code file TypeScript resolves it to
+ * (`readModules`); one sdp cannot follow, though it could name the workspace's code, is reported
+ * where it is written, in code of no element too, as is code of no element that does not parse;
+ * what sdp could not read of a configuration file such a name depends on is reported once, where
+ * that is written, as is a tsconfig.json that extends one outside the repository.
  */
 const importsBetweenElements = (
   elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
   importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
+  codeFiles: ReadonlyArray<SourceFile>,
   modules: Modules,
   diagnostics: Array<Diagnostic>
 ): ReadonlyArray<GraphEdge> => {
-  const edges: Array<GraphEdge> = []
   const reported = new Set<string>()
+  const report = (rule: "import-unresolved" | "import-config-outside", { file, hint, line, message }: Located) => {
+    if (reported.has(`${rule}:${file}:${line}:${message}`)) return
+    reported.add(`${rule}:${file}:${line}:${message}`)
+    diagnostics.push(diagnostic(rule, { message, hint, source: { file, line } }))
+  }
+  const contents = new Map(codeFiles.map((file) => [file.path, file.content]))
+  /** What a code file imports: as read with its annotations, or else as it parses. */
+  const importsIn = cache((file: string): ReadonlyArray<Import> => {
+    const read = importsOf.get(file)
+    if (read !== undefined) return read
+    const script = parseScript(file, contents.get(file) ?? "")
+    if (script?.error === undefined) return script?.imports() ?? []
+    report("import-unresolved", {
+      file,
+      line: script.error.line,
+      message: `${file} does not parse, so what it imports is not read: ${script.error.message}`,
+      hint: "fix the syntax error so that sdp can follow what it imports"
+    })
+    return []
+  })
+  /** The code file `imported`, written in `file`, loads code from, if any; what sdp cannot follow of it is reported. */
+  const loaded = (file: string, imported: Import): string | undefined => {
+    const { module, outside, unread, unresolved } = modules.resolve(file, imported)
+    if (unresolved !== undefined) report("import-unresolved", { ...unresolved, file, line: imported.line })
+    for (const each of unread ?? []) report("import-unresolved", each)
+    for (const each of outside ?? []) report("import-config-outside", each)
+    return module !== undefined && (imported.names === undefined || modules.loadsCode(module, imported.names)) ? module : undefined
+  }
+  /** The code files code of no element loads code from, each import resolved once. */
+  const loadedBy = cache((file: string) => importsIn(file).flatMap((imported) => loaded(file, imported) ?? []))
+  /** The elements whose code a code file is, or else those its code reaches through code of no element. */
+  const reached = cache((module: string): ReadonlySet<string> => {
+    const found = new Set<string>()
+    const seen = new Set<string>()
+    const pending = [module]
+    for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
+      if (seen.has(next)) continue
+      seen.add(next)
+      const elements = elementsOf.get(next)
+      if (elements === undefined) pending.push(...loadedBy(next))
+      else for (const element of elements) found.add(element)
+    }
+    return found
+  })
+  const edges: Array<GraphEdge> = []
   for (const [file, elements] of elementsOf) {
-    for (const imported of importsOf.get(file) ?? []) {
-      const { line, names } = imported
-      const { module, outside, unread, unresolved } = modules.resolve(file, imported)
-      if (unresolved !== undefined) diagnostics.push(diagnostic("import-unresolved", { ...unresolved, source: { file, line } }))
-      const once = (rule: "import-unresolved" | "import-config-outside", { file, hint, line, message }: Located) => {
-        if (reported.has(`${file}:${line}:${message}`)) return
-        reported.add(`${file}:${line}:${message}`)
-        diagnostics.push(diagnostic(rule, { message, hint, source: { file, line } }))
-      }
-      for (const each of unread ?? []) once("import-unresolved", each)
-      for (const each of outside ?? []) once("import-config-outside", each)
-      const used = module === undefined ? undefined : elementsOf.get(module)
-      if (used === undefined || (names !== undefined && !modules.loadsCode(module!, names))) continue
-      for (const to of used) {
+    for (const imported of importsIn(file)) {
+      const module = loaded(file, imported)
+      for (const to of module === undefined ? [] : reached(module)) {
         for (const element of elements) {
-          if (element !== to) edges.push({ from: element, rel: made.relations.imports, to, source: { file, line } })
+          if (element !== to) edges.push({ from: element, rel: made.relations.imports, to, source: { file, line: imported.line } })
         }
       }
     }

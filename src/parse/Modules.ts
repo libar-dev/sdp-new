@@ -265,8 +265,10 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       }
     }
     if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, lookup)
-    if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return { found: {}, passed: [] }
-    return nothing
+    if (namesNoCode(subpath)) return { found: {}, passed: [] }
+    // A list of the workspace's packages sdp could not read could list one by this name, declared as a library or not.
+    const unread = read.workspacesUnread
+    return packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) ? { found: {}, passed: [], unread } : { ...nothing, unread }
   }
 
   /**

@@ -10,7 +10,7 @@
 import { Glob, Option, Schema } from "effect"
 import { PackageJson } from "../model/PackageJson.ts"
 export type { PackageJson, Target } from "../model/PackageJson.ts"
-import { parse as parseYaml } from "yaml"
+import { parse as parseYaml, YAMLParseError } from "yaml"
 
 /** A file as read, by its path from the workspace's root: `../` leads above it. */
 export interface File {
@@ -82,7 +82,9 @@ export const listedPackages = (files: ReadonlyArray<File>): ReadonlyArray<{
   files.flatMap((file) => {
     const name = baseName(file.path)
     if (name !== packageFile && name !== pnpmWorkspaceFile) return []
-    const globs = name === packageFile ? workspacesOf(file.content) : pnpmPackagesOf(file.content)
+    // A list sdp cannot read lists nothing here; readConfigs has it reported with each name it could change.
+    const pnpm = name === pnpmWorkspaceFile ? pnpmPackagesOf(file.content) : undefined
+    const globs = pnpm === undefined ? workspacesOf(file.content) : "packages" in pnpm ? pnpm.packages : []
     if (globs.length === 0) return []
     const manifests = (patterns: ReadonlyArray<string>) => patterns.map((pattern) => `${pattern.replace(/\/+$/, "")}/${packageFile}`)
     return [{
@@ -158,6 +160,18 @@ export const readConfigs = (configs: ModuleConfigs) => {
   const unreadBecause = (path: string) => notRead.get(path) ?? "does not parse"
   /** What to do so that sdp reads the file at `path`. */
   const toRead = (path: string) => notRead.has(path) ? `make ${path} a file sdp can read` : `fix the syntax of ${path}`
+  /** What sdp could not read of a list of the workspace's packages, which could list a package by any name. */
+  const workspacesUnread: ReadonlyArray<Unread> = files.flatMap((file) => {
+    if (baseName(file.path) !== pnpmWorkspaceFile) return []
+    const read = notRead.has(file.path) ? { unread: unreadBecause(file.path), line: 1 } : pnpmPackagesOf(file.content)
+    if (!("unread" in read)) return []
+    return [{
+      file: file.path,
+      line: read.line,
+      message: `${file.path} ${read.unread}, so the packages it lists are not read`,
+      hint: read.unread === pnpmUnlisted ? `list the packages as strings under packages in ${file.path}` : toRead(file.path)
+    }]
+  })
   const tsconfigs = cache((path: string) => readTsConfig(byPath.get(path) ?? "{}"))
   const manifests = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodePackageJson))
   const globs = cache((pattern: string) => Glob.make(pattern))
@@ -346,6 +360,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
     projectOf,
     manifest,
     packages,
+    workspacesUnread,
     unreadBecause,
     /** The package.json nearest a directory, at it or above it. */
     scopeOf: (directory: string) => at.upFrom(directory).map((above) => at.join(above, packageFile)).find((path) => byPath.has(path))
@@ -468,11 +483,17 @@ const workspacesOf = (content: string): ReadonlyArray<string> => {
   return workspaces === undefined ? [] : isArray(workspaces) ? workspaces : workspaces.packages ?? []
 }
 
-const pnpmPackagesOf = (content: string): ReadonlyArray<string> => {
+const pnpmUnlisted = "does not hold a packages list of strings"
+
+/** The package globs a pnpm-workspace.yaml lists, or why and where sdp could not read them. */
+const pnpmPackagesOf = (content: string): { readonly packages: ReadonlyArray<string> } | { readonly unread: string; readonly line: number } => {
   try {
-    return Option.match(Schema.decodeUnknownOption(PnpmWorkspace)(parseYaml(content) ?? {}), { onNone: () => [], onSome: (read) => read.packages ?? [] })
-  } catch {
-    return []
+    return Option.match(Schema.decodeUnknownOption(PnpmWorkspace)(parseYaml(content) ?? {}), {
+      onNone: () => ({ unread: pnpmUnlisted, line: 1 }),
+      onSome: (read) => ({ packages: read.packages ?? [] })
+    })
+  } catch (error) {
+    return { unread: "does not parse", line: error instanceof YAMLParseError ? error.linePos?.[0].line ?? 1 : 1 }
   }
 }
 
