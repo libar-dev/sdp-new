@@ -824,6 +824,34 @@ Feature: Plan delivery
       And the output contains "MS-objectives is not recorded as met: its gate changed while it ran, and MS-objectives#there-is-a-plan (stale) does not pass"
       And the file "specs/MS-objectives.feature" does not contain "@met="
 
+  Rule: sdp gate --record records nothing on a graph sdp could not read whole
+
+    What sdp did not read could change whether the gate holds, and a milestone that is met is
+    closed: its gate does not run again to find out.
+
+    Scenario: An import sdp cannot follow
+      Given a file "specs/MS-objectives.feature" containing:
+        """
+        @id=MS-objectives @closes:PH-inception
+        Feature: Lifecycle objectives
+
+          Rule: The work is planned without an error
+
+            Scenario: No error
+              Then there are no error diagnostics
+        """
+      And a file "src/plan.ts" containing:
+        """
+        /** @sdp is ARCH-plan */
+        import "./missing.ts"
+        export const plan = 1
+        """
+      When I run "sdp gate MS-objectives --record"
+      Then the exit code is 2
+      And the output contains "not read: src/plan.ts:2 [import-unresolved]"
+      And the output contains "MS-objectives is not recorded as met: sdp could not read the whole graph"
+      And the file "specs/MS-objectives.feature" does not contain "@met="
+
   Rule: Milestones are met in the order of their dates
 
     Where the project is, is the first milestone not met: one met before an earlier one would leave

@@ -20,7 +20,7 @@ import type { Project } from "../graph/Build.ts"
 import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
 import { readTimeout } from "../model/Config.ts"
-import { problemLine, type RuleId } from "../model/Diagnostic.ts"
+import { type Diagnostic, problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import { type Evidence, notPassing, type RunResults, type ScenarioResult, type StepStatus, worstStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
@@ -121,6 +121,8 @@ export interface WorkspaceRun {
   readonly regressions: ReadonlyArray<string>
   /** Work still to come whose every example passes, some of them in this run: it can be made live. */
   readonly livable: ReadonlyArray<Livable>
+  /** What sdp could not read of the graphs the run's scenarios ran against or it ended on: it could change what they found. */
+  readonly unread: ReadonlyArray<Diagnostic>
 }
 
 /**
@@ -273,7 +275,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     wentStale: staleBecause(true),
     toCome: new Set([...ran].filter((id) => toCome(ranAgainst, id))),
     regressions: [...regressions(ranAgainst, ordinary.executed), ...ordinaryRows.map((result) => result.id)],
-    livable: livable(project, ran)
+    livable: livable(project, ran),
+    unread: [...new Map([before.project, after.project, project].flatMap(unread).map((diagnostic) => [problemLine(diagnostic), diagnostic])).values()]
   } satisfies WorkspaceRun
 })
 
@@ -376,8 +379,9 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
       }${keep.length > 0 ? `, and write it above the rules still to come at ${file}:${keep.join(", ")}` : ""}`
     )
   ]
-  // Nothing runs on a workspace that cannot be fully read, so what ran is the whole answer.
-  return { complete: true, notes, data: report } satisfies Answer<RunReport>
+  // Nothing runs on a workspace sdp check rejects; what else sdp did not read leaves the answer incomplete.
+  const missing = run.unread.map((diagnostic) => `not read: ${problemLine(diagnostic)}`)
+  return { complete: missing.length === 0, notes: [...missing, ...notes], data: report } satisfies Answer<RunReport>
 })
 
 /** `sdp run`: executes the selected scenarios and records their results. An unmet gate does not fail it. */
@@ -416,11 +420,17 @@ const unrecordable = (project: Project, spec: Spec): string | undefined => {
 
 /**
  * Writes `@met=<today>` on a milestone whose gate has just passed, as the workspace is now: read
- * again, the milestone must still be recordable and every scenario of its gate must still pass, or
- * an edit made while the gate ran would be closed without having run.
+ * again, whole, the milestone must still be recordable and every scenario of its gate must still
+ * pass, or an edit made while the gate ran would be closed without having run.
  */
 const recordMet = Effect.fnUntraced(function*(root: string, milestone: string) {
   const project = yield* loadProject(root)
+  const missing = unread(project)
+  if (missing.length > 0) {
+    return yield* new Refused({
+      reason: `${milestone} is not recorded as met: sdp could not read the whole graph as it is now (${missing.map(problemLine).join("; ")})`
+    })
+  }
   const spec = project.specById.get(milestone)
   if (!spec) return yield* new Refused({ reason: `${milestone} is not recorded as met: it is no longer in the workspace` })
   const reason = unrecordable(project, spec)
@@ -473,8 +483,13 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
   const ran = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
-  const met = input.record && ran.data.passed ? yield* recordMet(root, milestone) : undefined
+  // What sdp did not read could change whether the gate holds.
+  const met = input.record && ran.data.passed && ran.complete ? yield* recordMet(root, milestone) : undefined
   const report: GateReport = { ...ran.data, milestone, met }
-  const notes = input.record && !ran.data.passed ? [...ran.notes, `${milestone} is not recorded as met: its gate does not pass`] : ran.notes
-  return { ...ran, notes, data: report } satisfies Answer<GateReport>
+  const unrecorded = !input.record || met !== undefined
+    ? []
+    : [`${milestone} is not recorded as met: ${
+      ran.data.passed ? "sdp could not read the whole graph, and what it did not read could change whether its gate holds" : "its gate does not pass"
+    }`]
+  return { ...ran, notes: [...ran.notes, ...unrecorded], data: report } satisfies Answer<GateReport>
 })
