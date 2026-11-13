@@ -378,10 +378,14 @@ Feature: Know what is verified
             Scenario: Add an item
               Then the cart holds 1 item
         """
+      And a file "shared/package.json" containing:
+        """
+        { "type": "module", "imports": { "#lamps": "./lamps.ts" } }
+        """
       And a file "shared/cart.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
-        import { lamps } from "./lamps.ts"
+        import { lamps } from "<import>"
 
         export default defineSteps(() => ({}), ({ Then }) => {
           Then("the cart holds {int} item(s)", ({ args: [n] }) => {
@@ -407,9 +411,10 @@ Feature: Know what is verified
       Then the output lines are "cart#add-an-item"
 
       Examples:
-        | what                                                 | change                         |
-        | the file a link leads to changes                     | cp shared/two.ts shared/one.ts |
-        | a link is made to lead to another, unchanged file    | ln -sf two.ts shared/lamps.ts  |
+        | what                                                                     | import     | change                         |
+        | the file a link leads to changes                                         | ./lamps.ts | cp shared/two.ts shared/one.ts |
+        | a link is made to lead to another, unchanged file                        | ./lamps.ts | ln -sf two.ts shared/lamps.ts  |
+        | a link a package import names is made to lead to another, unchanged file | #lamps     | ln -sf two.ts shared/lamps.ts  |
 
     Scenario: A step file is made a link to a copy of it elsewhere, beside other files it imports
       Given a file "specs/steps/cart.steps.ts" containing:

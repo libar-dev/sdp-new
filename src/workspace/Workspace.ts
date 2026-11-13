@@ -6,7 +6,8 @@
  * only `loadSteps`, for `sdp run` and `sdp gate`, imports step modules.
  */
 import { Effect, FileSystem, Path, Schema } from "effect"
-import { createRequire, registerHooks } from "node:module"
+import { readFileSync, realpathSync } from "node:fs"
+import { createRequire, findPackageJSON, registerHooks } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
@@ -385,6 +386,52 @@ const loadedSources = new Map<string, string>()
 
 const isWorkspaceFile = (url: string) => url.startsWith("file:") && !url.includes("/node_modules/")
 
+/** The path a target of a package's `imports` map names, as Node picks it: the first of an array or of the conditions that apply, `*` filled in. */
+const mapTarget = (target: unknown, conditions: ReadonlyArray<string>, match: string | undefined): string | undefined => {
+  if (typeof target === "string") return match === undefined ? target : target.replaceAll("*", match)
+  const options = Array.isArray(target)
+    ? target
+    : target !== null && typeof target === "object"
+    ? Object.entries(target).flatMap(([condition, value]) => condition === "default" || conditions.includes(condition) ? [value] : [])
+    : []
+  for (const option of options) {
+    const found = mapTarget(option, conditions, match)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+/** The target a package's `imports` map gives a specifier, as Node matches it: the key itself, else the pattern with the longest prefix. */
+const packageImport = (imports: Record<string, unknown>, specifier: string, conditions: ReadonlyArray<string>): string | undefined => {
+  if (Object.hasOwn(imports, specifier) && !specifier.includes("*")) return mapTarget(imports[specifier], conditions, undefined)
+  const [pattern] = Object.keys(imports).filter((key) => {
+    const [base = "", trailer, more] = key.split("*")
+    return trailer !== undefined && more === undefined && specifier.startsWith(base) && specifier !== base && specifier.endsWith(trailer) &&
+      specifier.length >= key.length
+  }).sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length)
+  const [base = "", trailer = ""] = pattern?.split("*") ?? []
+  return pattern === undefined ? undefined : mapTarget(imports[pattern], conditions, specifier.slice(base.length, specifier.length - trailer.length))
+}
+
+/**
+ * The path a package's own import (`#lamps`) went through before Node followed links to `real`, its
+ * real path: where the package.json of the importing module's scope maps it. `real` itself for any
+ * other import that names no path — a package is where node_modules has it, which the lockfile
+ * pins — or where no other path is known to lead there.
+ */
+const pathBefore = (specifier: string, parent: string, conditions: ReadonlyArray<string>, real: string): string => {
+  try {
+    const scope = specifier.startsWith("#") ? findPackageJSON(parent) : undefined
+    const imports = scope === undefined ? undefined : (JSON.parse(readFileSync(scope, "utf8")) as { readonly imports?: unknown }).imports
+    const target = imports !== null && typeof imports === "object" ? packageImport(imports as Record<string, unknown>, specifier, conditions) : undefined
+    const before = scope !== undefined && target?.startsWith("./") ? fileURLToPath(new URL(target, pathToFileURL(scope))) : undefined
+    // Only a path that leads where Node resolved is one it went through.
+    return before !== undefined && realpathSync(before) === real ? before : real
+  } catch {
+    return real
+  }
+}
+
 /**
  * Step modules `import { defineSteps } from "sdp/steps"`: that always resolves to the sdp that runs
  * them, so a workspace needs no install, and step modules and runner agree on one sdp. What step
@@ -403,7 +450,9 @@ const hookImports = () => {
       // This module imports the step files of every workspace this process runs: that is no import of theirs.
       if (parent?.startsWith("file:") && parent !== import.meta.url && isWorkspaceFile(resolved.url)) {
         // Node names a module by its real path; a path that leads there through a link is named too.
-        const named = /^(\.{1,2}\/|\/|file:)/.test(specifier) ? new URL(specifier, parent).href : resolved.url
+        const named = /^(\.{1,2}\/|\/|file:)/.test(specifier)
+          ? new URL(specifier, parent).href
+          : pathToFileURL(pathBefore(specifier, parent, context.conditions, fileURLToPath(resolved.url))).href
         importGraph.set(parent, (importGraph.get(parent) ?? new Map()).set(named, resolved.url))
       }
       return resolved
