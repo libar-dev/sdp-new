@@ -113,12 +113,11 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
 /**
  * Each architectural node with what it is for and its links; drivers and the code linked to it
  * appear as the nodes it links to, and a driver that shaped it through a feature as `driver,
- * through feature`. What it is for is the first paragraph of its spec — or, for a node declared
- * without one, what the code anchored to it says of itself. Under each piece of code that is it
- * comes its surface: a declaration's shape, or what a file exports. Then the work on it: what is
- * live, and what is still to come, the furthest along first. A node no file declares is still to
- * come, named by the work still to come that names it. A title that only repeats the id, as that of
- * an element declared by its code, is left out.
+ * through feature`. What it is for is what the code anchored to it says of itself, and under each
+ * piece of code that is it comes its surface: a declaration's shape, or what a file exports. Then
+ * the work on it: what is live, and what is still to come, the furthest along first. A node no file
+ * declares is still to come, named by the work still to come that names it. A title that only
+ * repeats the id, as that of an element its anchor gives no title, is left out.
  */
 export const architecture = ({ anchor, anchors, architecture, drivers, edges, kinds, work }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
@@ -128,7 +127,7 @@ export const architecture = ({ anchor, anchors, architecture, drivers, edges, ki
   for (const node of architecture) {
     const incoming = edges.filter((e) => e.to === node.id)
     const anchoring = incoming.filter((e) => e.rel === anchor && code.has(e.from))
-    const described = typeof node.attrs.summary === "string" ? [node.attrs.summary] : anchoring.map((e) => code.get(e.from)?.attrs.doc)
+    const described = anchoring.map((e) => code.get(e.from)?.attrs.doc)
     const named = title(node.id) === "" ? node.id : `${node.id} — ${node.title}`
     const { live = [], toCome = [] } = work.find((w) => w.node === node.id) ?? {}
     const by = toCome.length > 0 ? `, named by ${toCome.map((item) => item.id).join(", ")}` : ""

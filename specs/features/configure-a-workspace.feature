@@ -121,7 +121,7 @@ Feature: Configure a workspace
     writes. Most specs are features, and a feature is named by what it says, so its id needs no
     prefix. A prefix in another case is a word: an IT asset inventory is no iteration.
 
-    Scenario Outline: The default prefixes, and two that are none
+    Scenario Outline: The default prefixes of specs, and two that are none
       Given these specs:
         | tags     | Feature |
         | @id=<id> | Spec    |
@@ -129,14 +129,24 @@ Feature: Configure a workspace
 
       Examples:
         | id              | kind      |
-        | ARCH-orders     | element   |
-        | PAT-outbox      | pattern   |
         | MS-launch       | milestone |
         | PH-construction | phase     |
         | IT-beta         | iteration |
-        | ARCH_orders     | element   |
         | TODO-1          | feature   |
         | checkout        | feature   |
+
+    @replaces:configure-a-workspace#the-default-prefixes-and-two-that-are-none
+    Scenario Outline: The default prefixes of the architecture, named by work still to come
+      Given these specs:
+        | tags                                        | Feature |
+        | @id=search @maturity=idea @realized-by:<id> | Search  |
+      Then node "<id>" has attribute kind = "<kind>"
+
+      Examples:
+        | id          | kind    |
+        | ARCH-orders | element |
+        | PAT-outbox  | pattern |
+        | ARCH_orders | element |
 
     Scenario Outline: A word that begins like a prefix in another case
       Given these specs:
@@ -187,10 +197,16 @@ Feature: Configure a workspace
         vocabulary: { kinds: { architectural: [component], decision: [adr], driver: [adr, nfr, risk] } }
         """
       And these specs:
-        | tags                                                                      | Feature                 |
-        | @id=orders @kind=component @decided-by:use-postgres @threatened-by:outage | Orders                  |
-        | @id=ARCH-legacy                                                           | Legacy                  |
-        | @id=outage @kind=risk                                                     | Payment provider outage |
+        | tags                                                                                           | Feature                 |
+        | @id=checkout @maturity=idea @realized-by:orders @decided-by:use-postgres @threatened-by:outage | Checkout                |
+        | @id=billing @kind=component                                                                    | Billing                 |
+        | @id=ARCH-legacy                                                                                | Legacy                  |
+        | @id=outage @kind=risk                                                                          | Payment provider outage |
+      And a file "src/orders.ts" containing:
+        """
+        /** @sdp is orders kind=component */
+        export const place = (): number => 0
+        """
       And a file "specs/use-postgres.feature" containing:
         """
         @id=use-postgres @kind=adr
@@ -199,13 +215,14 @@ Feature: Configure a workspace
           Rule: Every table has a primary key
         """
       When I ask for the architecture view
-      Then the output contains "orders -decided-by-> use-postgres"
-      And the output contains "orders -threatened-by-> outage"
+      Then the output contains "use-postgres, through checkout"
+      And the output contains "outage, through checkout"
       And the output does not contain "ARCH-legacy"
       When the workspace is checked
       Then sdp reports at least:
-        | rule           | node         |
-        | decision-shape | use-postgres |
+        | rule             | node         |
+        | decision-shape   | use-postgres |
+        | declared-in-spec | billing      |
 
     Scenario: A sprint plans work, part-of puts it in its phase, and a runbook is work of operations
       Given a file "sdp.config.yaml" containing:

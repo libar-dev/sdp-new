@@ -12,32 +12,41 @@ Feature: See the architecture
 
   Background:
     Given these specs:
-      | tags                                                                                                                       | Feature                                 |
-      | @id=ARCH-orders @maturity=idea @decided-by:publish-through-an-outbox @instance-of:PAT-outbox @constrained-by:order-latency | Orders                                  |
-      | @id=PAT-outbox @maturity=idea                                                                                              | Transactional outbox                    |
-      | @id=publish-through-an-outbox @kind=decision                                                                               | Orders publish events through an outbox |
-      | @id=json-logs @kind=decision                                                                                               | Logs are JSON                           |
-      | @id=order-latency @maturity=idea @type=quality                                                                             | Order latency                           |
-      | @id=numbered-receipts @kind=decision                                                                                       | Receipts are numbered without gaps      |
-      | @id=refunds @maturity=idea @depends-on:receipts @decided-by:credit-notes                                                   | Refunds                                 |
-      | @id=credit-notes @kind=decision                                                                                            | A refund is a credit note               |
+      | tags                                                                     | Feature                                 |
+      | @id=publish-through-an-outbox @kind=decision                             | Orders publish events through an outbox |
+      | @id=json-logs @kind=decision                                             | Logs are JSON                           |
+      | @id=order-latency @maturity=idea @type=quality                           | Order latency                           |
+      | @id=numbered-receipts @kind=decision                                     | Receipts are numbered without gaps      |
+      | @id=refunds @maturity=idea @depends-on:receipts @decided-by:credit-notes | Refunds                                 |
+      | @id=credit-notes @kind=decision                                          | A refund is a credit note               |
     And a file "specs/receipts.feature" containing:
       """
-      @id=receipts @maturity=idea @realized-by:ARCH-orders
+      @id=receipts @maturity=idea @realized-by:ARCH-orders @constrained-by:order-latency
       Feature: Receipts
 
         @decided-by:numbered-receipts
         Rule: Every receipt is numbered
 
-        @type=quality
+        @type=quality @decided-by:publish-through-an-outbox
         Rule: A receipt is sent within a minute
       """
-    And a file "specs/ARCH-billing.feature" containing:
+    And a file "src/billing.ts" containing:
       """
-      @id=ARCH-billing @maturity=idea
-      Feature: Billing
-
-        Owns invoices; tax rules are regulated and costly to change. It writes logs as json-logs says.
+      /**
+       * Owns invoices; tax rules are regulated and costly to change. It writes logs as json-logs says.
+       *
+       * @sdp is ARCH-billing
+       */
+      export class Billing {}
+      """
+    And a file "src/outbox.ts" containing:
+      """
+      /**
+       * Keeps each event with the change that raised it, until it is published.
+       *
+       * @sdp is PAT-outbox title="Transactional outbox"
+       */
+      export const outbox = new Set<string>()
       """
     And a file "src/mailer.ts" containing:
       """
@@ -57,11 +66,14 @@ Feature: See the architecture
       """
       import { Mailer } from "./mailer.ts"
 
-      /** @sdp is ARCH-orders */
+      /**
+       * @sdp is ARCH-orders
+       * @sdp plays PAT-outbox
+       */
       export const place = (): Mailer => new Mailer()
       """
 
-  Rule: The architecture is every element and pattern declared in a spec or anchored in code, with the decisions and quality requirements linked to it, to a feature linked to it or to a rule of that feature, and nothing else
+  Rule: The architecture is every element and pattern its code declares, with the decisions and quality requirements linked to it, to a feature linked to it or to a rule of that feature, and nothing else
 
     Which few parts are significant — they carry quality attributes, are costly to change or
     constrain many others — is a judgement, not a metric of the code, and a list of every
@@ -70,49 +82,54 @@ Feature: See the architecture
     decision only named in a description is not linked, and one linked further away — to a
     feature that depends on that one — shaped that other feature, not the element.
 
-    Scenario: Elements and patterns from specs and code, with the decisions and quality requirements that shaped them, and the links among them
+    @replaces:see-the-architecture#elements-and-patterns-from-specs-and-code-with-the-decisions-and
+    Scenario: Elements and patterns from code, with the decisions and quality requirements that shaped them, and the links among them
       When I run "sdp arch --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.architecture          | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox                                                                 |
-        | data.drivers               | publish-through-an-outbox, order-latency, receipts#a-receipt-is-sent-within-a-minute, numbered-receipts            |
-        | data.drivers.through.nodes | ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts |
-        | data.anchors               | code:src/mailer.ts#Mailer, code:src/orders.ts#place                                                                |
-        | data.edges.rel             | constrained-by, decided-by, imports, instance-of, is, is                                                           |
+        | data.architecture          | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox                                                                                       |
+        | data.drivers               | order-latency, receipts#a-receipt-is-sent-within-a-minute, numbered-receipts, publish-through-an-outbox                                  |
+        | data.drivers.through.nodes | ARCH-orders, receipts, order-latency, ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts, ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, publish-through-an-outbox |
+        | data.anchors               | code:src/billing.ts#Billing, code:src/mailer.ts#Mailer, code:src/orders.ts#place, code:src/outbox.ts#outbox                              |
+        | data.edges.rel             | decided-by, imports, is, is, is, is, plays, plays                                                                                        |
 
-  Rule: Each element is shown with what it is for, from its spec or else from the doc comment of its code, and with its links
+  Rule: Each element is shown with what it is for, from the doc comment of its code, and with its links
 
-    An element declared by its code alone is named by its id, unless an anchor gives it a title.
+    It is named by its id, unless an anchor gives it a title.
 
-    Scenario: One element described by its spec, one by its code, one by its links alone
+    @replaces:see-the-architecture#one-element-described-by-its-spec-one-by-its-code-one-by-its
+    Scenario: Elements described by their code, and one by its links alone
       When I run "sdp arch"
       Then the exit code is 0
       And the output contains:
         """
         Architecture: 4 node(s) of the kinds element, pattern
 
-        ARCH-billing — Billing (element)
+        ARCH-billing (element)
         Owns invoices; tax rules are regulated and costly to change. It writes logs as json-logs says.
-
-        ARCH-orders — Orders (element)
-        ARCH-orders -decided-by-> publish-through-an-outbox  Orders publish events through an outbox
-        ARCH-orders -instance-of-> PAT-outbox  Transactional outbox
-        ARCH-orders -constrained-by-> order-latency  Order latency
-        ARCH-orders -imports-> ARCH-mailer
-        ARCH-orders <-is- code:src/orders.ts#place  place
-        function place(): Mailer
-        receipts#a-receipt-is-sent-within-a-minute, through receipts  A receipt is sent within a minute
-        numbered-receipts, through receipts  Receipts are numbered without gaps
-        still to come: receipts (idea)  Receipts
-
-        PAT-outbox — Transactional outbox (pattern)
-        PAT-outbox <-instance-of- ARCH-orders  Orders
+        ARCH-billing <-is- code:src/billing.ts#Billing  Billing
+        class Billing {}
 
         ARCH-mailer (element)
         Sends receipts, and retries while the provider is down.
-        ARCH-mailer <-imports- ARCH-orders  Orders
+        ARCH-mailer <-imports- ARCH-orders
         ARCH-mailer <-is- code:src/mailer.ts#Mailer  Mailer
         class Mailer {}
+
+        ARCH-orders (element)
+        ARCH-orders -imports-> ARCH-mailer
+        ARCH-orders -plays-> PAT-outbox  Transactional outbox
+        ARCH-orders <-is- code:src/orders.ts#place  place
+        function place(): Mailer
+        order-latency, through receipts  Order latency
+        receipts#a-receipt-is-sent-within-a-minute, through receipts  A receipt is sent within a minute
+        numbered-receipts, through receipts  Receipts are numbered without gaps
+        publish-through-an-outbox, through receipts  Orders publish events through an outbox
+        still to come: receipts (idea)  Receipts
+
+        PAT-outbox — Transactional outbox (pattern)
+        Keeps each event with the change that raised it, until it is published.
+        PAT-outbox <-plays- ARCH-orders
         """
       And the output does not contain "ARCH-mailer — ARCH-mailer"
       And the output does not contain "ARCH-mailer  ARCH-mailer"
@@ -692,11 +709,11 @@ Feature: See the architecture
         <configuration>
         """
       And these specs:
-        | tags                                           | Feature               |
-        | @id=ARCH-search @constrained-by:search-latency | Search                |
-        | @id=search-latency <marker>                    | Results within 200 ms |
+        | tags                                                                              | Feature               |
+        | @id=search @maturity=idea @realized-by:ARCH-search @constrained-by:search-latency | Search                |
+        | @id=search-latency <marker>                                                       | Results within 200 ms |
       When I ask for the architecture view
-      Then the output contains "ARCH-search -constrained-by-> search-latency"
+      Then the output contains "search-latency, through search"
 
       Examples:
         | marker                          | configuration                                      |
@@ -708,16 +725,16 @@ Feature: See the architecture
 
     Declaring it is the architect's call, not a rule sdp can hold anyone to.
 
-    Scenario: An element without links or code, and a decision nothing links to
+    @replaces:see-the-architecture#an-element-without-links-or-code-and-a-decision-nothing-links-to
+    Scenario: An element only its code names, and a decision nothing links to
       When the workspace is checked
       Then sdp reports nothing
 
   Rule: Every anchor of an element declares it, and two that disagree on an attribute are reported
 
     An element anchored in several places is one element whichever file is read first: what each
-    anchor declares holds, and where two disagree the spec's value, or else the first file's, is
-    kept. A kind that no anchor writes and no prefix names is no declaration, and gives way to one
-    that is written.
+    anchor declares holds, and where two disagree the first file's is kept. A kind that no anchor
+    writes and no prefix names is no declaration, and gives way to one that is written.
 
     Scenario Outline: Two anchors that agree, each with what it adds
       Given a file "src/courier/retry.ts" containing:
@@ -826,6 +843,36 @@ Feature: See the architecture
         | the one that writes no kind | a.ts  | b.ts    |
         | the one that writes it      | b.ts  | a.ts    |
 
+  @decided-by:architecture-is-declared-in-doc-comments
+  Rule: A spec that declares an element or a pattern is reported, and what it says is not read
+
+    Scenario: Billing, described in a spec and by its code
+      Given a file "specs/ARCH-billing.feature" containing:
+        """
+        @id=ARCH-billing
+        Feature: Billing
+
+          Owns invoices.
+        """
+      And a file "src/billing.ts" containing:
+        """
+        /**
+         * Bills customers monthly.
+         *
+         * @sdp is ARCH-billing
+         */
+        export class Billing {}
+        """
+      When I run "sdp arch"
+      Then the exit code is 2
+      And the output contains:
+        """
+        ARCH-billing (element)  src/billing.ts:4
+        Bills customers monthly.
+        """
+      And the output does not contain "Owns invoices"
+      And the output contains "not read: specs/ARCH-billing.feature:1 [declared-in-spec]"
+
     Scenario: An anchor that disagrees with the spec
       Given these specs:
         | tags                           | Feature |
@@ -841,11 +888,39 @@ Feature: See the architecture
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
-        | id          | title  | source                      | owner   | tier |
-        | ARCH-ledger | Ledger | specs/ARCH-ledger.feature:1 | finance | 1    |
+        | id          | title       | source          | owner    | tier |
+        | ARCH-ledger | ARCH-ledger | src/ledger.ts:4 | payments | 1    |
       And sdp reports:
-        | rule                 | severity | at              | message                                                                                      |
-        | declaration-conflict | warning  | src/ledger.ts:4 | ARCH-ledger: owner is "payments" here but "finance" at specs/ARCH-ledger.feature:1, which is kept |
+        | rule             | severity | at                          | message                                                                            | hint                                                                                                                                         |
+        | declared-in-spec | error    | specs/ARCH-ledger.feature:1 | ARCH-ledger is declared by its code, as every element is, so this spec is not read | move its words to the doc comment of its code, beside `@sdp is ARCH-ledger`, and its links to the rules of the features that realize it |
+
+    Scenario: Billing's spec writes the retry pattern, which its code plays, and the outbox, which it does not yet
+      Given a file "specs/ARCH-billing.feature" containing:
+        """
+        @id=ARCH-billing @plays:PAT-retry @plays:PAT-outbox
+        Feature: Billing
+        """
+      And a file "src/retry.ts" containing:
+        """
+        /** @sdp is PAT-retry */
+        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
+        """
+      And a file "src/billing.ts" containing:
+        """
+        /** @sdp is ARCH-billing */
+        import { retry } from "./retry.ts"
+
+        /** @sdp plays PAT-retry */
+        export const charge = (): Promise<number> => retry(async () => 0)
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule             | severity | at                           |
+        | declared-in-spec | error    | specs/ARCH-billing.feature:1 |
+      And the workspace graph has edges:
+        | from         | rel   | to        | sources          |
+        | ARCH-billing | plays | PAT-retry | src/billing.ts:4 |
+      And the edges from "ARCH-billing" are "ARCH-billing -plays-> PAT-retry"
 
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp plays`
@@ -894,7 +969,7 @@ Feature: See the architecture
         """
       And the output contains "PAT-retry <-is- code:src/retry.ts#retry  retry"
       And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
-      And the output contains "PAT-retry <-plays- ARCH-billing  Billing"
+      And the output contains "PAT-retry <-plays- ARCH-billing"
 
     Scenario: A pattern that no code declares, played by billing
       Given a file "src/billing.ts" containing:
@@ -959,43 +1034,13 @@ Feature: See the architecture
       When I run "sdp arch"
       Then the exit code is 0
       And the output contains "ARCH-billing -plays-> PAT-retry"
-      And the output contains "PAT-retry <-plays- ARCH-billing  Billing"
+      And the output contains "PAT-retry <-plays- ARCH-billing"
       When I run "sdp arch --mermaid"
       Then the exit code is 0
       And the output contains "-->|plays|"
       When I run "sdp context PAT-retry"
       Then the exit code is 0
       And the output contains "PAT-retry <-plays- ARCH-billing"
-
-  Rule: A spec that writes its element's link to a pattern its code plays is told to delete it
-
-    Scenario: Billing's spec writes the retry pattern, which its code plays, and the outbox, which it does not yet
-      Given a file "specs/ARCH-billing.feature" containing:
-        """
-        @id=ARCH-billing @plays:PAT-retry @plays:PAT-outbox
-        Feature: Billing
-        """
-      And a file "src/retry.ts" containing:
-        """
-        /** @sdp is PAT-retry */
-        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
-        """
-      And a file "src/billing.ts" containing:
-        """
-        /** @sdp is ARCH-billing */
-        import { retry } from "./retry.ts"
-
-        /** @sdp plays PAT-retry */
-        export const charge = (): Promise<number> => retry(async () => 0)
-        """
-      When the workspace is loaded
-      Then sdp reports:
-        | rule              | severity | at                           | message                                                                                                     | hint                                     |
-        | derived-attribute | error    | specs/ARCH-billing.feature:1 | ARCH-billing -plays-> PAT-retry: the code of ARCH-billing says it at src/billing.ts:4, so the link written here is ignored | delete it: the code says it, and only while it does |
-      And the workspace graph has edges:
-        | from         | rel   | to         | sources                      |
-        | ARCH-billing | plays | PAT-retry  | src/billing.ts:4             |
-        | ARCH-billing | plays | PAT-outbox | specs/ARCH-billing.feature:1 |
 
   Rule: Each element is shown with its public surface: the shape of what its code exports
 

@@ -13,12 +13,30 @@ Feature: Ask the graph
 
   Background:
     Given these specs:
-      | tags                                                                                 | Feature           |
-      | @id=checkout @maturity=ready @checkout @web @due=2026-12-01 @realized-by:ARCH-orders | Checkout          |
-      | @id=refunds @maturity=idea @estimate=8 @due=2027-03-01 @realized-by:ARCH-billing     | Refunds           |
-      | @id=ARCH-orders @public=true @depends-on:ARCH-billing                                | Order service, v2 |
-      | @id=ARCH-billing @public=false @depends-on:ARCH-ledger                               | Billing           |
-      | @id=ARCH-ledger @owner.team=core @depends-on:ARCH-orders                             | Ledger [legacy]   |
+      | tags                                                                                              | Feature  |
+      | @id=checkout @maturity=ready @checkout @web @due=2026-12-01 @realized-by:ARCH-orders              | Checkout |
+      | @id=refunds @maturity=idea @estimate=8 @due=2027-03-01 @owner.team=core @realized-by:ARCH-billing | Refunds  |
+    And a file "src/orders.ts" containing:
+      """
+      import { bill } from "./billing.ts"
+
+      /** @sdp is ARCH-orders title="Order service, v2" public=true */
+      export const order = (): number => bill()
+      """
+    And a file "src/billing.ts" containing:
+      """
+      import { book } from "./ledger.ts"
+
+      /** @sdp is ARCH-billing title=Billing public=false */
+      export const bill = (): number => book()
+      """
+    And a file "src/ledger.ts" containing:
+      """
+      import { order } from "./orders.ts"
+
+      /** @sdp is ARCH-ledger title="Ledger [legacy]" */
+      export const book = (): number => order()
+      """
 
   Rule: A question is one line: the nodes to start from, then the links to follow
 
@@ -65,14 +83,14 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                 | result                                                    |
-        | feature\|element      | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
-        | *                     | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
-        | #ARCH-orders\|refunds | ARCH-orders, refunds                                      |
-        | #ARCH-unknown         | nothing                                                   |
-        | gizmo                 | nothing                                                   |
-        | element -feeds-> *    | nothing                                                   |
-        | element[colour=red]   | nothing                                                   |
+        | query                 | result                                                                                                                                 |
+        | feature\|element      | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger                                                                              |
+        | *                     | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger, code:src/orders.ts#order, code:src/billing.ts#bill, code:src/ledger.ts#book |
+        | #ARCH-orders\|refunds | ARCH-orders, refunds                                                                                                                   |
+        | #ARCH-unknown         | nothing                                                                                                                                |
+        | gizmo                 | nothing                                                                                                                                |
+        | element -feeds-> *    | nothing                                                                                                                                |
+        | element[colour=red]   | nothing                                                                                                                                |
 
     Scenario Outline: Every condition holds, in one group or in several
       When I query "<query>"
@@ -143,11 +161,11 @@ Feature: Ask the graph
         | query                                 | result                                 |
         | *[id~^arch-]                          | ARCH-orders, ARCH-billing, ARCH-ledger |
         | *[kind=feature]                       | checkout, refunds                      |
-        | *[source=specs/ARCH-orders.feature:1] | ARCH-orders                            |
-        | *[owner.team=core]                    | ARCH-ledger                            |
+        | *[source=src/orders.ts:3]             | ARCH-orders                            |
+        | *[owner.team=core]                    | refunds                                |
         | feature[realized-by=ARCH-orders]      | checkout                               |
         | element[toString]                     | nothing                                |
-        | element[owner.constructor]            | nothing                                |
+        | feature[owner.constructor]            | nothing                                |
         | element[!constructor]                 | ARCH-orders, ARCH-billing, ARCH-ledger |
 
   Rule: Links are followed out, in or either way, once or as far as they lead
@@ -157,29 +175,29 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                                            | result                            |
-        | #ARCH-billing -depends-on-> *                    | ARCH-ledger                       |
-        | #ARCH-billing <-depends-on- *                    | ARCH-orders                       |
-        | #ARCH-billing -depends-on- *                     | ARCH-ledger, ARCH-orders          |
-        | #ARCH-billing <-depends-on\|realized-by- *       | ARCH-orders, refunds              |
-        | #checkout -realized-by-> * -depends-on-> element | ARCH-billing                      |
-        | #checkout -realized-by->                         | ARCH-orders                       |
-        | #ARCH-billing <-- *                              | ARCH-orders, refunds              |
-        | #ARCH-billing -*- *                              | ARCH-ledger, ARCH-orders, refunds |
-        | #ARCH-ledger -*-> *                              | ARCH-orders                       |
+        | query                                         | result                                                      |
+        | #ARCH-billing -imports-> *                    | ARCH-ledger                                                 |
+        | #ARCH-billing <-imports- *                    | ARCH-orders                                                 |
+        | #ARCH-billing -imports- *                     | ARCH-ledger, ARCH-orders                                    |
+        | #ARCH-billing <-imports\|realized-by- *       | ARCH-orders, refunds                                        |
+        | #checkout -realized-by-> * -imports-> element | ARCH-billing                                                |
+        | #checkout -realized-by->                      | ARCH-orders                                                 |
+        | #ARCH-billing <-- *                           | ARCH-orders, code:src/billing.ts#bill, refunds              |
+        | #ARCH-billing -*- *                           | ARCH-ledger, ARCH-orders, code:src/billing.ts#bill, refunds |
+        | #ARCH-ledger -*-> *                           | ARCH-orders                                                 |
 
     Scenario Outline: As far as links lead, and back to the start when a cycle leads there
       When I query "<query>"
       Then the result is "<result>"
 
       Examples:
-        | query                                    | result                                 |
-        | #ARCH-orders -depends-on+-> *            | ARCH-billing, ARCH-ledger, ARCH-orders |
-        | #ARCH-orders <-depends-on+- *            | ARCH-billing, ARCH-ledger, ARCH-orders |
-        | #ARCH-orders -depends-on+-> #ARCH-orders | ARCH-orders                            |
-        | #checkout -realized-by+-> #checkout      | nothing                                |
-        | #ARCH-orders -depends-on+- #ARCH-orders  | ARCH-orders                            |
-        | #checkout -realized-by+- #checkout       | nothing                                |
+        | query                                 | result                                 |
+        | #ARCH-orders -imports+-> *            | ARCH-billing, ARCH-ledger, ARCH-orders |
+        | #ARCH-orders <-imports+- *            | ARCH-billing, ARCH-ledger, ARCH-orders |
+        | #ARCH-orders -imports+-> #ARCH-orders | ARCH-orders                            |
+        | #checkout -realized-by+-> #checkout   | nothing                                |
+        | #ARCH-orders -imports+- #ARCH-orders  | ARCH-orders                            |
+        | #checkout -realized-by+- #checkout    | nothing                                |
 
   Rule: A link can filter instead: keep the nodes that have such a neighbour, or those that have none
 
@@ -191,9 +209,9 @@ Feature: Ask the graph
         | query                                                    | result       |
         | element ?<-realized-by- feature[maturity=ready]          | ARCH-orders  |
         | element !<-realized-by- *                                | ARCH-ledger  |
-        | element !-depends-on+-> #ARCH-orders                     | nothing      |
+        | element !-imports+-> #ARCH-orders                        | nothing      |
         | feature ?-realized-by-> element[public] -realized-by-> * | ARCH-orders  |
-        | element ?-depends-on-> #ARCH-ledger                      | ARCH-billing |
+        | element ?-imports-> #ARCH-ledger                         | ARCH-billing |
 
   Rule: The answer is the nodes the question ends on, or every route to them as it exists
 
@@ -201,20 +219,20 @@ Feature: Ask the graph
     reached as far as links lead is a shortest one.
 
     Scenario: Several routes to a node are one node and as many routes
-      When I query "feature -realized-by-> element -depends-on+-> *"
+      When I query "feature -realized-by-> element -imports+-> *"
       Then the result is "ARCH-billing, ARCH-ledger, ARCH-orders"
       And the paths are:
-        | checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing                                                     |
-        | checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger                           |
-        | checkout -realized-by-> ARCH-orders -depends-on-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders |
-        | refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger                                                      |
-        | refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders                            |
-        | refunds -realized-by-> ARCH-billing -depends-on-> ARCH-ledger -depends-on-> ARCH-orders -depends-on-> ARCH-billing |
+        | checkout -realized-by-> ARCH-orders -imports-> ARCH-billing                                               |
+        | checkout -realized-by-> ARCH-orders -imports-> ARCH-billing -imports-> ARCH-ledger                        |
+        | checkout -realized-by-> ARCH-orders -imports-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders |
+        | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger                                                |
+        | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders                         |
+        | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders -imports-> ARCH-billing |
 
     Scenario: A link followed against its direction is shown as it points
-      When I query "#ARCH-ledger <-depends-on- element <-realized-by- *"
+      When I query "#ARCH-ledger <-imports- element <-realized-by- *"
       Then the paths are:
-        | ARCH-ledger <-depends-on- ARCH-billing <-realized-by- refunds |
+        | ARCH-ledger <-imports- ARCH-billing <-realized-by- refunds |
 
     Scenario: Two links between the same nodes, several relations, and a cycle
       Given these specs:
@@ -266,7 +284,7 @@ Feature: Ask the graph
         """
       When I run "sdp q '#checkout -realized-by-> element'"
       Then the exit code is 0
-      And the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
+      And the output contains "ARCH-orders\telement\t\tOrder service, v2\tsrc/orders.ts:3"
       And the output contains "1 node(s)"
       When I run "sdp q 'feature|scenario'"
       Then the exit code is 0
@@ -275,9 +293,9 @@ Feature: Ask the graph
       When I run "sdp q 'element' --ids"
       Then the exit code is 0
       And the output lines are "ARCH-orders, ARCH-billing, ARCH-ledger"
-      When I run "sdp q '#ARCH-ledger <-depends-on- element' --paths"
+      When I run "sdp q '#ARCH-ledger <-imports- element' --paths"
       Then the exit code is 0
-      And the output lines are "ARCH-ledger <-depends-on- ARCH-billing"
+      And the output lines are "ARCH-ledger <-imports- ARCH-billing"
 
     Scenario: As data, with the routes when asked
       When I run "sdp q '#checkout -realized-by-> element' --paths --json"
@@ -285,7 +303,7 @@ Feature: Ask the graph
       And the JSON output has:
         | complete              | true                      |
         | data.nodes            | ARCH-orders               |
-        | data.nodes.file       | specs/ARCH-orders.feature |
+        | data.nodes.file       | src/orders.ts             |
         | data.paths.nodes      | checkout, ARCH-orders     |
         | data.paths.edges.from | checkout                  |
         | data.paths.edges.rel  | realized-by               |
@@ -307,15 +325,15 @@ Feature: Ask the graph
       When I run "sdp show ARCH-billing"
       Then the exit code is 0
       And the output contains 'public: false'
-      And the output contains "-depends-on-> ARCH-ledger  Ledger [legacy]"
+      And the output contains "-imports-> ARCH-ledger  Ledger [legacy]"
       And the output contains "<-realized-by- refunds  Refunds"
       When I run "sdp show ARCH-billing --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.node.id          | ARCH-billing                                     |
-        | data.out.to           | ARCH-ledger                                      |
-        | data.in.from          | ARCH-orders, refunds                             |
-        | data.in.declared.file | specs/ARCH-orders.feature, specs/refunds.feature |
+        | data.node.id          | ARCH-billing                                         |
+        | data.out.to           | ARCH-ledger                                          |
+        | data.in.from          | ARCH-orders, code:src/billing.ts#bill, refunds       |
+        | data.in.declared.file | src/orders.ts, src/billing.ts, specs/refunds.feature |
 
   Rule: A word the workspace does not know is pointed out, with the closest one it knows
 
@@ -395,27 +413,28 @@ Feature: Ask the graph
     A program gets it as a Promise from `sdp`, so asking a question needs no Effect; a program written
     with Effect gets the same use case as an Effect from `sdp/effect`, on a file system of its choosing.
 
-    Scenario: Which specs depend on billing, three ways
-      When I run "sdp q '#ARCH-billing <-depends-on- *'"
+    @replaces:ask-the-graph#which-specs-depend-on-billing-three-ways
+    Scenario: What imports billing, three ways
+      When I run "sdp q '#ARCH-billing <-imports- *'"
       Then the exit code is 0
-      And the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
+      And the output contains "ARCH-orders\telement\t\tOrder service, v2\tsrc/orders.ts:3"
       When an MCP client of "sdp mcp" calls "sdp_query" with:
         """
-        { "expression": "#ARCH-billing <-depends-on- *" }
+        { "expression": "#ARCH-billing <-imports- *" }
         """
-      Then the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
-      When a program asks the API for "#ARCH-billing <-depends-on- *"
+      Then the output contains "ARCH-orders\telement\t\tOrder service, v2\tsrc/orders.ts:3"
+      When a program asks the API for "#ARCH-billing <-imports- *"
       Then the JSON output has:
         | complete        | true                      |
         | data.nodes      | ARCH-orders               |
-        | data.nodes.file | specs/ARCH-orders.feature |
+        | data.nodes.file | src/orders.ts             |
 
     Scenario: A program written with Effect asks on a file system of its own
-      When a program written with Effect asks the API for "#ARCH-billing <-depends-on- *" on files in memory
+      When a program written with Effect asks the API for "#ARCH-billing <-imports- *" on files in memory
       Then the JSON output has:
         | complete        | true                      |
         | data.nodes      | ARCH-orders               |
-        | data.nodes.file | specs/ARCH-orders.feature |
+        | data.nodes.file | src/orders.ts             |
 
   Rule: The whole graph is plain data, one record per line, so plain tools answer what a question answers
 
@@ -449,7 +468,7 @@ Feature: Ask the graph
         | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"spec":"alpha","description":"Its reason runs |
         | over two lines.","scenarios":1,"stage":"idea","toCome":true}} |
         | {"type":"edge","from":"alpha#first","rel":"verifies","to":"alpha#alpha-comes-first","declared":[{"file":"specs/alpha.feature","line":10}]}                                                          |
-        | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"specs/ARCH-ledger.feature","line":1,"attrs":{"owner":{"team":"core"},"file":"specs/ARCH-ledger.feature","scenarios":0}}                 |
+        | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"src/ledger.ts","line":3,"attrs":{}}                                                                         |
 
     Scenario: Every node first, then every link
       When I run the pipeline:
@@ -469,11 +488,11 @@ Feature: Ask the graph
       Then the output lines are "<answer>"
 
       Examples:
-        | query                                                          | answer       | tool                                                                                                                                                                                                                                                                       |
-        | feature[maturity=ready]                                        | checkout     | jq -r 'select(.type == "node" and .kind == "feature" and .attrs.maturity == "ready") \| .id'                                                                                                                                                                               |
-        | #ARCH-billing <-realized-by- *                                 | refunds      | jq -r 'select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-billing") \| .from'                                                                                                                                                                              |
-        | feature[maturity=ready] -realized-by-> element -depends-on-> element | ARCH-billing | jq -rs '(map(select(.type == "node")) \| INDEX(.id)) as $n \| map(select(.type == "edge")) as $e \| $e[] \| select(.rel == "realized-by" and $n[.from].attrs.maturity == "ready") \| .to as $x \| $e[] \| select(.rel == "depends-on" and .from == $x) \| .to' |
-        | element !<-realized-by- *                                      | ARCH-ledger  | node -e 'const r = require("fs").readFileSync(0, "utf8").trim().split("\\n").map(JSON.parse); const to = new Set(r.filter((x) => x.rel === "realized-by").map((x) => x.to)); for (const x of r) if (x.kind === "element" && !to.has(x.id)) console.log(x.id)' |
+        | query                                                             | answer       | tool                                                                                                                                                                                                                                                          |
+        | feature[maturity=ready]                                           | checkout     | jq -r 'select(.type == "node" and .kind == "feature" and .attrs.maturity == "ready") \| .id'                                                                                                                                                                  |
+        | #ARCH-billing <-realized-by- *                                    | refunds      | jq -r 'select(.type == "edge" and .rel == "realized-by" and .to == "ARCH-billing") \| .from'                                                                                                                                                                  |
+        | feature[maturity=ready] -realized-by-> element -imports-> element | ARCH-billing | jq -rs '(map(select(.type == "node")) \| INDEX(.id)) as $n \| map(select(.type == "edge")) as $e \| $e[] \| select(.rel == "realized-by" and $n[.from].attrs.maturity == "ready") \| .to as $x \| $e[] \| select(.rel == "imports" and .from == $x) \| .to'   |
+        | element !<-realized-by- *                                         | ARCH-ledger  | node -e 'const r = require("fs").readFileSync(0, "utf8").trim().split("\\n").map(JSON.parse); const to = new Set(r.filter((x) => x.rel === "realized-by").map((x) => x.to)); for (const x of r) if (x.kind === "element" && !to.has(x.id)) console.log(x.id)' |
 
     Scenario: Where a link is declared is one grep away, in this repository too
       When I run the pipeline:

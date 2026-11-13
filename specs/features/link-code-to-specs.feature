@@ -19,15 +19,13 @@ Feature: Link code to specs
       | tags                   | Feature |
       | @id=pay @maturity=idea | Pay     |
 
-  Rule: Annotated code is a code node linked to what it names, and an is link adds to its node only what no spec says
+  Rule: Annotated code is a code node linked to what it names, and an is link declares the node it names
 
-    Scenario: An element a spec declares and one only code declares
-      Given these specs:
-        | tags                             | Feature |
-        | @id=ARCH-billing @owner=payments | Billing |
-      And a file "src/billing.ts" containing:
+    @replaces:link-code-to-specs#an-element-a-spec-declares-and-one-only-code-declares
+    Scenario: An element declared by the file that is it, and one by the declaration that is it
+      Given a file "src/billing.ts" containing:
         """
-        // @sdp is ARCH-billing owner=platform tier=1
+        // @sdp is ARCH-billing owner=payments tier=1
 
         // @sdp implements pay
         // @sdp uses ARCH-ledger
@@ -41,12 +39,12 @@ Feature: Link code to specs
       When the workspace is loaded
       Then the workspace graph has exactly these nodes:
         | id                          | kind    | title          | source                       |
-        | pay                         | feature | Pay            | specs/pay.feature:1          |
-        | ARCH-billing                | element | Billing        | specs/ARCH-billing.feature:1 |
-        | code:src/billing.ts         | code    | src/billing.ts | src/billing.ts:1             |
-        | code:src/billing.ts#Billing | code    | Billing        | src/billing.ts:5             |
-        | code:src/ledger.ts#Ledger   | code    | Ledger         | src/ledger.ts:2              |
-        | ARCH-ledger                 | element | Ledger         | src/ledger.ts:1              |
+        | pay                         | feature | Pay            | specs/pay.feature:1 |
+        | ARCH-billing                | element | ARCH-billing   | src/billing.ts:1    |
+        | code:src/billing.ts         | code    | src/billing.ts | src/billing.ts:1    |
+        | code:src/billing.ts#Billing | code    | Billing        | src/billing.ts:5    |
+        | code:src/ledger.ts#Ledger   | code    | Ledger         | src/ledger.ts:2     |
+        | ARCH-ledger                 | element | Ledger         | src/ledger.ts:1     |
       And the workspace graph has edges:
         | from                        | rel        | to           |
         | code:src/billing.ts         | is         | ARCH-billing |

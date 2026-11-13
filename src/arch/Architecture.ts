@@ -1,9 +1,9 @@
 /**
  * The architecture: every node of an architectural kind (elements and patterns
  * unless the vocabulary says otherwise). The graph is curated — what an
- * architect declares in a spec or anchors in code is, by that act, part of the
- * architecture — so sdp never computes, ranks, limits or suggests what belongs
- * in it. The view is the architecture with the decisions and quality
+ * architect declares in the doc comment of its code is, by that act, part of
+ * the architecture — so sdp never computes, ranks, limits or suggests what
+ * belongs in it. The view is the architecture with the decisions and quality
  * requirements that shaped it: those linked to it, and those linked to a
  * feature linked to it or to one of that feature's rules.
  */
@@ -70,14 +70,9 @@ export const architectureView = (project: Project): ArchitectureView => {
   return { nodes: sub.nodes(), edges: sub.edges(), routes }
 }
 
-/**
- * What an architectural node says it is for: the first paragraph of its spec. One declared
- * without a description is described by the code anchored to it, in that code's own words.
- */
+/** What an architectural node is for: what the code anchored to it says of itself, in that code's own words. */
 export const description = (project: Project, node: GraphNode): ReadonlyArray<string> => {
   const { graph } = project
-  const summary = attribute(node, "summary")
-  if (typeof summary === "string" && summary !== "") return [summary]
   return graph.in(node.id)
     .filter((edge) => edge.rel === project.config.vocabulary.relations.anchor)
     .flatMap((edge) => {

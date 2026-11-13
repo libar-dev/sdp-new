@@ -392,15 +392,10 @@ Feature: Write step definitions
       Given these specs:
         | tags                                              | Feature |
         | @id=search @maturity=idea @realized-by:ARCH-index | Search  |
-      And a file "specs/ARCH-index.feature" containing:
+      And a file "src/index.ts" containing:
         """
-        @id=ARCH-index
-        Feature: Search index
-
-          Rule: The index serves search
-
-            Scenario: Search
-              Then the query "#ARCH-index <-realized-by- feature" returns 1 result
+        /** @sdp is ARCH-index */
+        export const index = new Map<string, string>()
         """
       And a file "specs/inverted-index.feature" containing:
         """
@@ -449,7 +444,7 @@ Feature: Write step definitions
         | the query "feature" returns no results                   | search (feature) specs/search.feature:1                        |
         | the query "element" returns at least 2 results           | returned 1 result(s), expected at least 2                      |
         | the query "feature\|element" returns at most 1 result    | returned 3 result(s), expected at most 1                       |
-        | every node matching "element" also matches "*[maturity]" | ARCH-index (element) specs/ARCH-index.feature:1                |
+        | every node matching "element" also matches "*[maturity]" | ARCH-index (element) src/index.ts:1                            |
         | there are no warning diagnostics                         | [decision-shape] inverted-index                                |
         | there are no diagnostics for rule "decision-shape"       | inverted-index has a rule ("The index is rebuilt every night") |
         | the node "search" has maturity "ready"                   | search.maturity is "idea", expected "ready"                    |
@@ -482,9 +477,8 @@ Feature: Write step definitions
 
     Background:
       Given these specs:
-        | tags                                              | Feature      |
-        | @id=search @maturity=idea @realized-by:ARCH-index | Search       |
-        | @id=ARCH-index                                    | Search index |
+        | tags                                              | Feature |
+        | @id=search @maturity=idea @realized-by:ARCH-index | Search  |
 
     Scenario Outline: A query that does not parse, or names what nothing in the workspace has, fails with the closest known word
       Given a file "specs/guard.feature" containing:

@@ -10,6 +10,7 @@ export type Severity = "error" | "warning" | "info"
 export const rules = {
   "duplicate-id": "error",
   "dangling-link": "error",
+  "declared-in-spec": "error",
   "link-syntax": "error",
   "tag-syntax": "error",
   "declaration-conflict": "warning",
@@ -47,15 +48,16 @@ export const rules = {
 export type RuleId = keyof typeof rules
 
 /**
- * The rules that report part of the workspace as not read — a spec that does not parse, a path the
- * globs match that is no file, an id declared twice, a tag or a code annotation whose fact or link
- * is dropped, written where it annotates nothing, or given a value another declaration of its node
- * overrides, or an import whose module sdp cannot follow. What they name is
- * missing from the graph, so no answer drawn from the graph is known to be complete while one of
- * them is reported.
+ * The rules that report part of the workspace as not read — a spec that does not parse or that
+ * declares what only code declares, a path the globs match that is no file, an id declared twice, a
+ * tag or a code annotation whose fact or link is dropped, written where it annotates nothing, or
+ * given a value another declaration of its node overrides, or an import whose module sdp cannot
+ * follow. What they name is missing from the graph, so no answer drawn from the graph is known to
+ * be complete while one of them is reported.
  */
 export const unreadRules: ReadonlySet<RuleId> = new Set([
   "gherkin-syntax",
+  "declared-in-spec",
   "not-a-file",
   "duplicate-id",
   "tag-syntax",

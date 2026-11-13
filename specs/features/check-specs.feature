@@ -57,6 +57,7 @@ Feature: Check specs
         | rule                  | severity | file                           | line | content                                                                                                                                                                       |
         | duplicate-id          | error    | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n  Rule: R                                                                                                                           |
         | dangling-link         | error    | specs/reports.feature          | 1    | @id=reports @depends-on:gone\nFeature: Reports                                                                                                                                |
+        | declared-in-spec      | error    | specs/ARCH-reports.feature     | 1    | @id=ARCH-reports\nFeature: Reports                                                                                                                                            |
         | link-syntax           | error    | specs/reports.feature          | 1    | @id=reports @maturity:ready\nFeature: Reports                                                                                                                                 |
         | tag-syntax            | error    | specs/reports.feature          | 1    | @id=reports @uses:A,B\nFeature: Reports                                                                                                                                       |
         | declaration-conflict  | warning  | src/billing.py                 | 2    | # @sdp is ARCH-billing owner=payments\n# @sdp is ARCH-billing owner=finance\nclass Billing: pass                                                                              |
@@ -227,7 +228,7 @@ Feature: Check specs
 
   Rule: Live work has a live rule, so that what it says is built is tested
 
-    Work — a feature, an element, any kind a discipline names, or what an activity tag plans — that
+    Work — a feature, any kind a discipline names, or what an activity tag plans — that
     declares no maturity says it is built, and stays so: work whose rules are all still to come is
     still to come itself. A node of a kind that is no work, such as a glossary, says what there is.
 
@@ -245,16 +246,16 @@ Feature: Check specs
       Then sdp reports "<reported>"
 
       Examples:
-        | case                            | tags                              | rule                                                                   | reported         |
-        | none                            | @id=export-to-csv                 |                                                                        | untested-feature |
-        | still to come                   | @id=export-to-csv                 | @maturity=draft\nRule: Every row is exported                           | untested-feature |
-        | a question                      | @id=export-to-csv                 | @open\nRule: Are archived rows exported too?                           | untested-feature |
-        | live, with an example           | @id=export-to-csv                 | Rule: Every row is exported\n  Scenario: Export\n    Then I get a file | nothing          |
-        | still to come, as the feature   | @id=export-to-csv @maturity=draft | Rule: Every row is exported                                            | nothing          |
-        | none, in a node of another kind | @id=terms @kind=glossary          |                                                                        | nothing          |
-        | none, in an element             | @id=ARCH-export                   |                                                                        | untested-feature |
-        | none, in an actor               | @id=analysts @kind=actor          |                                                                        | untested-feature |
-        | still to come, as the element   | @id=ARCH-export @maturity=draft   |                                                                        | nothing          |
+        | case                              | tags                                          | rule                                                                   | reported         |
+        | none                              | @id=export-to-csv                             |                                                                        | untested-feature |
+        | still to come                     | @id=export-to-csv                             | @maturity=draft\nRule: Every row is exported                           | untested-feature |
+        | a question                        | @id=export-to-csv                             | @open\nRule: Are archived rows exported too?                           | untested-feature |
+        | live, with an example             | @id=export-to-csv                             | Rule: Every row is exported\n  Scenario: Export\n    Then I get a file | nothing          |
+        | still to come, as the feature     | @id=export-to-csv @maturity=draft             | Rule: Every row is exported                                            | nothing          |
+        | none, in a node of another kind   | @id=terms @kind=glossary                      |                                                                        | nothing          |
+        | none, in an environment           | @id=staging @kind=environment                 |                                                                        | untested-feature |
+        | none, in an actor                 | @id=analysts @kind=actor                      |                                                                        | untested-feature |
+        | still to come, as the environment | @id=staging @kind=environment @maturity=draft |                                                                        | nothing          |
 
     Scenario: The feature without a live rule, at its Feature line
       Given a file "specs/export-to-csv.feature" containing:
@@ -1196,18 +1197,25 @@ Feature: Check specs
       Given these specs:
         | tags                                     | Feature               |
         | @id=retire-legacy-billing @kind=decision | Retire legacy billing |
-      And a file "specs/ARCH-legacy-billing.feature" containing:
+      And a file "specs/ARCHITECTURE.feature" containing:
         """
-        @id=ARCH-legacy-billing
-        Feature: Legacy billing
-
-          Billing as it was before invoices, kept until the last caller is gone.
+        @id=ARCHITECTURE @kind=architecture
+        Feature: Architecture
 
           @decided-by:retire-legacy-billing
           Rule: Nothing new calls legacy billing
 
             Scenario: No code uses it
               Then the query "code -uses-> #ARCH-legacy-billing" returns no results
+        """
+      And a file "src/legacy-billing.ts" containing:
+        """
+        /**
+         * Billing as it was before invoices, kept until the last caller is gone.
+         *
+         * @sdp is ARCH-legacy-billing
+         */
+        export function bill(): void {}
         """
       And a file "src/invoices.ts" containing:
         """
@@ -1217,9 +1225,9 @@ Feature: Check specs
       When the workspace is checked
       Then sdp reports nothing
       When I query "#retire-legacy-billing <-decided-by- rule"
-      Then the result is "ARCH-legacy-billing#nothing-new-calls-legacy-billing"
+      Then the result is "ARCHITECTURE#nothing-new-calls-legacy-billing"
       When the workspace is run
-      Then node "ARCH-legacy-billing#no-code-uses-it" has attribute status = "failed"
+      Then node "ARCHITECTURE#no-code-uses-it" has attribute status = "failed"
 
   Rule: A tag that as written would link nothing or say nothing is reported, not read as something else
 

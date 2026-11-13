@@ -268,7 +268,7 @@ Feature: sdp, shown by running it
 
     Scenario: No spec declares an element
       Then the query "element" returns at least 1 result
-      And the query "element|pattern[file]" returns no results
+      And there are no diagnostics for rule "declared-in-spec"
 
   Rule: A decision is in specs/decisions, and only what no feature's rule can hold is one
 

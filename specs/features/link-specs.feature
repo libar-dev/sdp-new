@@ -82,7 +82,7 @@ Feature: Link specs into one graph
       Given these specs:
         | tags                                                                                             | Feature           |
         | @id=ARCH-orders @kind=bounded-context @publishes-to:ARCH-event-bus @guarded-by:events-over-calls | Orders            |
-        | @id=ARCH-event-bus @kind=element                                                                 | Event bus         |
+        | @id=ARCH-event-bus @kind=broker                                                                  | Event bus         |
         | @id=events-over-calls @kind=decision                                                             | Events over calls |
       When the workspace is loaded
       Then node "ARCH-orders" has attribute kind = "bounded-context"
@@ -140,11 +140,10 @@ Feature: Link specs into one graph
     Scenario: An id in a description is text
       Given these specs:
         | tags                             | Feature       |
-        | @id=ARCH-orders                  | Orders        |
         | @id=refund-policy @kind=decision | Refund policy |
       And a file "specs/refunds.feature" containing:
         """
-        @id=refunds @realized-by:ARCH-orders
+        @id=refunds @maturity=idea @realized-by:ARCH-orders
         Feature: Refunds
 
           Follows refund-policy.
@@ -158,9 +157,9 @@ Feature: Link specs into one graph
 
     Scenario Outline: In a feature file the separator decides; in code, the key
       Given these specs:
-        | tags                        | Feature |
-        | @id=IT-beta @kind=iteration | Beta    |
-        | @id=ARCH-orders             | Orders  |
+        | tags                        | Feature     |
+        | @id=IT-beta @kind=iteration | Beta        |
+        | @id=orders-team @kind=team  | Orders team |
       And a file "<file>" containing:
         """
         <content>
@@ -171,8 +170,8 @@ Feature: Link specs into one graph
 
       Examples:
         | file              | content                                                                                                             | edges                    | reported      |
-        | specs/pay.feature | @id=pay @owner:ARCH-orders\nFeature: Pay                                                                            | pay -owner-> ARCH-orders | nothing       |
-        | specs/pay.feature | @id=pay @owner=ARCH-orders\nFeature: Pay                                                                            | nothing                  | nothing       |
+        | specs/pay.feature | @id=pay @owner:orders-team\nFeature: Pay                                                                            | pay -owner-> orders-team | nothing       |
+        | specs/pay.feature | @id=pay @owner=orders-team\nFeature: Pay                                                                            | nothing                  | nothing       |
         | src/pay.py        | # @sdp is pay iteration=IT-beta\ndef pay(): pass                                                                    | pay -iteration-> IT-beta | nothing       |
         | src/pay.py        | # @sdp is pay iteration=IT-gone\ndef pay(): pass                                                                    | pay -iteration-> IT-gone | dangling-link |
         | src/pay.py        | # @sdp is pay owner=IT-beta\ndef pay(): pass                                                                        | nothing                  | nothing       |
@@ -193,7 +192,11 @@ Feature: Link specs into one graph
       And these specs:
         | tags                        | Feature |
         | @id=IT-beta @kind=iteration | Beta    |
-        | @id=ARCH-ledger             | Ledger  |
+      And a file "src/ledger.ts" containing:
+        """
+        // @sdp is ARCH-ledger
+        export class Ledger {}
+        """
       And a file "src/billing.ts" containing:
         """
         // @sdp uses ARCH-ledger
@@ -271,6 +274,7 @@ Feature: Link specs into one graph
         | id              | hint                                                                                                     |
         | billing         | write the spec `@id=billing` (`sdp new <kind> "<title>" --id billing`), or fix the reference             |
         | billing#invoice | write the `Rule:` or the `Scenario:` named invoice in the file of the spec billing, or fix the reference |
+        | ARCH-billing    | declare it in the doc comment of its code, `@sdp is ARCH-billing`, or fix the reference                  |
 
   Rule: What sdp derives cannot be written, wherever a node is declared
 
@@ -350,22 +354,22 @@ Feature: Link specs into one graph
       And node "pay" has attribute kind = "element"
 
     Scenario: A link sdp makes itself, written in a spec and in code
-      Given a file "specs/ARCH-a.feature" containing:
+      Given a file "specs/a.feature" containing:
         """
-        @id=ARCH-a @imports:ARCH-b
+        @id=a @imports:ARCH-b
         Feature: A
         """
       And a file "src/b.py" containing:
         """
         # @sdp is ARCH-b
-        # @sdp rule-of ARCH-a
+        # @sdp rule-of a
         def b(): pass
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule              | node            | at                     | message                            |
-        | derived-attribute | ARCH-a          | specs/ARCH-a.feature:1 | sdp makes the imports links itself |
-        | derived-attribute | code:src/b.py#b | src/b.py:2             | sdp makes the rule-of links itself |
+        | rule              | node            | at                | message                            |
+        | derived-attribute | a               | specs/a.feature:1 | sdp makes the imports links itself |
+        | derived-attribute | code:src/b.py#b | src/b.py:2        | sdp makes the rule-of links itself |
       When I query "* -imports|rule-of-> *"
       Then the result is "nothing"
 

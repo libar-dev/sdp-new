@@ -21,7 +21,12 @@ Feature: Plan delivery
       | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 @end=2026-02-13 | Prototype   |
       | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-27  | Baseline    |
       | @id=alpha @maturity=idea @iteration:IT-prototype                         | Alpha       |
-      | @id=ARCH-x @maturity=idea @iteration:IT-prototype                        | An element  |
+      | @id=staging @kind=environment @maturity=idea @iteration:IT-prototype     | Staging     |
+    And a file "src/x.ts" containing:
+      """
+      /** @sdp is ARCH-x */
+      export const x = 0
+      """
     And a file "specs/MS-objectives.feature" containing:
       """
       @id=MS-objectives @closes:PH-inception
@@ -370,13 +375,14 @@ Feature: Plan delivery
 
     A feature is written in one iteration and built in another, and a gate has to tell the two apart.
 
-    Scenario: A feature and an element in IT-prototype
+    @replaces:plan-delivery#a-feature-and-an-element-in-it-prototype
+    Scenario: A feature and an environment in IT-prototype
       When the lifecycle is computed
       Then the planned activity is:
-        | discipline      | IT-prototype | IT-baseline |
-        | requirements    | 1            | 0           |
-        | analysis-design | 1            | 0           |
-        | implementation  | 0            | 0           |
+        | discipline     | IT-prototype | IT-baseline |
+        | requirements   | 1            | 0           |
+        | deployment     | 1            | 0           |
+        | implementation | 0            | 0           |
 
     Scenario: Analysed in IT-prototype, built over IT-prototype and IT-baseline, tested in IT-baseline
       Given these specs:
@@ -386,14 +392,14 @@ Feature: Plan delivery
       Then the planned activity is:
         | discipline      | IT-prototype | IT-baseline |
         | requirements    | 2            | 0           |
-        | analysis-design | 2            | 0           |
+        | analysis-design | 1            | 0           |
         | implementation  | 1            | 1           |
         | test            | 0            | 1           |
       And the iterations are:
-        | id           | plans               |
-        | IT-scope     |                     |
-        | IT-prototype | ARCH-x, alpha, beta |
-        | IT-baseline  | beta                |
+        | id           | plans                |
+        | IT-scope     |                      |
+        | IT-prototype | alpha, beta, staging |
+        | IT-baseline  | beta                 |
 
     Scenario: A discipline with links of its own is planned only into the iterations they name
       Given these specs:
@@ -404,10 +410,10 @@ Feature: Plan delivery
         | discipline   | IT-prototype | IT-baseline |
         | requirements | 1            | 1           |
       And the iterations are:
-        | id           | plans               |
-        | IT-scope     |                     |
-        | IT-prototype | ARCH-x, alpha, beta |
-        | IT-baseline  | beta                |
+        | id           | plans                |
+        | IT-scope     |                      |
+        | IT-prototype | alpha, beta, staging |
+        | IT-baseline  | beta                 |
 
   Rule: The plan's own nodes are no work
 
@@ -417,10 +423,10 @@ Feature: Plan delivery
         | @id=MS-demo @closes:IT-baseline @iteration:IT-baseline | Demo    |
       When the lifecycle is computed
       Then the iterations are:
-        | id           | plans         |
-        | IT-scope     |               |
-        | IT-prototype | ARCH-x, alpha |
-        | IT-baseline  |               |
+        | id           | plans          |
+        | IT-scope     |                |
+        | IT-prototype | alpha, staging |
+        | IT-baseline  |                |
 
   Rule: A rule of the architecture is analysis and design work, so one still to come declares a maturity as a feature's rule does
 
@@ -495,10 +501,10 @@ Feature: Plan delivery
         | @id=outage @kind=risk @maturity=idea @activity.implementation:IT-baseline | Outage  |
       When the lifecycle is computed
       Then the iterations are:
-        | id           | plans         |
-        | IT-scope     |               |
-        | IT-prototype | ARCH-x, alpha |
-        | IT-baseline  | outage        |
+        | id           | plans          |
+        | IT-scope     |                |
+        | IT-prototype | alpha, staging |
+        | IT-baseline  | outage         |
       When the workspace is checked
       Then sdp reports nothing
 
@@ -532,7 +538,7 @@ Feature: Plan delivery
       Then the iterations are:
         | id           | plans                          | stages  |
         | IT-scope     |                                |         |
-        | IT-prototype | ARCH-x, alpha                  | idea:2  |
+        | IT-prototype | alpha, staging                 | idea:2  |
         | IT-baseline  | cart#a-cart-is-kept-for-a-week | draft:1 |
       And the planned activity is:
         | discipline   | IT-prototype | IT-baseline |
@@ -608,7 +614,11 @@ Feature: Plan delivery
       Given these specs:
         | tags                     | Feature |
         | @id=later @maturity=idea | Later   |
-        | @id=ARCH-cache           | Cache   |
+      And a file "src/cache.ts" containing:
+        """
+        /** @sdp is ARCH-cache */
+        export const cache = new Map<string, string>()
+        """
       When the lifecycle is computed on "2026-01-20"
       Then the output line with "unplanned" contains "later"
       And the output line with "unplanned" does not contain "ARCH-cache"
