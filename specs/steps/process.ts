@@ -60,7 +60,7 @@ export const directoryOf = async (world: World) => world.directory ??= await sce
 /** The scenario's directory with every given file written to it (again, if it changed since). */
 export const workspace = async (world: World) => {
   const directory = await directoryOf(world)
-  const written = (world.scratch.written ??= new Map<string, string>()) as Map<string, string>
+  const written = (world.writtenFiles ??= new Map<string, string>())
   for (const [file, content] of world.files) {
     if (written.get(file) === content) continue
     await mkdir(dirname(join(directory, file)), { recursive: true })

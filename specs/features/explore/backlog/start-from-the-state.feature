@@ -18,7 +18,7 @@ Feature: Start from the state of the repository
         | @id=prices @maturity=idea                   | Prices  |
       When I run "sdp graph"
       Then the exit code is 0
-      And the records of type "word" are:
+      And the records of type "word" include at least:
         | word       | of       | sdp        | used |
         | feature    | kind     | interprets | 2    |
         | depends-on | relation | carries    | 1    |
@@ -47,12 +47,13 @@ Feature: Start from the state of the repository
       When I run "sdp graph"
       Then the exit code is 0
       And the records of type "node" are:
-        | id                               | kind    | maturity | toCome |
-        | wishlist                         | feature | idea     | true   |
-        | checkout                         | feature | ready    | true   |
-        | cart                             | feature |          | false  |
-        | cart#a-cart-holds-each-item-once | rule    |          | false  |
-        | cart#a-cart-expires-after-a-day  | rule    | draft    | true   |
+        | id                               | kind     | maturity | toCome |
+        | wishlist                         | feature  | idea     | true   |
+        | checkout                         | feature  | ready    | true   |
+        | cart                             | feature  |          | false  |
+        | cart#a-cart-holds-each-item-once | rule     |          | false  |
+        | cart#a-cart-expires-after-a-day  | rule     | draft    | true   |
+        | cart#adding-an-item-twice        | scenario |          |        |
 
   Rule: An element and a pattern carry what they are for, in the words of the doc comment that declares them
 
@@ -69,8 +70,9 @@ Feature: Start from the state of the repository
       When I run "sdp graph"
       Then the exit code is 0
       And the records of type "node" are:
-        | id          | kind    | doc                                                    |
-        | ARCH-orders | element | Owns the order aggregate and its transaction boundary. |
+        | id                        | kind    | doc                                                    |
+        | ARCH-orders               | element | Owns the order aggregate and its transaction boundary. |
+        | code:src/orders.ts#Orders | code    | Owns the order aggregate and its transaction boundary. |
 
   @open
   Rule: Where does the architect write once what an element is for, when several files declare it?

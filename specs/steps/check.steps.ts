@@ -1,11 +1,13 @@
 /**
- * What `sdp check` is given and what it answers, where the other subjects' steps do not say it: a
- * file as another editor saves it, and the diagnostics of `sdp check --json` as rows.
+ * What sdp reports about a workspace: the diagnostics of checking it, or of the last step that
+ * parsed, loaded or scanned it, and those of `sdp check --json`, as rows; and a file as another
+ * editor saves it.
  */
-import { Predicate } from "effect"
+import { Effect, Predicate } from "effect"
 import { strict as assert } from "node:assert"
 import { defineSteps } from "sdp/steps"
-import { assertRows, newWorld, type Row, setFile, stdout } from "./world.ts"
+import { check } from "../../src/check/Check.ts"
+import { assertRows, ids, newWorld, reload, reportRow, type Row, setFile, stdout, type World } from "./world.ts"
 
 /** A diagnostic of `sdp check --json` as a row, with the columns `sdp reports:` has: `at` is empty where it names no file. */
 const diagnosticRow = (record: unknown): Row => {
@@ -21,7 +23,12 @@ const diagnosticRow = (record: unknown): Row => {
   }
 }
 
-export default defineSteps(newWorld, ({ Given, Then }) => {
+const reported = (world: World) => {
+  assert.ok(world.reported, "nothing was parsed, loaded, checked or scanned yet")
+  return world.reported
+}
+
+export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // A file as an editor on Windows saves it: every line ends with a carriage return and a line feed.
   Given("the file {string} is saved with CRLF line endings", ({ args: [path], world }) => {
     const content = world.files.get(path)
@@ -44,4 +51,19 @@ export default defineSteps(newWorld, ({ Given, Then }) => {
     assert.ok(Array.isArray(data), `no list of diagnostics under data:\n${text}`)
     assertRows("diagnostics", data.map(diagnosticRow), table, "including")
   })
+
+  // The diagnostics of the last step that parsed a file, loaded or checked the workspace, or
+  // scanned code. A table names the columns it checks: rule, severity, node, at (file:line), line,
+  // message and hint, the last two matched by what they contain.
+  When("the workspace is checked", ({ world }) =>
+    Effect.map(reload(world), (project) => {
+      world.reported = check(project).map(reportRow)
+    }))
+
+  // The rules of the diagnostics, each as often as it is reported; "nothing" for none.
+  Then("sdp reports {string}", ({ args: [rules], world }) => assert.deepEqual(reported(world).map((row) => row.rule).sort(), ids(rules)))
+
+  Then("sdp reports:", ({ table, world }) => assertRows("diagnostics", reported(world), table, "exactly"))
+
+  Then("sdp reports at least:", ({ table, world }) => assertRows("diagnostics", reported(world), table, "including"))
 })

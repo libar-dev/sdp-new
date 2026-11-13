@@ -176,10 +176,13 @@ Feature: Plan delivery
         | @id=beta @maturity=idea @iteration:IT-prototype @activity.requirements:IT-baseline @activity.implementation:IT-prototype @activity.implementation:IT-baseline @activity.test:IT-baseline | Beta    |
       When the lifecycle is computed
       Then the planned activity is:
-        | discipline     | IT-prototype | IT-baseline |
-        | requirements   | 1            | 1           |
-        | implementation | 1            | 1           |
-        | test           | 0            | 1           |
+        | discipline        | IT-prototype | IT-baseline |
+        | business-modeling | 0            | 0           |
+        | requirements      | 1            | 1           |
+        | analysis-design   | 0            | 0           |
+        | implementation    | 1            | 1           |
+        | test              | 0            | 1           |
+        | deployment        | 0            | 0           |
 
   Rule: The chart shades each discipline relative to its busiest iteration
 

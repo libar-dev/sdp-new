@@ -30,12 +30,18 @@ Feature: Link code to the architecture
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
-        | id           | kind    | source           | owner    |
-        | ARCH-billing | element | src/billing.ts:1 | payments |
+        | id                          | kind    | source           | owner    |
+        | ARCH-billing                | element | src/billing.ts:1 | payments |
+        | code:src/billing.ts         | code    | src/billing.ts:1 |          |
+        | code:src/billing.ts#Billing | code    | src/billing.ts:4 |          |
+        | code:src/retry.ts#retry     | code    | src/retry.ts:2   |          |
+        | PAT-retry                   | pattern | src/retry.ts:1   |          |
       And the workspace graph has edges:
         | from                        | rel     | to           |
         | code:src/billing.ts         | is      | ARCH-billing |
         | code:src/billing.ts#Billing | applies | PAT-retry    |
+        | code:src/retry.ts#retry     | is      | PAT-retry    |
+        | ARCH-billing                | applies | PAT-retry    |
       And sdp reports:
         | rule               | at               |
         | annotation-ignored | src/billing.ts:3 |
@@ -69,7 +75,7 @@ Feature: Link code to the architecture
         func Transfer() error {
         """
       When the workspace is loaded
-      Then the workspace graph has nodes:
+      Then the workspace graph has at least these nodes:
         | id                        | doc                       |
         | code:src/card.ts#charge   | Charges the card on file. |
         | code:src/wallet.py#pay    | Pays from the wallet.     |
@@ -164,6 +170,9 @@ Feature: Link code to the architecture
         | id                        | shape                                              | exports                                                                 |
         | code:src/pricing.ts       |                                                    | type Cents = number, function total(lines: ReadonlyArray<Cents>): Cents |
         | code:src/pricing.ts#total | function total(lines: ReadonlyArray<Cents>): Cents |                                                                         |
+        | code:src/pay.ts#pay       | function pay(amount: number)                       |                                                                         |
+        | ARCH-pay                  |                                                    |                                                                         |
+        | ARCH-pricing              |                                                    |                                                                         |
       When the workspace is checked
       Then sdp reports:
         | rule        | at           |
@@ -200,6 +209,7 @@ Feature: Link code to the architecture
         | code:src/cart.ts#parse | function parse(text: string): number; function parse(text: string, radix: number): number |
         | code:src/cart.ts#Cart  | class Cart { constructor(readonly owner: string); add(line: number): void }               |
         | code:src/cart.ts#load  | function load(id: string): Effect.fn.Return<number>                                       |
+        | ARCH-cart              |                                                                                           |
 
     Scenario: What a file exports under another name, by default, and from another file
       Given a file "src/vat.ts" containing:
@@ -222,6 +232,7 @@ Feature: Link code to the architecture
       Then the workspace graph has nodes:
         | id                  | exports                                                                                   |
         | code:src/pricing.ts | function sum(lines: ReadonlyArray<number>): number, function round(cents: number): number |
+        | ARCH-pricing        |                                                                                           |
 
   Rule: A value written on an annotation reads as it does in a spec's tag: a number only when it reads back as the number it is written as
 
@@ -234,7 +245,7 @@ Feature: Link code to the architecture
         export class Billing {}
         """
       When the workspace is loaded
-      Then the node "ARCH-billing" has these attributes:
+      Then the workspace node "ARCH-billing" has these attributes:
         | key  | json   |
         | code | "007"  |
         | rate | "1.50" |

@@ -21,7 +21,7 @@ import { repositoryModules } from "./run.steps.ts"
 import { assertRows, load, newWorld, type Row, type World } from "./world.ts"
 
 /** Every example's steps, matched statically with the definitions a run would know, as `sdp steps` reads them. */
-interface Matched {
+export interface Matched {
   /** This repository's definitions that no step of any example matches. */
   readonly unused: ReadonlyArray<Row>
   readonly ambiguous: ReadonlyArray<Row>
@@ -73,7 +73,7 @@ const matchExamples = (specs: ReadonlyArray<Spec>, own: ReadonlyArray<StepSignat
 }
 
 const matched = (world: World): Matched => {
-  const found = world.scratch.matched as Matched | undefined
+  const found = world.matchedSteps
   assert.ok(found, "match the steps of every example first")
   return found
 }
@@ -97,7 +97,7 @@ const processesOf = (marker: string): ReadonlyArray<number> =>
     .map((line) => Number(line.trim().split(/\s+/)[0]))
 
 /** What became of a step stopped while its process ran. */
-interface Stopped {
+export interface Stopped {
   readonly step: string
   readonly status: string
   readonly error: string
@@ -106,13 +106,13 @@ interface Stopped {
 
 export default defineSteps(newWorld, ({ Then, When }) => {
   When("the steps of every example of this repository are matched with its step definitions", ({ project, world }) => {
-    world.scratch.matched = matchExamples(project.specs, project.steps.definitions, project.root)
+    world.matchedSteps = matchExamples(project.specs, project.steps.definitions, project.root)
   })
 
   // The examples of the workspace in memory, with this repository's definitions: what the guards would find in them.
   When("the steps of every example of the workspace are matched with this repository's step definitions", ({ project, world }) =>
     Effect.map(load(world), (workspace) => {
-      world.scratch.matched = matchExamples(workspace.specs, project.steps.definitions, project.root)
+      world.matchedSteps = matchExamples(workspace.specs, project.steps.definitions, project.root)
     }))
 
   Then("the step definitions of this repository that no example uses are:", ({ table, world }) =>
@@ -173,11 +173,11 @@ export default defineSteps(newWorld, ({ Then, When }) => {
         }
         return { step, status: ran?.status ?? "not run", error: ran?.error ?? "", running: left.length }
       })
-      world.scratch.stopped = stopped
+      world.stoppedSteps = stopped
     }))
 
   Then("each timed out and left no process running", ({ world }) => {
-    const stopped = world.scratch.stopped as ReadonlyArray<Stopped> | undefined
+    const stopped = world.stoppedSteps
     assert.ok(stopped, "stop the steps first")
     const wrong = stopped.filter(({ error, running, status }) => status !== "failed" || error !== "step timed out" || running > 0)
     assert.deepEqual(

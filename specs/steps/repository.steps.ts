@@ -107,12 +107,12 @@ const typeScriptFiles = async (root: string, directory: string): Promise<Readonl
 }
 
 const search = (world: World, files: ReadonlyArray<readonly [string, string]>) => {
-  world.scratch.interpreted = files.flatMap(([file, content]) => interpretedWords(file, content).map((finding) => `${file}:${finding}`))
+  world.interpretedWords = files.flatMap(([file, content]) => interpretedWords(file, content).map((finding) => `${file}:${finding}`))
 }
 
 /** A graph of two nodes and one edge whose inputs the scenario keeps, to change them afterwards. */
 const builtGraph = (world: World) => {
-  const graph = world.scratch.builtGraph as Graph | undefined
+  const graph = world.builtGraph
   assert.ok(graph, "build a graph first")
   return graph
 }
@@ -159,14 +159,14 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   Then("only {string} interprets words of the vocabulary", ({ args: [allowed], world }) => {
-    const found = world.scratch.interpreted as ReadonlyArray<string> | undefined
+    const found = world.interpretedWords
     assert.ok(found, "search the files first")
     const elsewhere = found.filter((finding) => !finding.startsWith(`${allowed}:`))
     assert.deepEqual(elsewhere, [], `ask ${allowed} instead of naming these words:\n${elsewhere.join("\n")}`)
   })
 
   Then("the search finds {string}", ({ args: [expected], world }) => {
-    const found = world.scratch.interpreted as ReadonlyArray<string> | undefined
+    const found = world.interpretedWords
     assert.ok(found, "search the files first")
     assert.deepEqual([...found].sort(), ids(expected))
   })
@@ -205,23 +205,24 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   Given("a graph built from a node {string} linked to {string} by {string}", ({ args: [from, to, rel], world }) => {
-    const nodes: Array<GraphNode> = [
+    const nodes: NonNullable<World["graphInputs"]>["nodes"] = [
       { id: from, kind: "element", title: from, attrs: { owner: { team: "core" }, tags: ["a"] } },
       { id: to, kind: "element", title: to, attrs: {} }
     ]
     // Declared twice: the graph keeps one edge with both declarations.
-    const edges: Array<GraphEdge> = [
+    const edges: NonNullable<World["graphInputs"]>["edges"] = [
       { from, rel, to, source: { file: "a.feature", line: 1 } },
       { from, rel, to, source: { file: "a.feature", line: 2 } }
     ]
-    world.scratch.builtGraph = new Graph(nodes, edges)
-    world.scratch.inputs = { nodes, edges }
+    world.builtGraph = new Graph(nodes, edges)
+    world.graphInputs = { nodes, edges }
   })
 
   When("the nodes and edges it was built from are changed", ({ world }) => {
-    const { edges, nodes } = world.scratch.inputs as { nodes: Array<Record<string, any>>; edges: Array<Record<string, any>> }
-    nodes[0]!.attrs.owner.team = "changed"
-    nodes[0]!.attrs.tags.push("b")
+    assert.ok(world.graphInputs, "build a graph first")
+    const { edges, nodes } = world.graphInputs
+    nodes[0]!.attrs.owner!.team = "changed"
+    nodes[0]!.attrs.tags!.push("b")
     nodes[0]!.kind = "changed"
     edges[0]!.from = edges[0]!.to
     edges[0]!.source.line = 9

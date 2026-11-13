@@ -28,7 +28,7 @@ Feature: Link specs into one graph
         | tags                           | Feature     |
         | @id=charge-once @kind=decision | Charge once |
       When the workspace is loaded
-      Then the workspace graph has exactly these nodes:
+      Then the workspace graph has nodes:
         | id                           | kind     | source                      |
         | pay                          | feature  | specs/pay.feature:1         |
         | pay#a-wallet-is-charged-once | rule     | specs/pay.feature:5         |
@@ -50,7 +50,7 @@ Feature: Link specs into one graph
         | @id=ARCH-orders @kind=bounded-context @publishes-to:ARCH-bus | Orders    |
         | @id=ARCH-bus @kind=broker                                    | Event bus |
       When the workspace is loaded
-      Then node "ARCH-orders" has attribute kind = "bounded-context"
+      Then the workspace node "ARCH-orders" has attribute kind = "bounded-context"
       And the workspace graph has edges:
         | from        | rel          | to       |
         | ARCH-orders | publishes-to | ARCH-bus |
@@ -73,7 +73,7 @@ Feature: Link specs into one graph
       And the workspace graph has edges:
         | from | rel       | to      | sources                              |
         | a    | iteration | IT-beta | specs/a.feature:1, specs/a.feature:2 |
-      And sdp reports nothing
+      And sdp reports "nothing"
 
   Rule: An id names one node: one declared twice, or named where nothing declares it, is an error where it is written
 

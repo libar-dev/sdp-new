@@ -20,10 +20,10 @@ const ToolAnswer = Schema.Struct({
   isError: Schema.optional(Schema.Boolean)
 })
 
-type Tool = { readonly name: string; readonly annotations?: Readonly<Record<string, unknown>> | undefined }
+type Tool = NonNullable<World["mcpTools"]>[number]
 
 const listed = (world: World): ReadonlyArray<Tool> => {
-  const tools = world.scratch.tools as ReadonlyArray<Tool> | undefined
+  const tools = world.mcpTools
   assert.ok(tools, "list the MCP tools first")
   return tools
 }
@@ -76,7 +76,7 @@ export default defineSteps(newWorld, ({ Then, When }) => {
   When("an agent lists the MCP tools", ({ world }) =>
     Effect.gen(function*() {
       const client = yield* McpTest.makeClient(registrations(memoryRoot), { protocols: [McpProtocol.v2025_11_25] })
-      world.scratch.tools = (yield* client.listTools()).tools
+      world.mcpTools = (yield* client.listTools()).tools
     }).pipe(Effect.scoped, Effect.provide(layerMemoryWorkspace(world.files))))
 
   When("an agent reads the MCP server's instructions", ({ world }) => {

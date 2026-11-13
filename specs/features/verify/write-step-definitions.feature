@@ -36,7 +36,7 @@ Feature: Write step definitions
       Then the step "an empty cart" has status "<status>"
       And the step "I add a lamp" has status "skipped"
       And the step "the cart holds 1 item" has status "<last status>"
-      And node "cart#add-an-item" has attribute status = "<scenario>"
+      And the workspace node "cart#add-an-item" has attribute status = "<scenario>"
 
       Examples:
         | first step | defined                          | status  | last status | scenario |
@@ -174,8 +174,8 @@ Feature: Write step definitions
         | cart     | shop       | I add a lamp                 | adds an item to its world     |
         | checkout | <checkout> | the cart holds {int} item(s) | checks the items in its world |
       When the workspace is run
-      Then node "shop#a-lamp-for-shopper" has attribute status = "<status>"
-      And node "shop#two-lamps" has attribute status = "<status>"
+      Then the workspace node "shop#a-lamp-for-shopper" has attribute status = "<status>"
+      And the workspace node "shop#two-lamps" has attribute status = "<status>"
 
       Examples:
         | checkout | status |

@@ -111,7 +111,7 @@ const scriptedSteps = (
   )
 }
 
-interface Execution extends Log {
+export interface Execution extends Log {
   /** Module and world of `world.definitions[i]`, when a scenario names them. */
   readonly placements: Array<{ readonly module: string; readonly world: string } | undefined>
   /** This repository's step modules, when the scenario runs the workspace with them. */
@@ -119,7 +119,7 @@ interface Execution extends Log {
 }
 
 const execution = (world: World): Execution =>
-  (world.scratch.execution ??= { placements: [], received: [], timeline: [], aborted: [], repository: [] }) as Execution
+  (world.stepExecution ??= { placements: [], received: [], timeline: [], aborted: [], repository: [] })
 
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))

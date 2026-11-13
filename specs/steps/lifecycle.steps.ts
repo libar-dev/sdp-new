@@ -55,6 +55,6 @@ export default defineSteps(newWorld, ({ Then, When }) => {
       discipline: row.discipline,
       ...Object.fromEntries(report.iterations.map((iteration, column) => [iteration.id, String(row.activity[column])]))
     }))
-    assertRows("planned activity", rows, table, "including")
+    assertRows("planned activity", rows, table, "exactly")
   })
 })

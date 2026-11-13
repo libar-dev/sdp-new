@@ -1,19 +1,19 @@
 /**
- * Questions at the bounds sdp keeps: graphs and workspaces large enough to time, routes enough to
+ * Questions of the scenario's workspace, with the nodes and the routes a query answers, and
+ * questions at the bounds sdp keeps: graphs and workspaces large enough to time, routes enough to
  * reach a limit, and paths that are no file. A timed question runs in a worker that is stopped at a
  * deadline, so a question that takes minutes fails in seconds.
  */
+import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { mkdir, symlink } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { Worker } from "node:worker_threads"
 import { defineSteps } from "sdp/steps"
 import { generateWorkspace } from "../../scripts/bench/generate.ts"
+import { formatPath, queryProject } from "../../src/graph/Query.ts"
 import { directoryOf, exec, record, workspace } from "./process.ts"
-import { newWorld, setFile, type World } from "./world.ts"
-
-/** The size of the random graph a scenario asked for; the worker that times a question draws it. */
-const randomGraphs = new WeakMap<World, { readonly nodes: number; readonly edges: number }>()
+import { assertRows, ids, load, newWorld, setFile, type World } from "./world.ts"
 
 /** How often a question is timed; the median of these runs is its time. */
 const timedRuns = 7
@@ -109,16 +109,21 @@ const timeInWorker = (
 
 const median = (samples: ReadonlyArray<number>) => [...samples].sort((a, b) => a - b)[samples.length >> 1]!
 
-export default defineSteps(newWorld, ({ Given, When }) => {
+const queried = (world: World) => {
+  assert.ok(world.result, `query failed: ${world.queryError ?? "no query was run"}`)
+  return world.result
+}
+
+export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // Kinds, maturities and relations in turn, each edge joining two nodes drawn at random: every edge
   // is one of its own, so a question walks as far as it would.
   Given("a random graph of {int} nodes and {int} edges", ({ args: [nodes, edges], world }) => {
-    randomGraphs.set(world, { nodes, edges })
+    world.randomGraphSize = { nodes, edges }
   })
 
   // The median of seven runs, each over the graph in memory; one run is the parse and the evaluation.
   When("the query {string} runs on it, for at most {int} seconds", async ({ args: [source, seconds], signal, world }) => {
-    const graph = randomGraphs.get(world)
+    const graph = world.randomGraphSize
     assert.ok(graph, "draw a random graph first")
     world.durationMs = median(await timeInWorker(graph, source, seconds, signal))
   })
@@ -159,4 +164,19 @@ export default defineSteps(newWorld, ({ Given, When }) => {
     world.durationMs = median(samples)
     record(world, command, last)
   })
+
+  When("I query {string}", ({ args: [q], world }) =>
+    Effect.map(load(world), (project) => {
+      const result = queryProject(project, q)
+      world.result = Result.isSuccess(result) ? result.success : undefined
+      world.queryError = Result.isFailure(result) ? result.failure.message : undefined
+    }))
+
+  Then("the result is {string}", ({ args: [expected], world }) => {
+    assert.ok(world.result, `query failed: ${world.queryError}`)
+    assert.deepEqual(world.result.nodes.map((n) => n.id).sort(), ids(expected))
+  })
+
+  Then("the paths are:", ({ table, world }) =>
+    assertRows("paths", queried(world).paths.map((p) => ({ path: formatPath(p) })), [["path"], ...(table ?? [])], "exactly"))
 })
