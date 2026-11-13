@@ -11,8 +11,9 @@
  * that comment describes the code. A tag anywhere else, or one written after code or words on its
  * line, is not read, and is reported; a string is never a tag, nor is a line of code a doc comment
  * shows, in an `@example` or a fenced block. The modules a file anchored to a node imports come
- * from the same parse. Other languages have no parser here: a line that opens with a comment marker
- * and the tag annotates the declaration directly below it, past its decorators, or else the file —
+ * from the same parse; code of no element is parsed when an import reaches it (`buildProject`).
+ * Other languages have no parser here: a line that opens with a comment marker and the tag
+ * annotates the declaration directly below it, past its decorators, or else the file —
  * best effort, even inside a multi-line string, but never in a fenced block of code a comment or a
  * docstring shows — the comment lines around it describe that code,
  * and their imports are not read. A tag in a Python docstring annotates the module, the class or the
@@ -89,7 +90,7 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
     }
   }
   const { annotations, ignored, unreadable } = readTags(file, content, script)
-  // Only a module anchored to a node depends on another through what it imports.
+  // A file anchored to a node is read here whole; code of no element is read when an import reaches it.
   const anchored = annotations.some((annotation) => annotation.rel === anchor)
   const [imports, exports] = anchored ? [script.imports(), script.exports()] : [[], undefined]
   return { annotations, unreadable, ignored, imports, exports }

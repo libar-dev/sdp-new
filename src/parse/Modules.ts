@@ -265,8 +265,10 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       }
     }
     if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, lookup)
-    if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return { found: {}, passed: [] }
-    return nothing
+    if (namesNoCode(subpath)) return { found: {}, passed: [] }
+    // A list of the workspace's packages sdp could not read could list one by this name, declared as a library or not.
+    const unread = read.workspacesUnread
+    return packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) ? { found: {}, passed: [], unread } : { ...nothing, unread }
   }
 
   /**
@@ -615,7 +617,7 @@ const namesNoCode = (path: string) => {
  * The key of a map of names that `name` matches: itself, or else the one with a `*` whose prefix
  * and suffix it has, the longest prefix first, with what the `*` stands for.
  */
-const matchKey = (keys: ReadonlyArray<string>, name: string): { readonly key: string; readonly star: string } | undefined => {
+export const matchKey = (keys: ReadonlyArray<string>, name: string): { readonly key: string; readonly star: string } | undefined => {
   if (keys.includes(name) && !name.includes("*")) return { key: name, star: "" }
   return keys.flatMap((key) => {
     const [prefix, suffix, ...more] = key.split("*")

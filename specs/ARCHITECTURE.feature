@@ -6,8 +6,34 @@ Feature: Architecture
 
   Rule: No element depends on itself through others
 
+    Each element can then be changed and understood apart from the elements that import it; one
+    that reaches itself cannot.
+
     Scenario: The elements of this repository
       Then no element reaches itself over "imports" links
+
+    Scenario: A cycle through code of no element
+      Given a file "src/orders.ts" containing:
+        """
+        import { notify } from "./notify.ts"
+
+        /** @sdp is ARCH-orders */
+        export const place = (): number => notify()
+        """
+      And a file "src/notify.ts" containing:
+        """
+        import { send } from "./mailer.ts"
+
+        export const notify = (): number => send()
+        """
+      And a file "src/mailer.ts" containing:
+        """
+        import { place } from "./orders.ts"
+
+        /** @sdp is ARCH-mailer */
+        export const send = (): number => place()
+        """
+      Then the elements that reach themselves over "imports" links are "ARCH-mailer, ARCH-orders"
 
   Rule: Nothing depends on a transport, except the command line that starts the server
 
@@ -17,14 +43,14 @@ Feature: Architecture
         | ARCH-cli |
 
   @decided-by:effect-for-io
-  Rule: Parsing, the model, the graph and the checks do no IO, and sdp reads and writes a workspace through the `FileSystem` service, but for what Node reads to load step code
+  Rule: Parsing, the model, the graph and what is computed from it do no IO, and sdp reads and writes a workspace through the `FileSystem` service, but for what Node reads to load step code
 
     That is what lets executable specs run the real pipeline against an in-memory file system. Node
     loads step code from disk, and what sdp records of how it loaded it, its package.json files
     included, is what Node read there.
 
     Scenario: The core does no IO
-      When I run "grep -rlE FileSystem|node:fs|child_process|ChildProcess src/parse src/model src/graph src/check" in the repository
+      When I run "grep -rlE 'FileSystem|[[:punct:]]fs[[:punct:]]|child_process|ChildProcess' src/parse src/model src/graph src/check src/lifecycle src/arch" in the repository
       Then the exit code is 1
 
     Scenario: A workspace in memory reads as one on disk
@@ -71,7 +97,8 @@ Feature: Architecture
 
   Rule: Every annotation in this repository reads
 
-    sdp only warns about one it cannot read; this repository fails its run instead.
+    sdp warns of one it cannot read, and an answer that could miss what it says is incomplete; this
+    repository fails its run instead.
 
     Scenario: Annotations found, none unreadable and none ignored
       Then the query "code -is-> element" returns at least 1 result
@@ -128,6 +155,21 @@ Feature: Architecture
         """
       When the TypeScript files under "src" are searched for interpreted words
       Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 decision, src/report.ts:9 milestone, src/report.ts:12 closes"
+
+  @open
+  Rule: Which element claims src/model/Diagnostic.ts, src/model/Records.ts, src/model/TagValue.ts and src/model/PackageJson.ts, code no element claims that elements import?
+
+    `sdp arch` shows them under no element, though ten files of seven elements import Diagnostic.ts.
+    Candidates that make no cycle: ARCH-graph, which imports nothing, for Diagnostic.ts and the record
+    schemas of Records.ts; ARCH-vocabulary for TagValue.ts, which both parsers ask; ARCH-code-annotations
+    for PackageJson.ts, which ARCH-workspace already imports. ARCH-checker would make a cycle.
+
+  @open @maturity=idea
+  Rule: Does sdp report code that no element claims, now that what elements import is followed through it?
+
+    Followed, it hides no dependency, but it is in no view: `sdp arch` shows no element for it, and
+    a change to it reaches the elements that import it unseen. A report would make each such file
+    the architect's call, where sdp otherwise never judges what belongs in the architecture.
 
   @maturity=idea
   Rule: No code compares with a tag sdp interprets, such as `@open`, as a literal either
