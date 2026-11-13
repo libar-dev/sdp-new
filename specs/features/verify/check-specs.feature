@@ -305,8 +305,8 @@ Feature: Check specs
 
   Rule: An example keeps its test under a new name or in a new place, or with new steps under its name, and another takes it over only by naming it
 
-    A test is what a reader would call the same example, each row of an outline on its own, so one
-    that is gone is not made up for by another that tests the same.
+    A test is what a reader would call the same example, each row of an outline on its own. In
+    another spec, an example of its name is it only when its spec is gone and no other has that name.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -338,12 +338,79 @@ Feature: Check specs
         | The live example renamed, its steps edited, it named  | 0         | nothing         | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @replaces:cart#add-an-item\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp |
         | The live example renamed, its steps edited, not named | 1         | example-dropped | 6       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp                                 |
 
+    Scenario Outline: An example of its name in another spec, its steps edited: <case>
+      Given a file "specs/basket.feature" containing:
+        """
+        @id=basket
+        Feature: Basket
+
+          Rule: A basket holds what was added
+
+            Scenario: Add an item
+              Then the basket holds 1 item
+        """
+      And a file "specs/cart.feature" containing:
+        """
+        <cart>
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        <wishlist>
+        """
+      When I run "sdp check --json"
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | data.rule | <reported> |
+
+      Examples:
+        | case                                | exit code | reported                       | cart                                                         | wishlist                                                                                                                                  |
+        | the spec it was in gone             | 0         | nothing                        | @id=notes @maturity=idea\nFeature: Notes                     | @id=wishlist @maturity=idea\nFeature: Wishlist                                                                                            |
+        | the spec it was in still there      | 1         | example-dropped, untested-rule | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added | @id=wishlist @maturity=idea\nFeature: Wishlist                                                                                            |
+        | the spec it was in gone, two others | 1         | example-dropped                | @id=notes @maturity=idea\nFeature: Notes                     | @id=wishlist\nFeature: Wishlist\n  Rule: A wishlist holds what was added\n    Scenario: Add an item\n      Then the wishlist holds 1 item |
+
+    Scenario: An outline's row deleted, though another row tests the same
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario Outline: Add items
+              Then the cart holds <count> items
+
+              Examples:
+                | count |
+                | 1     |
+                | 2     |
+        """
+      And the files are committed on the branch "main"
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario Outline: Add items
+              Then the cart holds <count> items
+
+              Examples:
+                | count |
+                | 1     |
+        """
+      When I run "sdp check --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule | example-dropped |
+        | data.node | cart#add-items  |
+
   Rule: What replaces a live rule or feature takes over its examples only when it is live with a new live example of its own
 
-    A gate enforces nothing and work still to come fails no run. A replacement the base does not
-    need is reported, so that it is deleted once merged.
+    A gate enforces nothing, work still to come fails no run, and a test the base already had takes
+    over no other. A replacement the base does not need is reported, so that it is deleted once merged.
 
-    Background:
+    Scenario Outline: A live rule replaced by <replacement>
       Given a file "specs/cart.feature" containing:
         """
         @id=cart
@@ -353,13 +420,25 @@ Feature: Check specs
 
             Scenario: Add an item
               Then the cart holds 1 item
+
+          Rule: A cart has a total
+
+            Scenario: The total of one item
+              Then the total is the item's price
         """
       And the files are committed on the branch "main"
-
-    Scenario Outline: A live rule replaced by <replacement>
-      Given a file "specs/cart.feature" containing:
+      And a file "specs/cart.feature" containing:
         """
-        <cart>
+        @id=cart
+        Feature: Cart
+
+          <tags>
+          Rule: A cart has a total
+
+            Scenario: The total of one item
+              Then the total is the item's price
+
+          <rule>
         """
       When I run "sdp check --json"
       Then the exit code is <exit code>
@@ -367,14 +446,17 @@ Feature: Check specs
         | data.rule | <reported> |
 
       Examples:
-        | replacement                         | exit code | reported         | cart                                                                                                                                                                                                                                                                           |
-        | a live rule                         | 0         | nothing          | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-what-was-added\n  Rule: A cart holds what was added, once\n    Scenario: Add an item once\n      Then the cart holds 1 item once                                                                                        |
-        | a rule whose example is a gate      | 1         | example-dropped  | @id=cart\nFeature: Cart\n  @replaces:cart#a-cart-holds-what-was-added\n  Rule: A cart holds what was added, once\n    @gate\n    Scenario: Add an item once\n      Then the cart holds 1 item once                                                                             |
-        | a rule that names what is not there | 0         | replaces-nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @replaces:cart#a-cart-holds-all\n  Rule: A cart holds what was added, once\n    Scenario: Add an item once\n      Then the cart holds 1 item once |
+        | replacement                                 | exit code | reported                       | tags                                       | rule                                                                                                                                                                   |
+        | a live rule                                 | 0         | nothing                        |                                            | @replaces:cart#a-cart-holds-what-was-added\nRule: A cart holds what was added, once\n  Scenario: Add an item once\n    Then the cart holds 1 item once                 |
+        | a rule whose example is a gate              | 1         | example-dropped                |                                            | @replaces:cart#a-cart-holds-what-was-added\nRule: A cart holds what was added, once\n  @gate\n  Scenario: Add an item once\n    Then the cart holds 1 item once        |
+        | a rule still to come                        | 1         | dangling-link, example-dropped |                                            | @maturity=ready @replaces:cart#a-cart-holds-what-was-added\nRule: A cart holds what was added, once\n  Scenario: Add an item once\n    Then the cart holds 1 item once |
+        | a live rule whose example the base had live | 1         | example-dropped                | @replaces:cart#a-cart-holds-what-was-added |                                                                                                                                                                        |
+        | a rule that names what is not there         | 0         | replaces-nothing               |                                            | @replaces:cart#a-cart-holds-all\nRule: A cart holds what was added\n  Scenario: Add an item\n    Then the cart holds 1 item                                            |
 
   Rule: The specs of the base are those its own configuration finds in it, and what of them sdp cannot read makes the answer incomplete
 
-    What of its specs sdp cannot read at the base may be a test turned off.
+    The base is read as its own configuration says and today's specs as today's does, so a live
+    test today's configuration leaves out is dropped. What sdp cannot read at the base may be one.
 
     Scenario Outline: The specs of the base are those its configuration finds there: <case>
       Given a file "specs/cart.feature" containing:
@@ -394,7 +476,7 @@ Feature: Check specs
       And the files are committed on the branch "main"
       When I run the pipeline:
         """
-        rm specs/cart.feature && <command>
+        <change> && <command>
         """
       Then the exit code is <exit code>
       And the JSON output has:
@@ -402,14 +484,47 @@ Feature: Check specs
         | data.node | <dropped>  |
 
       Examples:
-        | case                                  | configuration file  | configuration                                    | command                 | exit code | complete | dropped          |
-        | a features glob out of the workspace  | app/sdp.config.yaml | features: ["../specs/**/*.feature"]              | sdp -C app check --json | 1         | true     | cart#add-an-item |
-        | a features glob out of the repository | sdp.config.yaml     | features: ["specs/**/*.feature", "../*.feature"] | sdp check --json        | 1         | false    | cart#add-an-item |
+        | case                                       | configuration file  | configuration                                    | change                                                   | command                 | exit code | complete | dropped          |
+        | the spec excluded by today's configuration | sdp.config.yaml     | # every key at its default                       | echo 'exclude: ["specs/cart.feature"]' > sdp.config.yaml | sdp check --json        | 1         | true     | cart#add-an-item |
+        | a features glob out of the workspace       | app/sdp.config.yaml | features: ["../specs/**/*.feature"]              | rm specs/cart.feature                                    | sdp -C app check --json | 1         | true     | cart#add-an-item |
+        | a features glob out of the repository      | sdp.config.yaml     | features: ["specs/**/*.feature", "../*.feature"] | rm specs/cart.feature                                    | sdp check --json        | 1         | false    | cart#add-an-item |
+
+    Scenario Outline: A submodule at the base, <case>
+      Given a file "lib/specs/lib.feature" containing:
+        """
+        @id=lib
+        Feature: Lib
+
+          Rule: A lib works
+
+            Scenario: It works
+              Then it works
+        """
+      When I run the pipeline:
+        """
+        cd lib && git init -q && git add -A && git -c user.name=sdp -c user.email=sdp@example.com -c commit.gpgsign=false commit -qm lib
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        <change> && sdp check --json
+        """
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | complete  | <complete> |
+        | data.node | <dropped>  |
+
+      Examples:
+        | case                                  | change                   | exit code | complete | dropped      |
+        | checked out, its live example deleted | rm lib/specs/lib.feature | 1         | true     | lib#it-works |
+        | not checked out                       | rm -rf lib && mkdir lib  | 2         | false    | nothing      |
 
   Rule: The base is where HEAD meets the default branch, or the revision --base or the configuration names; without one, check's answer is incomplete
 
     A change is judged against what it started from. A check that compared nothing may have missed
-    a test turned off, so it exits with 2 unless the comparison is waived with `--base none`.
+    a test turned off, so it exits with 2 unless `--base none` or `base: none` waives the comparison;
+    a base that is named and cannot be read stops the check.
 
     Scenario Outline: A demotion on a branch, the base named <named>
       Given a file "specs/cart.feature" containing:
@@ -443,12 +558,15 @@ Feature: Check specs
         <command>
         """
       Then the exit code is <exit code>
-      And the output line with "note:" contains "<compared>"
+      And the output contains "<compared>"
 
       Examples:
         | named                                             | configuration              | command                                     | exit code | compared                                            |
         | by nobody                                         | # every key at its default | sdp check                                   | 1         | (git merge-base HEAD refs/heads/main)               |
+        | in the configuration                              | base: HEAD                 | sdp check                                   | 0         | (git merge-base HEAD HEAD)                          |
         | in the configuration, and --base                  | base: HEAD                 | sdp check --base main                       | 1         | (git merge-base HEAD main)                          |
+        | none, in the configuration                        | base: none                 | sdp check                                   | 0         | the comparison is waived (base: none)               |
+        | with --base, a revision that cannot be read       | # every key at its default | sdp check --base nowhere                    | 1         | cannot compare live tests with the base nowhere     |
         | by nobody, on a branch with nothing committed yet | # every key at its default | git checkout -q --orphan fresh && sdp check | 2         | not compared: no live test was compared with a base |
 
   Rule: A decision is a title and one to three sentences

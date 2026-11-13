@@ -173,12 +173,14 @@ Feature: Link specs into one graph
       Then sdp reports at least:
         | rule              | at   | message   |
         | derived-attribute | <at> | <message> |
+      When I query "<query>"
+      Then the result is "<result>"
 
       Examples:
-        | file              | content                                  | at                  | message                                 |
-        | specs/pay.feature | @id=pay @stage=verified\nFeature: Pay    | specs/pay.feature:1 | stage is derived by sdp                 |
-        | src/pay.py        | # @sdp is pay kind=code\ndef pay(): pass | src/pay.py:1        | sdp makes the nodes of kind code itself |
-        | specs/a.feature   | @id=a @imports:pay\nFeature: A           | specs/a.feature:1   | sdp makes the imports links itself      |
+        | file              | content                                  | at                  | message                                 | query             | result  |
+        | specs/pay.feature | @id=pay @stage=verified\nFeature: Pay    | specs/pay.feature:1 | stage is derived by sdp                 | *[stage=verified] | nothing |
+        | src/pay.py        | # @sdp is pay kind=code\ndef pay(): pass | src/pay.py:1        | sdp makes the nodes of kind code itself | element           | pay     |
+        | specs/a.feature   | @id=a @imports:pay\nFeature: A           | specs/a.feature:1   | sdp makes the imports links itself      | * -imports-> *    | nothing |
 
   Rule: A link cannot take the name of an attribute, wherever it is declared
 

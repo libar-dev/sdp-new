@@ -27,7 +27,7 @@ Feature: Start a spec
   Rule: init keeps what sdp run records out of git: it writes a .gitignore of .sdp/ where git does not ignore it, or says to add .sdp/ to the one there
 
     A result holds only in the checkout where it ran: committed, it would tell a clone that work is
-    verified that never ran there.
+    verified that never ran there. A .gitignore that exists is the team's, so init writes nothing in it.
 
     Scenario: A workspace started, run, committed and cloned
       Given a file "specs/cart.feature" containing:
@@ -54,6 +54,28 @@ Feature: Start a spec
       Then the exit code is 0
       And the output lines are ""
 
+    Scenario: A .gitignore that does not ignore .sdp/, left as it is
+      Given a file ".gitignore" containing:
+        """
+        node_modules/
+        """
+      When I run "sdp init"
+      Then the output contains "next: add .sdp/ to .gitignore"
+      And the file ".gitignore" is:
+        """
+        node_modules/
+        """
+
+    Scenario: A workspace in a repository whose .gitignore above it ignores .sdp/
+      Given a file ".gitignore" containing:
+        """
+        .sdp/
+        """
+      And the files are committed on the branch "main"
+      When I run "sdp init" in "shop"
+      Then the exit code is 0
+      And the file "shop/.gitignore" does not exist
+
   Rule: A new spec holds only what stays in it, and the answer says what to write next
 
     Advice written into the file would outlive its use as prose nobody wrote.
@@ -74,7 +96,7 @@ Feature: Start a spec
         | architecture | Rules of the shop | specs/architecture/rules-of-the-shop.feature | @id=rules-of-the-shop @kind=architecture @maturity=idea | write a `Rule:` the code keeps, with an example                  |
 
   @decided-by:architecture-is-declared-in-doc-comments
-  Rule: An element or a pattern is declared where its code is, so new writes no file for one, and the answer says how its code declares it
+  Rule: An element or a pattern is declared where its code is, so new writes no file for one, and the answer says how its code declares it, how a feature links an element and how code applies a pattern
 
     The code anchored to an element is the element: a file of its own would be prose that nothing
     keeps true.
@@ -84,14 +106,15 @@ Feature: Start a spec
       Then the exit code is 0
       And the output lines are "<id>"
       And the output contains "`@sdp is <id>`"
+      And the output contains "<used>"
       And the file "specs/architecture/<id>.feature" does not exist
 
       Examples:
-        | kind    | title  | id          |
-        | element | Orders | ARCH-orders |
-        | pattern | Outbox | PAT-outbox  |
+        | kind    | title  | id          | used                       |
+        | element | Orders | ARCH-orders | `@realized-by:ARCH-orders` |
+        | pattern | Outbox | PAT-outbox  | `@sdp applies PAT-outbox`  |
 
-  Rule: Any one-word kind can be created, in the directory sdp gives its kind, and a feature where it stays
+  Rule: Any one-word kind can be created, in the directory sdp gives its kind, and a feature where it stays; new --help names the kinds with a template of their own
 
     Kinds are the team's own words, not a list sdp keeps. Nothing moves when a feature is built.
 
@@ -103,7 +126,13 @@ Feature: Start a spec
         | kind      | directory      | id         |
         | feature   | specs/features | go-live    |
         | milestone | specs/plan     | MS-go-live |
-        | gizmo     | specs/gizmo    | go-live    |
+
+    Scenario: A kind without a template
+      When I run "sdp new --help"
+      Then the output contains "feature, decision, element, pattern, milestone, phase, iteration"
+      When I run "sdp new gizmo Sprocket"
+      Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
+      And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
 
   Rule: A kind named like a rung of the ladder or a stage, or change, is refused unless the workspace has a kind of that name, and the answer says what to write instead
 
@@ -139,6 +168,20 @@ Feature: Start a spec
         | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/plan/MS-kasse-fur-gaste.feature |
         | decision '🛒'                                           | decision-0001      | specs/decisions/decision-0001.feature |
         | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature       |
+
+  Rule: new says when the spec it writes is in no graph: outside the workspace, or where no features glob looks
+
+    Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so
+      Given a file "shop/sdp.config.yaml" containing:
+        """
+        features: ["requirements/**/*.feature"]
+        """
+      When I run "sdp -C shop new feature 'Gift cards'"
+      Then the output contains "specs/features/gift-cards.feature is matched by no features glob"
+      When I run "sdp -C shop new feature 'Gift cards' --dir $PWD/elsewhere"
+      Then the output contains "/elsewhere/gift-cards.feature is outside the workspace"
+      When I run "sdp -C shop new feature 'Gift cards' --dir requirements"
+      Then the output does not contain "note:"
 
   Rule: Check reports a new spec only for what its author has yet to write: template text, and what a milestone closes
 
@@ -186,15 +229,24 @@ Feature: Start a spec
 
   Rule: new never overwrites, and never writes a spec that would not read back as written
 
-    Scenario Outline: An id that exists, and one that would not read back
+    Scenario Outline: An id or a file that exists, or an id that would not read back: <case>
       Given these specs:
         | tags       | Feature |
         | @id=search | Search  |
+      And a file "specs/features/carts.feature" containing:
+        """
+        Notes on carts, not a spec.
+        """
       When I run "sdp new feature <arguments>"
       Then the exit code is 1
       And the output contains "<answer>"
+      And the file "specs/features/carts.feature" is:
+        """
+        Notes on carts, not a spec.
+        """
 
       Examples:
-        | case                           | arguments      | answer                                             |
-        | An id that exists              | Search         | id search already exists at specs/search.feature:1 |
-        | An id that would not read back | Carts --id ' ' | would not read back                                |
+        | case                           | arguments         | answer                                             |
+        | an id that exists              | Search            | id search already exists at specs/search.feature:1 |
+        | a file that exists             | Carts             | specs/features/carts.feature already exists        |
+        | an id that would not read back | Wishlist --id ' ' | would not read back                                |

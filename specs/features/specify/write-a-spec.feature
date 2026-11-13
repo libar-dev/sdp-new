@@ -468,7 +468,7 @@ Feature: Write a spec
 
     Its author meant a fact or a link, so it is not quietly read as a Cucumber tag instead.
 
-    Scenario Outline: A list in one tag, a key that names nothing, a maturity on a Scenario
+    Scenario Outline: A tag that cannot mean what it says, on a Feature, a Rule and a Scenario
       Given a file "specs/pay.feature" containing:
         """
         @id=pay <feature>
@@ -488,10 +488,14 @@ Feature: Write a spec
       And the executable tags of "pay#card" are "@feature"
 
       Examples:
-        | feature   | rule    | scenario        | line | message                                                       |
-        | @uses:A,B |         |                 | 1    | @uses:A,B: one tag is one link                                |
-        |           | @1st=ok |                 | 4    | @1st=ok: this key names nothing                               |
-        |           |         | @maturity=draft | 7    | @maturity=draft: only a Feature or a Rule declares a maturity |
+        | feature                     | rule        | scenario        | line | message                                                       |
+        | @uses:A,B                   |             |                 | 1    | @uses:A,B: one tag is one link                                |
+        | @id=other                   |             |                 | 1    | @id=other: a spec has one id                                  |
+        | @owner=ada @owner.team=core |             |                 | 1    | owner is written as a value and as a map                      |
+        |                             | @1st=ok     |                 | 4    | @1st=ok: this key names nothing                               |
+        |                             | @id=payment |                 | 4    | @id=payment: only a Feature says what it is                   |
+        | @owner=ada@pay.com          |             |                 | 1    | @owner=ada@pay.com: a tag holds no @                          |
+        |                             |             | @maturity=draft | 7    | @maturity=draft: only a Feature or a Rule declares a maturity |
 
   Rule: A file the parser cannot read is an error at the line where it stopped, and no spec until it parses
 
