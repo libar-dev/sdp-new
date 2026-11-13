@@ -436,14 +436,16 @@ export const renderLifecycle = (report: LifecycleReport): string => {
 
   // The chart numbers its columns, so an iteration's id may say what it is at any length.
   const column = (it: GraphNode) => String(report.iterations.findIndex((i) => i.id === it.id) + 1)
-  const labelWidth = Math.max(4, ...report.work.map((it) => label(it.node).length))
+  // Each column as wide as its longest entry and a space: the number, then the iteration's id.
+  const columnWidth = Math.max(3, String(report.iterations.length).length + 1)
+  const labelWidth = Math.max(4, ...report.work.map((it) => label(it.node).length)) + 1
   out.push("", "PLANNED WORK  (nodes planned into each iteration, by kind; the number is its column in the chart)")
   for (const it of report.work) {
     const { end, start } = report.vocabulary.attributes
     const begins = attribute(it.node, start)
     const dates = begins ? ` ${String(begins)}…${String(attribute(it.node, end) ?? "")}` : ""
     const kinds = tally(it.items.map((item) => item.kind))
-    out.push(`  ${pad(column(it.node), 3)}${pad(label(it.node), labelWidth)} ${pad(it.node.title, 28)}${pad(dates, 25)} ${it.items.length} item(s)  ${counts(kinds)}`)
+    out.push(`  ${pad(column(it.node), columnWidth)}${pad(label(it.node), labelWidth)}${pad(it.node.title, 28)}${pad(dates, 25)} ${it.items.length} item(s)  ${counts(kinds)}`)
   }
   if (report.unplanned.length > 0) {
     out.push(`  (unplanned: ${report.unplanned.map((n) => n.id).join(", ")})`)
@@ -463,8 +465,95 @@ export const renderLifecycle = (report: LifecycleReport): string => {
   for (const it of report.work) {
     const scenarios = counts(it.scenarios)
     const evidence = [counts(it.stages), scenarios && `scenarios ${scenarios}`].filter(Boolean).join("  ")
-    out.push(`  ${pad(column(it.node), 3)}${pad(label(it.node), labelWidth)} ${evidence || "—"}`)
+    out.push(`  ${pad(column(it.node), columnWidth)}${pad(label(it.node), labelWidth)}${evidence || "—"}`)
   }
+  return out.join("\n") + "\n"
+}
+
+/** The most `sdp lifecycle --brief` prints, the newline that ends it included. */
+const briefLimit = 2000
+
+/**
+ * What an agent is shown as a session starts: the milestone the project is at, the work planned
+ * now — the current iteration's, or else that of the iteration that starts next — and the open
+ * questions of that work, where each is written. What does not fit in `briefLimit` characters is
+ * left out, and the last line counts it and names the command that shows the whole plan.
+ */
+export const renderBrief = (report: LifecycleReport, project: Project): string => {
+  const { milestones, next, today, vocabulary } = report
+  if (report.iterations.length === 0 && milestones.length === 0) return `${emptyPlanHint(vocabulary)}\n`
+  const { end, start } = vocabulary.attributes
+  const headings: Array<string> = []
+  if (next) {
+    const gate = next.gate ?? []
+    const passed = gate.filter((scenario) => scenario.status === "passed").length
+    const late = today !== undefined && next.planned !== undefined ? daysBetween(next.planned, today) : 0
+    headings.push(`${next.node.id} ${passed}/${gate.length} — ${next.node.title} — ${next.planned ?? "not on the timeline"}${late > 0 ? ` — late ${late}d` : ""}`)
+  } else {
+    const unmet = milestones.filter((milestone) => milestone.met === undefined)
+    headings.push(
+      milestones.length === 0
+        ? "No milestone planned"
+        : unmet.length === 0
+        ? "every milestone is met"
+        : `not on the timeline: ${unmet.map((milestone) => milestone.node.id).join(", ")} — they close nothing dated`
+    )
+  }
+  // The iterations are in the order they end; the next one is the one that starts first after today.
+  const first = (node: GraphNode) => dayOf(node, start) ?? dayOf(node, end)
+  const [upcoming] = report.iterations
+    .filter((node) => today !== undefined && dayOf(node, end) !== undefined && first(node)! > today)
+    .sort((a, b) => first(a)!.localeCompare(first(b)!) || dayOf(a, end)!.localeCompare(dayOf(b, end)!) || a.id.localeCompare(b.id))
+  const iteration = report.current ?? upcoming
+  headings.push(
+    iteration
+      ? `${iteration === report.current ? "Current" : "Next"} iteration: ${iteration.id} — ${iteration.title} — ${
+        dayOf(iteration, start) ?? "no first day"
+      }…${dayOf(iteration, end) ?? "no last day"}`
+      : "No current or next iteration"
+  )
+  const planned = report.work.find((work) => work.node.id === iteration?.id)?.items ?? []
+  const here = new Set(planned.map((item) => item.id))
+  const anywhere = new Set(report.work.flatMap((work) => work.items.map((item) => item.id)))
+  // An open question is planned with its spec unless it is planned on its own, and is listed once,
+  // as a question, where it is written.
+  const questions = project.graph.ofKind([made.kinds.rule]).filter((rule) => {
+    const tags = attribute(rule, made.tagsKey)
+    return Array.isArray(tags) && tags.includes(made.tags.open) &&
+      (here.has(rule.id) || (!anywhere.has(rule.id) && here.has(String(rule.attrs.spec))))
+  })
+  const items = planned.filter((item) => !questions.includes(item))
+
+  const closing = (itemsLeft: number, questionsLeft: number, shortened: boolean) =>
+    itemsLeft + questionsLeft > 0 || shortened
+      ? `left out: ${itemsLeft} item(s), ${questionsLeft} open question(s)${shortened ? ", long heading text" : ""} — sdp lifecycle shows the whole plan`
+      : "sdp lifecycle shows the whole plan"
+  // Room for the closing line however much is left out, and for the newline that ends the brief.
+  const room = briefLimit - 1 - (closing(items.length, questions.length, true).length + 1)
+  const headingWidth = Math.floor(room / headings.length) - 1
+  const shortened = headings.some((line) => line.length > headingWidth)
+  const out = headings.map((line) => line.length > headingWidth ? `${line.slice(0, headingWidth - 1)}…` : line)
+  let length = out.join("\n").length
+  const fits = (line: string) => {
+    if (length + 1 + line.length > room) return false
+    out.push(line)
+    length += 1 + line.length
+    return true
+  }
+  const state = (item: GraphNode) =>
+    Predicate.isString(item.attrs.stage) ? item.attrs.stage : item.attrs.toCome === true ? "still to come" : "no example"
+  // In order: the work, then its questions; once one does not fit, nothing after it is shown.
+  let itemsLeft = items.length
+  let questionsLeft = questions.length
+  for (const item of items) {
+    if (!fits(`${item.id} — ${state(item)} — ${item.title}`)) break
+    itemsLeft--
+  }
+  for (const question of itemsLeft > 0 ? [] : questions) {
+    if (!fits(`${question.title} — ${question.source ? `${question.source.file}:${question.source.line}` : "where it is written is not known"}`)) break
+    questionsLeft--
+  }
+  out.push(closing(itemsLeft, questionsLeft, shortened))
   return out.join("\n") + "\n"
 }
 
@@ -487,4 +576,5 @@ const emptyPlanHint = (vocabulary: Vocabulary) => {
   return `No plan yet: \`sdp new ${phase} "Elaboration"\`, then \`sdp new ${iteration} "<title>"\` and \`sdp new ${milestone} "<title>"\`; each says what to write next.`
 }
 
+/** `s` in a column `n` wide; one wider than the column keeps a space after it all the same. */
 const pad = (s: string, n: number) => s.length >= n ? `${s} ` : s + " ".repeat(n - s.length)

@@ -16,7 +16,7 @@ import { contextBundle } from "../graph/Context.ts"
 import { type EdgeRecord, edgeRecord, type GraphRecord, mermaid, type NodeRecord, nodeRecord, stateRecords } from "../graph/Export.ts"
 import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
-import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } from "../lifecycle/Lifecycle.ts"
+import { type LifecycleReport, lifecycle as lifecycleReport, renderBrief, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast, type Diagnostic, problemLine, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
@@ -326,6 +326,12 @@ export const lifecycle = Effect.fn("lifecycle")(function*(root: string) {
 export const lifecycleChart = Effect.fn("lifecycleChart")(function*(root: string) {
   const project = yield* loadProject(root)
   return answer(project, renderLifecycle(lifecycleReport(project, yield* today)))
+})
+
+/** `sdp lifecycle --brief`: the milestone, work planned now and its open questions within 2,000 characters. */
+export const lifecycleBrief = Effect.fn("lifecycleBrief")(function*(root: string) {
+  const project = yield* loadProject(root)
+  return answer(project, renderBrief(lifecycleReport(project, yield* today), project))
 })
 
 export type VocabularyData = ReturnType<typeof vocabularyJson>

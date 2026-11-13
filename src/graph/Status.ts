@@ -1,11 +1,11 @@
-import { Predicate } from "effect"
+import { Predicate, Schema } from "effect"
 import { check, maturityTags } from "../check/Check.ts"
 import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
-import { notPassing, type ScenarioResult } from "../model/Results.ts"
+import { notPassing, type ScenarioResult, StepStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { isClosed, isGate } from "../run/Evidence.ts"
-import type { Project } from "./Build.ts"
+import { type Project, stageOf } from "./Build.ts"
 import { stageLadder } from "./Query.ts"
 
 /** Counts by word, the words of `order` first and in that order: a report reads along its ladder, as JSON too. */
@@ -14,6 +14,9 @@ const counted = (values: ReadonlyArray<unknown>, order: ReadonlyArray<string> = 
   const words = [...order.filter((word) => Object.hasOwn(counts, word)), ...Object.keys(counts).filter((word) => !order.includes(word))]
   return Object.fromEntries(words.map((word) => [word, counts[word]!]))
 }
+
+/** Whether a scenario's status is a result a stage counts: not one that has not run, or went stale since. */
+const isStepStatus = Schema.is(StepStatus)
 
 const resultOrder = ["passed", "failed", "pending", "undefined", "unrun", "stale"]
 
@@ -111,7 +114,10 @@ export interface StatusSummary {
   readonly relations: Readonly<Record<string, number>>
   /** Counted the way every report counts stages: each node that has one. Rules are counted apart. */
   readonly stages: Readonly<Record<string, number>>
-  /** Rules by where they stand: what the examples of a live one verify, or that it has none, is still to come or is open. */
+  /**
+   * Rules by where they stand: a question still open, a rule still to come, a live one with no
+   * example, or what its examples that are no gate verify; one whose examples are all gates, as gate.
+   */
   readonly rules: Readonly<Record<string, number>>
   /** The live examples: one that failed is a regression. */
   readonly scenarios: Readonly<Record<string, number>>
@@ -141,6 +147,17 @@ export const statusSummary = (project: Project): StatusSummary => {
   const closed = new Set(project.specs.filter((spec) => isClosed(spec, vocabulary)).flatMap((spec) => spec.scenarios.map((s) => s.id)))
   const scenarios = graph.ofKind([made.kinds.scenario]).filter((n) => !closed.has(n.id))
   const milestones = graph.ofKind(vocabulary.kinds.milestone)
+  const examples = Map.groupBy(graph.ofKind([made.kinds.scenario]), (scenario) => String(scenario.attrs.rule))
+  // A gate not met is no regression: a live rule is what its examples that are no gate verify, and
+  // one whose examples are all gates is counted as a gate.
+  const gateApart = (rule: GraphNode, written: ReadonlyArray<GraphNode>) => {
+    const state = ruleState(rule)
+    const ordinary = written.filter((scenario) => !gates.has(scenario.id))
+    if (!Object.values(made.stages).some((stage) => stage === state) || ordinary.length === written.length) return state
+    return ordinary.length === 0
+      ? "gate"
+      : stageOf(undefined, ordinary.map((scenario) => isStepStatus(scenario.attrs.status) ? scenario.attrs.status : undefined), false) ?? state
+  }
   return {
     nodes: graph.nodes().length,
     edges: graph.edges().length,
@@ -151,7 +168,13 @@ export const statusSummary = (project: Project): StatusSummary => {
       graph.nodes().flatMap((n) => n.kind !== made.kinds.rule && Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []),
       stageLadder(vocabulary).flat()
     ),
-    rules: counted(graph.ofKind([made.kinds.rule]).map(ruleState), [...Object.values(made.stages), "no example", "still to come", "open"]),
+    rules: counted(graph.ofKind([made.kinds.rule]).map((rule) => gateApart(rule, examples.get(rule.id) ?? [])), [
+      ...Object.values(made.stages),
+      "gate",
+      "no example",
+      "still to come",
+      "open"
+    ]),
     scenarios: counted(scenarios.filter((n) => !gates.has(n.id) && n.attrs.toCome !== true).map((n) => n.attrs.status), resultOrder),
     toCome: counted(scenarios.filter((n) => !gates.has(n.id) && n.attrs.toCome === true).map((n) => n.attrs.status), resultOrder),
     gates: counted(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status), resultOrder),
