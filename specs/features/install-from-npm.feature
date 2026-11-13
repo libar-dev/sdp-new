@@ -3,11 +3,11 @@
 Feature: Install sdp from npm
 
   Teams that adopt sdp install it the way they install any tool, as a development dependency of
-  their repository. Today the package is private and runs only from a clone of this repository.
+  their repository, not from a clone of this one.
 
-  Rule: `npm install --save-dev sdp` installs a command that `npx sdp` runs
+  Rule: The package, installed as a development dependency, gives the command `sdp`, which `npx sdp` runs
 
-  Rule: Programs import `sdp` or `sdp/effect`, and step modules `sdp/steps`, from the installed package, typed
+  Rule: Programs import the package and its `effect` entry, and step modules its `steps` entry, from where it is installed, typed
 
   @constrained-by:GUIDE#the-sources-run-as-they-are-with-no-build-step
   Rule: The package is JavaScript and declarations, built only when packing; the repository runs from its sources
