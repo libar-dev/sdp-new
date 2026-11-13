@@ -4,8 +4,8 @@ Feature: Check specs
 
   Authors and reviewers, people and agents, need every problem in the specs reported at the line to
   fix, with what to write instead, so that they can fix it without reading sdp's code. And what is
-  built must stay tested: a live rule has an example, and nothing live stops being live without an
-  error, so that a test is never turned off in silence.
+  built must stay tested: a live feature has a live rule, a live rule has an example, and nothing live
+  stops being live without an error, so that a test is never turned off in silence.
 
   Not a linter of style or wording, nor a judge of how far work still to come has come: sdp checks
   what it reads and what is live, and fixes nothing itself.
@@ -30,8 +30,8 @@ Feature: Check specs
       And the output contains "[scenario-empty] reports#nothing-yet has no steps  specs/reports.feature:6"
       And the output contains "0 error(s), 1 warning(s), 0 info"
       Given these specs:
-        | tags                          | Feature  |
-        | @id=invoices @depends-on:gone | Invoices |
+        | tags                                         | Feature  |
+        | @id=invoices @maturity=idea @depends-on:gone | Invoices |
       When I run "sdp check --severity error --json --base none"
       Then the exit code is 1
       And the JSON output has:
@@ -65,6 +65,7 @@ Feature: Check specs
         | description-comment   | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Why:\n  # not read\n  because.                                                                                                               |
         | scenario-empty        | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Nothing yet                                                                                                           |
         | scenario-outside-rule | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Scenario: S\n    Then it works                                                                                                               |
+        | untested-feature      | error    | specs/reports.feature          | 1    | @id=reports\nFeature: Reports                                                                                                                                                 |
         | untested-rule         | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Rule: R                                                                                                                                       |
         | replacement           | error    | specs/reports.feature          | 3    | @id=reports @maturity=idea\nFeature: Reports\n  @replaces:reports\n  Rule: R                                                                                                  |
         | question-example      | error    | specs/reports.feature          | 5    | @id=reports @maturity=idea\nFeature: Reports\n  @open\n  Rule: Mailed too?\n    Scenario: Mail\n      Then a mail is sent                                                     |
@@ -127,6 +128,47 @@ Feature: Check specs
         | rule          | at                            | message                                                                      |
         | untested-rule | specs/export-to-csv.feature:4 | export-to-csv#archived-rows-are-exported-too is live, so it needs an example |
 
+  Rule: A live feature has a live rule, so that what it says is built is tested
+
+    A feature that declares no maturity says it is built, and stays so: one whose rules are all still
+    to come is still to come itself. A node of another kind, such as an actor, says what there is.
+
+    Scenario Outline: A feature whose rules are <case>
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        <tags>
+        Feature: Export to CSV
+
+          Analysts want data in Excel.
+
+          <rule>
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | case                            | tags                              | rule                                                                   | reported         |
+        | none                            | @id=export-to-csv                 |                                                                        | untested-feature |
+        | still to come                   | @id=export-to-csv                 | @maturity=draft\nRule: Every row is exported                           | untested-feature |
+        | a question                      | @id=export-to-csv                 | @open\nRule: Are archived rows exported too?                           | untested-feature |
+        | live, with an example           | @id=export-to-csv                 | Rule: Every row is exported\n  Scenario: Export\n    Then I get a file | nothing          |
+        | still to come, as the feature   | @id=export-to-csv @maturity=draft | Rule: Every row is exported                                            | nothing          |
+        | none, in a node of another kind | @id=analysts @kind=actor          |                                                                        | nothing          |
+
+    Scenario: The feature without a live rule, at its Feature line
+      Given a file "specs/export-to-csv.feature" containing:
+        """
+        @id=export-to-csv
+        Feature: Export to CSV
+
+          @maturity=draft
+          Rule: Archived rows are exported too
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule             | at                            | message                                        | hint                                                                                                                                  |
+        | untested-feature | specs/export-to-csv.feature:1 | export-to-csv is live, so it needs a live rule | write a Rule with an example under it; while its rules are still to come, declare a maturity above `Feature:`, such as @maturity=idea |
+
   @decided-by:declared-maturity-derived-stage
   Rule: A maturity is the team's judgement, and check reads neither its value nor the content behind it
 
@@ -187,10 +229,9 @@ Feature: Check specs
   Rule: Nothing live stops being live without an error
 
     Built work cannot go back to work still to come, or a test is turned off in silence, so check
-    compares the specs with a base revision: a maturity or `@open` on what was built there — a live
-    rule, or a Feature with one — is an error, whatever its examples were, and so is a live example
-    of the base that is gone, a gate or still to come, for neither fails a run. A Feature without a
-    live rule has nothing to test, so it may become an idea.
+    compares the specs with a base revision: a maturity or `@open` on a Feature or a Rule that was
+    live there is an error, whatever its examples were, and so is a live example of the base that is
+    gone, a gate or still to come, for neither fails a run.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -231,39 +272,18 @@ Feature: Check specs
         | data.line | <line>     |
 
       Examples:
-        | change                                                | exit code | reported                       | line    | cart                                                                                                                                                                                                                                                              |
-        | A maturity on the live feature                        | 1         | demotion                       | 1       | @id=cart @maturity=ready\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                         |
-        | A maturity on the live rule                           | 1         | demotion                       | 3       | @id=cart\nFeature: Cart\n  @maturity=draft\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                      |
-        | The live rule made a question                         | 1         | demotion                       | 4       | @id=cart\nFeature: Cart\n  @open\n  Rule: A cart holds what was added                                                                                                                                                                                             |
-        | A maturity on the live rule whose example is a gate   | 1         | demotion                       | 6       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @maturity=draft\n  Rule: A cart is kept for a week\n    @gate\n    Scenario: Come back after a day\n      Then the cart holds 1 item |
-        | The live example deleted                              | 1         | example-dropped, untested-rule | 3, 8    | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added                                                                                                                                                                                                      |
-        | The live rule deleted with its example                | 1         | example-dropped                | 8       | @id=cart\nFeature: Cart\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                                                                                                 |
-        | The live example made a gate                          | 1         | example-dropped                | 5       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @gate\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                              |
-        | The live example moved under the rule still to come   | 1         | example-dropped, untested-rule | 3, 6    | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                 |
-        | The live rule whose example is a gate deleted with it | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp               |
-        | The rule still to come built                          | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                  |
-        | The rule still to come deleted with its example       | 0         | nothing                        | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                                         |
-
-    Scenario: A live feature without rules made an idea
-      Given a file "specs/basket.feature" containing:
-        """
-        @id=basket
-        Feature: Basket
-
-          Shoppers keep what they might buy later.
-        """
-      And the files are committed on the branch "main"
-      And a file "specs/basket.feature" containing:
-        """
-        @id=basket @maturity=idea
-        Feature: Basket
-
-          Shoppers keep what they might buy later.
-        """
-      When I run "sdp check --json"
-      Then the exit code is 0
-      And the JSON output has:
-        | data.rule | nothing |
+        | change                                                | exit code | reported                          | line    | cart                                                                                                                                                                                                                                                              |
+        | A maturity on the live feature                        | 1         | demotion                          | 1       | @id=cart @maturity=ready\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                         |
+        | A maturity on the live rule                           | 1         | demotion, untested-feature        | 3, 1    | @id=cart\nFeature: Cart\n  @maturity=draft\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                      |
+        | The live rule made a question                         | 1         | demotion, untested-feature        | 4, 1    | @id=cart\nFeature: Cart\n  @open\n  Rule: A cart holds what was added                                                                                                                                                                                             |
+        | A maturity on the live rule whose example is a gate   | 1         | demotion                          | 6       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @maturity=draft\n  Rule: A cart is kept for a week\n    @gate\n    Scenario: Come back after a day\n      Then the cart holds 1 item |
+        | The live example deleted                              | 1         | example-dropped, untested-rule    | 3, 8    | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added                                                                                                                                                                                                      |
+        | The live rule deleted with its example                | 1         | example-dropped, untested-feature | 8, 1    | @id=cart\nFeature: Cart\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                                                                                                 |
+        | The live example made a gate                          | 1         | example-dropped                   | 5       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @gate\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                              |
+        | The live example moved under the rule still to come   | 1         | example-dropped, untested-rule    | 3, 6    | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                 |
+        | The live rule whose example is a gate deleted with it | 0         | nothing                           | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  @maturity=ready\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp               |
+        | The rule still to come built                          | 0         | nothing                           | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item\n  Rule: A cart holds each item once\n    Scenario: Add a lamp twice\n      Then the cart holds 1 lamp                                  |
+        | The rule still to come deleted with its example       | 0         | nothing                           | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Then the cart holds 1 item                                                                                                                                         |
 
     Scenario: What a demotion and a dropped example say, and where
       Given a file "specs/cart.feature" containing:
@@ -618,9 +638,9 @@ Feature: Check specs
         | data.rule | <reported> |
 
       Examples:
-        | replacement                                           | tags            | exit code | reported        |
-        | is built in the change that deletes it                |                 | 0         | nothing         |
-        | is still to come in the change that deletes it        | @maturity=ready | 1         | example-dropped |
+        | replacement                                    | tags            | exit code | reported                          |
+        | is built in the change that deletes it         |                 | 0         | nothing                           |
+        | is still to come in the change that deletes it | @maturity=ready | 1         | example-dropped, untested-feature |
 
     Scenario: A rule named as replaced that the base has no more
       Given a file "specs/cart.feature" containing:

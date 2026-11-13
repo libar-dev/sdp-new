@@ -19,6 +19,7 @@ export const rules = {
   "description-comment": "warning",
   "scenario-empty": "warning",
   "scenario-outside-rule": "error",
+  "untested-feature": "error",
   "untested-rule": "error",
   "question-example": "error",
   "replacement": "error",

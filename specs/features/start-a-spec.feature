@@ -266,8 +266,8 @@ Feature: Start a spec
 
     Scenario: An id that only a dangling link names is free: creating it resolves the link
       Given these specs:
-        | tags                           | Feature |
-        | @id=filters @depends-on:facets | Filters |
+        | tags                                          | Feature |
+        | @id=filters @maturity=idea @depends-on:facets | Filters |
       When I run "sdp new feature Facets"
       Then the output contains "facets\tspecs/features/facets.feature"
       When I run "sdp check --base none"

@@ -133,10 +133,19 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
   )
 
-  // A live rule is a test, so it has an example: without one, what is built is not tested.
+  // A live feature is a test, so it has a live rule, and a live rule an example: without one, what is
+  // built is not tested.
   for (const spec of project.specs) {
     if (spec.id === suiteId(spec.file) || !isSuite(spec, vocabulary)) continue
     const work = workOf(spec)
+    if (hasKind(vocabulary, "feature", spec.kind) && !work.spec && spec.rules.every((rule) => work.rule(rule).toCome)) {
+      out.push(diagnostic("untested-feature", {
+        message: `${spec.id} is live, so it needs a live rule`,
+        node: spec.id,
+        source: at(spec),
+        hint: "write a Rule with an example under it; while its rules are still to come, declare a maturity above `Feature:`, such as @maturity=idea"
+      }))
+    }
     for (const rule of spec.rules) {
       if (work.rule(rule).toCome || spec.scenarios.some((scenario) => scenario.rule === rule.id)) continue
       out.push(diagnostic("untested-rule", {
@@ -402,7 +411,7 @@ interface Example {
   readonly tests: string
 }
 
-/** The examples of a set of specs, and the Features and Rules that are built. */
+/** The examples of a set of specs, and the Features and Rules that are live. */
 const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
   const examples = specs.flatMap((spec) => {
     const work = workOf(spec)
@@ -414,12 +423,10 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
       })
     )
   })
-  // What is built is what has something to test, a live rule or a Feature with one, whatever its
-  // examples are, gates and none included.
+  // What is built is live whatever its examples are, gates and none included.
   const built = new Set(specs.filter((spec) => isSuite(spec, vocabulary)).flatMap((spec) => {
     const work = workOf(spec)
-    const rules = spec.rules.filter((rule) => !work.rule(rule).toCome).map((rule) => rule.id)
-    return rules.length === 0 ? [] : [spec.id, ...rules]
+    return [...(work.spec ? [] : [spec.id]), ...spec.rules.filter((rule) => !work.rule(rule).toCome).map((rule) => rule.id)]
   }))
   return { examples, built }
 }
@@ -479,16 +486,15 @@ const pairExamples = (
 
 /**
  * Whether anything live at a base revision stops being live in the workspace, as errors: a maturity
- * or `@open` on what was built there — a live rule, or a Feature with one — whatever its examples
- * (`demotion`), and a live example of the base that is gone, a gate or still to come here
- * (`example-dropped`), unless what replaces its rule or its feature — a rule or a feature linked to
- * it, here or at the base, that may replace it — is live here and has a live example the base did not
- * have live: a replacement keeps the coverage it takes over. A link from a live rule names what was
- * live at the base, so a replacement can be designed and built in one change, and is judged as
- * check() judges a link to what is there. The base is parsed with its own configuration. An example
- * whose Feature or Rule is reported as demoted is not reported again. `missing` says which files of
- * the base do not parse: their live examples were not compared, so the comparison may miss one
- * turned off.
+ * or `@open` on a Feature or a Rule that was live there, whatever its examples (`demotion`), and a
+ * live example of the base that is gone, a gate or still to come here (`example-dropped`), unless
+ * what replaces its rule or its feature — a rule or a feature linked to it, here or at the base, that
+ * may replace it — is live here and has a live example the base did not have live: a replacement
+ * keeps the coverage it takes over. A link from a live rule names what was live at the
+ * base, so a replacement can be designed and built in one change, and is judged as check() judges a
+ * link to what is there. The base is parsed with its own configuration. An example whose Feature or
+ * Rule is reported as demoted is not reported again. `missing` says which files of the base do not
+ * parse: their live examples were not compared, so the comparison may miss one turned off.
  */
 export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly missing: ReadonlyArray<string> } => {
   const parsed = base.files.map((file) => ({ file: file.path, ...parseFeatureSpec(file.path, file.content, base.config) }))

@@ -309,9 +309,18 @@ Feature: Write a spec
         | replacement | 1    | put `@replaces:cart#a-cart-holds-what-was-added` on the rule that replaces it, above its `Rule:` |
 
     Scenario Outline: A feature still to come that replaces <case>
-      Given these specs:
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And these specs:
         | tags                              | Feature |
-        | @id=cart                          | Cart    |
         | @id=basket @maturity=draft <link> | Basket  |
       When the workspace is checked
       Then sdp reports "<reported>"
