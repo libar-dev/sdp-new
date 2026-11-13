@@ -16,9 +16,14 @@
  * result is the distinct end nodes in the order they were first reached, and
  * the paths.
  *
+ * A walk is taken only as far as it is needed: a filter's stops at the first
+ * node it accepts, a step's stops once the step holds as many paths as the
+ * limit allows, and a node is walked from once in a step however many paths
+ * end at it.
+ *
  * @sdp is ARCH-query-engine
  */
-import { Data, Predicate, Result } from "effect"
+import { Predicate, Result, Schema } from "effect"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import { activityRelation, made, type Vocabulary, vocabularyWords } from "../model/Vocabulary.ts"
 import type { Project } from "./Build.ts"
@@ -31,7 +36,7 @@ edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | no
 notes
   key alone: set, i.e. not missing, null, false or empty; = and ~ compare the value, so key=false finds false
   < > compare numbers, dates, and maturity/stage along idea < draft < specified < ready < unrun < failing = in-progress < verified,
-    a maturity off the ladder below every rung
+    values compare in any case; a value off the ladder ranks below every rung, and a question notes it with the closest rung
   a key also holds the targets of the node's links of that relation: [iteration=IT-beta] agrees with -iteration-> #IT-beta
   rel: * or nothing is any relation, a|b either, a trailing + one or more hops
   + reaches the start node too when a cycle leads back: #A -uses+-> #A asks whether A is on one
@@ -44,10 +49,10 @@ examples
   #use-postgres <-*- *
   scenario[!toCome][status=failed] -verifies-> *`
 
-export class QueryError extends Data.TaggedError("QueryError")<{
-  readonly message: string
-  readonly query: string
-}> {}
+export class QueryError extends Schema.TaggedError<QueryError>()("QueryError", {
+  message: Schema.String,
+  query: Schema.String
+}) {}
 
 type Op = "=" | "!=" | "~" | "!~" | "<" | ">" | "<=" | ">="
 
@@ -149,34 +154,67 @@ export const runQuery = (graph: Graph, query: Query, options: QueryOptions = {})
       return candidate !== undefined && matchesNode(context, candidate, node)
     }
     if (edge.mode !== "move") {
+      // A node's search depends on the step, not on the path to it, so each is walked once a step.
+      const settled = new Map<string, { readonly found: boolean; readonly cut: boolean }>()
       paths = paths.filter((path) => {
-        const reached = reachable(context, endOf(path), edge, maxDepth)
-        const found = reached.routes.some((route) => accept(route.at(-1)!.node))
+        const id = endOf(path)
+        let search = settled.get(id)
+        if (search === undefined) {
+          search = settles(context, id, edge, maxDepth, accept)
+          settled.set(id, search)
+        }
         // A neighbour found within the limit settles the filter; only a search cut short leaves it open.
-        if (!found && reached.cut) limits.add(hopLimit)
-        return edge.mode === "exists" ? found : !found
+        if (!search.found && search.cut) limits.add(hopLimit)
+        return edge.mode === "exists" ? search.found : !search.found
       })
       continue
     }
     const next: Array<QueryPath> = []
     const seen = new Set<string>()
-    for (const path of paths) {
-      const reached = reachable(context, endOf(path), edge, maxDepth)
-      if (reached.cut) limits.add(hopLimit)
-      for (const route of reached.routes) {
-        if (!accept(route.at(-1)!.node)) continue
-        const extended: QueryPath = {
-          nodes: [...path.nodes, ...route.map((hop) => hop.node)],
-          edges: [...path.edges, ...route.map((hop) => hop.edge)]
-        }
-        const key = pathKey(extended)
-        if (seen.has(key)) continue
-        seen.add(key)
-        if (next.length >= maxPaths) {
-          limits.add(pathLimit)
+    /** Adds a path's extension by a route, unless it is there already; false when it is one too many. */
+    const extend = (path: QueryPath, route: ReadonlyArray<Hop>): boolean => {
+      const extended: QueryPath = {
+        nodes: [...path.nodes, ...route.map((hop) => hop.node)],
+        edges: [...path.edges, ...route.map((hop) => hop.edge)]
+      }
+      const key = pathKey(extended)
+      if (seen.has(key)) return true
+      seen.add(key)
+      if (next.length >= maxPaths) {
+        limits.add(pathLimit)
+        return false
+      }
+      next.push(extended)
+      return true
+    }
+    // The routes a walk accepted are kept for the paths still to come that end where it started, and
+    // only for as long as one does.
+    const ending = new Map<string, number>()
+    for (const path of paths) ending.set(endOf(path), (ending.get(endOf(path)) ?? 0) + 1)
+    const walked = new Map<string, { readonly routes: ReadonlyArray<ReadonlyArray<Hop>>; readonly cut: boolean }>()
+    moving: for (const path of paths) {
+      const id = endOf(path)
+      const later = ending.get(id)! - 1
+      ending.set(id, later)
+      const known = walked.get(id)
+      if (known !== undefined) {
+        if (later === 0) walked.delete(id)
+        if (known.cut) limits.add(hopLimit)
+        for (const route of known.routes) if (!extend(path, route)) break moving
+        continue
+      }
+      // The walk is taken only as far as the routes it opens are kept: the limit bounds the work too.
+      const accepted: Array<ReadonlyArray<Hop>> = []
+      const walk = routesFrom(context, id, edge, maxDepth)
+      for (let found = walk.next(); ; found = walk.next()) {
+        if (found.done) {
+          if (found.value) limits.add(hopLimit)
+          if (later > 0) walked.set(id, { routes: accepted, cut: found.value })
           break
         }
-        next.push(extended)
+        if (!accept(found.value.at(-1)!.node)) continue
+        if (later > 0) accepted.push(found.value)
+        if (!extend(path, found.value)) break moving
       }
     }
     paths = next
@@ -450,7 +488,7 @@ const matchesCondition = (context: Context, node: GraphNode, condition: Conditio
 const equals = (value: unknown, expected: string) => String(value).toLowerCase() === expected.toLowerCase()
 
 /** A value's rung on a ladder, or -1 when it is not on it. */
-const rung = (ladder: Ladder, value: string) => ladder.findIndex((words) => words.includes(value))
+const rung = (ladder: Ladder, value: string) => ladder.findIndex((words) => words.some((word) => equals(word, value)))
 
 /**
  * Two values in order: along the attribute's ladder, where a value off it is below every rung, so a
@@ -502,20 +540,21 @@ const hops = (context: Context, id: string, step: EdgeStep): Array<Hop> => {
 }
 
 /**
- * The routes one edge step opens from a node. A plain step has one route per matching edge. A `+`
- * step has one per node it reaches, a shortest one, found breadth-first: a node is walked on from
- * once, and the start is reached when a cycle leads back to it. A two-way walk never goes back
- * along the edge it just took, so it reaches the start only where two of its branches meet, or a
- * second link to the start does. `cut` when the walk stopped at `maxDepth` with nodes left to reach,
- * or the only cycle it closed is longer than that: two branches can meet beyond the bound.
+ * The routes one edge step opens from a node, each as it is found, and at the end whether the walk
+ * was cut short; a caller that has what it needs stops taking them, and the walk goes no further. A
+ * plain step has one route per matching edge. A `+` step has one per node it reaches, a shortest
+ * one, found breadth-first: a node is walked on from once, and the start is reached when a cycle
+ * leads back to it. A two-way walk never goes back along the edge it just took, so it reaches the
+ * start only where two of its branches meet, or a second link to the start does, and the shortest
+ * such cycle is known only once the walk is over: it comes last. Cut short when the walk stopped at
+ * `maxDepth` with nodes left to reach, or the only cycle it closed is longer than that: two branches
+ * can meet beyond the bound.
  */
-const reachable = (
-  context: Context,
-  from: string,
-  step: EdgeStep,
-  maxDepth: number
-): { readonly routes: ReadonlyArray<ReadonlyArray<Hop>>; readonly cut: boolean } => {
-  if (!step.transitive) return { routes: hops(context, from, step).map((hop) => [hop]), cut: false }
+function* routesFrom(context: Context, from: string, step: EdgeStep, maxDepth: number): Generator<ReadonlyArray<Hop>, boolean> {
+  if (!step.transitive) {
+    for (const hop of hops(context, from, step)) yield [hop]
+    return false
+  }
   const routes = new Map<string, ReadonlyArray<Hop>>()
   const twoWay = step.direction === "both"
   const onward = (route: ReadonlyArray<Hop>, hop: Hop) => !twoWay || route.length === 0 || !sameEdge(route.at(-1)!.edge, hop.edge)
@@ -541,17 +580,35 @@ const reachable = (
         if (closed !== undefined || routes.has(hop.node)) continue
         const extended = [...route, hop]
         routes.set(hop.node, extended)
+        yield extended
         // The start was walked on from in the first round.
         if (hop.node !== from) next.push({ id: hop.node, route: extended })
       }
     }
     frontier = next
   }
-  if (cycle !== undefined) routes.set(from, cycle)
-  const cut = (cycle === undefined && beyond) || frontier.some(({ id, route }) =>
+  if (cycle !== undefined) {
+    routes.set(from, cycle)
+    yield cycle
+  }
+  return (cycle === undefined && beyond) || frontier.some(({ id, route }) =>
     hops(context, id, step).some((hop) => onward(route, hop) && (!routes.has(hop.node) || (cycle === undefined && closing(route, hop) !== undefined)))
   )
-  return { routes: [...routes.values()], cut }
+}
+
+/** Whether a walk from a node reaches one the step accepts, taken no further than the first it reaches; if not, whether it was cut short. */
+const settles = (
+  context: Context,
+  from: string,
+  step: EdgeStep,
+  maxDepth: number,
+  accept: (id: string) => boolean
+): { readonly found: boolean; readonly cut: boolean } => {
+  const walk = routesFrom(context, from, step, maxDepth)
+  for (let found = walk.next(); ; found = walk.next()) {
+    if (found.done) return { found: false, cut: found.value }
+    if (accept(found.value.at(-1)!.node)) return { found: true, cut: false }
+  }
 }
 
 const sameEdge = (a: PathEdge, b: PathEdge) => a.from === b.from && a.rel === b.rel && a.to === b.to
@@ -600,8 +657,8 @@ const universalKeys = ["id", "kind", "title", "source", "maturity"]
 /**
  * What a query names that the workspace does not know, one line each with the closest word it does
  * know: an id no node has, a kind or relation it neither uses, makes nor names in its vocabulary, an
- * attribute that no node its selector could match carries, a tag compared without its `@`. Almost
- * always a typo — and a typo in an assertion that there is none of something would pass. Empty when
+ * attribute that no node its selector could match carries, a maturity or a stage off its ladder, a
+ * tag compared without its `@`. Almost always a typo — and a typo in an assertion that there is none of something would pass. Empty when
  * every word is known.
  */
 export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<string> => {
@@ -620,8 +677,7 @@ export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<str
   const everywhere = new Set([...universalKeys, ...made.attributes, ...made.scenarioAttributes, ...words.attributes, ...relations])
   const found: Array<string> = []
   const unknown = (what: string, word: string, known: Iterable<string>) => {
-    const nearest = closest(word, known)
-    found.push(`${what} ${word}${nearest === undefined ? "" : `; closest: ${nearest}`}`)
+    found.push(unknownWord(what, word, known))
   }
   for (const selector of [parsed.start, ...parsed.steps.map((step) => step.node)]) {
     const unknownIds = (selector.ids ?? []).filter((id) => !ids.has(id))
@@ -642,7 +698,26 @@ export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<str
   for (const rel of parsed.steps.flatMap((step) => step.edge.rels)) {
     if (rel !== anyRelation && !relations.has(rel)) unknown("no relation", rel, relations)
   }
-  return [...new Set([...found, ...untaggedWords(parsed)])]
+  return [...new Set([...found, ...offLadderWords(project, parsed), ...untaggedWords(parsed)])]
+}
+
+/** A word outside a query's maturity or stage ladder, with the nearest rung when there is one. */
+export const offLadderWords = (project: Project, parsed: Query): ReadonlyArray<string> => {
+  const orderings = projectOrderings(project.config.vocabulary)
+  return [...new Set(
+    [parsed.start, ...parsed.steps.map((step) => step.node)].flatMap((selector) =>
+      selector.conditions.flatMap(({ key, op, values }) => {
+        const ladder = orderings.get(key)
+        if (ladder === undefined || op === "~" || op === "!~" || op === "exists" || op === "missing") return []
+        return values.filter((value) => rung(ladder, value) < 0).map((value) => unknownWord(`no ${key}`, value, ladder.flat()))
+      })
+    )
+  )]
+}
+
+const unknownWord = (what: string, word: string, known: Iterable<string>): string => {
+  const nearest = closest(word, known)
+  return `${what} ${word}${nearest === undefined ? "" : `; closest: ${nearest}`}`
 }
 
 /**
