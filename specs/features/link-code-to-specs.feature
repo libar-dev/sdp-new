@@ -2,13 +2,17 @@
 @realized-by:ARCH-code-annotations @realized-by:ARCH-graph-builder @realized-by:ARCH-checker
 Feature: Link code to specs
 
-  Developers want the graph to know which code is which element, or implements what, so that a
-  question can go from a feature to the code behind it and back. sdp reads the source and never
-  runs it: an annotation is a tag in the comment that documents the code, in every language.
+  Architects and developers, people and agents, need the graph to know which code is each element
+  and pattern of the architecture, so that a question goes from a feature, through the elements
+  that realize it, to the code behind them, and back. sdp reads the source and never runs it: an
+  annotation is a tag in the comment that documents the code, in every language.
 
   Not a discovery of the architecture: an element is what an annotation states, never inferred
-  from names, imports or the layout of files; between the elements stated, sdp derives which
-  imports which (see-the-architecture).
+  from names, imports or the layout of files. Nor a way to link code to features or to write its
+  dependencies by hand: code says which element or pattern it is, `@sdp is ARCH-x`, and which
+  pattern it plays, `@sdp plays PAT-y`; a feature names its elements with `@realized-by:`, and sdp
+  derives which element imports which (see-the-architecture). Any other relation a team writes in
+  code, such as `implements`, is read in the team's words, as a link in a spec is.
 
   Background:
     Given these specs:
