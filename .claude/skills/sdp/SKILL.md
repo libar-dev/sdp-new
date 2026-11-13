@@ -89,22 +89,37 @@ Feature: Guest checkout
   the workspace gives it one with `ids:`, so a decision or a kind of the team's own says what it is
   with `@kind=`.
 
-The sharp edges of the format, each what the official parser does:
+- **Where a spec goes is navigation, never identity.** The top folder says what a spec is for —
+  `features/`, `decisions/`, `plan/` — as `sdp new` writes them. Features go one folder deeper, in
+  the folder of their area: a bounded context, or the activity of its users the feature serves, which
+  readers browse and CODEOWNERS can route (`sdp new feature "…" --dir specs/features/billing`).
+  Decisions and the plan stay flat: a decision spans features, and the plan spans areas. No folder
+  says a maturity, an iteration, a story, a ticket or a test layer — those are tags — and a folder is
+  no namespace: ids are unique across the workspace, so a file moves without changing what it is.
+- **An epic is plan, not a grouping that stays.** Where a team groups work toward one outcome, an
+  epic is a spec (`@kind=epic`, outside every discipline) whose tag lines link each feature or rule it
+  groups, `@includes:<id>`. An epic of one area sits in that area, in a folder named for it, beside the
+  specs it groups; one that spans areas sits in the plan. It says no status — what its work says is
+  derived — and it is deleted once that work is live, its features then joining their area.
 
-| In a description, a line that starts with | Is read as | So |
+The sharp edges of the format, each what the official parser does, and what `sdp check` reports:
+
+| In a description, a line that starts with | Is read as | `sdp check` |
 | --- | --- | --- |
-| `#` | a comment, dropped | no headings; `description-comment` warns |
+| `#` | a comment, dropped | `description-comment` warns, a heading above the text too |
 | `@` | a tag line | a parse error |
-| `Scenario:`, `Scenario Outline:`, `Example:`, `Rule:`, `Background:` | a new block, silently | start no sentence with one |
-| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario or Background | a step, silently | write a reason under `Rule:`, lists with `-` |
+| `Scenario:`, `Scenario Outline:`, `Example:` | a new scenario, silently | `scenario-empty` warns, as it has no steps |
+| `Background:` | a new Background, silently | `background-empty` warns, as it has no steps |
+| `Rule:` | a new rule, silently | nothing until it is live: start no sentence with it |
+| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario or Background | a step, silently | `prose-step` warns at a sentence after a Then; write a reason under `Rule:` |
 | `Feature:` | text of the description above | an error: one file is one spec |
 | `Examples:` under a Feature or a Rule | text | — |
 
 - A tag holds no whitespace, so a value with a space has no tag form (`@title=Two words` is a
   parse error): it is a sentence, and belongs in a description.
-- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a Cucumber tag `@b.c`.
-- Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
-  kept, so `@verifies:guest-checkout#slug` links to a rule.
+- A tag value cannot hold `@`: `@owner=a@b.c` would be `@owner=a` and `@b.c`, so it is an error.
+- Whitespace and then `#` ends a tag line: a tag after it is dropped, which is an error; a `#`
+  inside a tag is kept, so `@verifies:guest-checkout#slug` links to a rule.
 - A Background cannot be tagged. After the first Rule every scenario belongs to the rule above
   it, whatever its indentation; one before it belongs to none, which `sdp check` reports and
   `sdp run` refuses to run.

@@ -26,8 +26,12 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
 - A spec says what is still to be built, or, once built, is its test. What does neither — a status,
   a plan of work that is done, a note nobody acts on — is not written, and is deleted where found.
 - `specs/` is organised by what a spec is for:
-  - `features/` — what sdp does and is still to do, one file per feature, named for what its users
-    do (`ask-the-graph`: an id with no prefix is a feature's). The file is the feature's
+  - `features/<area>/` — what sdp does and is still to do, one file per feature, named for what its
+    users do (`ask-the-graph`: an id with no prefix is a feature's), in the folder of the area it
+    serves: `adopt`, `specify`, `verify`, `architect`, `deliver`, `explore`. An area is a folder, never
+    a tag, and never part of an id: a file moves between areas without changing what it is. An epic
+    whose work is one area's lives in that area, in a folder named for it, beside the specs it groups
+    (`adopt/sdp-in-every-agent-harness/`). The file is the feature's
     requirements document and its test suite at once. What is built declares no maturity: it is
     live, every rule has an example, every example passes, and `sdp check` fails when anything live
     at the git base stops being live. What is still to come declares a maturity, the feature or each
@@ -40,7 +44,11 @@ what of it can be checked is a scenario of `specs/GUIDE.feature`.
     `ARCHITECTURE` holds the rules this repository's code keeps — or a view sdp generates from the
     code's annotations (`sdp arch`): an element is the code anchored to it, that code's doc comment
     says what it is for, and sdp derives which element imports which. No architecture is prose.
-  - `plan/` — the order of work still to come: iterations and the milestone they lead to, MVP first.
+  - `plan/` — the order of work still to come: iterations and the milestone they lead to, MVP first,
+    and the epics whose work spans areas. An epic (`@kind=epic`) is a title, a sentence on the outcome,
+    and `@includes:` a link to each feature or rule it groups; it is no work and declares no maturity,
+    and it is deleted once its work is live, its features then joining their area
+    (`decisions/areas-for-reading-epics-for-work`).
   - `VISION`, `GUIDE` and `ARCHITECTURE` are about the whole; `ask-the-graph` is the example to follow.
 - A feature is written as a requirements document would be: under its name, who needs what and
   why, then what it is not; a `Rule:` per requirement, quality ones included, stated as what a user

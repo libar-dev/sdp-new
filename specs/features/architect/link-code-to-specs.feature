@@ -21,7 +21,6 @@ Feature: Link code to specs
 
   Rule: Annotated code is a code node linked to what it names, and an is link declares the node it names
 
-    @replaces:link-code-to-specs#an-element-a-spec-declares-and-one-only-code-declares
     Scenario: An element declared by the file that is it, and one by the declaration that is it
       Given a file "src/billing.ts" containing:
         """

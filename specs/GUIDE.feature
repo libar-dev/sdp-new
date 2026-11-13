@@ -224,6 +224,32 @@ Feature: sdp, shown by running it
       Then the output lines are "ARCHITECTURE.feature, GUIDE.feature, VISION.feature, decisions, features, plan, steps"
       And the query "feature[file!~^specs/features/]" returns no results
 
+  Rule: A feature is in the folder of its area, or beside its epic in a folder named for the epic; an epic whose work spans areas is in specs/plan
+
+    An area is what a reader browses and CODEOWNERS routes: adopt, specify, verify, architect,
+    deliver and explore are what users of sdp do with it. An epic of one area keeps its work beside it,
+    where it is designed and built; when that work is live, the epic is deleted and its features join
+    the area.
+
+    Scenario: Where features and epics are
+      Then the query "feature[file!~^specs/features/.+/]" returns no results
+      And the query "*[file~^specs/features/.+/.+/.+/]" returns no results
+      And the query "*[file~^specs/features/][kind!=feature|rule|scenario|epic]" returns no results
+      And the query "epic[file!~^specs/(plan|features)/]" returns no results
+      And the query "epic[file~^specs/plan/]" returns at least 1 result
+      And the query "epic[file~^specs/features/]" returns at least 1 result
+
+  @maturity=idea
+  Rule: Work reaches main through a pull request that passed npm run verify and was reviewed by the other model family
+
+    Branch protection makes what AGENTS.md asks of every agent hold without anyone remembering it.
+
+  @maturity=idea
+  Rule: CI runs npm run verify on Node.js 24 for every pull request and every push to main
+
+  @maturity=idea
+  Rule: A commit runs sdp check and a push runs npm run verify, through git hooks that npm install sets up
+
   Rule: Everything that is built is verified, and npm run verify fails when it is not
 
     A run fails on a live example that does not pass; this gate also catches one that did not run,

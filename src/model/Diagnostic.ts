@@ -20,6 +20,8 @@ export const rules = {
   "not-a-file": "error",
   "description-comment": "warning",
   "scenario-empty": "warning",
+  "background-empty": "warning",
+  "prose-step": "warning",
   "scenario-outside-rule": "error",
   "untested-feature": "error",
   "untested-rule": "error",

@@ -60,11 +60,16 @@ Feature: Check specs
         | declared-in-spec      | error    | specs/ARCH-reports.feature     | 1    | @id=ARCH-reports\nFeature: Reports                                                                                                                                            |
         | link-syntax           | error    | specs/reports.feature          | 1    | @id=reports @maturity:ready\nFeature: Reports                                                                                                                                 |
         | tag-syntax            | error    | specs/reports.feature          | 1    | @id=reports @uses:A,B\nFeature: Reports                                                                                                                                       |
+        | tag-syntax            | error    | specs/reports.feature          | 1    | @id=reports @owner=a@b.c\nFeature: Reports                                                                                                                                    |
+        | tag-syntax            | error    | specs/reports.feature          | 1    | @id=reports #later @uses:billing\nFeature: Reports                                                                                                                            |
         | declaration-conflict  | warning  | src/billing.py                 | 2    | # @sdp is ARCH-billing owner=payments\n# @sdp is ARCH-billing owner=finance\nclass Billing: pass                                                                              |
         | derived-attribute     | error    | specs/reports.feature          | 1    | @id=reports @stage=verified\nFeature: Reports                                                                                                                                 |
         | gherkin-syntax        | error    | specs/reports.feature          | 7    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \|                                                    |
         | description-comment   | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Why:\n  # not read\n  because.                                                                                                               |
+        | description-comment   | warning  | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  # Why\n  Because.                                                                                                                         |
         | scenario-empty        | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Nothing yet                                                                                                           |
+        | background-empty      | warning  | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Background: the team asked for it.\n  Rule: R                                                                                             |
+        | prose-step            | warning  | specs/reports.feature          | 6    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: S\n      Then it is empty\n      Then the reason is the refund rule.                                                |
         | scenario-outside-rule | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Scenario: S\n    Then it works                                                                                                               |
         | untested-feature      | error    | specs/reports.feature          | 1    | @id=reports\nFeature: Reports                                                                                                                                                 |
         | untested-rule         | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Rule: R                                                                                                                                      |
@@ -300,7 +305,6 @@ Feature: Check specs
         | idea                 |
         | idea @maturity=ready |
 
-  @replaces:check-specs#the-retired-rung-is-an-error-and-its-hint-is-to-delete-it
   Rule: A maturity is a rung of the workspace's ladder, and any other word is an error
 
     A live test declares no maturity, and any maturity makes work still to come, so a word that is
@@ -1367,9 +1371,3 @@ Feature: Check specs
   Rule: What check reports is computed from the graph, never kept in it
 
     A problem is what one view says of what was written, not something anyone wrote.
-
-  @open @maturity=draft
-  Rule: Does Markdown where specs live make every answer incomplete, or is check's warning enough?
-
-    Only `sdp check` says so: a query of the same workspace is complete and carries no note,
-    so an agent that never runs check never hears of the file.

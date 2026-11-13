@@ -93,7 +93,7 @@ Feature: Write a spec
         <feature>: Refund
         """
       When "specs/pay.feature" is parsed
-      Then sdp reports:
+      Then sdp reports at least:
         | rule           | severity | line   | message                                                         |
         | gherkin-syntax | error    | <line> | "<feature>: Refund" is read as text of the description above it |
 
@@ -866,6 +866,7 @@ Feature: Write a spec
         |                             | @id=payment |             |                  | 4    | @id=payment: only a Feature says what it is   |
         |                             |             | @kind=story |                  | 7    | @kind=story: only a Feature says what it is   |
         |                             |             |             | @browser=firefox | 11   | a fact or a link on Examples is about no node |
+        | @owner=ada@pay.com          |             |             |                  | 1    | @owner=ada@pay.com: a tag holds no @          |
 
   Rule: A file the parser cannot read is an error at the line where it stopped, and no spec until it parses
 
@@ -935,3 +936,20 @@ Feature: Write a spec
       And sdp reports:
         | rule                | line |
         | description-comment | 6    |
+
+  @decided-by:specs-are-gherkin-files
+  Rule: Specs stay on the official Gherkin parser, and check reports each of its silent edges that it can see
+
+    Every editor and Cucumber tool reads the parser's Gherkin; what the parser drops without a word,
+    check says.
+
+    Scenario: A link written after a comment on a tag line is reported, not dropped
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay @maturity=idea #wallets later @depends-on:cart
+        Feature: Pay
+        """
+      When "specs/pay.feature" is parsed
+      Then sdp reports:
+        | rule       | severity | line | message                                           |
+        | tag-syntax | error    | 1    | so the tags in it are dropped: @depends-on:cart |

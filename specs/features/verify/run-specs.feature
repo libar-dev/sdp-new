@@ -743,7 +743,6 @@ Feature: Run specs as tests
         | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Rule: Kept\n    @maturity=draft\n    Scenario: Keep\n      Then there are no error diagnostics | 4    | tag-syntax            |
         | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @open\n  Rule: Kept?\n    Scenario: Keep\n      Then there are no error diagnostics            | 5    | question-example      |
 
-    @replaces:run-specs#a-spec-that-declares-the-retired-rung-for-command
     Scenario Outline: A spec whose maturity says it is built, for <command>
       Given a file "specs/MS-beta.feature" containing:
         """
@@ -817,3 +816,6 @@ Feature: Run specs as tests
         | command          |
         | sdp run          |
         | sdp gate MS-beta |
+
+  @maturity=idea
+  Rule: A run can write Cucumber Messages, so the reporters and dashboards that read Cucumber's runs read sdp's

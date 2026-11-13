@@ -1,8 +1,10 @@
-# sdp specifies itself; every key is described in specs/features/configure-a-workspace.feature.
+# sdp specifies itself; every key is described in specs/features/adopt/configure-a-workspace.feature.
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
-# Until review/redesign is on main, live tests are compared with the pushed branch: main has no specs yet.
-base: origin/review/redesign
-# The guide's rules are tests of this repository, so one still to come is test work, planned as any other.
-vocabulary: { disciplines: { test: [guide] } }
+vocabulary:
+  disciplines:
+    # The guide's rules are tests of this repository, so one still to come is test work, planned as any other.
+    test: [guide]
+    # An epic is plan, not work: it names the work it groups, and is deleted once that work is built.
+    requirements: [requirement, feature, story, use-case]

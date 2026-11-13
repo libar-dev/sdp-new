@@ -15,6 +15,6 @@ node src/cli/main.ts --help       # every command, one line each (`sdp` is this,
 - sdp shown by running it: [specs/GUIDE.feature](specs/GUIDE.feature)
 - a small product specified with it, file by file: [examples/shop](examples/shop/README.md)
 - why it exists: [specs/VISION.feature](specs/VISION.feature)
-- what every command promises: [specs/features/use-the-command-line.feature](specs/features/use-the-command-line.feature)
+- what every command promises: [specs/features/adopt/use-the-command-line.feature](specs/features/adopt/use-the-command-line.feature)
 - how to work with it, for agents and people: [the skill](.claude/skills/sdp/SKILL.md), which
   `sdp init` writes into a repository of your own beside its `sdp.config.yaml`

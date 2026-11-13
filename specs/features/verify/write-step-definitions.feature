@@ -829,3 +829,18 @@ Feature: Write step definitions
       When I run "sdp run --json"
       Then the JSON output has:
         | data.summary.passed | 1 |
+
+  @maturity=idea
+  Rule: A step definition can be scoped to an area, so that two areas say the same words and mean steps of their own
+
+    Each bounded context of a large codebase speaks its own language, and one registry for all of them
+    makes the same words ambiguous.
+
+  @open @maturity=idea
+  Rule: Is a step matched only by a definition of its own kind — Given, When or Then — though every step is matched against every definition today?
+
+  @maturity=idea
+  Rule: A step module defines parameter types of its own, such as an id, and steps lists them
+
+  @maturity=idea
+  Rule: A step module says what runs after each scenario, passed or failed, to clean up what its steps made

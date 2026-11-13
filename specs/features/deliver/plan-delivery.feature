@@ -375,7 +375,6 @@ Feature: Plan delivery
 
     A feature is written in one iteration and built in another, and a gate has to tell the two apart.
 
-    @replaces:plan-delivery#a-feature-and-an-element-in-it-prototype
     Scenario: A feature and an environment in IT-prototype
       When the lifecycle is computed
       Then the planned activity is:
@@ -1147,8 +1146,36 @@ Feature: Plan delivery
   @maturity=draft
   Rule: An iteration whose planned work saw no change stands out
 
-  @open @maturity=draft
-  Rule: Are phases and disciplines optional, with a plain sequence of iterations by default?
+  @maturity=specified
+  Rule: lifecycle --brief prints the milestone, the work planned now and its open questions within 2,000 characters, and says what it left out
 
-    The shape of the Rational Unified Process came from an example, not a need, and this repository
-    uses neither. The case for phases: a backlog says nothing of the architecture being proven first.
+    It is what an agent is told at the start of a session, so it is bounded by what a hook may add.
+
+  @maturity=specified @decided-by:areas-for-reading-epics-for-work
+  Rule: An epic is plan, as a milestone is: no discipline names it by default, so it declares no maturity and needs no rule
+
+    Scenario: An epic that only names its work
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=idea
+        Feature: Wishlist
+        """
+      And a file "specs/saving.feature" containing:
+        """
+        @id=saving @kind=epic @includes:wishlist
+        Feature: Saving for later
+        """
+      When I run "sdp check"
+      Then the exit code is 0
+      And the output contains "0 error(s)"
+
+  @maturity=idea @decided-by:areas-for-reading-epics-for-work
+  Rule: An epic names the work it groups, and lifecycle shows each epic with where each of its items stands
+
+    An epic is plan, as a milestone is: it is no work, so it has no maturity or stage of its own, and
+    what it says of its work is derived from that work.
+
+  @maturity=idea
+  Rule: An epic whose every item is live is pointed out, to be deleted
+
+    What it grouped is built, and its scenarios are the record; how it was grouped is git's.

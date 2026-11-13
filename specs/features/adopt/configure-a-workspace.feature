@@ -135,7 +135,6 @@ Feature: Configure a workspace
         | TODO-1          | feature   |
         | checkout        | feature   |
 
-    @replaces:configure-a-workspace#the-default-prefixes-and-two-that-are-none
     Scenario Outline: The default prefixes of the architecture, named by work still to come
       Given these specs:
         | tags                                        | Feature |
@@ -326,7 +325,6 @@ Feature: Configure a workspace
     ladder is the order in which a query compares maturities and stages. A value off the ladder is
     below every rung, so a question for what has not come far enough finds it.
 
-    @replaces:configure-a-workspace#a-ladder-of-sketch-agreed-and-done
     Scenario: A ladder of sketch, agreed and estimated
       Given a file "sdp.config.yaml" containing:
         """

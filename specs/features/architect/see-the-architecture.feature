@@ -81,7 +81,6 @@ Feature: See the architecture
     decision only named in a description is not linked, and one linked further away — to a
     feature that depends on that one — shaped that other feature, not the element.
 
-    @replaces:see-the-architecture#elements-and-patterns-from-specs-and-code-with-the-decisions-and
     Scenario: Elements and patterns from code, with the decisions and quality requirements that shaped them, and the links among them
       When I run "sdp arch --json"
       Then the exit code is 0
@@ -96,7 +95,6 @@ Feature: See the architecture
 
     It is named by its id, unless an anchor gives it a title.
 
-    @replaces:see-the-architecture#one-element-described-by-its-spec-one-by-its-code-one-by-its
     Scenario: Elements described by their code, and one by its links alone
       When I run "sdp arch"
       Then the exit code is 0
@@ -699,7 +697,6 @@ Feature: See the architecture
     A quality requirement is tested with the rest of what it constrains, as the receipts' delivery
     time is in the view above.
 
-    @replaces:see-the-architecture#marked-by-its-kind-or-by-its-type
     Scenario Outline: A rule marked by <value>
       Given a file "sdp.config.yaml" containing:
         """
@@ -737,7 +734,6 @@ Feature: See the architecture
 
     Declaring it is the architect's call, not a rule sdp can hold anyone to.
 
-    @replaces:see-the-architecture#an-element-without-links-or-code-and-a-decision-nothing-links-to
     Scenario: An element only its code names, and a decision nothing links to
       When the workspace is checked
       Then sdp reports nothing

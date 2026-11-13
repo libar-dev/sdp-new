@@ -413,7 +413,6 @@ Feature: Ask the graph
     A program gets it as a Promise from `sdp`, so asking a question needs no Effect; a program written
     with Effect gets the same use case as an Effect from `sdp/effect`, on a file system of its choosing.
 
-    @replaces:ask-the-graph#which-specs-depend-on-billing-three-ways
     Scenario: What imports billing, three ways
       When I run "sdp q '#ARCH-billing <-imports- *'"
       Then the exit code is 0
@@ -566,12 +565,12 @@ Feature: Ask the graph
       Then the median run completes within 1000 ms
 
   @maturity=draft @iteration:IT-scale @replaces:ask-the-graph#questions-stay-interactive-on-workspaces-far-larger-than-a
-  Rule: A question on 5,000 specs and 20,000 source files on disk answers within budget
+  Rule: A question on 5,000 specs and 20,000 source files on disk answers within a second, the median of warm runs
 
     The rule it replaces measures the graph in memory, but every question also reads the workspace
     from disk: in a monorepo the reading alone could make agents stop asking and start guessing.
 
-  @open @maturity=draft @iteration:IT-scale
-  Rule: Which budget, and measured with a cold or a warm file system cache?
+  @maturity=idea
+  Rule: An answer names the commit it was read at, and says when the files differ from it
 
-    Proposed: one second, warm; a cold cache measures the disk more than sdp.
+    An agent that compares two answers must know whether they read the same thing.

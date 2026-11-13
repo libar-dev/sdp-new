@@ -274,7 +274,6 @@ Feature: Start a spec
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
 
-  @replaces:start-a-spec#a-new-spec-s-id-is-an-ascii-slug-of-its-title-or-a-number-after
   Rule: A new spec's id is the slug of its title, as a rule's is of its name, or a number, after its kind's prefix where it has one, and its file is named by it
 
     An id says what it names, so whoever reads a message that cites it needs no lookup. What a spec

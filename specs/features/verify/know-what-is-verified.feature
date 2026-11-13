@@ -126,7 +126,6 @@ Feature: Know what is verified
       And node "wishlist#share-the-list" has attribute status = "unrun"
       And node "wishlist" has attribute stage = "in-progress"
 
-    @replaces:know-what-is-verified#verification-orders-from-none-to-passing-so-a-query-can-ask-for
     Scenario: The stage orders work still to come below live work, so a query can ask for everything short of verified
       Given these specs:
         | tags                        | Feature  |
