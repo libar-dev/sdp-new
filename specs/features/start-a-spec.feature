@@ -165,6 +165,29 @@ Feature: Start a spec
         | as sdp has it                           | # every key at its default                 | 1         | a change is rules of the feature it changes: write each as a `Rule:` in that feature's file |
         | in a workspace with a kind of that name | vocabulary: { words: { kinds: [change] } } | 0         | specs/change/shared-carts.feature                                                           |
 
+  Rule: A kind named like a maturity is refused, and the answer says how to start a feature at it
+
+    How far work has come is its maturity, never its kind: a spec of kind idea would be work of no
+    discipline, and never the feature that was meant. A team that has a kind of that name keeps it.
+
+    Scenario Outline: sdp new <kind>, <where>
+      Given a file "sdp.config.yaml" containing:
+        """
+        <config>
+        """
+      When I run "sdp new <kind> 'Gift wrapping'"
+      Then the exit code is <exit code>
+      And the output contains '<answer>'
+
+      Examples:
+        | kind   | where                                         | config                                     | exit code | answer                                                                                                                   |
+        | idea   | the first rung                                | # every key at its default                 | 1         | idea is a maturity, not a kind: sdp new feature "Gift wrapping" writes a feature at idea, the first rung                 |
+        | ready  | a rung above it                               | # every key at its default                 | 1         | ready is a maturity, not a kind: sdp new feature "Gift wrapping" --maturity ready writes a feature at ready              |
+        | sketch | the first rung of a ladder of the team's own  | vocabulary: { maturity: [sketch, agreed] } | 1         | sketch is a maturity, not a kind: sdp new feature "Gift wrapping" writes a feature at sketch, the first rung             |
+        | idea   | no rung of a ladder of the team's own         | vocabulary: { maturity: [sketch, agreed] } | 0         | specs/idea/gift-wrapping.feature                                                                                         |
+        | done   | a word for built work                         | # every key at its default                 | 1         | done says the work is built, so it is no kind: sdp new feature "Gift wrapping" writes a feature still to come, at idea   |
+        | idea   | in a workspace with a kind of that name       | vocabulary: { words: { kinds: [idea] } }   | 0         | specs/idea/gift-wrapping.feature                                                                                         |
+
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 
     Kinds are the team's own words, not a list sdp keeps: a kind without a template gets a spec with

@@ -78,8 +78,8 @@ const unusable = (input: CreateInput): string | undefined =>
 
 /**
  * `sdp new`: a spec from a template, or for an element only its id, since its code declares it.
- * Refuses input it cannot make a file of, a change, which is rules of a feature, an id or a file
- * that exists, and a spec that would not read back.
+ * Refuses input it cannot make a file of, a change, which is rules of a feature, a kind named like
+ * a maturity, an id or a file that exists, and a spec that would not read back.
  */
 export const create = Effect.fn("create")(function*(root: string, input: CreateInput) {
   const reason = unusable(input)

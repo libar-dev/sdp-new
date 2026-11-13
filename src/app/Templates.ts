@@ -10,7 +10,7 @@ import { Duration, Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, idForm, isWork, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, idForm, isWork, saysBuilt, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -80,8 +80,9 @@ export interface NewSpec {
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
  * workspace root unless `dir` is absolute. `sdp new element` or `sdp new pattern` writes no file:
  * only the id its code declares, and how.
- * Fails, with the reason, for a change, which is rules of the feature it changes unless the
- * workspace names a kind `change` of its own, for a maturity asked of a kind that is no work, and
+ * Fails, with the reason, for a change, which is rules of the feature it changes, and for a kind
+ * named like a rung of the ladder or a word for built work, which is a maturity — each unless the
+ * workspace names a kind of that name — for a maturity asked of a kind that is no work, and
  * when the content would not read back with its id, kind and title: the id of an element or a
  * pattern is read back too, though it has no file.
  */
@@ -108,6 +109,19 @@ export const newSpec = (options: {
   if (kind === "change" && !vocabularyWords(vocabulary).kinds.includes(kind)) {
     return Result.fail(
       `a change is rules of the ${feature} it changes: write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
+    )
+  }
+  // How far work has come is its maturity, never its kind, unless the workspace names a kind of that name.
+  const first = vocabulary.maturity[0]!
+  const built = saysBuilt(kind)
+  if ((vocabulary.maturity.includes(kind) || built !== undefined) && !vocabularyWords(vocabulary).kinds.includes(kind)) {
+    const start = `sdp new ${feature} ${JSON.stringify(title)}`
+    return Result.fail(
+      built !== undefined
+        ? `${built}, so it is no kind: ${start} writes a ${feature} still to come, at ${first}, the first rung`
+        : kind === first
+        ? `${kind} is a maturity, not a kind: ${start} writes a ${feature} at ${kind}, the first rung`
+        : `${kind} is a maturity, not a kind: ${start} --maturity ${kind} writes a ${feature} at ${kind}`
     )
   }
   // Only work is still to come at a maturity: one asked for any other kind would not be written.
