@@ -399,10 +399,7 @@ export const readImports = Effect.fn("readImports")(function*(root: string, impo
     const found = where.get(file)
     if (to !== undefined) return Effect.succeed(found?.at === to ? [{ path: entry, content: "" }] : [])
     if (path.basename(file) === packageFile) {
-      return fs.readFileString(path.resolve(real, file)).pipe(
-        Effect.map((content) => [{ path: file, content: howNodeLoads(content) }]),
-        Effect.orElseSucceed(() => [])
-      )
+      return fs.readFileString(path.resolve(real, file)).pipe(Effect.map((content) => [{ path: file, content }]), Effect.orElseSucceed(() => []))
     }
     // One sdp may not read is no file it can compare: as gone.
     return found?.at === file && found.type === "File"
@@ -562,28 +559,11 @@ const loadedSources = new Map<string, string>()
 const packagesOf = new Map<string, Set<string>>()
 const packageSources = new Map<string, string | undefined>()
 
-/**
- * What of a package.json decides how Node loads the code below it — its `name`, `type`, `main`,
- * `imports` and `exports`, with all they hold — as text: a script or a description decides nothing.
- * One that does not parse is all it holds, for Node fails on it.
- */
-const howNodeLoads = (content: string): string => {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(content)
-  } catch {
-    return content
-  }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return content
-  const fields = parsed as Record<string, unknown>
-  return JSON.stringify(["name", "type", "main", "imports", "exports"].map((key) => [key, Object.hasOwn(fields, key) ? fields[key] : null]))
-}
-
-/** What a package.json held when this process first read it, as far as it decides how Node loads code: `undefined` where there was none. */
+/** What a package.json held when this process first read it: `undefined` where there was none. */
 const readPackage = (file: string): string | undefined => {
   if (!packageSources.has(file)) {
     try {
-      packageSources.set(file, howNodeLoads(readFileSync(file, "utf8")))
+      packageSources.set(file, readFileSync(file, "utf8"))
     } catch {
       packageSources.set(file, undefined)
     }

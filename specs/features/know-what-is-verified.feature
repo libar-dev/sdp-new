@@ -680,44 +680,37 @@ Feature: Know what is verified
         | maps an import elsewhere   | package.json     | { "type": "module", "imports": { "#lamps": "./lib/two.ts" } } | the cart holds 2                         |
         | is written nearer the code | lib/package.json | { "type": "commonjs" }                                        | does not provide an export named 'lamps' |
 
-    Scenario: A package.json the step definitions were loaded by, edited where it decides nothing of how Node loads them
+    Scenario: A package.json the step definitions import as JSON, its version changed
       Given a file "package.json" containing:
         """
-        { "name": "shop", "type": "module", "imports": { "#lamps": "./lib/one.ts" } }
-        """
-      And a file "lib/one.ts" containing:
-        """
-        export const lamps = 1
+        { "name": "shop", "type": "module", "version": "1.0.0" }
         """
       And a file "specs/steps/cart.steps.ts" containing:
         """
         import { defineSteps } from "sdp/steps"
-        import { lamps } from "#lamps"
+        import shop from "../../package.json" with { type: "json" }
 
         export default defineSteps(() => ({}), ({ Step }) => {
           Step("an empty cart", () => {})
           Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
-            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          Step("the cart holds {int} item(s)", () => {
+            if (shop.version !== "1.0.0") throw new Error(`the shop is at ${shop.version}`)
           })
         })
         """
       When I run "sdp run"
       Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 0
       Given a file "package.json" containing:
         """
-        {
-          "imports": { "#lamps": "./lib/one.ts" },
-          "name": "shop",
-          "description": "A shop",
-          "scripts": { "test": "sdp run" },
-          "type": "module"
-        }
+        { "name": "shop", "type": "module", "version": "2.0.0" }
         """
-      When I run "sdp q 'scenario[status=stale]' --ids"
-      Then the output lines are ""
       When I run "sdp q 'feature[stage=verified]' --ids"
-      Then the output lines are "cart"
+      Then the output lines are ""
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "the shop is at 2.0.0"
 
   Rule: A file a handler imports only while it runs is part of what its result ran against
 
