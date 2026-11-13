@@ -78,8 +78,22 @@ Feature: A change to sdp is done when everything built is verified
 
     What AGENTS.md asks of every agent then holds without anyone remembering it.
 
-  @maturity=idea
   Rule: CI runs npm run verify for every pull request and every push to main
+
+    What one machine verified is verified again where everyone sees the result, before a change is
+    merged and once it is on main.
+
+    Scenario: The workflow every pull request and every push to main runs
+      When the file ".github/workflows/verify.yml" in the repository is read as data
+      Then the JSON output has:
+        | on.pull_request                       | null                     |
+        | on.push                               | {"branches":["main"]}    |
+        | jobs.verify.steps.1.with.node-version | 24                       |
+        | jobs.verify.steps.2                   | {"run":"npm ci"}         |
+        | jobs.verify.steps.3                   | {"run":"npm run verify"} |
+      And the JSON output has none of these fields:
+        | jobs.verify.if                |
+        | jobs.verify.continue-on-error |
 
   @maturity=idea
   Rule: A commit runs sdp check and a push runs npm run verify, through git hooks that npm install sets up

@@ -22,7 +22,7 @@ import * as NodeServices from "@effect/platform-node/NodeServices"
 import { newSpec } from "../../src/app/Templates.ts"
 import { loadProject } from "../../src/workspace/Workspace.ts"
 import { assertRows, ids, load, newWorld, node, produce, reload, reportRow, setFile, show, type World } from "./world.ts"
-import { directoryOf, exec, repository, workspace } from "./process.ts"
+import { directoryOf, execute, repository, workspace } from "./process.ts"
 
 const reported = (world: World) => {
   assert.ok(world.reported, "nothing was parsed, loaded, checked or scanned yet")
@@ -260,17 +260,18 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     produce(world, JSON.stringify(await Api.query(await workspace(world), { expression }), null, 2))
   })
 
-  When("a program decodes every record of {string} in the repository with the package's record schema", async ({ args: [command], project, world }) => {
-    const result = await exec(command, project.root)
-    assert.equal(result.code, 0, `${command} exited ${result.code}: ${result.stderr}`)
-    const lines = result.stdout.trimEnd().split("\n")
-    assert.ok(lines.length > 0 && lines[0] !== "", "the command printed no records")
-    const decode = Schema.decodeUnknownResult(Schema.fromJsonString(EffectApi.GraphRecord))
-    world.scratch.recordFailures = lines.flatMap((line, index) => {
-      const record = decode(line)
-      return Result.isFailure(record) ? [`line ${index + 1}: ${record.failure.message}`] : []
-    })
-  })
+  When("a program decodes every record of {string} in the repository with the package's record schema", ({ args: [command], project, world }) =>
+    Effect.gen(function*() {
+      const result = yield* execute(command, project.root)
+      assert.equal(result.code, 0, `${command} exited ${result.code}: ${result.stderr}`)
+      const lines = result.stdout.trimEnd().split("\n")
+      assert.ok(lines.length > 0 && lines[0] !== "", "the command printed no records")
+      const decode = Schema.decodeUnknownResult(Schema.fromJsonString(EffectApi.GraphRecord))
+      world.scratch.recordFailures = lines.flatMap((line, index) => {
+        const record = decode(line)
+        return Result.isFailure(record) ? [`line ${index + 1}: ${record.failure.message}`] : []
+      })
+    }))
 
   Then("no record fails to decode", ({ world }) => {
     assert.ok(world.scratch.recordFailures, "no records were decoded")

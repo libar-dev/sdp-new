@@ -1,17 +1,33 @@
 /**
  * Running scenarios in memory: step definitions a scenario scripts (what they match, how they
- * behave, which module and world they belong to), the run, and what it recorded for each step.
+ * behave, which module and world they belong to) or this repository's own, the run, and what it
+ * recorded for each step.
  */
 import { Effect } from "effect"
 import { strict as assert } from "node:assert"
+import { join } from "node:path"
+import { pathToFileURL } from "node:url"
 import { defineSteps, pending, type StepContext, type StepModule, type StepOutcome } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { runWorkspace } from "../../src/app/Running.ts"
 import { isDeepStrictEqual } from "node:util"
+import type { Project } from "../../src/graph/Build.ts"
 import type { StepResult } from "../../src/model/Results.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
+import { isStepModule } from "../../src/run/Steps.ts"
 import { readResults } from "../../src/run/Store.ts"
 import { newWorld, reload, type World } from "./world.ts"
+
+/**
+ * The step modules of this repository's step files, as the run of this scenario loaded them: a
+ * process imports a module once, so these are the very modules that run its scenarios.
+ */
+export const repositoryModules = async (project: Project): Promise<ReadonlyArray<StepModule<any>>> => {
+  const loaded = await Promise.all(
+    project.steps.files.map((file) => import(pathToFileURL(join(project.root, file)).href) as Promise<Record<string, unknown>>)
+  )
+  return [...new Set(loaded.flatMap((exports) => Object.values(exports).filter(isStepModule)))]
+}
 
 /** A step definition a scenario asks for: what it matches, how it behaves, and where it lives. */
 export interface Scripted {
@@ -98,10 +114,12 @@ const scriptedSteps = (
 interface Execution extends Log {
   /** Module and world of `world.definitions[i]`, when a scenario names them. */
   readonly placements: Array<{ readonly module: string; readonly world: string } | undefined>
+  /** This repository's step modules, when the scenario runs the workspace with them. */
+  repository: ReadonlyArray<StepModule<any>>
 }
 
 const execution = (world: World): Execution =>
-  (world.scratch.execution ??= { placements: [], received: [], timeline: [], aborted: [] }) as Execution
+  (world.scratch.execution ??= { placements: [], received: [], timeline: [], aborted: [], repository: [] }) as Execution
 
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))
@@ -127,7 +145,7 @@ interface RunInMemory {
 /** What `sdp run [targets] [--tags]` does — selection, ordinary scenarios, then gates — on the in-memory workspace. */
 const runInMemory = (world: World, options: RunInMemory = {}) =>
   Effect.gen(function*() {
-    const modules = [builtinSteps, ...scriptedSteps(scripted(world), execution(world))]
+    const modules = [builtinSteps, ...execution(world).repository, ...scriptedSteps(scripted(world), execution(world))]
     const { concurrency, ...selection } = options
     const run = yield* runWorkspace(memoryRoot, { modules, selection, concurrency })
     world.run = run.results
@@ -162,6 +180,11 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     }
     const [module, factory, expression, behaviour] = ["module", "world", "expression", "behaviour"].map(column) as [number, number, number, number]
     for (const row of rows) define(world, { module: row[module]!, world: row[factory]!, expression: row[expression]!, behaviour: row[behaviour]! })
+  })
+
+  // A scenario of the workspace then runs as one of this repository's would, with the same steps.
+  Given("the step definitions of this repository", async ({ project, world }) => {
+    execution(world).repository = await repositoryModules(project)
   })
 
   When("the workspace is run", ({ world }) => runInMemory(world))
