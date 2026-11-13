@@ -22,7 +22,7 @@ Feature: Write a spec
     Scenario: Every part of the format in one feature
       Given a file "specs/guest-checkout.feature" containing:
         """
-        @id=guest-checkout @maturity=specified @checkout   # what it is: = describes; a bare tag is a tag
+        @id=guest-checkout @maturity=specified @checkout   # what it is: = describes; a bare tag is a Cucumber tag
         @refines:checkout @realized-by:ARCH-orders         # what it links to: one tag, one link
         @iteration:IT-payments @activity.implementation:IT-launch   # when it is written, when it is built
         Feature: Guest checkout
@@ -250,8 +250,8 @@ Feature: Write a spec
       When the workspace is loaded
       Then sdp reports:
         | rule       | severity | line | message                                                       |
-        | annotation | error    | 6    | @maturity=draft: only a Feature or a Rule declares a maturity |
-        | annotation | error    | 10   | @maturity=idea: only a Feature or a Rule declares a maturity  |
+        | tag-syntax | error    | 6    | @maturity=draft: only a Feature or a Rule declares a maturity |
+        | tag-syntax | error    | 10   | @maturity=idea: only a Feature or a Rule declares a maturity  |
       And node "pay#card" has attribute toCome = "undefined"
 
   Rule: Work still to come names the live rule or feature it replaces
@@ -728,6 +728,46 @@ Feature: Write a spec
         | rule             | severity | line | message                                                                               |
         | question-example | error    | 14   | explorer#a-static-export-or-a-local-server is an open question, so it has no examples |
 
+  Rule: An open question in a live feature is about what is built, unless it declares a maturity, which makes it one about work still to come
+
+    So a gate can ask that nothing built is still undecided, while the questions of work still to
+    come wait for that work.
+
+    Scenario: A question about the live cart, one about a rule of it still to come, and one about a wishlist still to come
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @open
+          Rule: Does a cart expire?
+
+          @open @maturity=idea
+          Rule: Can a cart be shared with a friend?
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=draft
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          @open
+          Rule: Is a wishlist public?
+        """
+      When the workspace is loaded
+      And I query "*[!toCome] <-rule-of- rule[tags=@open][!maturity]"
+      Then the result is "cart#does-a-cart-expire"
+      And node "cart#can-a-cart-be-shared-with-a-friend" has attribute stage = "idea"
+      And node "wishlist#is-a-wishlist-public" has attribute stage = "draft"
+
   Rule: A scenario runs the Feature's Background, then its Rule's, then its own steps, each at the line it is written on
 
     As Cucumber runs it, so a step that fails is reported at the line it is written on, in the
@@ -784,11 +824,11 @@ Feature: Write a spec
       When the workspace is loaded
       Then node "vat#vat-by-country" has attribute examples = "3"
 
-  Rule: An annotation that cannot mean what it says is an error at its line, and neither a fact nor a tag
+  Rule: A tag that cannot mean what it says is an error at its line, and neither a fact, a link nor a Cucumber tag
 
     Its author meant a fact or a link, so it is not quietly read as a Cucumber tag instead.
 
-    Scenario Outline: A list in one tag, a second id, an id that links, a key that is a value and a map, a key that names nothing, an id below the Feature, an annotation on Examples
+    Scenario Outline: A list in one tag, a second id, an id that links, a key that is a value and a map, a key that names nothing, an id below the Feature, a fact on Examples
       Given a file "specs/pay.feature" containing:
         """
         @id=pay <feature>
@@ -809,23 +849,23 @@ Feature: Write a spec
       When "specs/pay.feature" is parsed
       Then sdp reports:
         | rule       | severity | line   | message   |
-        | annotation | error    | <line> | <message> |
+        | tag-syntax | error    | <line> | <message> |
       And the executable tags of "pay#card" are "@feature"
 
       Examples:
-        | feature                     | rule        | scenario    | examples         | line | message                                     |
-        | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link              |
-        | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                |
-        | @id=pay#card                |             |             |                  | 1    | @id=pay#card: a spec's id holds no #        |
-        | @id=pay(card)               |             |             |                  | 1    | @id=pay(card): pay(card) is no id           |
-        | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =    |
-        | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map    |
-        | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing   |
-        |                             | @1st=ok     |             |                  | 4    | @1st=ok: this key names nothing             |
-        |                             |             | @:b         |                  | 7    | @:b: this key names nothing                 |
-        |                             | @id=payment |             |                  | 4    | @id=payment: only a Feature says what it is |
-        |                             |             | @kind=story |                  | 7    | @kind=story: only a Feature says what it is |
-        |                             |             |             | @browser=firefox | 11   | an annotation on Examples is about no node  |
+        | feature                     | rule        | scenario    | examples         | line | message                                       |
+        | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link                |
+        | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                  |
+        | @id=pay#card                |             |             |                  | 1    | @id=pay#card: a spec's id holds no #          |
+        | @id=pay(card)               |             |             |                  | 1    | @id=pay(card): pay(card) is no id             |
+        | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =      |
+        | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map      |
+        | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing     |
+        |                             | @1st=ok     |             |                  | 4    | @1st=ok: this key names nothing               |
+        |                             |             | @:b         |                  | 7    | @:b: this key names nothing                   |
+        |                             | @id=payment |             |                  | 4    | @id=payment: only a Feature says what it is   |
+        |                             |             | @kind=story |                  | 7    | @kind=story: only a Feature says what it is   |
+        |                             |             |             | @browser=firefox | 11   | a fact or a link on Examples is about no node |
 
   Rule: A file the parser cannot read is an error at the line where it stopped, and no spec until it parses
 

@@ -66,7 +66,7 @@ Feature: Run specs as tests
   Rule: An example of work still to come runs, and fails no run
 
     It is the acceptance test of what is not built yet, written before its code and kept on the main
-    line. Its stage stays the maturity it declares; its verification is what its examples did.
+    line. Its stage stays the maturity it declares, whatever its examples did.
 
     Scenario Outline: An example of a feature at specified that <outcome>
       Given a file "specs/wishlist.feature" containing:
@@ -123,7 +123,7 @@ Feature: Run specs as tests
       Examples:
         | maturity                 |
         | someday                  |
-        | verified                 |
+        | draft                    |
         | ready @maturity=someday  |
 
   Rule: A run fails when a live example it ran does not pass
@@ -740,10 +740,11 @@ Feature: Run specs as tests
         | sdp gate MS-beta | specs/shop/search.feature | @id=search\nFeature: Search again                                                                                                 | 1    | duplicate-id          |
         | sdp run          | specs/wishlist.feature    | @id=wishlist @iteration=IT-beta\nFeature: Wishlist                                                                                | 1    | link-syntax           |
         | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Scenario: Outside\n    Then there are no error diagnostics                                     | 3    | scenario-outside-rule |
-        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Rule: Kept\n    @maturity=draft\n    Scenario: Keep\n      Then there are no error diagnostics | 4    | annotation            |
+        | sdp run          | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  Rule: Kept\n    @maturity=draft\n    Scenario: Keep\n      Then there are no error diagnostics | 4    | tag-syntax            |
         | sdp gate MS-beta | specs/wishlist.feature    | @id=wishlist\nFeature: Wishlist\n  @open\n  Rule: Kept?\n    Scenario: Keep\n      Then there are no error diagnostics            | 5    | question-example      |
 
-    Scenario Outline: A spec that declares the retired rung, for <command>
+    @replaces:run-specs#a-spec-that-declares-the-retired-rung-for-command
+    Scenario Outline: A spec whose maturity says it is built, for <command>
       Given a file "specs/MS-beta.feature" containing:
         """
         @id=MS-beta
@@ -766,13 +767,13 @@ Feature: Run specs as tests
         """
       When I run "<command>"
       Then the exit code is 1
-      And the output contains "specs/wishlist.feature:1 [retired-maturity]"
+      And the output contains "specs/wishlist.feature:1 [maturity-says-built]"
       And the file ".sdp/results.json" does not exist
 
       Examples:
         | command          | rung        |
         | sdp run          | implemented |
-        | sdp gate MS-beta | implemented |
+        | sdp gate MS-beta | done        |
 
     Scenario: A path the code globs match that is no file, which is in no spec
       When I run "sh -c 'mkdir src && ln -s nowhere.ts src/gone.ts'"

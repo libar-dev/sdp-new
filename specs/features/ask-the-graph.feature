@@ -447,9 +447,9 @@ Feature: Ask the graph
         | {"type":"node","id":"gone","kind":"missing","title":"gone","file":null,"line":null,"attrs":{}}                                                                                                                 |
         | {"type":"edge","from":"alpha","rel":"realized-by","to":"ARCH-ledger","declared":[{"file":"specs/alpha.feature","line":1},{"file":"specs/alpha.feature","line":2}]}                                  |
         | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"spec":"alpha","description":"Its reason runs |
-        | over two lines.","scenarios":1,"verification":"unrun","stage":"idea","toCome":true}} |
+        | over two lines.","scenarios":1,"stage":"idea","toCome":true}} |
         | {"type":"edge","from":"alpha#first","rel":"verifies","to":"alpha#alpha-comes-first","declared":[{"file":"specs/alpha.feature","line":10}]}                                                          |
-        | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"specs/ARCH-ledger.feature","line":1,"attrs":{"owner":{"team":"core"},"file":"specs/ARCH-ledger.feature","scenarios":0,"verification":"none"}}                 |
+        | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"specs/ARCH-ledger.feature","line":1,"attrs":{"owner":{"team":"core"},"file":"specs/ARCH-ledger.feature","scenarios":0}}                 |
 
     Scenario: Every node first, then every link
       When I run the pipeline:

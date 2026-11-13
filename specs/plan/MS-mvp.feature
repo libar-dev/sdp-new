@@ -18,8 +18,6 @@ Feature: Minimum viable product
 
   Rule: Nothing built is still undecided
 
-    A question about live work declares no maturity of its own; one about work still to come declares one.
-
     Scenario: Open questions about what is built
       Then the query "rule[tags=@open][!maturity] -rule-of-> *[!toCome]" returns no results
 

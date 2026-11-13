@@ -580,12 +580,11 @@ export const stageLadder = (vocabulary: Vocabulary): Ladder => [
 
 const maturityLadder = (vocabulary: Vocabulary): Ladder => vocabulary.maturity.map((level) => [level])
 
-/** The orderings every project uses: the maturity ladder, the stage ladder and the verification ladder. */
+/** The orderings every project uses: the maturity ladder and the stage ladder. */
 export const projectOrderings = (vocabulary: Vocabulary): ReadonlyMap<string, Ladder> =>
   new Map([
     ["maturity", maturityLadder(vocabulary)],
-    ["stage", stageLadder(vocabulary)],
-    ["verification", ["none", "unrun", "undefined", "partial", "failing", "passing"].map((value) => [value])]
+    ["stage", stageLadder(vocabulary)]
   ])
 
 /** How a project's graph is queried: with its ladders. */

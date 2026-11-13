@@ -171,7 +171,7 @@ Feature: sdp, shown by running it
     So grep finds a thing under one name, and an id says what kind of thing it is.
 
     Scenario: A word this repository replaced does not come back
-      When I run "grep -rnE '[Mm]aturity gates?|NFR[s]|(draft|specified|ready).? gate|@kind=chang[e]|@change[s]:|incomin[g]/|maturity=implemente[d]|maturity-(criteri[a]|promotabl[e]|missin[g]|valu[e])' README.md AGENTS.md .claude specs src examples" in the repository
+      When I run "grep -rnE '[Mm]aturity gates?|NFR[s]|(draft|specified|ready).? gate|@kind=chang[e]|@change[s]:|incomin[g]/|maturity=implemente[d]|maturity-(criteri[a]|promotabl[e]|missin[g]|valu[e])|retired-maturit[y]|verificatio[n][^-a-z]|\[annotatio[n]\]|[|] annotatio[n] +[|]|Annotations are not tag[s]' README.md AGENTS.md .claude specs src examples" in the repository
       Then the exit code is 1
 
     Scenario Outline: An id with a prefix is of that prefix's kind, and the other way round
@@ -206,7 +206,7 @@ Feature: sdp, shown by running it
   Rule: Everything that is built is verified, and npm run verify fails when it is not
 
     A run fails on a live example that does not pass; this gate also catches one that did not run,
-    so it runs with every verification, not only at a milestone. A live rule beside rules still to
+    so it runs with every `npm run verify`, not only at a milestone. A live rule beside rules still to
     come is built work too.
 
     @gate

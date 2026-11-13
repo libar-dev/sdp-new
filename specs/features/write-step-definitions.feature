@@ -267,7 +267,7 @@ Feature: Write step definitions
       Then the step "an empty cart" has status "ambiguous"
       And node "cart#add-an-item" has attribute status = "ambiguous"
       And the step "an empty cart" reports "matches 2 definitions"
-      And node "cart" has attribute verification = "failing"
+      And node "cart" has attribute stage = "failing"
 
     Scenario Outline: After a step that does not pass the rest are skipped but still matched, and the scenario takes the worst status
       Given a step definition "an empty cart" that <first step>

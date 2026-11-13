@@ -1,7 +1,7 @@
 /**
  * Executes scenarios. A step with no matching definition is `undefined`, not
  * a failure: that is how a specification of something not yet built looks.
- * Statuses then roll up into each spec's `verification` and `stage`.
+ * Statuses then roll up into each spec's and rule's `stage`.
  */
 import { Cause, DateTime, Duration, Effect, Exit, Fiber, Predicate, Queue, Schema } from "effect"
 import type { Project } from "../graph/Build.ts"

@@ -1,5 +1,5 @@
 import { Duration, Option, Result, Schema } from "effect"
-import { defaultDisciplines, defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
+import { defaultDisciplines, defaultVocabulary, isKey, isValueWord, made, reservedRelations, saysBuilt, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
@@ -16,6 +16,7 @@ const VocabularyFile = Schema.Struct({
     iteration: Schema.optional(Words),
     pattern: Schema.optional(Words),
     architectural: Schema.optional(Words),
+    architecture: Schema.optional(Words),
     driver: Schema.optional(Words),
     anchored: Schema.optional(Word)
   })),
@@ -263,7 +264,7 @@ export const readTimeout = (input: Duration.Input | string): Result.Result<Durat
 
 /**
  * What a configuration must satisfy beyond its shape, each problem at its path: a vocabulary sdp
- * can work with, a maturity ladder of distinct levels that cannot be mistaken for a derived stage,
+ * can work with, a maturity ladder of distinct levels none of which says the work is built,
  * id prefixes that kind inference reads back (letters only, one kind each, none of a kind sdp makes
  * itself), and a timeout that is a duration.
  */
@@ -277,19 +278,11 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
     if (ladder.length === 0) issues.push({ path: ["vocabulary", "maturity"], issue: "the maturity ladder needs at least one level" })
     const repeated = ladder.filter((level, index) => ladder.indexOf(level) !== index)
     if (repeated.length > 0) issues.push({ path: ["vocabulary", "maturity"], issue: `levels must be distinct: ${repeated.join(", ")} repeats` })
-    const stages: ReadonlyArray<string> = Object.values(made.stages)
-    const derived = ladder.filter((level) => stages.includes(level))
-    if (derived.length > 0) {
-      issues.push({
-        path: ["vocabulary", "maturity"],
-        issue: `${derived.join(", ")} is a stage sdp derives from scenario results, so it cannot be declared as a maturity`
-      })
-    }
-    if (ladder.includes(retiredMaturity)) {
-      issues.push({
-        path: ["vocabulary", "maturity"],
-        issue: `${retiredMaturity} is the retired rung: what is built declares no maturity, so no rung can say so`
-      })
+    for (const level of ladder) {
+      const built = saysBuilt(level)
+      if (built !== undefined) {
+        issues.push({ path: ["vocabulary", "maturity"], issue: `${built}: what is built declares no maturity, so no rung can say so` })
+      }
     }
   }
   const madeKinds: ReadonlyArray<string> = Object.values(made.kinds)

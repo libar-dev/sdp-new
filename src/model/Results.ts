@@ -1,8 +1,7 @@
 /**
  * What `sdp run` records: the result of each scenario and the evidence it rests
- * on, as stored in the results file, and how scenario statuses roll up into a
- * spec's verification. Plain data: the runner writes it, the graph builder
- * reads it.
+ * on, as stored in the results file. Plain data: the runner writes it, the
+ * graph builder reads it.
  *
  * @sdp is ARCH-graph
  */
@@ -98,22 +97,6 @@ export const worstStatus = (statuses: Iterable<StepStatus>): StepStatus => {
     if (rank[status] < rank[worst]) worst = status
   }
   return any ? worst : "skipped"
-}
-
-/**
- * Verification of a spec, derived from its scenarios:
- * `none` (no scenarios) · `unrun` · `undefined` (no automation yet) · `partial` (partially automated) ·
- * `failing` · `passing`.
- */
-export type Verification = "none" | "unrun" | "undefined" | "partial" | "failing" | "passing"
-
-export const verificationOf = (statuses: ReadonlyArray<StepStatus | undefined>): Verification => {
-  if (statuses.length === 0) return "none"
-  if (statuses.some((s) => s === "failed" || s === "ambiguous")) return "failing"
-  if (statuses.every((s) => s === "passed")) return "passing"
-  if (statuses.every((s) => s === undefined)) return "unrun"
-  if (statuses.every((s) => s === undefined || s === "undefined")) return "undefined"
-  return "partial"
 }
 
 /**

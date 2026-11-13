@@ -8,7 +8,7 @@ import { defineSteps } from "sdp/steps"
 import { defaultVocabulary } from "../../src/model/Vocabulary.ts"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import { type Annotation, scanCode } from "../../src/parse/Annotations.ts"
-import type { Annotations, Scenario } from "../../src/parse/Gherkin.ts"
+import type { Scenario, Tagged } from "../../src/parse/Gherkin.ts"
 import { type ParsedFile, parseFeatureSpec, type Spec } from "../../src/parse/Spec.ts"
 import { loadConfig } from "../../src/workspace/Workspace.ts"
 import { assertRows, attrsText, newWorld, reportRow, type Row, setFile, show, type World } from "./world.ts"
@@ -53,7 +53,7 @@ const annotations = (world: World): ReadonlyArray<Annotation> => {
 }
 
 /** What the tags of a Rule or a Scenario say: its Cucumber tags, its facts and its links (`-rel-> ID` each). */
-const annotationColumns = (element: Annotations): Row => ({
+const tagColumns = (element: Tagged): Row => ({
   tags: element.tags.join(", "),
   attributes: attrsText(element.attrs),
   links: element.links.map((link) => `-${link.rel}-> ${link.to}`).join(", ")
@@ -113,7 +113,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the parsed spec has open questions:", ({ table, world }) =>
     assertRows("open questions", spec(world).openQuestions.map((q) => ({ question: q.text, line: String(q.line) })), table, "in order"))
 
-  // A scenario's rule by its name; its tags, attributes and links are its own annotations.
+  // A scenario's rule by its name; its Cucumber tags, attributes and links are its own.
   Then("the parsed spec has scenarios:", ({ table, world }) => {
     const { rules, scenarios } = spec(world)
     assertRows(
@@ -124,7 +124,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
         line: String(s.line),
         description: s.description ?? "",
         rule: rules.find((rule) => rule.id === s.rule)?.name ?? "",
-        ...annotationColumns(s)
+        ...tagColumns(s)
       })),
       table,
       "in order"
@@ -139,7 +139,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
         name: rule.name,
         line: String(rule.line),
         description: rule.description ?? "",
-        ...annotationColumns(rule)
+        ...tagColumns(rule)
       })),
       table,
       "in order"

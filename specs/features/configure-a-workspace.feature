@@ -88,7 +88,7 @@ Feature: Configure a workspace
       Then sdp run loads the step modules "acceptance/steps/cart.ts"
       When the workspace is run
       Then the file "out/results.json" contains '"cart#a-new-cart-is-empty"'
-      And node "cart" has attribute verification = "passing"
+      And node "cart" has attribute stage = "verified"
 
     Scenario: Step modules where a steps glob written as an absolute path says
       Given a file "specs/cart.feature" containing:
@@ -314,23 +314,24 @@ Feature: Configure a workspace
     ladder is the order in which a query compares maturities and stages. A value off the ladder is
     below every rung, so a question for what has not come far enough finds it.
 
-    Scenario: A ladder of sketch, agreed and done
+    @replaces:configure-a-workspace#a-ladder-of-sketch-agreed-and-done
+    Scenario: A ladder of sketch, agreed and estimated
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { maturity: [sketch, agreed, done] }
+        vocabulary: { maturity: [sketch, agreed, estimated] }
         """
       And these specs:
-        | tags                          | Feature  |
-        | @id=cart                      | Cart     |
-        | @id=wishlist @maturity=agreed | Wishlist |
-        | @id=returns @maturity=done    | Returns  |
-        | @id=gifts @maturity=someday   | Gifts    |
-      When I query "feature[maturity<done]"
+        | tags                            | Feature  |
+        | @id=cart                        | Cart     |
+        | @id=wishlist @maturity=agreed   | Wishlist |
+        | @id=returns @maturity=estimated | Returns  |
+        | @id=gifts @maturity=someday     | Gifts    |
+      When I query "feature[maturity<estimated]"
       Then the result is "gifts, wishlist"
       When I query "feature[toCome]"
       Then the result is "gifts, returns, wishlist"
       When I run "sdp vocabulary"
-      Then the output line with "maturity" contains "sketch, agreed, done"
+      Then the output line with "maturity" contains "sketch, agreed, estimated"
 
   Rule: sdp vocabulary prints the words sdp interprets as a configuration that reads back, and the words it makes itself, which nothing configures
 
@@ -344,17 +345,22 @@ Feature: Configure a workspace
         """
       When I run "sdp vocabulary --json"
       Then the JSON output has:
-        | data.vocabulary.kinds.decision | adr                                                                                                       |
-        | data.vocabulary.maturity       | idea, draft, specified, ready                                                                             |
-        | data.made.kinds                | scenario, rule, code, missing                                                                             |
-        | data.made.relations            | rule-of, imports                                                                                          |
-        | data.made.tags                 | @gate, @serial, @open                                                                                     |
-        | data.made.stages               | unrun, failing, in-progress, verified                                                                     |
-        | data.made.attributes           | stage, verification, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                   |
-        | data.made.scenarioAttributes   | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome      |
-        | data.made.ruleAttributes       | spec, description, tags, scenarios, verification, stage, toCome                                           |
-        | data.made.codeAttributes       | file, symbol, doc, shape, exports                                                                         |
-        | data.made.reservedRelations    | stage, verification, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome, maturity, status |
+        | data.vocabulary.kinds.decision              | adr                                                                                                  |
+        | data.vocabulary.maturity                    | idea, draft, specified, ready                                                                        |
+        | data.vocabulary.kinds.driver                | decision                                                                                             |
+        | data.vocabulary.qualities                   | quality                                                                                              |
+        | data.vocabulary.disciplines.requirements    | requirement, feature, story, use-case, epic                                                          |
+        | data.vocabulary.kinds.architecture          | architecture                                                                                         |
+        | data.vocabulary.disciplines.analysis-design | element, pattern, architecture                                                                       |
+        | data.made.kinds                             | scenario, rule, code, missing                                                                        |
+        | data.made.relations                         | rule-of, imports                                                                                     |
+        | data.made.tags                              | @gate, @serial, @open                                                                                |
+        | data.made.stages                            | unrun, failing, in-progress, verified                                                                |
+        | data.made.attributes                        | stage, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                            |
+        | data.made.scenarioAttributes                | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome |
+        | data.made.ruleAttributes                    | spec, description, tags, scenarios, stage, toCome                                                    |
+        | data.made.codeAttributes                    | file, symbol, doc, shape, exports                                                                    |
+        | data.made.reservedRelations                 | stage, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome, maturity, status          |
       When I run "sdp vocabulary"
       Then the output line with "decision" contains "adr"
       And the output line with "stages" contains "unrun, failing, in-progress, verified"
@@ -393,7 +399,8 @@ Feature: Configure a workspace
         | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                               | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                         | at ["vocabulary"]["maturity"]               |
         | vocabulary: { implemented: done }                | excess property                                      | at ["vocabulary"]["implemented"]            |
-        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, implemented] }    | implemented says the work is built                   | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [sketch, done] }         | done says the work is built                          | at ["vocabulary"]["maturity"]               |
         | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                               | at ["vocabulary"]["relations"]["anchor"]    |
         | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                       | at ["vocabulary"]["kinds"]["decision"]      |
         | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                  | at ["vocabulary"]["kinds"]["milestone"]     |

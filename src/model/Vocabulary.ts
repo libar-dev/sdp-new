@@ -31,7 +31,9 @@ export interface Vocabulary {
     readonly pattern: Words
     /** The kinds whose nodes are the architecture: declaring one is the architect's call. */
     readonly architectural: Words
-    /** Architectural drivers, shown next to the architecture they shape. */
+    /** The kinds of the specs that hold the architecture's rules: what only the code observes, such as which element may import which. */
+    readonly architecture: Words
+    /** Architectural drivers, shown next to the architecture they shape: a team that keeps quality requirements as specs of a kind of its own names that kind here. */
     readonly driver: Words
     /** The kind of a node an anchor declares when it writes none and its id has no prefix that names one. */
     readonly anchored: string
@@ -45,7 +47,7 @@ export interface Vocabulary {
     readonly closes: Words
     /** The edge sdp makes from a scenario to its spec. */
     readonly scenario: string
-    /** The relation of the code tag that anchors a node in code and declares it. */
+    /** The relation of the code annotation that anchors a node in code and declares it. */
     readonly anchor: string
     /** From a rule still to come to the live rule it replaces, which stays live until then. */
     readonly replaces: Words
@@ -58,7 +60,7 @@ export interface Vocabulary {
     readonly end: string
     /** The day a milestone was recorded as met (an ISO date). */
     readonly met: string
-    /** The attribute whose value (one of `qualities`) marks a quality requirement of any kind. */
+    /** The attribute whose value (one of `qualities`) marks a rule or a spec as a quality requirement. */
     readonly quality: string
   }
   /** Values of the `quality` attribute that make a node an architectural driver. */
@@ -66,7 +68,7 @@ export interface Vocabulary {
   /**
    * The order of the maturities of work still to come, lowest first. sdp reads no meaning into a
    * rung: any maturity says that the work is still to come, and the ladder orders the values a query
-   * compares, a value off it below every rung.
+   * compares, a value off it below every rung, where `sdp check` reports it.
    */
   readonly maturity: Words
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
@@ -86,20 +88,21 @@ const defaultKinds: Vocabulary["kinds"] = {
   iteration: ["iteration"],
   pattern: ["pattern"],
   architectural: ["element", "pattern"],
-  driver: ["decision", "nfr"],
+  architecture: ["architecture"],
+  driver: ["decision"],
   anchored: "element"
 }
 
 /**
  * The disciplines of a workspace that names none of its own, and the kinds whose planned nodes are
- * work in each: its features are requirements work, and its architecture analysis and design, in
- * the words its vocabulary gives them.
+ * work in each: its features are requirements work, and its architecture and the rules of it
+ * analysis and design, in the words its vocabulary gives them.
  */
 export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
   new Map<string, Words>([
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
-    ["requirements", [...new Set(["requirement", "nfr", ...kinds.feature, "story", "use-case", "epic"])]],
-    ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern])]],
+    ["requirements", [...new Set(["requirement", ...kinds.feature, "story", "use-case", "epic"])]],
+    ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern, ...kinds.architecture])]],
     // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
     ["implementation", []],
     ["test", []],
@@ -124,7 +127,7 @@ export const defaultVocabulary: Vocabulary = {
     met: "met",
     quality: "type"
   },
-  qualities: ["quality", "non-functional", "nfr", "constraint"],
+  qualities: ["quality"],
   maturity: ["idea", "draft", "specified", "ready"],
   disciplines: defaultDisciplines(defaultKinds),
   words: { kinds: [], relations: [], attributes: [] }
@@ -187,15 +190,15 @@ export const made = {
    * `tags` holds the Cucumber tags of a Feature, a Rule or a Scenario as written, `toCome` marks work
    * still to come, and `rulesToCome` counts a spec's rules still to come.
    */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", tagsKey, "openQuestions", "toCome", "rulesToCome"],
+  attributes: ["stage", "scenarios", "summary", "file", tagsKey, "openQuestions", "toCome", "rulesToCome"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", tagsKey, "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */
-  ruleAttributes: ["spec", "description", tagsKey, "scenarios", "verification", "stage", "toCome"],
+  ruleAttributes: ["spec", "description", tagsKey, "scenarios", "stage", "toCome"],
   /** What sdp records on a code node: where the annotated declaration is, what its own comment says of it, and its shape or a file's exports. */
   codeAttributes: ["file", "symbol", "doc", "shape", "exports"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
-  resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
+  resultAttributes: ["stage", "staleBecause", "lastRun"],
   /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
   recordedAt: "lastRun",
   /**
@@ -212,11 +215,20 @@ export const made = {
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
+/** Maturities that say the work is built, besides the stages sdp derives for what is. */
+const builtWords: Words = ["implemented", "built", "done", "complete", "finished", "live", "shipped", "released"]
+
 /**
- * The rung that once said work was built. A live test declares no maturity, so this one would say
- * the opposite of what its author meant: it is reported, and no ladder may have it.
+ * Why a maturity says that the work is built — it names a stage sdp derives, or is a word for built
+ * work — or `undefined` when it does not. A live test declares no maturity, so such a one would say
+ * the opposite of what its author meant: it is an error, and no ladder may have it.
  */
-export const retiredMaturity = "implemented"
+export const saysBuilt = (maturity: string): string | undefined =>
+  (Object.values(made.stages) as ReadonlyArray<string>).includes(maturity)
+    ? `${maturity} is a stage sdp derives from a run of what is built`
+    : builtWords.includes(maturity)
+    ? `${maturity} says the work is built`
+    : undefined
 
 /**
  * Whether a declared maturity makes work still to come: any value does, whatever it is, and a
@@ -325,6 +337,8 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     codeAttributes: made.codeAttributes,
     /** The stages beyond the maturity ladder. */
     stages: Object.values(made.stages),
+    /** The words that say work is built, which no maturity can be, as no stage can. */
+    builtWords,
     /** The names no link can have. */
     reservedRelations
   }

@@ -20,7 +20,7 @@ Read by the official Gherkin parser as it is; sdp adds no syntax of its own. Mar
 nothing.
 
 ```gherkin
-@id=guest-checkout @maturity=specified @checkout       # what it is: = is a value; a bare tag is a tag
+@id=guest-checkout @maturity=specified @checkout       # what it is: = is a fact; a bare tag is a Cucumber tag
 @depends-on:cart-totals @realized-by:ARCH-orders       # what it links to: one tag, one link
 @iteration:IT-payments                                 # the iteration it is planned into
 Feature: Guest checkout
@@ -42,30 +42,31 @@ Feature: Guest checkout
   Rule: Can a guest save the cart for later?
 ```
 
-- **`@key=value` describes, `@rel:ID` links**, and the first `=` or `:` decides; a tag with
-  neither is a Cucumber tag, and one whose key is not a word (`@1st=x`) is an error. Above
-  `Feature:` they are about the spec, above `Rule:` about the rule, above `Scenario:` about the
-  scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is
-  not written, and an id with no prefix sdp knows is a feature's. A key written twice is a list,
-  `@owner.team=core` nests, and a value that reads back as a number is one. Annotations are not
-  tags: they are not inherited, not matched by `--tags` and not part of a scenario's hash, so
-  re-planning a spec leaves the results of its scenarios valid — except those of scenarios that
-  read the graph, which any change to a spec makes stale.
+- **Everything written with `@` is a tag: `@key=value` is a fact, `@rel:ID` a link**, the first `=`
+  or `:` decides, and a tag with neither is a Cucumber tag; one whose key is not a word (`@1st=x`)
+  is an error. Above `Feature:` they are about the spec, above `Rule:` about the rule, above
+  `Scenario:` about the scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the
+  id's prefix when it is not written, and an id with no prefix sdp knows is a feature's. A key
+  written twice is a list, `@owner.team=core` nests, and a value that reads back as a number is one.
+  Facts and links are not Cucumber tags: they are not inherited, not matched by `--tags` and not
+  part of a scenario's hash, so re-planning a spec leaves the results of its scenarios valid —
+  except those of scenarios that read the graph, which any change to a spec makes stale.
 - **The Feature is the node**: its name is the title, its first paragraph the summary.
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
   scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
   named by its path and run as it is.
 - **What is still to come declares a `@maturity=`; what is built declares none, and is live.** The
-  maturity of a Feature or a Rule — idea, draft, specified, ready, or a word of the team's own — is
-  how far it has come in the team's judgement, and sdp reads no meaning into its value, but for the
-  retired rung `implemented`, an error to delete: whatever it says, the work is still to come, and
-  its examples run and fail no run, so they are written before the code; a rule still to come
-  without an example is a to-do. A live Feature or Rule is a test: its examples must pass, a live
-  rule without an example is an error, and so is live work — a feature, or any kind a discipline
-  names — without a live rule. A Rule without a maturity of its own has its Feature's, so a change
-  to a built feature is rules of it, each with a maturity of its own, with
-  `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
+  maturity of a Feature or a Rule — a rung of the ladder, by default idea, draft, specified, ready —
+  is how far it has come in the team's judgement, and sdp reads no meaning into the rung: whatever
+  it says, the work is still to come, and its examples run and fail no run, so they are written
+  before the code; a rule still to come without an example is a to-do. A word off the ladder is a
+  warning, and one that says the work is built, such as a stage or `done`, an error to delete. A
+  live Feature or Rule is a test: its examples must pass, a live rule without an example is an
+  error, and so is live work — a feature, or any kind a discipline names — without a live rule. A
+  Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
+  it, each with a maturity of its own, with `@replaces:<feature>#<rule>` on one that replaces a live
+  rule; nothing moves when it is built.
 - **Nothing live goes back.** `sdp check` compares the specs with the git base: where HEAD meets
   the default branch, or the revision `--base` or `base:` in the configuration names, read with the
   configuration it had there. Without a base, or with a spec there that sdp cannot read, its answer
@@ -77,11 +78,12 @@ Feature: Guest checkout
   removal, one edited under its name is the same example, and one renamed with its steps edited,
   or merged into another, is named where it went, `@replaces:<feature>#<example>` on that Scenario
   in that change.
-- **An open question is a Rule tagged `@open`**, its name the question. Answering it means
-  renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
-  has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
-  someone is written this way, on the spec it concerns, never kept in a chat or an agent's memory:
-  `sdp q 'rule[tags=@open]'` lists it.
+- **An open question is a Rule tagged `@open`**, its name the question. Answering it means renaming
+  it into the rule that was chosen and deleting the tag. A question is still to come, and has no
+  examples; a Scenario is an example, tagged `@open` or not. In a live feature, a question that
+  declares no maturity is about what is built, and one about work still to come declares that
+  work's. What is undecided or waits on someone is written this way, on the spec it concerns, never
+  kept in a chat or an agent's memory: `sdp q 'rule[tags=@open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
   what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
   whoever reads a message citing it needs no lookup. Elements, patterns, milestones, phases and
@@ -102,7 +104,7 @@ The sharp edges of the format, each what the official parser does:
 
 - A tag holds no whitespace, so a value with a space has no tag form (`@title=Two words` is a
   parse error): it is a sentence, and belongs in a description.
-- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a bare tag `@b.c`.
+- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a Cucumber tag `@b.c`.
 - Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
   kept, so `@verifies:guest-checkout#slug` links to a rule.
 - A Background cannot be tagged. After the first Rule every scenario belongs to the rule above
@@ -141,15 +143,16 @@ The sharp edges of the format, each what the official parser does:
   sentence where it applies.
 - **One feature, one file.** A feature's spec is its requirements document and its test suite at
   once: who needs what and why, what it is not, a rule per requirement with its reason, and the
-  scenarios that prove each one. A quality requirement is a rule of the feature it constrains, and
-  its example is measured: the environment, the stimulus, the response and its measure. A feature
-  is not split into requirement, quality requirement and element files; it names a technology only
-  where its users see one.
-- **Evidence, not status.** Scenarios are the tests. A scenario's status is what it did when it
-  last ran — passed, failed, undefined and the like — and from its examples' statuses sdp derives a
-  rule's or a spec's verification, from none to passing, and its stage: the maturity of work still
-  to come, and unrun, failing, in-progress or verified for live work. A result goes stale when what
-  it ran against changes, and none of these is written by hand: `@stage=` is an error.
+  scenarios that prove each one. A quality requirement is a rule of the feature it constrains,
+  tagged `@type=quality` so that `sdp arch` shows it beside the elements that realize that feature,
+  and its example is measured: the environment, the stimulus, the response and its measure. A
+  feature is not split into requirement, quality requirement and element files; it names a
+  technology only where its users see one.
+- **Evidence, not status.** Scenarios are the tests. A scenario's status is what it did when it last
+  ran — passed, failed, undefined and the like — and from its examples' statuses sdp derives a
+  rule's or a spec's stage: the maturity of work still to come, and unrun, failing, in-progress or
+  verified for live work. A result goes stale when what it ran against changes, and none of these is
+  written by hand: `@stage=` is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
   few words sdp itself interprets in this workspace.
 
@@ -201,10 +204,12 @@ closest.
 
 ## Changing behaviour
 
-1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"`
-   writes it where it stays, and says what to write in it next. A change to a built feature is
-   rules of it, each with a maturity of its own until it is built. What a user sees belongs to a
-   feature; a rule only the code observes, to the rules of the architecture.
+1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"` writes
+   it where it stays, and says what to write in it next. A change to a built feature is rules of it,
+   each with a maturity of its own until it is built. What a user sees belongs to a feature; a rule
+   only the code observes, to a spec of kind architecture (`@kind=architecture`;
+   `sdp new architecture "…"` starts one), whose rules still to come declare a maturity as a
+   feature's do.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for
@@ -215,8 +220,8 @@ closest.
    says so: delete its maturity, and it is live. Gates never fail `sdp run`; `sdp gate <milestone>`
    enforces one.
 
-A scenario that asserts on delivery state (`stage`, `verification`, a scenario's `status`) must be
-a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
+A scenario that asserts on delivery state (`stage`, a scenario's `status`) must be a gate: tag it
+`@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
 
 ## Planning work
 

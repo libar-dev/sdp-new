@@ -17,7 +17,7 @@ Feature: See the architecture
       | @id=PAT-outbox @maturity=idea                                                                                              | Transactional outbox                    |
       | @id=publish-through-an-outbox @kind=decision                                                                               | Orders publish events through an outbox |
       | @id=json-logs @kind=decision                                                                                               | Logs are JSON                           |
-      | @id=order-latency @maturity=idea @kind=nfr                                                                                 | Order latency                           |
+      | @id=order-latency @maturity=idea @type=quality                                                                             | Order latency                           |
       | @id=numbered-receipts @kind=decision                                                                                       | Receipts are numbered without gaps      |
       | @id=refunds @maturity=idea @depends-on:receipts @decided-by:credit-notes                                                   | Refunds                                 |
       | @id=credit-notes @kind=decision                                                                                            | A refund is a credit note               |
@@ -679,15 +679,19 @@ Feature: See the architecture
       And the output contains "-->|imports|"
       And the output contains '["ARCH-mailer"]'
 
-  Rule: A quality requirement, of kind nfr or of any kind whose type says so, is shown beside what it constrains
+  Rule: A quality requirement is a rule or a spec whose type is quality, and is shown beside what it constrains
 
     A quality requirement is most often a rule of the feature it constrains, with a measurable
     example; `@type=quality` on that rule shows it beside the elements that realize the feature, as
-    the receipts' delivery time is in the view above. A team that writes them as specs of their own
-    marks them by kind or by type.
+    the receipts' delivery time is in the view above. A team that keeps them as specs of a kind of
+    its own names that kind a driver, under `vocabulary.kinds.driver` in its configuration.
 
     Scenario Outline: Marked by its kind or by its type
-      Given these specs:
+      Given a file "sdp.config.yaml" containing:
+        """
+        <configuration>
+        """
+      And these specs:
         | tags                                           | Feature               |
         | @id=ARCH-search @constrained-by:search-latency | Search                |
         | @id=search-latency <marker>                    | Results within 200 ms |
@@ -695,10 +699,10 @@ Feature: See the architecture
       Then the output contains "ARCH-search -constrained-by-> search-latency"
 
       Examples:
-        | marker                          |
-        | @kind=nfr                       |
-        | @kind=requirement @type=quality |
-        | @kind=story @type=constraint    |
+        | marker                          | configuration                                      |
+        | @kind=nfr                       | vocabulary: { kinds: { driver: [decision, nfr] } } |
+        | @kind=requirement @type=quality |                                                    |
+        | @type=quality                   |                                                    |
 
   Rule: What belongs in the architecture is never checked
 

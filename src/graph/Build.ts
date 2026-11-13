@@ -9,7 +9,7 @@ import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { type Attrs, formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
-import { notPassing, type RunResults, type StepStatus, verificationOf } from "../model/Results.ts"
+import { notPassing, type RunResults, type StepStatus } from "../model/Results.ts"
 import {
   activityRelation,
   attribute,
@@ -225,7 +225,7 @@ export const buildProject = (input: ProjectInput): Project => {
     return Object.fromEntries(kept)
   }
   /** What the examples that verify each spec did; a node without a spec of its own has none. */
-  const verifications = new Map<string, ReadonlyArray<StepStatus | undefined>>()
+  const examplesDid = new Map<string, ReadonlyArray<StepStatus | undefined>>()
   /**
    * A node's attributes with its stage, which its maturity and its scenarios decide, and whether it
    * is work still to come. A milestone has no stage: its scenarios are a gate, and a gate that is
@@ -237,7 +237,7 @@ export const buildProject = (input: ProjectInput): Project => {
     const marked = compact({ ...attrs, stage: undefined, toCome: toCome || undefined })
     return hasKind(vocabulary, "milestone", kind)
       ? marked
-      : compact({ ...marked, stage: stageOf(attrs.maturity, verifications.get(id) ?? [], toCome) })
+      : compact({ ...marked, stage: stageOf(attrs.maturity, examplesDid.get(id) ?? [], toCome) })
   }
 
   const evidence = input.evidence?.(specs)
@@ -294,7 +294,6 @@ export const buildProject = (input: ProjectInput): Project => {
           description: rule.description,
           [made.tagsKey]: rule.tags.length > 0 ? rule.tags : undefined,
           scenarios: examples.length,
-          verification: verificationOf(done),
           stage: stageOf(maturity, done, toCome),
           toCome: toCome || undefined
         }),
@@ -310,7 +309,7 @@ export const buildProject = (input: ProjectInput): Project => {
       ...spec.scenarios.filter((scenario) => work.spec || !work.example(scenario)).map((scenario) => statuses.get(scenario.id)),
       ...(work.spec ? [] : bare.map(() => undefined))
     ]
-    if (!nodes.has(spec.id)) verifications.set(spec.id, counted)
+    if (!nodes.has(spec.id)) examplesDid.set(spec.id, counted)
     const rulesToCome = spec.rules.filter((rule) => work.rule(rule).toCome).length
     const openQuestions = spec.openQuestions.length
     const at = (key: string): SourceRef => ({ file: spec.file, line: spec.attrLines[key] ?? 1 })
@@ -325,7 +324,6 @@ export const buildProject = (input: ProjectInput): Project => {
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,
-        verification: verificationOf(counted),
         openQuestions: openQuestions > 0 ? openQuestions : undefined,
         rulesToCome: rulesToCome > 0 ? rulesToCome : undefined
       })),
@@ -676,15 +674,13 @@ export const stageOf = (maturity: unknown, statuses: ReadonlyArray<StepStatus | 
     const named = Predicate.isString(first) || Predicate.isNumber(first) ? String(first) : undefined
     return named === undefined || Object.values<string>(made.stages).includes(named) ? undefined : named
   }
+  if (statuses.length === 0) return undefined
   if (statuses.some((status) => status !== undefined && notPassing.has(status))) return made.stages.failing
-  const verification = verificationOf(statuses)
-  return verification === "passing"
+  return statuses.every((status) => status === "passed")
     ? made.stages.verified
-    : verification === "partial"
-    ? made.stages.inProgress
-    : verification === "unrun"
+    : statuses.every((status) => status === undefined)
     ? made.stages.unrun
-    : undefined
+    : made.stages.inProgress
 }
 
 /**
