@@ -104,6 +104,16 @@ export const parseScript = (file: string, content: string): Script | undefined =
   }
 }
 
+/**
+ * The modules a file declares by name — `declare module "virtual-lib" { … }`, or a pattern of names,
+ * `declare module "*.svg"` — which TypeScript takes an import of a name it matches to mean.
+ */
+export const declaredModules = (script: Script): ReadonlyArray<string> =>
+  script.program.body.flatMap((statement) => {
+    const id = statement.type === "TSModuleDeclaration" ? statement.id as Node : undefined
+    return id?.type === "Literal" && typeof id.value === "string" ? [id.value] : []
+  })
+
 /** What a string literal, or a template literal with nothing in it computed, holds: a module's name written statically. */
 export const literalName = (node: Node): string | undefined => {
   if (node.type === "Literal") return typeof node.value === "string" ? node.value : undefined

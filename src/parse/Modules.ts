@@ -24,7 +24,7 @@ import {
   type Located,
   type Unread
 } from "./ModuleConfigs.ts"
-import { type Export, type Exports, type Import, parseScript } from "./Script.ts"
+import { declaredModules, type Export, type Exports, type Import, parseScript } from "./Script.ts"
 
 /** Why sdp could not follow a name that could name the workspace's code. */
 export interface Unresolved {
@@ -400,7 +400,29 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     }
   }
 
+  /** The names of the modules the workspace's code declares (`declare module "virtual-lib"`), and their patterns; read once, when first asked. */
+  let declared: ReadonlyArray<string> | undefined
+  const declaredOf = () =>
+    declared ??= code.filter((file) => /\bmodule\s*["'`]/.test(file.content)).flatMap((file) => {
+      const script = parseScript(file.path, file.content)
+      return script === undefined || script.error !== undefined ? [] : declaredModules(script)
+    })
+
+  /**
+   * What `imported` means, as `resolveName` has it, but for a module the workspace's code declares:
+   * TypeScript takes a name declared whole for that module before it resolves one, and a name a
+   * declared pattern matches for it where it resolves none.
+   */
   const resolve = (file: string, imported: Import): Resolved => {
+    const resolved = resolveName(file, imported)
+    if (resolved.unresolved === undefined && (resolved.unread ?? []).length === 0) return resolved
+    const { specifier } = imported
+    if (declaredOf().includes(specifier)) return { module: resolved.module, outside: resolved.outside }
+    const patterns = declaredOf().filter((name) => name.includes("*"))
+    return resolved.unresolved !== undefined && matchKey(patterns, specifier) !== undefined ? { ...resolved, unresolved: undefined } : resolved
+  }
+
+  const resolveName = (file: string, imported: Import): Resolved => {
     const { specifier } = imported
     const project = projectOf(file)
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
