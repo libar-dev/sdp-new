@@ -46,10 +46,12 @@ Feature: Orient agents through hooks
   @quality
   Rule: The orientation fits in 2,000 characters and arrives within 5 seconds, or one line says it did not and names the command to run
 
-    Scenario: A workspace of 500 specs
-      Given a generated workspace of 500 specs
-      When the plugin's hook runs at session start in the workspace
-      Then the output is at most 2000 characters
+    @serial
+    Scenario: A workspace of 500 specs, all planned now
+      Given 500 features in "shop" planned into "IT-beta", each with an open question
+      When the plugin's hook runs at session start in "shop"
+      Then the output contains "MS-beta"
+      And the output is at most 2000 characters
       And the hook answered within 5000 ms
 
   Rule: Outside an sdp workspace the hook shows nothing; a hook that fails says so in one line and lets the session go on
@@ -88,6 +90,12 @@ Feature: Orient agents through hooks
       When the plugin's hook runs at session start in "shop"
       Then the output contains "MS-beta"
       And the output line with "0.2.0" contains "0.1.0"
+
+  @open
+  Rule: How does the hook find the sdp a workspace installed, and which sdp answers where it installed none?
+
+    A plugin installed for a person serves every repository, each with sdp at a version of its own or
+    none, and the name an installed sdp is found by is install-from-npm's to settle.
 
   @maturity=idea
   Rule: An agent that edits a spec is shown the diagnostics of that file before its next step
