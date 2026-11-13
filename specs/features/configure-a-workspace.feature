@@ -357,3 +357,4 @@ Feature: Configure a workspace
         | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
         | ids: { component: ARCH }                         | element and component share the prefix ARCH        | at ["ids"]                                  |
         | timeout: 60 parsecs                              | 60 parsecs is not a duration                       | at ["timeout"]                              |
+        | timeout: 90                                      | 90 is not a duration: a number and a unit          | at ["timeout"]                              |

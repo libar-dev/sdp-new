@@ -56,7 +56,8 @@ export const ConfigFile = Schema.Struct({
     env: Schema.optional(Schema.Array(Schema.String))
   })),
   results: Schema.optional(Schema.String),
-  timeout: Schema.optional(Schema.String),
+  // A number alone is read so that it is refused for its missing unit, not for its type.
+  timeout: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
   base: Schema.optional(Schema.String),
   vocabulary: Schema.optional(VocabularyFile)
@@ -148,7 +149,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
       env: file.evidence?.env ?? defaults.evidence.env
     },
     results: file.results ?? defaults.results,
-    timeout: file.timeout === undefined ? defaults.timeout : Result.getOrElse(readTimeout(file.timeout), () => defaults.timeout),
+    timeout: file.timeout === undefined ? defaults.timeout : Result.getOrElse(readTimeout(String(file.timeout)), () => defaults.timeout),
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
     base: file.base,
     vocabulary: resolveVocabulary(file.vocabulary)
@@ -264,7 +265,7 @@ export const readTimeout = (input: Duration.Input | string): Result.Result<Durat
  */
 const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => {
   const issues: Array<Schema.FilterIssue> = file.vocabulary === undefined ? [] : [...vocabularyProblems(file.vocabulary)]
-  const timeout = file.timeout === undefined ? undefined : readTimeout(file.timeout)
+  const timeout = file.timeout === undefined ? undefined : readTimeout(String(file.timeout))
   if (timeout !== undefined && Result.isFailure(timeout)) issues.push({ path: ["timeout"], issue: `${file.timeout} ${timeout.failure}` })
   const vocabulary = file.vocabulary
   const ladder = vocabulary?.maturity
