@@ -6,7 +6,7 @@
  *
  * @sdp is ARCH-code-annotations
  */
-import { isNode, type Node, type Script } from "./Script.ts"
+import { children, isNode, type Node, type Script } from "./Script.ts"
 
 export interface Shape {
   /** `function total(lines: ReadonlyArray<Priced>): number`, `interface Priced { … }`, `const limit`. */
@@ -81,14 +81,15 @@ const functionOf = (value: Node | null | undefined, effect: ReadonlySet<string>)
 
 /** The shapes of the declarations of one parsed file. */
 export const shapes = (content: string, script: Script): Shapes => {
-  /** The source between two offsets, without its comments, on one line. */
-  const written = (start: number, end: number): string => {
+  /** The source between two offsets, without its comments, and with each `skipped` range in it left out or put as it says, on one line. */
+  const written = (start: number, end: number, skipped: ReadonlyArray<readonly [number, number, string?]> = []): string => {
     let text = ""
     let at = start
-    for (const comment of script.comments) {
-      if (comment.start < at || comment.end > end) continue
-      text += content.slice(at, comment.start)
-      at = comment.end
+    const left = [...script.comments.map((comment) => [comment.start, comment.end] as const), ...skipped].sort(([a], [b]) => a - b)
+    for (const [from, to, put = ""] of left) {
+      if (from < at || to > end) continue
+      text += content.slice(at, from) + put
+      at = to
     }
     // A line break between two members of a type, which separates them as written, stays a separator.
     return (text + content.slice(at, end)).replace(/([\w)\]>"'`?])[ \t]*\r?\n\s*(?=[A-Za-z_$#[])/g, "$1; ").replace(/\s+/g, " ").trim()
@@ -98,10 +99,40 @@ export const shapes = (content: string, script: Script): Shapes => {
   const typeOf = (annotation: unknown): string | undefined => isNode(annotation) ? of(annotation.typeAnnotation as Node) : undefined
   const member = (node: Node) => written(node.start, node.end).replace(/[;,]$/, "")
 
+  /** Where a pattern gives a default value, ` = value`, to leave out. */
+  const defaults = (node: Node): ReadonlyArray<readonly [number, number]> =>
+    node.type === "AssignmentPattern"
+      ? [[(node.left as Node).end, (node.right as Node).end], ...defaults(node.left as Node)]
+      : children(node).flatMap(defaults)
+  /**
+   * A parameter as a declaration file has it: one with a default value without the value, of the
+   * type written or else the literal value's, optional — or, before a parameter that is not, of that
+   * type or undefined — and a property it declares only if public: a private one is a parameter like
+   * any other.
+   */
+  const parameter = (node: Node, beforeRequired: boolean): string => {
+    if (node.type === "TSParameterProperty") {
+      const inner = node.parameter as Node
+      const hidden = node.accessibility === "private" || node.accessibility === "protected"
+      return hidden ? parameter(inner, beforeRequired) : `${written(node.start, inner.start)} ${parameter(inner, beforeRequired)}`.trim()
+    }
+    if (node.type !== "AssignmentPattern") return written(node.start, node.end, defaults(node))
+    const left = node.left as Node
+    const annotation = isNode(left.typeAnnotation) ? left.typeAnnotation : undefined
+    const name = written(left.start, annotation?.start ?? left.end, defaults(left))
+    const type = annotation === undefined ? literalType(node.right as Node) : typeOf(annotation)
+    if (!beforeRequired) return `${name}?${type ? `: ${type}` : ""}`
+    const bare = isNode(annotation?.typeAnnotation) && looseTypes.has(annotation.typeAnnotation.type) ? `(${type})` : type
+    return `${name}${type ? `: ${bare} | undefined` : ""}`
+  }
+  const parameters = (fn: Node) => {
+    const params = fn.params as ReadonlyArray<Node>
+    return params.map((param, index) => parameter(param, params.slice(index + 1).some(required))).join(", ")
+  }
+
   const signature = (fn: Node, name: string): Shape => {
     const returns = typeOf(fn.returnType)
-    const params = (fn.params as ReadonlyArray<Node>).map(of).join(", ")
-    return { text: `function ${name}${of(fn.typeParameters as Node)}(${params})${returns ? `: ${returns}` : ""}`, returnType: returns !== undefined }
+    return { text: `function ${name}${of(fn.typeParameters as Node)}(${parameters(fn)})${returns ? `: ${returns}` : ""}`, returnType: returns !== undefined }
   }
 
   /** A class's public members: a method by its signature, a property by its type, nothing private. */
@@ -112,9 +143,7 @@ export const shapes = (content: string, script: Script): Shapes => {
       // The method's function starts at its type parameters or its `(`: what comes before is its name and modifiers.
       const fn = node.value as Node
       const returns = typeOf(fn.returnType)
-      return `${written(node.start, fn.start)}${of(fn.typeParameters as Node)}(${(fn.params as ReadonlyArray<Node>).map(of).join(", ")})${
-        returns ? `: ${returns}` : ""
-      }`
+      return `${written(node.start, fn.start)}${of(fn.typeParameters as Node)}(${parameters(fn)})${returns ? `: ${returns}` : ""}`
     }
     if (node.type === "PropertyDefinition" || node.type === "TSAbstractPropertyDefinition" || node.type === "AccessorProperty") {
       const value = node.value as Node | null
@@ -122,6 +151,22 @@ export const shapes = (content: string, script: Script): Shapes => {
     }
     return node.type === "StaticBlock" ? undefined : member(node)
   }
+
+  /** A class's members as it can be called: an overloaded method by its signatures, not its implementation's. */
+  const classMembers = (body: ReadonlyArray<Node>): ReadonlyArray<string> => {
+    const method = (node: Node) => node.type === "MethodDefinition" ? `${node.static ? "static " : ""}${of(node.key as Node)}` : undefined
+    const overloaded = new Set(body.filter((node) => method(node) !== undefined && !isNode((node.value as Node).body)).map(method))
+    return body.filter((node) => !overloaded.has(method(node)) || !isNode((node.value as Node).body)).flatMap((node) => classMember(node) ?? [])
+  }
+
+  /** Where an expression holds the body of a function, and what is put in its place: `{…}`, or `…` for an arrow's expression. */
+  const bodies = (node: Node): ReadonlyArray<readonly [number, number, string]> => {
+    if (!functions.has(node.type) || !isNode(node.body)) return children(node).flatMap(bodies)
+    const body = node.body
+    return [...children(node).filter((child) => child !== body).flatMap(bodies), [body.start, body.end, body.type === "BlockStatement" ? "{…}" : "…"]]
+  }
+  /** What a class extends, as written but for the bodies of the functions in it, which are code and no surface. */
+  const heritage = (node: Node): string => written(node.start, node.end, bodies(node))
 
   const declarationShape = (declared: Node, name: string): Shape | undefined => {
     switch (declared.type) {
@@ -131,8 +176,13 @@ export const shapes = (content: string, script: Script): Shapes => {
       case "ClassDeclaration":
       case "ClassExpression": {
         const body = declared.body as Node
-        const head = written(declared.start, body.start).replace(/^(export\s+)?(default\s+)?/, "")
-        const members = (body.body as ReadonlyArray<Node>).flatMap((node) => classMember(node) ?? [])
+        const implemented = declared.implements as ReadonlyArray<Node>
+        const head = [
+          `${declared.abstract ? "abstract " : ""}class${isNode(declared.id) ? ` ${of(declared.id)}` : ""}${of(declared.typeParameters as Node)}`,
+          ...isNode(declared.superClass) ? [`extends ${heritage(declared.superClass)}${of(declared.superTypeArguments as Node)}`] : [],
+          ...implemented.length > 0 ? [`implements ${implemented.map(of).join(", ")}`] : []
+        ].join(" ")
+        const members = classMembers(body.body as ReadonlyArray<Node>)
         return { text: `${head} {${members.length > 0 ? ` ${members.join("; ")} ` : ""}}` }
       }
       case "TSInterfaceDeclaration": {
@@ -178,6 +228,9 @@ export const shapes = (content: string, script: Script): Shapes => {
   const declarations = (statement: Node): ReadonlyArray<readonly [string, Shape]> => {
     if (statement.type === "ExportDefaultDeclaration") {
       const declared = statement.declaration as Node
+      // `export default Billing` exports the file's own Billing, as it declares it.
+      const local = declared.type === "Identifier" ? ownDeclaration(declared.name as string) : undefined
+      if (local !== undefined) return [["default", local]]
       const name = isNode(declared.id) ? declared.id.name as string : "default"
       const shape = declarationShape(declared, name) ?? (functions.has(declared.type) ? signature(declared, name) : { text: "default" })
       return [[name, shape]]
@@ -194,6 +247,10 @@ export const shapes = (content: string, script: Script): Shapes => {
     const shape = name === undefined ? undefined : declarationShape(declared, name)
     return name === undefined || shape === undefined ? [] : [[name, shape]]
   }
+  /** The shape of a name the file declares, by a statement other than a default export. */
+  const ownDeclaration = (name: string): Shape | undefined =>
+    script.program.body.filter((statement) => statement.type !== "ExportDefaultDeclaration")
+      .flatMap((statement) => declarations(statement)).find(([declared]) => declared === name)?.[1]
 
   const exports = (): ReadonlyArray<string> => {
     const local = new Map(script.program.body.flatMap((statement) => declarations(statement).map(([name, shape]) => [name, statement] as const)))
@@ -215,6 +272,27 @@ export const shapes = (content: string, script: Script): Shapes => {
   }
 
   return { of: (statement) => declarations(statement)[0]?.[1], exports }
+}
+
+/** Whether a parameter must be given: one with no default value, not marked optional and not a rest parameter. */
+const required = (node: Node): boolean => {
+  const inner = node.type === "TSParameterProperty" ? node.parameter as Node : node
+  return inner.type !== "AssignmentPattern" && inner.type !== "RestElement" && inner.optional !== true
+}
+
+/** The types that a union with `undefined` has to put in parentheses. */
+const looseTypes: ReadonlySet<string> = new Set(["TSFunctionType", "TSConstructorType", "TSConditionalType"])
+
+/** The type a declaration file gives a parameter whose default value is a literal: a string's, a number's, a boolean's or a bigint's. */
+const literalType = (value: Node): string | undefined => {
+  if (value.type === "TemplateLiteral") return "string"
+  if (value.type === "UnaryExpression" && (value.operator === "-" || value.operator === "+")) {
+    const of = literalType(value.argument as Node)
+    return of === "number" || (of === "bigint" && value.operator === "-") ? of : undefined
+  }
+  if (value.type !== "Literal") return undefined
+  if (typeof value.bigint === "string") return "bigint"
+  return typeof value.value === "string" || typeof value.value === "number" || typeof value.value === "boolean" ? typeof value.value : undefined
 }
 
 const nameOf = (node: Node | undefined): string | undefined =>

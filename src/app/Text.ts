@@ -115,11 +115,10 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
  * appear as the nodes it links to, and a driver that shaped it through a feature as `driver,
  * through feature`. What it is for is the first paragraph of its spec — or, for a node declared
  * without one, what the code anchored to it says of itself. Under each piece of code that is it
- * comes its surface: a declaration's shape, or what a file exports. Code that links to it otherwise
- * — that plays a pattern — is followed by the elements that code is. Then the work on it: what is
+ * comes its surface: a declaration's shape, or what a file exports. Then the work on it: what is
  * live, and what is still to come, ready first. A node no file declares is still to come, named by
- * the work still to come that names it. A title that only repeats the id, as that of an element declared by its code,
- * is left out.
+ * the work still to come that names it. A title that only repeats the id, as that of an element
+ * declared by its code, is left out.
  */
 export const architecture = ({ anchor, anchors, architecture, drivers, edges, kinds, work }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))
@@ -140,15 +139,8 @@ export const architecture = ({ anchor, anchors, architecture, drivers, edges, ki
     for (const edge of incoming) {
       lines.push(`  ${node.id} <-${edge.rel}- ${edge.from}  ${title(edge.from)}`.trimEnd())
       const linked = code.get(edge.from)
-      if (linked === undefined) continue
-      if (edge.rel === anchor) {
-        for (const shape of [linked.attrs.shape, linked.attrs.exports].flat()) if (typeof shape === "string") lines.push(`    ${shape}`)
-        continue
-      }
-      // The elements that code is apply what it links to.
-      for (const is of edges.filter((e) => e.from === linked.id && e.rel === anchor && e.to !== node.id)) {
-        lines.push(`  ${node.id} <-${edge.rel}- ${is.to}, through ${linked.id}  ${title(is.to)}`.trimEnd())
-      }
+      if (linked === undefined || edge.rel !== anchor) continue
+      for (const shape of [linked.attrs.shape, linked.attrs.exports].flat()) if (typeof shape === "string") lines.push(`    ${shape}`)
     }
     for (const driver of drivers) {
       const features = [...new Set(driver.through.filter((route) => route.nodes[0] === node.id).map((route) => route.nodes[1]))]

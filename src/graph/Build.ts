@@ -3,7 +3,7 @@
  * truth; the graph is a derived, disposable index that can be rebuilt at any
  * time (and exported for grep/jq). Building is pure: no IO happens here.
  * Besides what authors link, it derives which element imports which from the
- * code anchored to them.
+ * code anchored to them, and links each element to the patterns its code links to.
  */
 import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
@@ -23,8 +23,10 @@ import {
   type Vocabulary
 } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
-import type { Import } from "../parse/Script.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
+import type { Located, ModuleConfigs } from "../parse/ModuleConfigs.ts"
+import { type Modules, readModules } from "../parse/Modules.ts"
+import type { Exports, Import } from "../parse/Script.ts"
 import { parseFeatureSpec, prefixCaseHint, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
@@ -54,6 +56,8 @@ export interface ProjectInput {
   /** The `.md` files beside the feature files and under the directories the features globs start in, by path: sdp reads none of them. */
   readonly markdownFiles: ReadonlyArray<string>
   readonly codeFiles: ReadonlyArray<SourceFile>
+  /** The tsconfig.json, package.json and like files that say what the names code imports mean (`readModules`). */
+  readonly moduleConfigs?: ModuleConfigs | undefined
   /** The step definition files: their definitions are read statically, never run. */
   readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
   /** What the features and code globs match that is no file sdp can read: what it would hold is not read. */
@@ -142,10 +146,12 @@ export const buildProject = (input: ProjectInput): Project => {
   }
   const annotations: Array<Annotation> = []
   const importsOf = new Map<string, ReadonlyArray<Import>>()
+  const exportsOf = new Map<string, Exports>()
   for (const file of input.codeFiles) {
     const scan = scanCode(file.path, file.content, vocabulary.relations.anchor)
     annotations.push(...scan.annotations)
     if (scan.imports.length > 0) importsOf.set(file.path, scan.imports)
+    if (scan.exports !== undefined) exportsOf.set(file.path, scan.exports)
     for (const { hint, line, message } of scan.unreadable) {
       diagnostics.push(diagnostic("annotation-unreadable", { message, source: { file: file.path, line }, hint }))
     }
@@ -497,8 +503,13 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const codeFiles = new Set(input.codeFiles.map((file) => file.path))
-  const graph = new Graph(nodes.values(), [...present, ...importsBetweenElements(annotations, importsOf, codeFiles, nodes, vocabulary)])
+  const modules = readModules(input.moduleConfigs ?? { root: input.root, top: "", files: [] }, input.codeFiles, exportsOf)
+  const elements = elementsOf(annotations, nodes, vocabulary)
+  const graph = new Graph(nodes.values(), [
+    ...present,
+    ...importsBetweenElements(elements, importsOf, modules, diagnostics),
+    ...patternsOfElements(elements, present, nodes, vocabulary)
+  ])
 
   return {
     root: input.root,
@@ -518,20 +529,14 @@ export const buildProject = (input: ProjectInput): Project => {
 }
 
 /**
- * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
- * constant from a module anchored to element B, at the line that names the module: the
- * dependencies between elements as the code has them. An import of types alone calls nothing, and
- * no element imports itself. A name means the code file it resolves to among all of `codeFiles`,
- * whether or not that file anchors an element. A pattern imports nothing and nothing imports it: the
- * code that plays it is part of an element.
+ * The elements each code file is part of: those any anchor of the file names, its own or one of its
+ * declarations'. A pattern is no element: the code that plays it is part of one.
  */
-const importsBetweenElements = (
+const elementsOf = (
   annotations: ReadonlyArray<Annotation>,
-  importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
-  codeFiles: ReadonlySet<string>,
   nodes: ReadonlyMap<string, GraphNode>,
   vocabulary: Vocabulary
-): ReadonlyArray<GraphEdge> => {
+): ReadonlyMap<string, ReadonlySet<string>> => {
   const elementsOf = new Map<string, Set<string>>()
   for (const annotation of annotations.filter((a) => a.rel === vocabulary.relations.anchor)) {
     const elements = annotation.targets.filter((id) => {
@@ -540,13 +545,45 @@ const importsBetweenElements = (
     })
     if (elements.length > 0) elementsOf.set(annotation.file, new Set([...elementsOf.get(annotation.file) ?? [], ...elements]))
   }
+  return elementsOf
+}
+
+/**
+ * `A -imports-> B` for each module anchored to element A that imports a function, a class or a
+ * constant from a module anchored to element B, at the line that names the module: the
+ * dependencies between elements as the code has them. An import of types alone calls nothing —
+ * written with `type`, or of names the module exports as types alone — and no element imports
+ * itself. A name means the code file TypeScript resolves it to (`readModules`), whether or not
+ * that file anchors an element; one sdp cannot follow, though it could name the workspace's code,
+ * is reported where it is written, and what sdp could not read of a configuration file such a name
+ * depends on is reported once, where that is written, as is a tsconfig.json that extends one outside
+ * the repository. A pattern imports nothing and nothing imports it.
+ */
+const importsBetweenElements = (
+  elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
+  importsOf: ReadonlyMap<string, ReadonlyArray<Import>>,
+  modules: Modules,
+  diagnostics: Array<Diagnostic>
+): ReadonlyArray<GraphEdge> => {
   const edges: Array<GraphEdge> = []
+  const reported = new Set<string>()
   for (const [file, elements] of elementsOf) {
-    for (const { line, specifier } of importsOf.get(file) ?? []) {
-      const module = resolveModule(file, specifier, codeFiles)
-      for (const used of module === undefined ? [] : elementsOf.get(module) ?? []) {
+    for (const imported of importsOf.get(file) ?? []) {
+      const { line, names } = imported
+      const { module, outside, unread, unresolved } = modules.resolve(file, imported)
+      if (unresolved !== undefined) diagnostics.push(diagnostic("import-unresolved", { ...unresolved, source: { file, line } }))
+      const once = (rule: "import-unresolved" | "import-config-outside", { file, hint, line, message }: Located) => {
+        if (reported.has(`${file}:${line}:${message}`)) return
+        reported.add(`${file}:${line}:${message}`)
+        diagnostics.push(diagnostic(rule, { message, hint, source: { file, line } }))
+      }
+      for (const each of unread ?? []) once("import-unresolved", each)
+      for (const each of outside ?? []) once("import-config-outside", each)
+      const used = module === undefined ? undefined : elementsOf.get(module)
+      if (used === undefined || (names !== undefined && !modules.loadsCode(module!, names))) continue
+      for (const to of used) {
         for (const element of elements) {
-          if (element !== used) edges.push({ from: element, rel: made.relations.imports, to: used, source: { file, line } })
+          if (element !== to) edges.push({ from: element, rel: made.relations.imports, to, source: { file, line } })
         }
       }
     }
@@ -555,49 +592,21 @@ const importsBetweenElements = (
 }
 
 /**
- * The extensions TypeScript tries in its order, the TypeScript source before the JavaScript: added to
- * a name, then in place of each extension a name is written with. Declaration files are left out, as
- * they hold no code.
+ * `A -plays-> P` for each link from code to pattern P, by the relation the code wrote and at its tag,
+ * from each element A the code's file is part of: what code of an element applies, the element does.
  */
-const addedExtensions = [".ts", ".tsx", ".js", ".jsx"]
-const swappedExtensions = new Map<string, ReadonlyArray<string>>([
-  [".ts", addedExtensions],
-  [".js", addedExtensions],
-  [".tsx", [".tsx", ".ts", ".jsx", ".js"]],
-  [".jsx", [".tsx", ".ts", ".jsx", ".js"]],
-  [".mts", [".mts", ".mjs"]],
-  [".mjs", [".mts", ".mjs"]],
-  [".cts", [".cts", ".cjs"]],
-  [".cjs", [".cts", ".cjs"]]
-])
-
-/**
- * The file of `files` that a relative specifier written in `file` names, as TypeScript resolves it:
- * the name with its extension swapped, then with one added, then a directory's index. A name written
- * with an extension TypeScript does not swap is first the file as written; a name that ends in a
- * directory (`./tax/`, `.`, `..`) is only that directory's index, never a file beside it; a package
- * name names no file of the workspace.
- */
-const resolveModule = (file: string, specifier: string, files: ReadonlySet<string>): string | undefined => {
-  if (!/^\.\.?(\/|$)/.test(specifier)) return undefined
-  const parts: Array<string> = []
-  for (const part of [...directoryOf(file).split("/"), ...specifier.split("/")]) {
-    if (part === "" || part === ".") continue
-    if (part !== "..") parts.push(part)
-    else if (parts.pop() === undefined) return undefined
-  }
-  const path = parts.join("/")
-  const indexes = addedExtensions.map((extension) => [...parts, `index${extension}`].join("/"))
-  if (/(^|\/)\.{0,2}$/.test(specifier)) return indexes.find((candidate) => files.has(candidate))
-  const written = /\.[^./]*$/.exec(path)?.[0]
-  const stem = path.slice(0, path.length - (written?.length ?? 0))
-  const candidates = [
-    ...written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path],
-    ...addedExtensions.map((extension) => `${path}${extension}`),
-    ...indexes
-  ]
-  return candidates.find((candidate) => files.has(candidate))
-}
+const patternsOfElements = (
+  elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
+  links: ReadonlyArray<GraphEdge>,
+  nodes: ReadonlyMap<string, GraphNode>,
+  vocabulary: Vocabulary
+): ReadonlyArray<GraphEdge> =>
+  links.flatMap((link) => {
+    const code = nodes.get(link.from)
+    const file = code?.kind === made.kinds.code ? code.attrs.file : undefined
+    if (!Predicate.isString(file) || link.rel === vocabulary.relations.anchor || !hasKind(vocabulary, "pattern", nodes.get(link.to)?.kind ?? "")) return []
+    return [...elementsOf.get(file) ?? []].map((element) => ({ from: element, rel: link.rel, to: link.to, source: link.source }))
+  })
 
 /**
  * Which of a spec's rules and examples are work still to come; the rest is live. A Feature or a

@@ -615,12 +615,12 @@ Feature: Know what is verified
       When I run "sdp run wishlist"
       Then the exit code is 1
 
-  Rule: Any change to the code, the step definitions or the configuration makes every result stale
+  Rule: Any change to the code, the step definitions or sdp's configuration makes every result stale
 
     Knowing which scenarios reached a change would take tracing, and still miss what a step reads
     through a service.
 
-    Scenario Outline: A code file, the configuration or a step definition file changes
+    Scenario Outline: A code file, sdp's configuration or a step definition file changes
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes

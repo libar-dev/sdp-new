@@ -35,9 +35,11 @@ export const rules = {
   "milestone-met": "warning",
   "annotation-ignored": "warning",
   "annotation-unreadable": "warning",
+  "import-unresolved": "warning",
   "return-type": "warning",
   "step-unreadable": "warning",
-  "step-expression": "error"
+  "step-expression": "error",
+  "import-config-outside": "info"
 } as const satisfies Record<string, Severity>
 
 export type RuleId = keyof typeof rules
@@ -46,7 +48,7 @@ export type RuleId = keyof typeof rules
  * The rules that report part of the workspace as not read — a spec that does not parse, a path the
  * globs match that is no file, an id declared twice, a tag or a code annotation whose fact or link
  * is dropped, written where it annotates nothing, or given a value another declaration of its node
- * overrides. What they name is
+ * overrides, or an import whose module sdp cannot follow. What they name is
  * missing from the graph, so no answer drawn from the graph is known to be complete while one of
  * them is reported.
  */
@@ -58,6 +60,7 @@ export const unreadRules: ReadonlySet<RuleId> = new Set([
   "link-syntax",
   "annotation-unreadable",
   "annotation-ignored",
+  "import-unresolved",
   "declaration-conflict"
 ])
 

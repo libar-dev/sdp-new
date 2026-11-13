@@ -52,6 +52,24 @@ Feature: Link code to specs
       And node "ARCH-billing" has attribute owner = "payments"
       And node "ARCH-billing" has attribute tier = "1"
 
+    Scenario Outline: A tag names an id as a spec declares it: <id>
+      Given a file "src/pay.ts" containing:
+        """
+        /** @sdp implements <id> */
+        export const pay = (): number => 0
+        """
+      When the workspace is loaded
+      Then the workspace graph has edges:
+        | from                | rel        | to   | source       |
+        | code:src/pay.ts#pay | implements | <id> | src/pay.ts:1 |
+
+      Examples:
+        | id               |
+        | 2fa-login        |
+        | ARCH-zählung     |
+        | 支払い             |
+        | pay#ein-schritt  |
+
     Scenario: A maturity given in code decides the stage like one written in the spec
       Given a file "src/pay.py" containing:
         """
@@ -99,8 +117,8 @@ Feature: Link code to specs
   Rule: A file whose tags sdp cannot read is reported, never guessed
 
     A guessed annotation is a link nobody wrote, and a lost one a gap nobody sees. A tag that names
-    an id and something that is no id was meant as a tag; one that names no id at all, as
-    `@sdp implements <ID>` does in a guide, only mentions the form. `sdp/annotations`,
+    something that is no id, or goes on after its ids with other words, was meant as a tag; one whose
+    ids are placeholders, as `@sdp implements <ID>` in a guide, only mentions the form. `sdp/annotations`,
     the module of the `annotate()` that tags replaced, is reported wherever a file imports it: what
     its calls say is translated into tags only where a call plainly uses the import.
 
@@ -137,6 +155,11 @@ Feature: Link code to specs
       Examples:
         | case                         | code                                                                                                     | line | message                                                   | hint                                                         |
         | a list with a word that is no id | /** @sdp implements pay, pay? */\nexport const pay = (): number => 0                                   | 1    | "@sdp implements pay, pay?" names pay?, which is no id     | separated by commas                                          |
+        | a word that is no id         | /** @sdp implements pay? */\nexport const pay = (): number => 0                                         | 1    | "@sdp implements pay?" names pay?, which is no id          | separated by commas                                          |
+        | words after its ids          | /** @sdp is ARCH-billing handles payments */\nexport const pay = (): number => 0                          | 1    | "@sdp is ARCH-billing handles payments" goes on after its ids with "handles payments" | separated by commas |
+        | attributes and no id         | /** @sdp is owner=payments */\nexport const pay = (): number => 0                                       | 1    | "@sdp is owner=payments" names no id                       | separated by commas                                          |
+        | a placeholder left open      | /** @sdp is <billing */\nexport const pay = (): number => 0                                              | 1    | "@sdp is <billing" names <billing, which is no id         | separated by commas                                          |
+        | an id that ends a sentence   | /** @sdp is ARCH-billing. */\nexport const pay = (): number => 0                                         | 1    | "@sdp is ARCH-billing." names ARCH-billing., which is no id | no full stop at its end                                      |
         | the retired annotate() | import { annotate } from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotate(pay, { implements: ["pay", "refund"] }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay, refund (the call at line 4) |
         | the retired annotate(), of a namespace | import * as annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |
         | the retired module, as its default | import annotations from "sdp/annotations"\n\nexport const pay = (): number => 0\nannotations.annotate(pay, { implements: "pay" }) | 1 | sdp/annotations is retired, so no annotate() of it is read | in the doc comment of pay, @sdp implements pay (the call at line 4) |
@@ -165,7 +188,11 @@ Feature: Link code to specs
     its declaration, and only a module-level name is unique there.
 
     Scenario: A file and a declaration, each tagged in the comment that describes it
-      Given a file "src/pricing.ts" containing:
+      Given a file "src/round.ts" containing:
+        """
+        export const round = (amount: number): number => Math.round(amount)
+        """
+      And a file "src/pricing.ts" containing:
         """
         /**
          * Prices and VAT.
@@ -210,6 +237,12 @@ Feature: Link code to specs
         | a JSDoc tag of its own after them  | /**\n * Charges the card on file.\n *\n * @internal\n * @sdp implements pay\n */ | 7    |
         | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
         | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
+        | a comment of its own above it      | // Copyright 2026 Acme Corp.\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */ | 7    |
+        | a doc comment of its own above it  | /** @license MIT */\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */      | 7    |
+        | a line comment above a tag alone   | // Charges the card on file.\n/** @sdp implements pay */                      | 3    |
+        | a doc comment above a tag alone    | /** Charges the card on file. */\n/** @sdp implements pay */                  | 3    |
+        | a linter's directive after the tag | /** Charges the card on file. */\n// @sdp implements pay\n// eslint-disable-next-line @typescript-eslint/no-explicit-any | 4    |
+        | a linter's directive above the tag | /**\n * Charges the card on file.\n */\n// eslint-disable-next-line no-console\n// @sdp implements pay | 6    |
 
     Scenario Outline: In <language>, the comment lines around the tag describe the code
       Given a file "<file>" containing:
@@ -226,6 +259,28 @@ Feature: Link code to specs
         | Python   | src/pay.py | # Charges the card on file.\n# @sdp implements pay\ndef pay(): pass          | code:src/pay.py#pay |
         | Go       | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error { | code:src/pay.go#Pay |
         | Ruby     | src/pay.rb | # @sdp implements pay\n# Charges the card on file.\ndef pay                   | code:src/pay.rb#pay |
+        | Python, with a linter's directive | src/pay.py | # Charges the card on file.\n# @sdp implements pay\n# pylint: disable=invalid-name\ndef pay(): pass | code:src/pay.py#pay |
+
+    Scenario Outline: In Python, a docstring is the doc comment of the module, the class or the function it opens: <opens>
+      Given a file "src/pay.py" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id     | source            | doc                       |
+        | <node> | src/pay.py:<line> | Charges the card on file. |
+      And the workspace graph has edges:
+        | from   | rel        | to  |
+        | <node> | implements | pay |
+      And sdp reports nothing
+
+      Examples:
+        | opens                          | code                                                                                                                  | node                    | line |
+        | the module                     | """Charges the card on file.\n\n@sdp implements pay\n"""\nimport os                                                   | code:src/pay.py         | 1    |
+        | a class                        | import os\n\n\nclass Payment:\n    """\n    Charges the card on file.\n\n    @sdp implements pay\n    """\n\n    def charge(self):\n        pass | code:src/pay.py#Payment | 4    |
+        | a function                     | def pay(order):\n    '''Charges the card on file.\n\n    @sdp implements pay'''\n    return order                     | code:src/pay.py#pay     | 1    |
+        | a function of several lines    | def pay(\n    order,\n) -> None:\n    """Charges the card on file.\n\n    @sdp implements pay\n    """                | code:src/pay.py#pay     | 1    |
 
     Scenario Outline: A decorated declaration, <placed>
       Given a file "src/pay.ts" containing:
@@ -314,6 +369,12 @@ Feature: Link code to specs
         | web/pay.html | <!-- @sdp implements pay --> | <form id="pay"></form>           | code:web/pay.html        |
         | src/pay.clj  | ; @sdp implements pay        | (defn pay [order])               | code:src/pay.clj         |
         | src/pay.erl  | % @sdp implements pay        | pay(Order) -> ok.                | code:src/pay.erl         |
+        | src/pay.py   | # @sdp implements pay        | @app.route("/pay")\ndef pay():   | code:src/pay.py#pay      |
+        | src/Pay.java | /** @sdp implements pay */   | @Service\npublic class Payment {} | code:src/Pay.java#Payment |
+        | src/pay.py   | # @sdp implements pay        | @app.route(\n    "/pay",\n    methods=["POST"],\n)\n@login_required\ndef pay(): | code:src/pay.py#pay      |
+        | src/Pay.java | /** @sdp implements pay */   | @RequestMapping("/pay") @ResponseBody\npublic class Payment {} | code:src/Pay.java#Payment |
+        | src/Pay.cs   | /// @sdp implements pay      | [ApiController]\n[Route("api/[controller]")]\npublic class Payment {} | code:src/Pay.cs#Payment  |
+        | src/pay.rs   | /// @sdp implements pay      | #[derive(\n    Debug,\n)]\npub struct Payment {} | code:src/pay.rs#Payment  |
 
     Scenario: After a blank line, inside a doc comment, two in a row, with typed attributes
       Given a file "src/billing.ts" containing:
@@ -359,6 +420,47 @@ Feature: Link code to specs
       When I query "code"
       Then the result is "nothing"
 
+    Scenario Outline: A doc comment's own tags are read, not those of code it shows: <shown>
+      Given a file "src/mailer.ts" containing:
+        """
+        /**
+         * Registers the mailer.
+         *
+        <lines>
+         */
+        export const register = (): number => 0
+        """
+      When the workspace is loaded
+      Then sdp reports nothing
+      When I query "code -*-> *"
+      Then the result is "<links>"
+
+      Examples:
+        | shown                                      | lines                                                                       | links   |
+        | an example                                 | * @example\n * // @sdp implements pay                                       | nothing |
+        | an example with a decorator in it          | * @example\n * @Injectable()\n * // @sdp implements pay\n * class Mailer {} | nothing |
+        | a fenced block                             | * ```ts\n * // @sdp implements pay\n * ```                                  | nothing |
+        | an example, then the comment's own tag     | * @example\n * register()\n *\n * @sdp implements pay                       | pay     |
+        | a fenced block, then the comment's own tag | * ```ts\n * // @sdp is ARCH-mailer\n * ```\n *\n * @sdp implements pay      | pay     |
+
+    Scenario Outline: A tag after words on its line is not read, and is reported: <language>
+      Given a file "<file>" containing:
+        """
+        <comment>
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule               | at       | message                                           |
+        | annotation-ignored | <file>:1 | "@sdp implements pay" follows words on its line   |
+      When I query "code"
+      Then the result is "nothing"
+
+      Examples:
+        | language   | file       | comment                                                | code                               |
+        | TypeScript | src/pay.ts | /** Charges the card on file. @sdp implements pay */   | export const pay = (): number => 0 |
+        | Python     | src/pay.py | # Charges the card on file. @sdp implements pay        | def pay(): pass                    |
+
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: An id that no node declares is reported by sdp check where the tag names it
 
@@ -400,6 +502,8 @@ Feature: Link code to specs
     not. A variable is its written type, or else the function its value is: one written there, or
     the body `Effect.fn` and `Effect.fnUntraced` make one of, as their documentation has it. What any
     other call gives back only a type checker knows. An overloaded function is its public signatures.
+    As in a declaration file, a default value is left out, and only a literal's type said of it; the
+    body of a function is code, not surface, even where a class extends a call.
 
     Scenario: An interface and a function, each tagged in the comment that describes it
       Given a file "src/pricing.ts" containing:
@@ -458,6 +562,15 @@ Feature: Link code to specs
         | spanned | export const spanned = Effect.fn("spanned")(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n}, Effect.withSpan("cart"))   | function spanned(id: string): Effect.fn.Return<number>                                        |
         | size   | export const size = Effect.fnUntraced(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n})                                    | function size(id: string): Effect.fn.Return<number>                                           |
         | parse  | export function parse(text: string): number\nexport function parse(text: string, radix: number): number\nexport function parse(text: string, radix = 10): number {\n  return Number.parseInt(text, radix)\n} | function parse(text: string): number; function parse(text: string, radix: number): number |
+        | charge | export function charge(cents: number, retries = defaultRetries(), { delay = 100 }: Backoff = {}): number {\n  return cents\n} | function charge(cents: number, retries?, { delay }?: Backoff): number |
+        | page   | export function page(size = 20, label = "all", open = true, big = -1n, last?: string): number {\n  return size\n}                                  | function page(size?: number, label?: string, open?: boolean, big?: bigint, last?: string): number |
+        | pad    | export function pad(width = 2, text: string, fill: string = " ", align = left()): string {\n  return text\n}                                       | function pad(width: number \| undefined, text: string, fill?: string, align?): string         |
+        | Ledger | export class Ledger {\n  constructor(private readonly db: string, public name = "main") {}\n  post(entry: string): void\n  post(entry: number): void\n  post(entry: string \| number): void {\n    void entry\n  }\n  protected audit(): void {}\n} | class Ledger { constructor(db: string, public name?: string); post(entry: string): void; post(entry: number): void } |
+        | Point  | export class Point {\n  constructor(public x: number = 0, y: number, onMove: (to: number) => void = () => {}, z: number) {}\n}                     | class Point { constructor(public x: number \| undefined, y: number, onMove: ((to: number) => void) \| undefined, z: number) } |
+        | Billing | export class Billing extends Effect.Service<Billing>()("Billing", {\n  effect: Effect.gen(function*() {\n    const key = process.env.STRIPE_KEY ?? "sk_live_fallback"\n    return { key }\n  }),\n  fallback: () => process.env.STRIPE_KEY\n}) {} | class Billing extends Effect.Service<Billing>()("Billing", { effect: Effect.gen(function*() {…}), fallback: () => … }) {} |
+        | Person | export class Person extends Schema.Class<Person>("Person")({ id: Schema.Number, name: Schema.String }) {}                                          | class Person extends Schema.Class<Person>("Person")({ id: Schema.Number, name: Schema.String }) {} |
+        | Missing | export class Missing extends Data.TaggedError("Missing")<{\n  readonly id: string\n}> {}                                                           | class Missing extends Data.TaggedError("Missing")<{ readonly id: string }> {}                 |
+        | Base   | export abstract class Base<T> extends Object implements Iterable<T> {\n  abstract each(): void\n} | abstract class Base<T> extends Object implements Iterable<T> { abstract each(): void } |
 
     Scenario: A tag that opens a file gives the shapes of what the file exports
       Given a file "src/pricing.ts" containing:
@@ -483,11 +596,18 @@ Feature: Link code to specs
         }
 
         const audit = (): void => {}
+
+        class Rates {
+          vat(country: string): number {
+            return country === "DE" ? 19 : 20
+          }
+        }
+        export default Rates
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
         | id                  | doc                             | exports                                                                                                                                                 |
-        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number, function cents(euros: number): Cents; function cents(euros: string): Cents |
+        | code:src/pricing.ts | Prices, VAT rates and rounding. | type Cents = number, function vatFor(net: Cents, rate: number): Cents, let rounding: number, function cents(euros: number): Cents; function cents(euros: string): Cents, class Rates { vat(country: string): number } |
 
   Rule: sdp check asks an annotated function to state its return type
 
