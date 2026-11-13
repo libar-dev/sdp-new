@@ -4,16 +4,27 @@ Feature: A change to sdp is done when everything built is verified
   What `npm run verify` holds every change of this repository to, and what is still to come to hold
   it there without anyone remembering to run it.
 
-  Rule: The sources run as they are, with no build step
+  Rule: A checkout runs its TypeScript sources with no build step, and npm pack builds the JavaScript an installed sdp runs without leaving it in the checkout
 
     Node.js 24 or later runs the TypeScript sources of this repository: an agent that edits one
-    runs the result with the next command, and there is no stale `dist/` to forget.
+    runs the result with the next command, and there is no stale `dist/` to forget. Node strips no
+    types under node_modules, so what npm installs is built when it is packed.
 
     Scenario: The entry points of a checkout with no build output
       Given this repository has no build output
       When a fresh Node process imports "sdp/steps"
       Then the output contains "/src/steps.ts"
       When I run "node bin/sdp.js --version" in the repository
+      Then the exit code is 0
+
+    Scenario: Packing leaves the checkout as it was
+      When a checkout of this repository is packed with npm
+      Then the exit code is 0
+      And the checkout is as it was before it was packed
+
+    Scenario: The package npm packs runs from where it is installed
+      Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
+      When I run "node_modules/.bin/sdp --version"
       Then the exit code is 0
 
   Rule: Everything that is built is verified, and npm run verify fails when it is not
