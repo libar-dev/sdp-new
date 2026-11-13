@@ -411,6 +411,35 @@ Feature: Know what is verified
         | the file a link leads to changes                     | cp shared/two.ts shared/one.ts |
         | a link is made to lead to another, unchanged file    | ln -sf two.ts shared/lamps.ts  |
 
+    Scenario: A step file is made a link to a copy of it elsewhere, beside other files it imports
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "shared/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp run"
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "sh -c 'cp specs/steps/cart.steps.ts shared/cart.ts && ln -sf ../../shared/cart.ts specs/steps/cart.steps.ts'"
+      Then the exit code is 0
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+
     Scenario: An outline whose ordinary row changed the code while it ran, and whose gate row ran after
       Given a file "src/cart.ts" containing:
         """
@@ -814,6 +843,36 @@ Feature: Know what is verified
         | that                       | targets | exit code | output                                                                                      |
         | that would record a gate   | .       | 1         | specs/steps/more.steps.ts was added after this process loaded the step modules              |
         | that records no gate       | cart    | 0         | stale: 1 result(s) of this run no longer count (1 code-changed): what they ran against changed |
+
+    Scenario: A step file the process loaded is made a link while a run that would record a gate runs
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "cart" has stage "verified"
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { copyFileSync, mkdirSync, rmSync, symlinkSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {
+            mkdirSync("shared")
+            copyFileSync("specs/steps/cart.steps.ts", "shared/cart.ts")
+            rmSync("specs/steps/cart.steps.ts")
+            symlinkSync("../../shared/cart.ts", "specs/steps/cart.steps.ts")
+          })
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "specs/steps/cart.steps.ts changed after this process imported it"
+      And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
 
   Rule: A result goes stale when a lockfile at the workspace root changes
 

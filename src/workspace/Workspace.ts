@@ -261,6 +261,25 @@ export const readImports = Effect.fn("readImports")(function*(root: string, impo
 })
 
 /**
+ * The step files whose path leads elsewhere — a link, or a path through one — as a run records
+ * such a path, `L → R`, relative to the real root: a step file is loaded from where it leads, and
+ * what it imports is found beside it there, so where it leads is part of the step definitions.
+ */
+const stepLinks = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  if (files.length === 0) return []
+  const real = yield* fs.realPath(root)
+  return (yield* Effect.forEach(files, (file) => {
+    const named = path.resolve(real, file)
+    return fs.realPath(named).pipe(
+      Effect.map((to): ReadonlyArray<SourceFile> => to === named ? [] : [{ path: leadingTo(path.relative(real, named), path.relative(real, to)), content: "" }]),
+      Effect.orElseSucceed(() => [])
+    )
+  }, { concurrency: 32 })).flat()
+})
+
+/**
  * Reads a workspace and builds one view of it: the project with the results that `results` lets
  * it show — `all` for readers, `ordinary` for gates, `none` for ordinary scenarios — and the
  * fingerprints a run records. `imports` names the workspace files the step definitions of this
@@ -289,6 +308,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const markdownFiles = [...markdown.files, ...markdown.unread.map((file) => file.path)].sort()
   const codeFiles = yield* readAll(root, code.files)
   const stepFiles = yield* readAll(root, steps.files)
+  const stepsLeading = yield* stepLinks(root, steps.files)
   const recorded = Object.entries(stored?.imports ?? {})
   const imports = options.imports ?? []
   const imported = new Map(
@@ -299,6 +319,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     ...(configFile ? [configFile] : []),
     ...codeFiles,
     ...stepFiles,
+    ...stepsLeading,
     ...files.flatMap((file) => imported.get(file) ?? [])
   ]
   const sources = sourcesWith(imports)
@@ -410,8 +431,9 @@ export interface LoadedSteps {
   readonly imports: () => ReadonlyArray<string>
   /**
    * The step files and their imports that `sources` holds with another content than this process
-   * loaded, or no longer holds at all, and the links they were reached through that lead elsewhere
-   * now: a run against them would record evidence about code that did not run.
+   * loaded, no longer holds at all or holds as leading elsewhere, and the links they were reached
+   * through that lead elsewhere now: a run against them would record evidence about code that did
+   * not run.
    */
   readonly changed: (sources: ReadonlyArray<SourceFile>) => ReadonlyArray<string>
   /** The step files of `steps` that this process did not load, which were added since: their definitions did not run either. */
@@ -474,12 +496,14 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   }
   const changed = (sources: ReadonlyArray<SourceFile>) => {
     const present = new Map(sources.map((file) => [file.path, file.content]))
+    // The paths that lead elsewhere now: a module loaded from one of them would be loaded from elsewhere.
+    const leading = new Set(sources.flatMap((file) => file.path.includes(arrow) ? [file.path.split(arrow)[0]] : []))
     const { links, modules } = reached()
     return [
       ...modules.filter(({ file, url }) => {
         const content = present.get(file)
-        // Deleted: Node still runs what it loaded.
-        if (content === undefined) return true
+        // Deleted, or now a link: Node still runs what it loaded.
+        if (content === undefined || leading.has(file)) return true
         // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
         const loaded = loadedSources.get(url) ?? content
         loadedSources.set(url, loaded)
