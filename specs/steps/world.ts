@@ -79,7 +79,7 @@ interface Outcome {
   readonly text: string
   /** What a command hands to the next one in a pipe; anything else hands on its text. */
   readonly stdout: string
-  readonly command?: { readonly line: string; readonly code: number } | undefined
+  readonly command?: { readonly line: string; readonly code: number; readonly state: string } | undefined
   /** Whether the scenario stated the exit code, and whether it asserted anything at all. */
   stated: boolean
   asserted: boolean
@@ -90,12 +90,16 @@ interface Outcome {
  * produces something fails if nothing was asserted about it, and `output` fails until an exit
  * code other than 0 is stated.
  */
-export const produce = (world: World, text: string, command?: { readonly line: string; readonly code: number; readonly stdout: string }) => {
+export const produce = (world: World, text: string, command?: { readonly line: string; readonly code: number; readonly stdout: string; readonly state?: string }) => {
   const previous = world.outcome
   if (previous?.command && !previous.asserted) {
     throw new Error(`nothing was asserted about \`${previous.command.line}\`, which exited with ${previous.command.code}: follow it with its exit code or its output`)
   }
-  world.outcome = { text, stdout: command?.stdout ?? text, command, stated: false, asserted: false }
+  world.outcome = {
+    text, stdout: command?.stdout ?? text,
+    command: command ? { ...command, state: command.state ?? `Then the exit code is ${command.code}` } : undefined,
+    stated: false, asserted: false
+  }
 }
 
 const outcome = (world: World): Outcome => {
@@ -106,7 +110,7 @@ const outcome = (world: World): Outcome => {
 const seen = (world: World): Outcome => {
   const last = outcome(world)
   if (last.command && last.command.code !== 0 && !last.stated) {
-    throw new Error(`\`${last.command.line}\` exited with ${last.command.code}; state that first: Then the exit code is ${last.command.code}\n${last.text}`)
+    throw new Error(`\`${last.command.line}\` exited with ${last.command.code}; state that first: ${last.command.state}\n${last.text}`)
   }
   last.asserted = true
   return last

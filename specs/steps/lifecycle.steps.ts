@@ -6,7 +6,7 @@ import { Effect } from "effect"
 import { strict as assert } from "node:assert"
 import { defineSteps } from "sdp/steps"
 import { lifecycle, renderLifecycle } from "../../src/lifecycle/Lifecycle.ts"
-import { assertRows, load, newWorld, produce, type Row, type World } from "./world.ts"
+import { assertRows, ids, load, newWorld, produce, type Row, type World } from "./world.ts"
 
 const computed = (world: World) => {
   assert.ok(world.lifecycle, "compute the lifecycle first")
@@ -43,10 +43,9 @@ export default defineSteps(newWorld, ({ Then, When }) => {
     assertRows("milestones", rows, table, "in order")
   })
 
-  // The ids of the work still to come that nothing plans, in order, or "nothing".
+  // The ids of the work still to come that nothing plans, in any order, or "nothing".
   Then("the unplanned work is {string}", ({ args: [expected], world }) => {
-    const ids = computed(world).unplanned.map((node) => node.id).sort()
-    assert.deepEqual(ids, expected === "nothing" ? [] : expected.split(",").map((id) => id.trim()))
+    assert.deepEqual(computed(world).unplanned.map((node) => node.id).sort(), ids(expected))
   })
 
   // The chart as numbers: a row per discipline, a column per iteration.

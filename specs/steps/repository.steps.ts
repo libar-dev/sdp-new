@@ -1,20 +1,21 @@
 /**
  * What is specific to this repository: the guards over its own source — the words only the
  * vocabulary profile may name, the cycles between its elements, the lines its graph points at —
- * the immutable graph, and the time its pipeline takes.
+ * its files read as data, the immutable graph, and the time its pipeline takes.
  */
 import { Effect, Result } from "effect"
 import { strict as assert } from "node:assert"
 import { readdir, readFile } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { parseSync } from "oxc-parser"
+import { parse } from "yaml"
 import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
 import { defaultVocabulary, hasKind, made, vocabularyWords } from "../../src/model/Vocabulary.ts"
 import type { Project } from "../../src/graph/Build.ts"
 import { existsSync } from "node:fs"
-import { newWorld, type World } from "./world.ts"
+import { ids, newWorld, produce, type World } from "./world.ts"
 
 type Node = { readonly type: string; readonly start: number; readonly [key: string]: unknown }
 
@@ -167,7 +168,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the search finds {string}", ({ args: [expected], world }) => {
     const found = world.scratch.interpreted as ReadonlyArray<string> | undefined
     assert.ok(found, "search the files first")
-    assert.deepEqual([...found].sort(), expected.split(",").map((s) => s.trim()).filter((s) => s !== "nothing").sort())
+    assert.deepEqual([...found].sort(), ids(expected))
   })
 
   Then("no element reaches itself over {string} links", ({ args: [rel], project }) => {
@@ -190,6 +191,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const { unnamed } = await followed(project)
       assert.equal(unnamed.length, 0, `grep for the target would miss:\n${unnamed.slice(0, 10).join("\n")}`)
     }))
+
+  // A YAML or JSON file, as JSON for the steps that read the JSON output.
+  When("the file {string} in the repository is read as data", async ({ args: [file], project, world }) => {
+    const content = await readFile(join(project.root, file), "utf8").catch(() => undefined)
+    assert.ok(content !== undefined, `no file ${file} in the repository`)
+    produce(world, JSON.stringify(parse(content), null, 2))
+  })
 
   Given("this repository has no build output", ({ project }) => {
     const found = ["dist", "build", "out"].filter((dir) => existsSync(join(project.root, dir)))
