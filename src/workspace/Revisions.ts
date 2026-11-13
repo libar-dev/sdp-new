@@ -430,7 +430,7 @@ const commitFiles = (git: Git, top: Entry, checkout: string, shown: (path: strin
   const file = Effect.fnUntraced(function*(written: string) {
     const reached = yield* reach(written, true)
     if (reached !== undefined && "found" in reached) return isFile(reached.entry) ? reached.entry : undefined
-    yield* record(reached ?? { unknown: "a link to nothing", at: written })
+    yield* record(reached ?? { unknown: "a link that leads to no file", at: written })
     return undefined
   })
 

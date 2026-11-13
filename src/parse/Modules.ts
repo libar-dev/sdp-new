@@ -88,7 +88,7 @@ export interface Modules {
  */
 export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, exported: ReadonlyMap<string, Exports>): Modules => {
   const read = readConfigs(configs)
-  const { at, manifest, packages, projectOf, scopeOf, settings } = read
+  const { at, manifest, packages, projectOf, scopeOf, settings, unreadBecause } = read
   const contents = new Map(code.map((file) => [file.path, file.content]))
   const codePaths = [...contents.keys()]
   /** Whether a directory, as a path from the root, holds code: it is the root, one above it, or one in it that a code file is in. */
@@ -394,7 +394,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const walk = packageOf(file, specifier, lookup)
     if (walk.found !== undefined) return walk
     const { name } = packageName(specifier)
-    const unread = packages.unread.map((path) => `; ${path} does not parse, and could declare it`).join("")
+    const unread = packages.unread.map((path) => `; ${path} ${unreadBecause(path)}, and could declare it`).join("")
     return {
       ...walk,
       found: {

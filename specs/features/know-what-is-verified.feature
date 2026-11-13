@@ -1007,9 +1007,9 @@ Feature: Know what is verified
     What a step that reads the graph sees is built from every spec, and from the code with the files
     that say which file each name it imports means: tsconfig.json, tsconfig.build.json,
     jsconfig.json, package.json, pnpm-workspace.yaml, deno.json and deno.jsonc, those a tsconfig.json
-    extends or references, and the package.json of each package a package manager's workspace lists.
-    It warns of each Markdown file where specs live, none of which it reads. A change to the code
-    makes every result stale already.
+    extends or references, and the package.json of each package the repository's package manager
+    lists. It warns of each Markdown file where specs live, none of which it reads. A change to the
+    code makes every result stale already.
 
     Scenario: Another spec is added
       Given a step definition "an empty cart" that passes

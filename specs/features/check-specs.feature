@@ -1026,6 +1026,21 @@ Feature: Check specs
         | beside an exclusion of directories | **/*.feature/        | 2         | false    |
         | excluded whatever it is            | specs/basket.feature | 0         | true     |
 
+    Scenario: A spec that is a link that leads to no file, deleted
+      When I run the pipeline:
+        """
+        ln -s nowhere.feature specs/basket.feature
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/basket.feature && sdp check
+        """
+      Then the exit code is 2
+      And the output contains "not compared: specs/basket.feature at the base"
+      And the output contains "is a link that leads to no file, so git holds none of what the configuration finds there"
+
     Scenario Outline: A file of the base that <case>, deleted
       Given a file "specs/basket.feature" containing:
         """

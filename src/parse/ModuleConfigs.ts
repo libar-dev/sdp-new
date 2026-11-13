@@ -25,6 +25,8 @@ export interface ModuleConfigs {
   readonly root: string
   readonly top: string
   readonly files: ReadonlyArray<File>
+  /** Those sdp found and could not read, with what each is: "a file sdp may not read". */
+  readonly unread?: ReadonlyArray<{ readonly path: string; readonly is: string }> | undefined
 }
 
 export const tsconfigFile = "tsconfig.json"
@@ -145,8 +147,15 @@ export const configDirectory = "${configDir}"
  */
 export const readConfigs = (configs: ModuleConfigs) => {
   const at = pathsFrom(configs.root, configs.top)
-  const byPath = new Map(configs.files.map((file) => [file.path, file.content]))
-  const packages = packagesOf(configs.files)
+  // A file sdp could not read is read as one that does not parse: it could say anything.
+  const notRead = new Map((configs.unread ?? []).map((file) => [file.path, `is ${file.is}`]))
+  const files = [...configs.files, ...[...notRead.keys()].map((path): File => ({ path, content: "" }))]
+  const byPath = new Map(files.map((file) => [file.path, file.content]))
+  const packages = packagesOf(files)
+  /** Why sdp read nothing of the file at `path`: it does not parse, or sdp could not read it. */
+  const unreadBecause = (path: string) => notRead.get(path) ?? "does not parse"
+  /** What to do so that sdp reads the file at `path`. */
+  const toRead = (path: string) => notRead.has(path) ? `make ${path} a file sdp can read` : `fix the syntax of ${path}`
   const tsconfigs = cache((path: string) => readTsConfig(byPath.get(path) ?? "{}"))
   const manifests = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodePackageJson))
   const globs = cache((pattern: string) => Glob.make(pattern))
@@ -162,7 +171,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
     const read = tsconfigs(path)
     if (seen.has(path)) return { unread: [] }
     if (!("value" in read)) {
-      return { unread: [{ file: path, line: read.line, message: `${path} ${read.unread}, so what it sets is not read`, hint: `fix the syntax of ${path}` }] }
+      return { unread: [{ file: path, line: read.line, message: `${path} ${notRead.get(path) ?? read.unread}, so what it sets is not read`, hint: toRead(path) }] }
     }
     const config = read.value
     const own = config.compilerOptions ?? {}
@@ -294,7 +303,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
     const json = readJson(byPath.get(path)!)
     if ("error" in json || !isRecord(json.value)) {
       const line = "error" in json ? json.line : 1
-      return { path, imports: {}, from: directoryOf(path), unread: [{ file: path, line, message: `${path} does not parse, so what it maps is not read`, hint: `fix the syntax of ${path}` }] }
+      return { path, imports: {}, from: directoryOf(path), unread: [{ file: path, line, message: `${path} ${unreadBecause(path)}, so what it maps is not read`, hint: toRead(path) }] }
     }
     const { read, unread } = fieldsOf(DenoJson, json.value)
     const located = (setting: string, message: string, hint: string): Unread => ({ file: path, line: lineOf(json.text, setting), setting, message, hint })
@@ -335,6 +344,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
     projectOf,
     manifest,
     packages,
+    unreadBecause,
     /** The package.json nearest a directory, at it or above it. */
     scopeOf: (directory: string) => at.upFrom(directory).map((above) => at.join(above, packageFile)).find((path) => byPath.has(path))
   }

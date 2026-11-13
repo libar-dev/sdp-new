@@ -258,18 +258,21 @@ const repositoryTop = Effect.fnUntraced(function*(root: string) {
  * The files that say what the names code imports mean: `moduleConfigFiles`, what the tsconfig.json
  * files among them extend and reference (`namedBy`), and the package.json of each package the
  * repository's package manager lists (`listedPackages`), as far as they are found in the repository — and what a
- * tsconfig.json there extends outside it.
+ * tsconfig.json there extends outside it; and those sdp could not read, which read as files that do not parse.
  */
 const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: ReadonlyArray<string>) {
   const path = yield* Path.Path
   const absolute = path.resolve(root)
   const top = yield* repositoryTop(absolute)
   const read = new Map<string, SourceFile>()
+  const unread: Array<NotAFile> = []
   const asked = new Set<string>()
   const listed = new Set<string>()
   for (let wanted = moduleConfigFiles(absolute, top, code); wanted.length > 0;) {
     for (const file of wanted) asked.add(file)
-    for (const file of yield* readFiles(root, wanted)) read.set(file.path, file)
+    const there = yield* readThere(root, wanted)
+    for (const file of there.files) read.set(file.path, file)
+    unread.push(...there.unread)
     const files = [...read.values()]
     const packages: Array<string> = []
     for (const { directory, exclude, include } of listedPackages(files)) {
@@ -279,7 +282,7 @@ const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: Readon
     }
     wanted = [...new Set([...namedBy(absolute, top, files), ...packages])].filter((file) => !asked.has(file))
   }
-  return { root: absolute, top, files: [...read.values()] }
+  return { root: absolute, top, files: [...read.values()], unread }
 })
 
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */
@@ -312,11 +315,16 @@ export interface Workspace {
 
 /** Reads `files` (relative to the root) that are files: a lockfile may be missing, or be no file. */
 export const readFiles = Effect.fn("readFiles")(function*(root: string, files: ReadonlyArray<string>) {
+  return (yield* readThere(root, files)).files
+})
+
+/** Reads `files` (relative to the root) that are files, and says which of them sdp could not read. */
+const readThere = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const isFile = (file: string) =>
     fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type === "File"), Effect.orElseSucceed(() => false))
-  return (yield* readAll(root, yield* Effect.filter(files, isFile))).files
+  return yield* readAll(root, yield* Effect.filter(files, isFile))
 })
 
 /** How a run records a path it reached a file through that leads elsewhere — a link, or a path through one — with where it led. */

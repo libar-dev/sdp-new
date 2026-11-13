@@ -503,7 +503,11 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const modules = readModules(input.moduleConfigs ?? { root: input.root, top: "", files: [] }, input.codeFiles, exportsOf)
+  // A path the globs match that is no file sdp can read is reported where it is (not-a-file): an import
+  // of it names code sdp could not read, and is not reported again as one it cannot follow.
+  const unreadCode = (input.notFiles ?? []).filter((notFile) => notFile.is !== "a directory sdp may not list")
+    .map((notFile): SourceFile => ({ path: notFile.path, content: "" }))
+  const modules = readModules(input.moduleConfigs ?? { root: input.root, top: "", files: [] }, [...input.codeFiles, ...unreadCode], exportsOf)
   const elements = elementsOf(annotations, nodes, vocabulary)
   const played = patternsOfElements(elements, present, nodes, vocabulary)
   const graph = new Graph(nodes.values(), [

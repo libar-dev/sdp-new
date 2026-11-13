@@ -577,6 +577,57 @@ Feature: See the architecture
         | a package that maps its names by typesVersions              | package.json     | { "name": "shop" }                                                         | { "name": "@shop/tax", "main": "./src/index.ts", "typesVersions": { "*": { "*": ["dist/*"] } } } | @shop/tax  | ARCH-tax | packages/tax/package.json:1 | packages/tax/package.json maps names by typesVersions, which sdp does not follow                                                                |
         | a deno.json that maps names by scopes                       | deno.json        | { "scopes": { "./src/": { "@shop/tax": "./packages/tax/src/index.ts" } } } | { "name": "@shop/tax", "exports": "./src/index.ts" }                                             | @shop/tax  | ARCH-tax | deno.json:1                 | deno.json maps names by scopes, which sdp does not follow                                                                                       |
 
+    Scenario Outline: A file that says what an import means, and that sdp may not read, is reported as one that does not parse: <file>
+      Given a file "<file>" containing:
+        """
+        <says>
+        """
+      And a file "src/tax.ts" containing:
+        """
+        /** @sdp is ARCH-tax */
+        export const rate = 0.25
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { rate } from "<name>"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      When I run the pipeline:
+        """
+        chmod 000 <file>
+        sdp q '#ARCH-billing -imports-> *' --ids
+        status=$?
+        chmod 644 <file>
+        exit $status
+        """
+      Then the exit code is 2
+      And the output contains 'note: not read: <at> [import-unresolved] <message>'
+
+      Examples:
+        | file          | says                                                       | name  | at               | message                                                                                                                                         |
+        | tsconfig.json | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } } | @/tax | tsconfig.json:1  | tsconfig.json is a file sdp may not read, so what it sets is not read                                                                           |
+        | package.json  | { "name": "shop", "imports": { "#tax": "./src/tax.ts" } }  | tax   | src/billing.ts:1 | "tax" is neither a package of the workspace nor a library a package.json declares, so it is not resolved; package.json is a file sdp may not read |
+        | deno.json     | { "imports": { "tax": "./src/tax.ts" } }                   | tax   | deno.json:1      | deno.json is a file sdp may not read, so what it maps is not read                                                                               |
+
+    Scenario: An import of code that is no file sdp can read is reported once, where that code is
+      Given a file "src/billing.ts" containing:
+        """
+        import { rate } from "./tax.ts"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      When I run the pipeline:
+        """
+        ln -s nowhere.ts src/tax.ts
+        sdp check --base none
+        """
+      Then the exit code is 1
+      And the output contains "[not-a-file] src/tax.ts is a link that leads to no file"
+      And the output does not contain "import-unresolved"
+
     Scenario Outline: An import that cannot name the workspace's code, or whose answer sdp read, is not reported: <case>
       Given a file "<config>" containing:
         """
