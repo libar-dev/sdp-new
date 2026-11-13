@@ -265,6 +265,7 @@ Feature: See the architecture
         | tsconfig.json             | {\n  // the aliases of the code\n  "compilerOptions": { "paths": { "@/*": ["./src/*"] } },\n}          | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | tsconfig.json             | { "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["*"] } } }                                 | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | jsconfig.json             | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }                                               | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
+        | tsconfig.json             | { "compilerOptions": { "moduleSuffixes": [".native", ""] } }                                             | src/tax.ts            | src/tax.native.ts         | ./tax.js  | ARCH-tax |
         | package.json              | { "name": "shop", "imports": { "#tax": "./src/tax.ts" } }                                                | lib/tax.ts            | src/tax.ts                | #tax      | ARCH-tax |
         | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
         | package.json              | { "name": "shop", "dependencies": { "tax": "^1.0.0" } }                                                  | lib/tax.ts            | src/tax.ts                | tax       | nothing  |

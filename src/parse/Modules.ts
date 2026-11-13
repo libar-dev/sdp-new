@@ -81,23 +81,25 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
    * the entry its package.json names, `types`, `typings` or `main`, else its index. A `directory`
    * is only the directory; an `entry` of a package.json is no package.json's again; and a target of
    * `exports` or `imports` is taken `exactly`: the file whose extension TypeScript puts in place of
-   * the one written, and nothing it would have to complete.
+   * the one written, and nothing it would have to complete. Each extension is tried with each of
+   * the `moduleSuffixes` before the next.
    */
-  const fileAt = (path: string, how: "file" | "directory" | "entry" | "exactly"): string | undefined => {
+  const fileAt = (path: string, how: "file" | "directory" | "entry" | "exactly", lookup: Lookup): string | undefined => {
     const written = /\.[^./]*$/.exec(path)?.[0]
     const stem = path.slice(0, path.length - (written?.length ?? 0))
-    const named = written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path]
-    const file = [...named, ...addedExtensions.map((extension) => `${path}${extension}`)].find((candidate) => contents.has(candidate))
+    const swapped = written === undefined ? [] : swappedExtensions.get(written)
+    const named = swapped === undefined ? [path] : suffixed(stem, swapped, lookup)
     if (how === "exactly") return named.find((candidate) => contents.has(candidate))
+    const file = [...named, ...suffixed(path, addedExtensions, lookup)].find((candidate) => contents.has(candidate))
     if (how !== "directory" && file !== undefined) return file
     const { main, types, typings } = how === "entry" ? {} : manifest(at.join(path, packageFile)) ?? {}
     for (const entry of [types, typings, main]) {
-      const found = entry === undefined ? undefined : fileAt(at.join(path, entry), "entry")
+      const found = entry === undefined ? undefined : fileAt(at.join(path, entry), "entry", lookup)
       if (found !== undefined) return found
     }
-    return indexOf(path)
+    return indexOf(path, lookup)
   }
-  const indexOf = (directory: string) => addedExtensions.map((extension) => at.join(directory, `index${extension}`)).find((candidate) => contents.has(candidate))
+  const indexOf = (directory: string, lookup: Lookup) => suffixed(at.join(directory, "index"), addedExtensions, lookup).find((candidate) => contents.has(candidate))
 
   /** The conditions `imported` is resolved under in `file`, read with `options`, besides `default`. */
   const conditionsOf = (file: string, imported: Import, options: Settings): ReadonlySet<string> => {
@@ -115,26 +117,26 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 
   /** The source a package's build writes `path` from, by the `rootDir` and `outDir` of the tsconfig.json nearest the package. */
-  const sourceOf = (directory: string, path: string, how: "file" | "entry" | "exactly"): string | undefined => {
+  const sourceOf = (directory: string, path: string, how: "file" | "entry" | "exactly", lookup: Lookup): string | undefined => {
     const config = at.upFrom(directory).map((above) => at.join(above, tsconfigFile)).find((candidate) => read.has(candidate))
     if (config === undefined) return undefined
     const { outDir, rootDir } = settings(config)
     if (outDir === undefined || !path.startsWith(`${outDir}/`)) return undefined
     const written = path.slice(outDir.length + 1).replace(/\.d\.([cm]?)ts$/, ".$1js")
-    return fileAt(at.join(rootDir ?? directoryOf(config), written), how)
+    return fileAt(at.join(rootDir ?? directoryOf(config), written), how, lookup)
   }
 
   /** What a path of a package means — a subpath, an entry, or a target of its map of names, taken `exactly` — or the path it names when that is no file. */
-  const entry = (directory: string, target: string, how: "file" | "entry" | "exactly"): Walk => {
+  const entry = (directory: string, target: string, how: "file" | "entry" | "exactly", lookup: Lookup): Walk => {
     const path = at.join(directory, target)
-    const found = fileAt(path, how) ?? sourceOf(directory, path, how)
+    const found = fileAt(path, how, lookup) ?? sourceOf(directory, path, how, lookup)
     if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
     if (namesNoCode(path)) return { found: {}, passed: [], decided: false }
     return { passed: [], missing: path, decided: false }
   }
 
   /** What `specifier` means as a package of the workspace, in `directory`, by its subpath. */
-  const packageExport = (directory: string, specifier: string, subpath: string, conditions: ReadonlySet<string>): Walk => {
+  const packageExport = (directory: string, specifier: string, subpath: string, lookup: Lookup): Walk => {
     const path = at.join(directory, packageFile)
     // Nothing a package without code means is the workspace's code.
     if (!hasCode(directory)) return { found: {}, passed: [], decided: false }
@@ -161,21 +163,21 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
         ? exports
         : { ".": exports }
       const key = matchKey(Object.keys(map), subpath === "" ? "." : `./${subpath}`)
-      return found(key === undefined ? nothing : pick(map[key.key]!, key.star, conditions, (target) => entry(directory, target, "exactly")))
+      return found(key === undefined ? nothing : pick(map[key.key]!, key.star, lookup.conditions, (target) => entry(directory, target, "exactly", lookup)))
     }
-    if (subpath !== "") return found(entry(directory, subpath, "file"))
+    if (subpath !== "") return found(entry(directory, subpath, "file", lookup))
     let walked = nothing
     for (const named of [types, typings, main]) {
       if (named === undefined) continue
-      walked = after(walked, entry(directory, named, "entry"))
+      walked = after(walked, entry(directory, named, "entry", lookup))
       if (walked.found !== undefined) return walked
     }
-    const index = indexOf(directory)
+    const index = indexOf(directory, lookup)
     return index !== undefined ? { ...walked, found: { module: index } } : missed(walked)
   }
 
   /** What a name that is neither relative nor `#` means as a package: of the workspace, a library, or neither. */
-  const packageOf = (file: string, specifier: string, conditions: ReadonlySet<string>): Walk => {
+  const packageOf = (file: string, specifier: string, lookup: Lookup): Walk => {
     if (isBuiltin(specifier) || /^[a-z][a-z0-9+.-]*:/i.test(specifier)) return { found: {}, passed: [], decided: false }
     const { name, subpath } = packageName(specifier)
     const linked = aliasOf(file, name) ?? name
@@ -192,7 +194,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
         decided: false
       }
     }
-    if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, conditions)
+    if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, lookup)
     if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return { found: {}, passed: [], decided: false }
     return nothing
   }
@@ -210,7 +212,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 
   /** What a `#` name means by the `imports` of the package.json nearest `file`. */
-  const packageImport = (file: string, specifier: string, conditions: ReadonlySet<string>): Walk => {
+  const packageImport = (file: string, specifier: string, lookup: Lookup): Walk => {
     const scope = scopeOf(directoryOf(file))
     const imports = scope === undefined ? undefined : manifest(scope)?.imports
     const key = imports === undefined ? undefined : matchKey(Object.keys(imports), specifier)
@@ -227,11 +229,11 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       }
     }
     const take = (target: string): Walk => {
-      if (/^\.\.?\//.test(target)) return entry(directoryOf(scope), target, "exactly")
-      const walk = packageOf(file, target, conditions)
+      if (/^\.\.?\//.test(target)) return entry(directoryOf(scope), target, "exactly", lookup)
+      const walk = packageOf(file, target, lookup)
       return walk.found === undefined ? { ...walk, found: {} } : walk
     }
-    const walk = pick(imports[key.key]!, key.star, conditions, take)
+    const walk = pick(imports[key.key]!, key.star, lookup.conditions, take)
     if (walk.found !== undefined) return walk
     return {
       ...walk,
@@ -249,22 +251,22 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   /** What a name that is not relative means in `file`, read with `options`, and whether a condition decided it. */
   const meaningOf = (file: string, imported: Import, options: Settings, project: string | undefined): Walk => {
     const { specifier } = imported
-    const conditions = conditionsOf(file, imported, options)
+    const lookup = { conditions: conditionsOf(file, imported, options), suffixes: suffixesOf(options) }
     let mappedTo: string | undefined
     const key = options.paths === undefined ? undefined : matchKey(Object.keys(options.paths.map), specifier)
     for (const target of key === undefined ? [] : options.paths!.map[key.key]!) {
       const path = target.startsWith(configDirectory)
         ? at.join(options.configDir!, target.slice(configDirectory.length).replace("*", key!.star))
         : at.join(options.baseUrl ?? options.paths!.from, target.replace("*", key!.star))
-      const found = fileAt(path, "file")
+      const found = fileAt(path, "file", lookup)
       if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
       if (namesNoCode(path)) return { found: {}, passed: [], decided: false }
       mappedTo ??= path
     }
-    const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), "file")
+    const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), "file", lookup)
     if (under !== undefined) return { found: { module: under }, passed: [], decided: false }
-    if (specifier.startsWith("#")) return packageImport(file, specifier, conditions)
-    const walk = packageOf(file, specifier, conditions)
+    if (specifier.startsWith("#")) return packageImport(file, specifier, lookup)
+    const walk = packageOf(file, specifier, lookup)
     if (walk.found !== undefined) return walk
     const { name } = packageName(specifier)
     const unread = packages.unread.map((path) => `; ${path} does not parse, and could declare it`).join("")
@@ -286,9 +288,12 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
 
   const resolve = (file: string, imported: Import): Resolved => {
     const { specifier } = imported
-    if (/^\.\.?(\/|$)/.test(specifier)) return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file") }
     const project = projectOf(file)
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
+    if (/^\.\.?(\/|$)/.test(specifier)) {
+      const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options) }
+      return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup) }
+    }
     const walk = meaningOf(file, imported, options, project)
     const { module, unresolved } = walk.found ?? {}
     if (options.unread.length === 0 || (unresolved === undefined && !walk.decided)) return { module, unresolved }
@@ -336,6 +341,19 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     loadsCode: (module, names) => names.length === 0 || names.some((name) => typeOnly(module, name, new Set()) !== true)
   }
 }
+
+/** How a name is looked up: under which conditions, and with which of the `moduleSuffixes` before each extension. */
+interface Lookup {
+  readonly conditions: ReadonlySet<string>
+  readonly suffixes: ReadonlyArray<string>
+}
+
+/** The `moduleSuffixes` of a tsconfig.json, none being the one suffix "" as TypeScript has it. */
+const suffixesOf = (options: Settings): ReadonlyArray<string> => options.moduleSuffixes === undefined || options.moduleSuffixes.length === 0 ? [""] : options.moduleSuffixes
+
+/** Each extension after `base`, with each suffix before it in turn: `b.native.ts`, `b.ts`, `b.native.tsx`… */
+const suffixed = (base: string, extensions: ReadonlyArray<string>, lookup: Lookup): ReadonlyArray<string> =>
+  extensions.flatMap((extension) => lookup.suffixes.map((suffix) => `${base}${suffix}${extension}`))
 
 /**
  * What walking a map of names, or the entries of a package, came to: what the import means, once a

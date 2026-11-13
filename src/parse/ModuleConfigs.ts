@@ -92,6 +92,7 @@ export interface Settings {
   readonly customConditions?: ReadonlyArray<string>
   readonly module?: string
   readonly moduleResolution?: string
+  readonly moduleSuffixes?: ReadonlyArray<string>
   readonly rootDir?: string
   readonly outDir?: string
   readonly files?: ReadonlyArray<string>
@@ -151,6 +152,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
       ...own.customConditions === undefined ? {} : { customConditions: own.customConditions },
       ...own.module === undefined ? {} : { module: own.module.toLowerCase() },
       ...own.moduleResolution === undefined ? {} : { moduleResolution: own.moduleResolution.toLowerCase() },
+      ...own.moduleSuffixes === undefined ? {} : { moduleSuffixes: own.moduleSuffixes },
       ...own.rootDir === undefined ? {} : { rootDir: place(own.rootDir) },
       ...own.outDir === undefined ? {} : { outDir: place(own.outDir) },
       ...config.files === undefined ? {} : { files: config.files.map(place) },
@@ -223,6 +225,7 @@ const TsConfig = Schema.Struct({
     customConditions: Schema.optional(Strings),
     module: Schema.optional(Schema.String),
     moduleResolution: Schema.optional(Schema.String),
+    moduleSuffixes: Schema.optional(Strings),
     rootDir: Schema.optional(Schema.String),
     outDir: Schema.optional(Schema.String)
   })),
