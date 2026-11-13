@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="3" failures="1" errors="0" time="0.014288166">
+    <testsuite name="specs/cart.feature" timestamp="2026-11-13T05:36:11.410Z" hostname="Darkos-MBP" tests="3" failures="1" errors="0" skipped="1" time="0.014288166">
+        <testcase classname="specs/cart.feature" name="Cart &gt; A cart holds each item once &gt; An item added twice" time="0.009331375">
+        </testcase>
+        <testcase classname="specs/cart.feature" name="Cart &gt; A cart holds each item once &gt; Two items" time="0.003891667">
+            <failure message="Expected values to be strictly equal:
+
+2 !== 3
+" type="AssertionError">
+AssertionError: Expected values to be strictly equal:
+
+2 !== 3
+
+
+- Expected
++ Received
+
+- 3
++ 2
+
+ ❯ Object.handler steps/cart.steps.mjs:5:55
+ ❯ runScenario runtime.mjs:18:24
+            </failure>
+        </testcase>
+        <testcase classname="specs/cart.feature" name="Cart &gt; A cart expires after a week &gt; A week-old cart" time="0.000195375">
+            <skipped/>
+        </testcase>
+    </testsuite>
+</testsuites>

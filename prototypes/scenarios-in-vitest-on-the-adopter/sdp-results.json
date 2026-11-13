@@ -1,0 +1,34 @@
+[
+  {
+    "id": "sweep-expired-receipts#three-events",
+    "tier": "@pure",
+    "status": "passed",
+    "toCome": false,
+    "steps": 3,
+    "file": "specs/commands/sweep-expired-receipts.feature"
+  },
+  {
+    "id": "sweep-expired-receipts#three-expired-receipts",
+    "tier": "@simulator",
+    "status": "passed",
+    "toCome": false,
+    "steps": 5,
+    "file": "specs/commands/sweep-expired-receipts.feature"
+  },
+  {
+    "id": "sweep-expired-receipts#one-more-than-the-bound",
+    "tier": "@simulator",
+    "status": "passed",
+    "toCome": false,
+    "steps": 4,
+    "file": "specs/commands/sweep-expired-receipts.feature"
+  },
+  {
+    "id": "sweep-expired-receipts#a-day-passes",
+    "tier": "@simulator",
+    "status": "undefined",
+    "toCome": true,
+    "steps": 2,
+    "file": "specs/commands/sweep-expired-receipts.feature"
+  }
+]

@@ -1,0 +1,2 @@
+features: ["specs/**/*.feature"]
+steps: ["steps/**/*.steps.ts"]
