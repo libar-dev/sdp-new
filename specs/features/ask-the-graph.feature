@@ -249,8 +249,9 @@ Feature: Ask the graph
 
   Rule: Each node in an answer comes with its kind, its state and the file and line it is written at
 
-    Its state is its status, as a scenario's last run left it, else its stage. The count goes to
-    stderr, so stdout is the answer alone.
+    Its state is what sdp derives, evidence rather than status: a scenario's status as its last run
+    left it, else the node's stage. A status written by hand is an attribute like any other, which
+    show and the graph as data list. The count goes to stderr, so stdout is the answer alone.
 
     Scenario: A node per line, only the ids, or the routes
       Given a file "specs/pay.feature" containing:
@@ -288,6 +289,17 @@ Feature: Ask the graph
         | data.paths.nodes      | checkout, ARCH-orders     |
         | data.paths.edges.from | checkout                  |
         | data.paths.edges.rel  | realized-by               |
+
+    Scenario: A status written on a decision is an attribute, and no state
+      Given these specs:
+        | tags                                             | Feature      |
+        | @id=use-postgres @kind=decision @status=accepted | Use Postgres |
+      When I run "sdp q decision"
+      Then the exit code is 0
+      And the output contains "use-postgres\tdecision\t\tUse Postgres\tspecs/use-postgres.feature:1"
+      When I run "sdp show use-postgres"
+      Then the exit code is 0
+      And the output contains 'status: "accepted"'
 
   Rule: One node can be looked up with every link it has, and the title at the other end
 

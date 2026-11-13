@@ -595,8 +595,8 @@ export const projectQueryOptions = (project: Project): QueryOptions => ({ orderi
 export const queryProject = (project: Project, source: string): Result.Result<QueryResult, QueryError> =>
   query(project.graph, source, projectQueryOptions(project))
 
-/** Keys every node answers to, whatever it declares: what it is, and the two attributes sdp reads on any kind. */
-const universalKeys = ["id", "kind", "title", "source", "maturity", "status"]
+/** Keys every node answers to, whatever it declares: what it is, and the maturity sdp reads on any kind. */
+const universalKeys = ["id", "kind", "title", "source", "maturity"]
 
 /**
  * What a query names that the workspace does not know, one line each with the closest word it does
