@@ -4,7 +4,7 @@
 Feature: Link specs into one graph
 
   Teams write specs, decisions, the architecture and the plan in their own words, and anchor code
-  to them; people and agents then need to follow any link from one to the next. What the files say
+  to the architecture; people and agents then need to follow any link from one to the next. What the files say
   and link becomes one graph: a node for each spec, rule and scenario, an edge for each link, each
   at the file and line that declares it, with the kinds and relations the authors wrote. What would
   make the graph say two things at once cannot be written.
