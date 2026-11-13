@@ -183,10 +183,11 @@ const archCommand = Command.make(
 
 const lifecycleCommand = Command.make(
   "lifecycle",
-  { json },
-  Effect.fn(function*({ json }) {
+  { json, brief: Flag.Boolean("brief").pipe(Flag.withDefault(false), Flag.withDescription("The milestone, work planned now and its open questions within 2,000 characters")) },
+  Effect.fn(function*({ json, brief }) {
     const root = yield* workspaceRoot
     if (json) return yield* print(yield* Reading.lifecycle(root), true, () => "")
+    if (brief) return yield* print(yield* Reading.lifecycleBrief(root), false, (brief) => brief.trimEnd())
     yield* print(yield* Reading.lifecycleChart(root), false, (chart) => chart.trimEnd())
   })
 ).pipe(Command.withDescription("Milestones and where the project is, the work planned into each iteration, discipline activity and the evidence"))

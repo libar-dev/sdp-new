@@ -451,54 +451,28 @@ const unrecordable = (project: Project, spec: Spec): string | undefined => {
 }
 
 /**
- * Writes `@met=<today>` on a milestone whose gate scenarios all passed, as the workspace is now: none
- * of their results may have lapsed by the end of the run, and read again, whole, the milestone must
- * still be recordable, its gate must be the scenarios that ran, none of them edited, and every one
- * of them must still pass, or an edit made while the gate ran would be closed without having run.
+ * Writes `@met=<today>` on the tag line of a milestone as it was read when its gate ended, and gives
+ * the day; `undefined` when its file changed since, for an edit made then would be closed without
+ * having run.
  */
-const recordMet = Effect.fnUntraced(function*(root: string, milestone: string, ran: Pick<WorkspaceRun, "gates" | "lapsed">) {
-  const project = yield* loadProject(root)
-  const missing = unread(project)
-  if (missing.length > 0) {
-    return yield* new Refused({
-      reason: `${milestone} is not recorded as met: sdp could not read the whole graph as it is now (${missing.map(problemLine).join("; ")})`
-    })
-  }
-  const spec = project.specById.get(milestone)
-  if (!spec) return yield* new Refused({ reason: `${milestone} is not recorded as met: it is no longer in the workspace` })
-  const reason = unrecordable(project, spec)
-  if (reason !== undefined) return yield* new Refused({ reason })
-  const { vocabulary } = project.config
-  const gate = spec.scenarios.filter((scenario) => isGate(scenario, spec, vocabulary))
-  const hashes = new Map(ran.gates.map((result) => [result.id, result.hash]))
-  const same = gate.length === hashes.size && gate.every((scenario) => hashes.get(scenario.id) === scenario.hash) &&
-    !ran.gates.some((result) => ran.lapsed.has(result.id))
-  const unmet = gate.flatMap((scenario) => {
-    const status = project.graph.node(scenario.id)?.attrs.status
-    return status !== "passed" ? [`${scenario.id} (${String(status)})`] : []
-  })
+const recordMet = Effect.fnUntraced(function*(root: string, project: Project, spec: Spec) {
   const fs = yield* FileSystem.FileSystem
   const file = (yield* Path.Path).join(root, spec.file)
   const content = yield* fs.readFileString(file)
-  if (!same || unmet.length > 0 || content !== spec.body) {
-    return yield* new Refused({
-      reason: `${milestone} is not recorded as met: its gate changed while it ran${
-        gate.length === 0 ? ", and has no scenario now" : unmet.length > 0 ? `, and ${unmet.join(", ")} does not pass as it is now` : ""
-      }; run sdp gate ${milestone} --record again`
-    })
-  }
+  if (content !== spec.body) return undefined
   const met = DateTime.formatIsoDate(yield* DateTime.now)
-  const recorded = withTag(content, `@${vocabulary.attributes.met}=${met}`)
-  if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${milestone} on` })
+  const recorded = withTag(content, `@${project.config.vocabulary.attributes.met}=${met}`)
+  if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${spec.id} on` })
   yield* fs.writeFileString(file, recorded)
   return met
 })
 
 /**
  * `sdp gate`: evaluates one spec's gate scenarios against the current graph, and passes only when
- * every one of them passed and its result still counts when the gate ends. With `record`, a
- * milestone whose gate passes is written down as met today; one that is met already is closed, and
- * nothing runs.
+ * every one of them passed and still counts as the workspace is when the gate ends: read again
+ * whole, its gate must be the scenarios that ran, none of them edited, each still passing. With
+ * `record`, a milestone whose gate passes is written down as met today; one that is met already is
+ * closed, and nothing runs.
  */
 export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) {
   const project = yield* loadProject(root)
@@ -521,15 +495,48 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
   const { answer: ran, run } = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
-  // What sdp did not read could change whether the gate holds. One whose scenarios all passed and
-  // does not pass changed while it ran, and recording it says how it is now.
-  const passing = run.gates.length > 0 && run.gates.every((result) => result.status === "passed")
-  const met = input.record && passing && ran.complete ? yield* recordMet(root, milestone, run) : undefined
-  const report: GateReport = { ...ran.data, milestone, met }
-  const unrecorded = !input.record || met !== undefined
-    ? []
-    : [`${milestone} is not recorded as met: ${
-      ran.data.passed ? "sdp could not read the whole graph, and what it did not read could change whether its gate holds" : "its gate does not pass"
-    }`]
-  return { ...ran, notes: [...ran.notes, ...unrecorded], data: report } satisfies Answer<GateReport>
+
+  const now = yield* loadProject(root)
+  const missing = unread(now).map((diagnostic) => `not read: ${problemLine(diagnostic)}`).filter((note) => !ran.notes.includes(note))
+  const complete = ran.complete && missing.length === 0
+  const current = now.specById.get(milestone)
+  const gates = current?.scenarios.filter((scenario) => isGate(scenario, current, now.config.vocabulary)) ?? []
+  const results = new Map(run.gates.map((result) => [result.id, result]))
+  const same = current !== undefined && gates.length === results.size && gates.every((scenario) => results.get(scenario.id)?.hash === scenario.hash)
+  // A result that lapsed by the end of the run is explained by the run; one that lapsed since, here.
+  const since = same
+    ? gates.flatMap((scenario) => {
+      const status = String(now.graph.node(scenario.id)?.attrs.status)
+      return results.get(scenario.id)?.status !== "passed" || status === "passed" || run.lapsed.has(scenario.id)
+        ? []
+        : [`${scenario.id} passed, and is ${status} as the graph is now: a gate passes only on results that still count`]
+    })
+    : []
+  const again = `run sdp gate ${milestone}${input.record ? " --record" : ""} again`
+  const notes = [...ran.notes, ...missing, ...(same ? [] : [`the gate of ${milestone} changed while it ran: ${again}`]), ...since]
+  let changed = !same || since.length > 0 || run.gates.some((result) => run.lapsed.has(result.id))
+  let passed = ran.data.passed && !changed
+  let met: string | undefined
+  if (input.record && passed && complete && current !== undefined) {
+    // Read again, it must still be recordable: an earlier milestone may have been dated before it meanwhile.
+    const reason = unrecordable(now, current)
+    if (reason !== undefined) return yield* new Refused({ reason })
+    met = yield* recordMet(root, now, current)
+    if (met === undefined) {
+      changed = true
+      passed = false
+      notes.push(`${milestone} was edited as its gate ended: ${again}`)
+    }
+  }
+  if (input.record && met === undefined) {
+    notes.push(`${milestone} is not recorded as met: ${
+      changed
+        ? "its gate changed while it ran"
+        : !passed
+        ? "its gate does not pass"
+        : "sdp could not read the whole graph, and what it did not read could change whether its gate holds"
+    }`)
+  }
+  const report: GateReport = { ...ran.data, passed, milestone, met }
+  return { complete, notes, data: report } satisfies Answer<GateReport>
 })
