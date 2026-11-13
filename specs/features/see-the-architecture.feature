@@ -447,9 +447,77 @@ Feature: See the architecture
         /** @sdp is ARCH-billing */
         export const bill = (): number => rate
         """
+      And the files are committed on the branch "main"
       When I run "sdp q '#ARCH-billing -imports-> *' --ids" in "apps/shop"
       Then the exit code is 0
       And the output lines are "ARCH-tax"
+
+  Rule: What an import means is read from the repository, and from outside it only what a tsconfig.json of it extends, which is said
+
+    The same commit gives the same graph wherever it is checked out. The repository ends at git's top
+    level, or at the workspace's root outside git; a tsconfig.json that extends one beyond it names
+    that file, which is read, and `sdp check` says so.
+
+    Scenario Outline: A file above the repository that no file of it names changes no answer: <file>
+      Given a file "<file>" containing:
+        """
+        <says>
+        """
+      And a file "apps/shop/src/tax.ts" containing:
+        """
+        /** @sdp is ARCH-tax */
+        export const rate = 0.25
+        """
+      And a file "apps/shop/src/billing.ts" containing:
+        """
+        import { rate } from "<name>"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      And the files are in no git repository
+      When I run "sdp q '#ARCH-billing -imports-> *' --ids" in "apps/shop"
+      Then the exit code is 2
+      And the output contains 'note: not read: src/billing.ts:1 [import-unresolved] "<name>" is neither a package of the workspace'
+      And the output lines are "nothing"
+
+      Examples:
+        | file          | says                                                                  | name  |
+        | tsconfig.json | { "compilerOptions": { "paths": { "@/*": ["./apps/shop/src/*"] } } } | @/tax |
+        | package.json  | { "name": "shop", "dependencies": { "rates": "^1.0.0" } }             | rates |
+
+    Scenario: A tsconfig.json that extends one outside the repository is read with it, and check says so
+      Given a file "tsconfig.base.json" containing:
+        """
+        { "compilerOptions": { "paths": { "@/*": ["./apps/shop/src/*"] } } }
+        """
+      And a file "apps/shop/tsconfig.json" containing:
+        """
+        { "extends": "../../tsconfig.base.json" }
+        """
+      And a file "apps/shop/src/tax.ts" containing:
+        """
+        /** @sdp is ARCH-tax */
+        export const rate = 0.25
+        """
+      And a file "apps/shop/src/billing.ts" containing:
+        """
+        import { rate } from "@/tax"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      And the files are in no git repository
+      When I run "sdp q '#ARCH-billing -imports-> *' --ids" in "apps/shop"
+      Then the exit code is 0
+      And the output lines are "ARCH-tax"
+      When I run "sdp check --base none --json" in "apps/shop"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.rule     | import-config-outside |
+        | data.severity | info                  |
+        | data.file     | tsconfig.json         |
+        | data.line     | 1                     |
 
   Rule: An import sdp cannot follow is reported, and the answer is incomplete, when it could name the workspace's code
 
@@ -493,8 +561,8 @@ Feature: See the architecture
         | an entry of a package that no tsconfig.json builds        | package.json     | { "name": "shop" }                                             | { "name": "@shop/tax", "types": "./dist/index.d.ts", "main": "./dist/index.js" }             | @shop/tax | nothing  | src/billing.ts:1 | "@shop/tax" means packages/tax/dist/index.d.ts, which is no code file                                |
         | a package that exports a name without its extension       | package.json     | { "name": "shop" }                                             | { "name": "@shop/tax", "exports": "./src/index" }                                            | @shop/tax | nothing  | src/billing.ts:1 | "@shop/tax" means packages/tax/src/index, which is no code file                                      |
         | two packages of the workspace with one name               | src/package.json | { "name": "@shop/tax" }                                        | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | nothing  | src/billing.ts:1 | "@shop/tax" names 2 packages of the workspace                                                        |
-        | what the tsconfig.json extends is not installed           | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | ARCH-tax | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed |
-        | a library, what the tsconfig.json extends not installed   | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts", "dependencies": { "effect": "^4.0.0" } } | effect    | nothing  | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed |
+        | what the tsconfig.json extends is not installed           | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | ARCH-tax | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed in the repository |
+        | a library, what the tsconfig.json extends not installed   | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts", "dependencies": { "effect": "^4.0.0" } } | effect    | nothing  | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed in the repository |
         | the tsconfig.json does not parse                          | tsconfig.json    | { "compilerOptions": { "paths": } }                            | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | ARCH-tax | tsconfig.json:1  | tsconfig.json does not parse                                                                         |
         | a setting of a type TypeScript does not read | tsconfig.json | { "compilerOptions": { "paths": { "@/*": "./src/*" } } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | @shop/tax | ARCH-tax | tsconfig.json:1 | tsconfig.json sets paths to a value of a type TypeScript does not read |
 

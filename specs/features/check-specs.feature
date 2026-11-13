@@ -93,6 +93,35 @@ Feature: Check specs
         | rule              | severity | at            |
         | import-unresolved | warning  | src/cart.ts:1 |
 
+    Scenario: The smallest workspace that breaks import-config-outside: a tsconfig.json that extends one outside the repository
+      Given a file "tsconfig.base.json" containing:
+        """
+        {}
+        """
+      And a file "shop/tsconfig.json" containing:
+        """
+        { "extends": "../tsconfig.base.json" }
+        """
+      And a file "shop/src/line.ts" containing:
+        """
+        export const line = 1
+        """
+      And a file "shop/src/cart.ts" containing:
+        """
+        import { line } from "./line.ts"
+
+        /** @sdp is ARCH-cart */
+        export const total = (): number => line
+        """
+      And the files are in no git repository
+      When I run "sdp check --base none --json" in "shop"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.rule     | import-config-outside |
+        | data.severity | info                  |
+        | data.file     | tsconfig.json         |
+        | data.line     | 1                     |
+
     Scenario: Every rule sdp reports has an example here
       Then every rule sdp reports has an example in this spec
 

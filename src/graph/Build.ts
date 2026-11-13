@@ -24,7 +24,7 @@ import {
 } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import type { ModuleConfigs } from "../parse/ModuleConfigs.ts"
+import type { Located, ModuleConfigs } from "../parse/ModuleConfigs.ts"
 import { type Modules, readModules } from "../parse/Modules.ts"
 import type { Exports, Import } from "../parse/Script.ts"
 import { parseFeatureSpec, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
@@ -458,7 +458,7 @@ export const buildProject = (input: ProjectInput): Project => {
     if (!nodes.has(edge.to)) nodes.set(edge.to, { id: edge.to, kind: made.kinds.missing, title: edge.to, attrs: {} })
   }
 
-  const modules = readModules(input.moduleConfigs ?? { root: input.root, files: [] }, input.codeFiles, exportsOf)
+  const modules = readModules(input.moduleConfigs ?? { root: input.root, top: "", files: [] }, input.codeFiles, exportsOf)
   const elements = elementsOf(annotations, nodes, vocabulary)
   const graph = new Graph(nodes.values(), [
     ...present,
@@ -507,7 +507,8 @@ const elementsOf = (
  * itself. A name means the code file TypeScript resolves it to (`readModules`), whether or not
  * that file anchors an element; one sdp cannot follow, though it could name the workspace's code,
  * is reported where it is written, and what sdp could not read of a configuration file such a name
- * depends on is reported once, where that is written. A pattern imports nothing and nothing imports it.
+ * depends on is reported once, where that is written, as is a tsconfig.json that extends one outside
+ * the repository. A pattern imports nothing and nothing imports it.
  */
 const importsBetweenElements = (
   elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
@@ -520,13 +521,15 @@ const importsBetweenElements = (
   for (const [file, elements] of elementsOf) {
     for (const imported of importsOf.get(file) ?? []) {
       const { line, names } = imported
-      const { module, unread, unresolved } = modules.resolve(file, imported)
+      const { module, outside, unread, unresolved } = modules.resolve(file, imported)
       if (unresolved !== undefined) diagnostics.push(diagnostic("import-unresolved", { ...unresolved, source: { file, line } }))
-      for (const { file, hint, line, message } of unread ?? []) {
-        if (reported.has(`${file}:${line}:${message}`)) continue
+      const once = (rule: "import-unresolved" | "import-config-outside", { file, hint, line, message }: Located) => {
+        if (reported.has(`${file}:${line}:${message}`)) return
         reported.add(`${file}:${line}:${message}`)
-        diagnostics.push(diagnostic("import-unresolved", { message, hint, source: { file, line } }))
+        diagnostics.push(diagnostic(rule, { message, hint, source: { file, line } }))
       }
+      for (const each of unread ?? []) once("import-unresolved", each)
+      for (const each of outside ?? []) once("import-config-outside", each)
       const used = module === undefined ? undefined : elementsOf.get(module)
       if (used === undefined || (names !== undefined && !modules.loadsCode(module!, names))) continue
       for (const to of used) {

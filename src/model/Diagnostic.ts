@@ -35,7 +35,8 @@ export const rules = {
   "import-unresolved": "warning",
   "return-type": "warning",
   "step-unreadable": "warning",
-  "step-expression": "error"
+  "step-expression": "error",
+  "import-config-outside": "info"
 } as const satisfies Record<string, Severity>
 
 export type RuleId = keyof typeof rules

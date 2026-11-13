@@ -7,6 +7,7 @@
  */
 import { Effect, FileSystem, Path, Schema } from "effect"
 import { createRequire, registerHooks } from "node:module"
+import { delimiter } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
@@ -123,17 +124,36 @@ const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<s
 })
 
 /**
+ * The top of the git repository the workspace is in, as a path from its root: the nearest directory,
+ * the root or one above it, that holds `.git`, as git looks for it — never into a directory
+ * GIT_CEILING_DIRECTORIES names — or the root itself, outside git.
+ */
+const repositoryTop = Effect.fnUntraced(function*(root: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const ceilings = new Set((process.env.GIT_CEILING_DIRECTORIES ?? "").split(delimiter).filter((directory) => directory !== "").map((directory) => path.resolve(directory)))
+  for (let directory = root;;) {
+    if (yield* fs.exists(path.join(directory, ".git"))) return path.relative(root, directory).split(path.sep).join("/")
+    const parent = path.dirname(directory)
+    if (parent === directory || ceilings.has(parent)) return ""
+    directory = parent
+  }
+})
+
+/**
  * The files that say what the names code imports mean: `moduleConfigFiles`, what the tsconfig.json
  * files among them extend and reference (`namedBy`), and the package.json of each package a
- * workspace lists (`listedPackages`), as far as they are found.
+ * workspace lists (`listedPackages`), as far as they are found in the repository — and what a
+ * tsconfig.json there extends outside it.
  */
 const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: ReadonlyArray<string>) {
   const path = yield* Path.Path
   const absolute = path.resolve(root)
+  const top = yield* repositoryTop(absolute)
   const read = new Map<string, SourceFile>()
   const asked = new Set<string>()
   const listed = new Set<string>()
-  for (let wanted = moduleConfigFiles(absolute, code); wanted.length > 0;) {
+  for (let wanted = moduleConfigFiles(absolute, top, code); wanted.length > 0;) {
     for (const file of wanted) asked.add(file)
     for (const file of yield* readFiles(root, wanted)) read.set(file.path, file)
     const files = [...read.values()]
@@ -143,9 +163,9 @@ const readModuleConfigs = Effect.fnUntraced(function*(root: string, code: Readon
       listed.add(directory)
       for (const file of yield* findFiles(path.join(root, directory), include, exclude)) packages.push(pathFrom(absolute, directory, file))
     }
-    wanted = [...new Set([...namedBy(absolute, files), ...packages])].filter((file) => !asked.has(file))
+    wanted = [...new Set([...namedBy(absolute, top, files), ...packages])].filter((file) => !asked.has(file))
   }
-  return { root: absolute, files: [...read.values()] }
+  return { root: absolute, top, files: [...read.values()] }
 })
 
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */

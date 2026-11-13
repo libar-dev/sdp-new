@@ -1,7 +1,8 @@
 /**
  * The files that say what the names code imports mean, as read: the tsconfig.json — or
  * jsconfig.json — each file of code is read with, with what it extends and references, and the
- * package.json and pnpm-workspace.yaml files around the code. Nothing is installed or run.
+ * package.json and pnpm-workspace.yaml files around the code, up to the top of the repository.
+ * Nothing is installed or run.
  *
  * @sdp is ARCH-code-annotations
  */
@@ -14,9 +15,14 @@ export interface File {
   readonly content: string
 }
 
-/** The files that say what the names code imports mean, and the workspace's root as an absolute path, which their paths start from. */
+/**
+ * The files that say what the names code imports mean; the workspace's root as an absolute path,
+ * which their paths start from; and the top of the repository, as a path from the root: `""`, or
+ * `../` for each directory above it.
+ */
 export interface ModuleConfigs {
   readonly root: string
+  readonly top: string
   readonly files: ReadonlyArray<File>
 }
 
@@ -28,20 +34,23 @@ const pnpmWorkspaceFile = "pnpm-workspace.yaml"
 /**
  * The files that may say what the names code imports mean: the tsconfig.json, jsconfig.json,
  * package.json and pnpm-workspace.yaml of each directory that holds code and of every one above it,
- * past the workspace's root to the filesystem's, as TypeScript and package managers look for them.
- * What these name in turn is `namedBy` and `listedPackages`.
+ * up to the repository's `top`, as TypeScript and package managers look for them. What these name
+ * in turn is `namedBy` and `listedPackages`.
  */
-export const moduleConfigFiles = (root: string, code: ReadonlyArray<string>): ReadonlyArray<string> => {
-  const at = pathsFrom(root)
+export const moduleConfigFiles = (root: string, top: string, code: ReadonlyArray<string>): ReadonlyArray<string> => {
+  const at = pathsFrom(root, top)
   const directories = new Set(code.flatMap((file) => at.upFrom(directoryOf(file))))
   return [...directories].flatMap((directory) =>
     [tsconfigFile, jsconfigFile, packageFile, pnpmWorkspaceFile].map((name) => at.join(directory, name))
   )
 }
 
-/** Where each tsconfig.json or jsconfig.json that `files` holds may find what it extends, nearest first, and what it references. */
-export const namedBy = (root: string, files: ReadonlyArray<File>): ReadonlyArray<string> => {
-  const at = pathsFrom(root)
+/**
+ * Where each tsconfig.json or jsconfig.json that `files` holds may find what it extends, nearest
+ * first — a node_modules up to the repository's `top` — and what it references.
+ */
+export const namedBy = (root: string, top: string, files: ReadonlyArray<File>): ReadonlyArray<string> => {
+  const at = pathsFrom(root, top)
   const packages = packagesOf(files)
   return files.flatMap((file) => {
     if (!isProject(file.path)) return []
@@ -76,7 +85,7 @@ export const listedPackages = (files: ReadonlyArray<File>): ReadonlyArray<{
   })
 
 /** The path from the workspace's root that `parts` name, joined and made plain. */
-export const pathFrom = (root: string, ...parts: ReadonlyArray<string>): string => pathsFrom(root).join(...parts)
+export const pathFrom = (root: string, ...parts: ReadonlyArray<string>): string => pathsFrom(root, "").join(...parts)
 
 /** A path of a tsconfig.json from the directory it is relative to: its own, or the `${configDir}` of the one the code is read with. */
 export interface Placed {
@@ -84,17 +93,21 @@ export interface Placed {
   readonly path: string
 }
 
-/**
- * What sdp could not read of a configuration file, where it is written: reported once, with any
- * name it could change. `setting` is the one it is, or undefined when it could be any — a file that
- * does not parse, or one extended that is not there.
- */
-export interface Unread {
+/** What a configuration file says that is reported, where it is written. */
+export interface Located {
   readonly file: string
   readonly line: number
-  readonly setting?: string | undefined
   readonly message: string
   readonly hint: string
+}
+
+/**
+ * What sdp could not read of a configuration file: reported once, with any name it could change.
+ * `setting` is the one it is, or undefined when it could be any — a file that does not parse, or one
+ * extended that is not there.
+ */
+export interface Unread extends Located {
+  readonly setting?: string | undefined
 }
 
 /** What a tsconfig.json, with what it extends, says of names, and what sdp could not read of it. */
@@ -112,6 +125,8 @@ export interface Settings {
   readonly include?: ReadonlyArray<Placed>
   readonly exclude?: ReadonlyArray<Placed>
   readonly unread: ReadonlyArray<Unread>
+  /** Each file it extends outside the repository, where it names it. */
+  readonly outside?: ReadonlyArray<Located>
 }
 
 /** `${configDir}`, which a path of a tsconfig.json starts with to be from the directory of the one the code is read with. */
@@ -123,7 +138,7 @@ export const configDirectory = "${configDir}"
  * says, and which packages the workspace has.
  */
 export const readConfigs = (configs: ModuleConfigs) => {
-  const at = pathsFrom(configs.root)
+  const at = pathsFrom(configs.root, configs.top)
   const byPath = new Map(configs.files.map((file) => [file.path, file.content]))
   const packages = packagesOf(configs.files)
   const tsconfigs = cache((path: string) => readTsConfig(byPath.get(path) ?? "{}"))
@@ -156,15 +171,29 @@ export const readConfigs = (configs: ModuleConfigs) => {
     for (const base of [config.extends ?? []].flat()) {
       const found = extendsCandidates(at, packages, path, base).find((candidate) => byPath.has(candidate))
       const relative = /^\.\.?(\/|$)/.test(base)
+      const left = found !== undefined && at.within(path) && !at.within(found)
       const settings: Settings = found !== undefined ? settingsOf(found, configDir, new Set([...seen, path])) : {
         unread: [{
           file: path,
           line: lineOf(read.text, "extends"),
-          message: `${path} extends ${base}, which is ${relative ? "not there" : "neither a package of the workspace nor installed"}, so what it sets is not read`,
+          message: `${path} extends ${base}, which is ${relative ? "not there" : "neither a package of the workspace nor installed in the repository"}, so what it sets is not read`,
           hint: relative ? `correct the extends of ${path}` : `install the workspace's packages, or extend a tsconfig.json of the workspace in ${path}`
         }]
       }
-      inherited = { ...inherited, ...settings, unread: [...inherited.unread, ...settings.unread] }
+      const outside: ReadonlyArray<Located> = left
+        ? [{
+          file: path,
+          line: lineOf(read.text, "extends"),
+          message: `${path} extends ${base}, which is outside the repository: what the names its code imports mean depends on ${found}, which the repository does not hold`,
+          hint: `move what ${found} sets into the repository, or extend a tsconfig.json it holds`
+        }]
+        : []
+      inherited = {
+        ...inherited,
+        ...settings,
+        unread: [...inherited.unread, ...settings.unread],
+        outside: [...inherited.outside ?? [], ...settings.outside ?? [], ...outside]
+      }
     }
     const directory = directoryOf(path)
     const placed = (value: string) => value.startsWith(configDirectory) ? { from: configDir, path: value.slice(configDirectory.length) } : { from: directory, path: value }
@@ -449,9 +478,10 @@ export type Paths = ReturnType<typeof pathsFrom>
 /**
  * Paths from the workspace's root, `root` being its absolute path: plain, `""` for the root itself
  * and `../` for each directory above it, so that one that leaves the root and comes back into it is
- * from the root again (`../shop/src` from `/work/shop` is `src`).
+ * from the root again (`../shop/src` from `/work/shop` is `src`). `top`, the repository's top as such
+ * a path, is where looking up from a directory ends.
  */
-const pathsFrom = (root: string) => {
+const pathsFrom = (root: string, top: string) => {
   const rootParts = root.split(/[\\/]/).filter((part) => part !== "")
   const join = (...parts: ReadonlyArray<string>): string => {
     const plain: Array<string> = []
@@ -474,12 +504,15 @@ const pathsFrom = (root: string) => {
     if (parts.every((part) => part === "..")) return parts.length < rootParts.length ? `${directory}/..` : undefined
     return parts.slice(0, -1).join("/")
   }
-  /** A directory and each one above it, to the filesystem's root. */
+  /** A directory and each one above it, to the repository's top — or, from outside it, to the filesystem's root. */
   const upFrom = (directory: string): ReadonlyArray<string> => {
     const all = [directory]
-    for (let above = parentOf(directory); above !== undefined; above = parentOf(above)) all.push(above)
+    for (let above = parentOf(directory); above !== undefined && all.at(-1) !== top; above = parentOf(above)) all.push(above)
     return all
   }
+  /** Whether a path is in the repository: no more directories above the root than its top. */
+  const ups = (path: string) => path.split("/").findIndex((part) => part !== "..")
+  const within = (path: string) => (ups(path) < 0 ? path.split("/").length : ups(path)) <= (top === "" ? 0 : top.split("/").length)
   /** A path from the directory `from` rather than from the root. */
   const relative = (from: string, path: string): string => {
     const absolute = (of: string) => join(of).split("/").filter((part) => part !== "").reduce<Array<string>>(
@@ -491,7 +524,7 @@ const pathsFrom = (root: string) => {
     while (common < base.length && base[common] === target[common]) common++
     return [...base.slice(common).map(() => ".."), ...target.slice(common)].join("/")
   }
-  return { join, upFrom, relative }
+  return { join, upFrom, within, relative }
 }
 
 export const directoryOf = (file: string) => file.slice(0, Math.max(0, file.lastIndexOf("/")))

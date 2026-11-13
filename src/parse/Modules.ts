@@ -20,6 +20,7 @@ import {
   type Settings,
   type Target,
   tsconfigFile,
+  type Located,
   type Unread
 } from "./ModuleConfigs.ts"
 import { type Export, type Exports, type Import, parseScript } from "./Script.ts"
@@ -32,12 +33,14 @@ export interface Unresolved {
 
 /**
  * What an import means: the code file of the workspace, if any, and what sdp could not follow — of
- * the name, or of a configuration file whose settings it depends on, reported where that is written.
+ * the name, or of a configuration file whose settings it depends on, reported where that is written;
+ * and where the tsconfig.json it is read with extends one outside the repository.
  */
 export interface Resolved {
   readonly module?: string | undefined
   readonly unresolved?: Unresolved | undefined
   readonly unread?: ReadonlyArray<Unread> | undefined
+  readonly outside?: ReadonlyArray<Located> | undefined
 }
 
 export interface Modules {
@@ -313,12 +316,13 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options) }
       return {
         module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup),
-        unread: options.unread.filter((each) => each.setting !== undefined && completing.has(each.setting))
+        unread: options.unread.filter((each) => each.setting !== undefined && completing.has(each.setting)),
+        outside: options.outside
       }
     }
     const walk = meaningOf(file, imported, options, project)
     const unread = options.unread.filter((each) => each.setting === undefined || !building.has(each.setting))
-    return { module: walk.found?.module, unresolved: walk.found?.unresolved, unread: [...unread, ...walk.unread ?? []] }
+    return { module: walk.found?.module, unresolved: walk.found?.unresolved, unread: [...unread, ...walk.unread ?? []], outside: options.outside }
   }
 
   /** What a code file exports: as already read, or else as it parses. */
