@@ -247,12 +247,14 @@ const guidance = (options: {
   const plan = `\`@${wordFor(vocabulary.relations.plan)}:${iteration}\` says when it is written`
   const closes = wordFor(vocabulary.relations.closes)
   const phase = wordFor(vocabulary.relations.phase)
+  // The one marker of a quality requirement, where the workspace has a value for it.
+  const quality = vocabulary.qualities.length === 0 ? "" : `, tagged \`@${vocabulary.attributes.quality}=${wordFor(vocabulary.qualities)}\``
   switch (templateOf(kind, vocabulary)) {
     case "feature":
       return [
         "say under the title who needs what, and why, before any solution; then what it is not",
         "write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples",
-        "a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users",
+        `a quality requirement is a rule of the feature it constrains${quality}, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users`,
         "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
         `plan it: ${plan}`,
         "it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"

@@ -132,7 +132,7 @@ Feature: Start a spec
         """
         next: say under the title who needs what, and why, before any solution; then what it is not
         next: write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples
-        next: a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
+        next: a quality requirement is a rule of the feature it constrains, tagged `@type=quality`, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         next: plan it: `@iteration:IT-…` says when it is written
         """
