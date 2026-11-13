@@ -541,8 +541,8 @@ const suffixed = (base: string, extensions: ReadonlyArray<string>, lookup: Looku
  * What walking a map of names, or the entries of a package, came to: what the import means, once a
  * target is found; until then, the conditions passed over and the first target that is no file.
  */
-interface Walk {
-  readonly found?: Resolved
+interface Walk<Found = Resolved> {
+  readonly found?: Found
   readonly passed: ReadonlyArray<string>
   readonly missing?: string
   /** What sdp could not read of a tsconfig.json that builds an entry on the way. */
@@ -552,7 +552,7 @@ interface Walk {
 const nothing: Walk = { passed: [] }
 
 /** A walk that goes on after `before`: what it found, with what both passed over and could not read, and the first target either did not find. */
-const after = (before: Walk, next: Walk): Walk => ({
+const after = <Found>(before: Walk<Found>, next: Walk<Found>): Walk<Found> => ({
   ...next,
   passed: [...before.passed, ...next.passed],
   ...before.missing === undefined ? {} : { missing: before.missing },
@@ -565,21 +565,29 @@ const building: ReadonlySet<string> = new Set(["rootDir", "outDir"])
 
 /**
  * What a map of names — `exports`, `imports` — gives under `conditions`: the first target, in the
- * order written, that `take` finds, with the conditions it passed over on the way.
+ * order written, that `take` finds, with the conditions it passed over on the way. `null` excludes
+ * the name, and `*` stands for `star`.
  */
-const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take: (target: string) => Walk): Walk => {
-  if (value === null) return nothing
+const pick = <Found>(value: Target, star: string, conditions: ReadonlySet<string>, take: (target: string) => Walk<Found>): Walk<Found> => {
+  if (value === null) return { passed: [] }
   if (typeof value === "string") return take(value.replaceAll("*", star))
   const branches: ReadonlyArray<readonly [string | undefined, Target]> = isArray(value)
     ? value.map((each) => [undefined, each] as const)
     : Object.entries(value)
-  let walked = nothing
+  let walked: Walk<Found> = { passed: [] }
   for (const [condition, target] of branches) {
     walked = after(walked, condition === undefined || condition === "default" || conditions.has(condition) ? pick(target, star, conditions, take) : { passed: [condition] })
     if (walked.found !== undefined) return walked
   }
   return walked
 }
+
+/**
+ * The target a map of names gives under `conditions` as Node's loader takes it, before it looks for
+ * a file: the first, in the order written, with `*` filled in.
+ */
+export const pickTarget = (value: Target, star: string, conditions: ReadonlySet<string>): string | undefined =>
+  pick<string>(value, star, conditions, (target) => ({ found: target, passed: [] })).found
 
 /** A package.json's name for another package, by npm's protocol or pnpm's: `npm:@shop/tax@1.0.0`, `workspace:@shop/tax@*`. */
 const aliasPattern = /^(?:npm|workspace):((?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*)(?:@|$)/i

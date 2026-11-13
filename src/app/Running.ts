@@ -488,8 +488,10 @@ const recordMet = Effect.fnUntraced(function*(root: string, project: Project, sp
   const content = yield* fs.readFileString(file)
   if (content !== spec.body) return undefined
   const met = DateTime.formatIsoDate(yield* DateTime.now)
+  // Only a milestone is recorded, and a tag gives a milestone its kind, `@kind=` or the prefix of its
+  // `@id=`: its file has a tag line, and one without is a defect of sdp, never a refusal.
   const recorded = withTag(content, `@${project.config.vocabulary.attributes.met}=${met}`)
-  if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${spec.id} on` })
+    ?? (yield* Effect.die(new Error(`${spec.file} declares the milestone ${spec.id} on no tag line`)))
   yield* fs.writeFileString(file, recorded)
   return met
 })

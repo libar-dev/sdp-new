@@ -207,6 +207,49 @@ Feature: Know what is verified
       When I run "sdp q 'scenario[staleBecause=code-changed]' --ids"
       Then the output lines are "cart#add-an-item"
 
+    Scenario: A program runs the specs, a link a module was imported through by the package's imports moves, and it runs them again
+      Given a file "package.json" containing:
+        """
+        { "type": "module", "imports": { "#lamps": [{ "browser": "./web/lamps.ts", "default": "./lib/lamps.ts" }] } }
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "#lamps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "one/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "two/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When a program runs:
+        """
+        import { rmSync, symlinkSync } from "node:fs"
+        import { run } from "$SDP"
+
+        symlinkSync("one", "lib")
+        const first = await run(".")
+        rmSync("lib")
+        symlinkSync("two", "lib")
+        const again = await run(".").then(() => "recorded", (error) => error.message)
+        console.log(JSON.stringify({ first: first.data.summary.passed, again }))
+        """
+      Then the exit code is 0
+      And the JSON output has:
+        | first | 1 |
+      And the output contains "lib/lamps.ts leads to two/lamps.ts now, not where it led when this process imported it"
+
   Rule: Editing a scenario makes its result stale; planning or rewording its spec does not
 
     Scenario Outline: An edit of <edit>

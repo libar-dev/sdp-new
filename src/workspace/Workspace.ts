@@ -18,12 +18,12 @@ import { type Config, configFileNames, decodeConfigFile, resolveConfig } from ".
 import { diagnostic } from "../model/Diagnostic.ts"
 import type { RunResults } from "../model/Results.ts"
 import { listedPackages, moduleConfigFiles, namedBy, packageFile, pathFrom } from "../parse/ModuleConfigs.ts"
-import { matchKey } from "../parse/Modules.ts"
+import { matchKey, pickTarget } from "../parse/Modules.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { aTurn, startedBy, watchUnawaited } from "../run/Runner.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults, type ResultsUnreadable } from "../run/Store.ts"
-import { PackageJson } from "../model/PackageJson.ts"
+import { PackageJson, type Target } from "../model/PackageJson.ts"
 /** Every problem of a configuration, each on a line of its own; as a message, on one line. */
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   file: Schema.String,
@@ -663,25 +663,10 @@ const packageManifest = (specifier: string, parent: string): string | undefined 
 
 const isWorkspaceFile = (url: string) => url.startsWith("file:") && !url.includes("/node_modules/")
 
-/** The path a target of a package's `imports` map names, as Node picks it: the first of an array or of the conditions that apply, `*` filled in. */
-const mapTarget = (target: unknown, conditions: ReadonlyArray<string>, match: string | undefined): string | undefined => {
-  if (typeof target === "string") return match === undefined ? target : target.replaceAll("*", match)
-  const options = Array.isArray(target)
-    ? target
-    : target !== null && typeof target === "object"
-    ? Object.entries(target).flatMap(([condition, value]) => condition === "default" || conditions.includes(condition) ? [value] : [])
-    : []
-  for (const option of options) {
-    const found = mapTarget(option, conditions, match)
-    if (found !== undefined) return found
-  }
-  return undefined
-}
-
 /** The target a package's `imports` map gives a specifier, as Node matches it: the key itself, else the pattern with the longest prefix. */
-const packageImport = (imports: Record<string, unknown>, specifier: string, conditions: ReadonlyArray<string>): string | undefined => {
+const packageImport = (imports: Readonly<Record<string, Target>>, specifier: string, conditions: ReadonlyArray<string>): string | undefined => {
   const matched = matchKey(Object.keys(imports), specifier)
-  return matched === undefined ? undefined : mapTarget(imports[matched.key], conditions, matched.key.includes("*") ? matched.star : undefined)
+  return matched === undefined ? undefined : pickTarget(imports[matched.key]!, matched.star, new Set(conditions))
 }
 
 /**
