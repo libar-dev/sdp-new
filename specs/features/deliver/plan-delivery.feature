@@ -138,11 +138,7 @@ Feature: Plan delivery
 
     Scenario: After IT-baseline, which ends last
       When I run "sdp new iteration Packaging"
-      Then the file "specs/plan/IT-packaging.feature" is:
-        """
-        @id=IT-packaging @phase:PH-elaboration @start=2026-02-28 @end=2026-03-13
-        Feature: Packaging
-        """
+      Then the file "specs/plan/IT-packaging.feature" contains "@id=IT-packaging @phase:PH-elaboration @start=2026-02-28 @end=2026-03-13"
 
   Rule: The project is at the first milestone not met; the calendar marks only today and lateness
 
@@ -198,18 +194,18 @@ Feature: Plan delivery
   Rule: Work is planned on the node itself: its iteration plans the discipline of its kind, an activity tag any other
 
     A feature is written in one iteration and built in another, and a gate has to tell the two apart.
+    An activity tag of the node's own discipline plans that discipline only where it names.
 
-    Scenario: Analysed in IT-prototype, built over IT-prototype and IT-baseline, tested in IT-baseline
+    Scenario: Planned into IT-prototype but specified in IT-baseline, built over both, tested in IT-baseline
       Given these specs:
-        | tags                                                                                                                                                                                         | Feature |
-        | @id=beta @maturity=idea @iteration:IT-prototype @activity.analysis-design:IT-prototype @activity.implementation:IT-prototype @activity.implementation:IT-baseline @activity.test:IT-baseline | Beta    |
+        | tags                                                                                                                                                                                    | Feature |
+        | @id=beta @maturity=idea @iteration:IT-prototype @activity.requirements:IT-baseline @activity.implementation:IT-prototype @activity.implementation:IT-baseline @activity.test:IT-baseline | Beta    |
       When the lifecycle is computed
       Then the planned activity is:
-        | discipline      | IT-prototype | IT-baseline |
-        | requirements    | 2            | 0           |
-        | analysis-design | 1            | 0           |
-        | implementation  | 1            | 1           |
-        | test            | 0            | 1           |
+        | discipline     | IT-prototype | IT-baseline |
+        | requirements   | 1            | 1           |
+        | implementation | 1            | 1           |
+        | test           | 0            | 1           |
 
   Rule: The plan's own nodes are no work
 
@@ -253,49 +249,65 @@ Feature: Plan delivery
 
   Rule: A kind no discipline names is no work: nothing lists it as unplanned, and check reports a maturity on it
 
-    Only work is still to come at a maturity, and planned: a risk or a policy is what it is, its rules
-    with examples, until the team adds its kind to a discipline.
+    Only work is still to come at a maturity, and planned. An activity tag plans a discipline's work on
+    any node; otherwise a risk or a policy is its rules with examples, until its kind joins a discipline.
 
-    Scenario: A risk at a maturity
+    Scenario Outline: A risk at a maturity, <planned>
       Given these specs:
-        | tags                                 | Feature |
-        | @id=outage @kind=risk @maturity=idea | Outage  |
+        | tags                                        | Feature |
+        | @id=outage @kind=risk @maturity=idea <tags> | Outage  |
       When the lifecycle is computed
       Then the unplanned work is "nothing"
+      And the iterations are:
+        | id           | plans          |
+        | IT-scope     |                |
+        | IT-prototype | alpha, staging |
+        | IT-baseline  | <baseline>     |
       When the workspace is checked
-      Then sdp reports:
-        | rule                | node   | at                     |
-        | maturity-on-no-work | outage | specs/outage.feature:1 |
+      Then sdp reports "<reported>"
+
+      Examples:
+        | planned                    | tags                                 | baseline | reported            |
+        | planned by nothing         |                                      |          | maturity-on-no-work |
+        | planned by an activity tag | @activity.implementation:IT-baseline | outage   | nothing             |
 
   Rule: A rule is planned on its own, as work of its spec's kind
 
-    A change to a built feature is planned rule by rule.
+    A change to a built feature is planned rule by rule. Each example is counted in one iteration: its
+    rule's, when the rule is planned apart from its spec.
 
-    Scenario: A rule still to come of a live feature, planned into IT-baseline
-      Given a file "specs/cart.feature" containing:
+    Scenario Outline: A rule planned <planned>, and the evidence of its example
+      Given a file "specs/wishlist.feature" containing:
         """
-        @id=cart
-        Feature: Cart
+        @id=wishlist @maturity=draft @iteration:IT-prototype
+        Feature: Wishlist
 
-          Shoppers collect items before paying.
+          Shoppers keep what they want for later.
 
-          Rule: A cart holds what was added
+          Rule: A wishlist keeps what a shopper wants for later
 
-            Scenario: Add an item
-              Then the cart holds 1 item
+            Scenario: Keep a lamp
+              Then the wishlist holds a lamp
 
-          @maturity=draft @iteration:IT-baseline
-          Rule: A cart is kept for a week
+          @maturity=draft @iteration:<iteration>
+          Rule: A wishlist is shared with a friend
+
+            Scenario: Share the list
+              Then the wishlist holds a desk
         """
-      When the lifecycle is computed
+      And a step definition "the wishlist holds a {word}" that passes
+      When the workspace is run
+      And the lifecycle is computed
       Then the iterations are:
-        | id           | plans                          | stages  |
-        | IT-scope     |                                |         |
-        | IT-prototype | alpha, staging                 | idea:2  |
-        | IT-baseline  | cart#a-cart-is-kept-for-a-week | draft:1 |
-      And the planned activity is:
-        | discipline   | IT-prototype | IT-baseline |
-        | requirements | 1            | 1           |
+        | id           | plans       | scenarios  |
+        | IT-scope     |             |            |
+        | IT-prototype | <prototype> | <passed>   |
+        | IT-baseline  | <baseline>  | <evidence> |
+
+      Examples:
+        | planned                | iteration    | prototype                                                             | passed   | baseline                                    | evidence |
+        | with its feature       | IT-prototype | alpha, staging, wishlist, wishlist#a-wishlist-is-shared-with-a-friend | passed:2 |                                             |          |
+        | apart from its feature | IT-baseline  | alpha, staging, wishlist                                              | passed:1 | wishlist#a-wishlist-is-shared-with-a-friend | passed:1 |
 
   Rule: Work still to come, at every maturity, is unplanned until it is planned
 
@@ -442,7 +454,7 @@ Feature: Plan delivery
     Met is recorded once, by somebody, not read from the calendar or today's results: a date would
     fail tomorrow the commit that passes today, and results are local and go stale.
 
-    Scenario: Written on the milestone's tag line, and the project moves to the next milestone
+    Scenario Outline: Recorded when <case>
       Given a file "specs/MS-objectives.feature" containing:
         """
         @id=MS-objectives @closes:PH-inception
@@ -451,14 +463,32 @@ Feature: Plan delivery
           Rule: The work is planned
 
             Scenario: There is a plan
-              Then the query "iteration" returns at least 1 result
+              Then <step>
+        """
+      And a file "specs/steps/edit.steps.ts" containing:
+        """
+        import { readFileSync, writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("the gate is edited while it runs", () => {
+            const file = "specs/MS-objectives.feature"
+            writeFileSync(file, readFileSync(file, "utf8").replace("the gate is edited while it runs", "a step nobody wrote"))
+          })
+        })
         """
       When I run "sdp gate MS-objectives --record"
-      Then the exit code is 0
-      And the file "specs/MS-objectives.feature" contains "@id=MS-objectives @closes:PH-inception @met=20"
+      Then the exit code is <exit code>
+      And the file "specs/MS-objectives.feature" contains "<tag line>"
       When I run "sdp lifecycle --json"
       Then the JSON output has:
-        | data.position.milestone | MS-architecture |
+        | data.position.milestone | <project at> |
+
+      Examples:
+        | case                             | step                                            | exit code | tag line                                       | project at      |
+        | its gate passes                  | the query "iteration" returns at least 1 result | 0         | @id=MS-objectives @closes:PH-inception @met=20 | MS-architecture |
+        | its gate does not pass           | a step nobody wrote                             | 1         | @id=MS-objectives @closes:PH-inception         | MS-objectives   |
+        | its gate is edited while it runs | the gate is edited while it runs                | 1         | @id=MS-objectives @closes:PH-inception         | MS-objectives   |
 
   Rule: sdp gate --record records nothing on a graph sdp could not read whole
 

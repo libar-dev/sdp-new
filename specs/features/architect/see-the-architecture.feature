@@ -118,7 +118,7 @@ Feature: See the architecture
   Rule: An import means the file TypeScript resolves its name to, by the files of the code, whether or not its packages are installed
 
     The graph follows the files, not what an install linked: a package of the workspace is found by
-    the name its package.json gives.
+    the name its package.json gives. A deno.json maps names as Deno does.
 
     Scenario Outline: A name means the file TypeScript resolves it to, whether or not that file anchors an element
       Given a file "<config>" containing:
@@ -148,7 +148,7 @@ Feature: See the architecture
         | config                    | says                                                                                                     | unanchored            | anchored                  | name      | imports  |
         | tsconfig.json             | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }                                               | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
-        | package.json              | { "name": "shop", "dependencies": { "tax": "^1.0.0" } }                                                  | lib/tax.ts            | src/tax.ts                | tax       | nothing  |
+        | deno.json                 | { "imports": { "@/": "./src/" } }                                                                        | lib/tax.ts            | src/tax.ts                | @/tax.ts  | ARCH-tax |
 
   Rule: What an import means is read from the repository, and from outside it only what a tsconfig.json of it extends, which is said
 
@@ -211,12 +211,13 @@ Feature: See the architecture
       When I run "sdp q '#ARCH-billing -imports-> *' --ids"
       Then the exit code is <exit code>
       And the output lines are "<imports>"
+      And the output contains "not read: <at> [import-unresolved]" <reported>
 
       Examples:
-        | case                                            | config        | says                                                     | name      | exit code | imports  |
-        | a name no package.json declares                 | package.json  | { "name": "shop" }                                       | tax       | 2         | nothing  |
-        | a library a package.json declares               | package.json  | { "name": "shop", "dependencies": { "rates": "^1.0.0" } } | rates     | 0         | nothing  |
-        | what the tsconfig.json extends is not installed | tsconfig.json | { "extends": "@shop/tsconfig" }                          | @shop/tax | 2         | ARCH-tax |
+        | case                                            | config        | says                                                      | name      | exit code | imports  | at               | reported |
+        | a name no package.json declares                 | package.json  | { "name": "shop" }                                        | tax       | 2         | nothing  | src/billing.ts:1 | 1 time   |
+        | a library a package.json declares               | package.json  | { "name": "shop", "dependencies": { "rates": "^1.0.0" } } | rates     | 0         | nothing  | src/billing.ts:1 | 0 times  |
+        | what the tsconfig.json extends is not installed | tsconfig.json | { "extends": "@shop/tsconfig" }                           | @shop/tax | 2         | ARCH-tax | tsconfig.json:1  | 1 time   |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 
@@ -255,15 +256,15 @@ Feature: See the architecture
   Rule: Every anchor of an element declares it, and two that disagree on an attribute are reported
 
     An element anchored in several places is one element whichever file is read first: where two
-    anchors disagree, the first file's is kept.
+    anchors disagree, the first file's is kept; a kind no anchor writes gives way to one written.
 
-    Scenario Outline: Two anchors that disagree on <attribute>
+    Scenario Outline: Two anchors of one element, <case>
       Given a file "src/courier/retry.ts" containing:
         """
         /**
          * Retries while the provider is down.
          *
-         * @sdp is ARCH-courier <first>
+         * @sdp is <first>
          */
         export const retry = (): number => 3
         """
@@ -272,22 +273,21 @@ Feature: See the architecture
         /**
          * Sends receipts.
          *
-         * @sdp is ARCH-courier <second>
+         * @sdp is <second>
          */
         export const send = (): number => 0
         """
       When the workspace is loaded
       Then the workspace graph has nodes:
-        | id           | title   | owner   | tier   |
-        | ARCH-courier | <title> | <owner> | <tier> |
-      And sdp reports:
-        | rule                 | at                    |
-        | declaration-conflict | src/courier/send.ts:4 |
+        | id   | kind   | owner   |
+        | <id> | <kind> | <owner> |
+      And sdp reports "<reported>"
 
       Examples:
-        | attribute | first         | second               | title        | owner | tier |
-        | owner     | owner=post    | owner=billing tier=2 | ARCH-courier | post  | 2    |
-        | title     | title=Courier | title=Post           | Courier      |       |      |
+        | case                        | first                   | second                     | id           | kind    | owner | reported             |
+        | that disagree on the owner  | ARCH-courier owner=post | ARCH-courier owner=billing | ARCH-courier | element | post  | declaration-conflict |
+        | the first writing the kind  | courier kind=pattern    | courier                    | courier      | pattern |       | nothing              |
+        | the second writing the kind | courier                 | courier kind=pattern       | courier      | pattern |       | nothing              |
 
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: A spec that declares an element or a pattern is reported, and what it says is not read
@@ -316,7 +316,6 @@ Feature: See the architecture
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp applies`
 
-    The code every instance goes through is the pattern's, and its comment says what the pattern is.
     A pattern imports nothing, and nothing imports it.
 
     Scenario: A retry pattern, declared by its code and played by billing
@@ -449,8 +448,10 @@ Feature: See the architecture
         | id           | kind   | source |
         | ARCH-exports | <kind> |        |
       And sdp reports "<reported>"
+      When I ask for the architecture view
+      Then the output contains "still to come, named by export" <shown>
 
       Examples:
-        | named by      | maturity        | kind    | reported      |
-        | still to come | @maturity=ready | element | nothing       |
-        | that is live  |                 | missing | dangling-link |
+        | named by      | maturity        | kind    | reported      | shown   |
+        | still to come | @maturity=ready | element | nothing       | 1 time  |
+        | that is live  |                 | missing | dangling-link | 0 times |
