@@ -841,12 +841,14 @@ Feature: Check specs
       And the JSON output has:
         | complete  | <complete> |
         | data.node | <dropped>  |
+      And the output contains "<note>"
 
       Examples:
-        | case                                  | change                   | exit code | complete | dropped      |
-        | checked out                           | true                     | 0         | true     | nothing      |
-        | checked out, its live example deleted | rm lib/specs/lib.feature | 1         | true     | lib#it-works |
-        | not checked out                       | rm -rf lib && mkdir lib  | 2         | false    | nothing      |
+        | case                                  | change                                                                                                                                                         | exit code | complete | dropped      | note                                                                                                                        |
+        | checked out                           | true                                                                                                                                                           | 0         | true     | nothing      | note: live tests compared with the base                                                                                     |
+        | checked out, its live example deleted | rm lib/specs/lib.feature                                                                                                                                       | 1         | true     | lib#it-works | note: live tests compared with the base                                                                                     |
+        | not checked out                       | rm -rf lib && mkdir lib                                                                                                                                        | 2         | false    | nothing      | is a submodule that is not checked out here (check it out with git submodule update --init lib, and fetch the base's commit |
+        | checked out without the base's commit | rm -rf lib/.git && cd lib && git init -q && git add -A && git -c user.name=sdp -c user.email=sdp@example.com -c commit.gpgsign=false commit -qm other && cd .. | 2         | false    | nothing      | is a submodule whose repository here lacks the base's commit                                                                |
 
     Scenario: A spec deleted, from a workspace whose directory's name starts with a space
       Given a file " app/sdp.config.yaml" containing:

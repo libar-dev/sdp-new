@@ -134,7 +134,8 @@ export const gitRevisions = Layer.effect(
       const committed = commitFiles(
         (repository, args, input) => git(repository, args, input, env),
         { mode: tree, object: commit, repository: root },
-        `${root}/${cdup}`
+        `${root}/${cdup}`,
+        fromWorkspace
       )
       return yield* Effect.gen(function*() {
         // The base is read as it was configured — its features globs, its exclusions and its vocabulary —
@@ -242,17 +243,17 @@ const treeEntries = (out: Buffer, repository: string) =>
  * The files of a commit, `top` its tree, by their path from the top of the repository, as a file
  * system the workspace's walk (`findFiles`) finds specs in as it finds them on disk: a symbolic link
  * leads where its target does, and a submodule checked out in `checkout`, the top of the working tree,
- * holds the files of the commit the tree records for it, read from its own repository. A directory is
- * listed from git when a path first goes through it, and with all below it when the walk reads it, the
- * targets of its links with it: reading the base costs what its globs reach, not the size of the
- * repository.
+ * holds the files of the commit the tree records for it, read from its own repository; `shown` is a
+ * path as a note names it. A directory is listed from git when a path first goes through it, and with
+ * all below it when the walk reads it, the targets of its links with it: reading the base costs what
+ * its globs reach, not the size of the repository.
  *
  * What the walk reads there that the commit cannot say — a directory it lists, or a file it accepts,
  * out of the repository, through a link in a circle, in a submodule that is not checked out here, or
  * by a name the tree has only in another case — is recorded in `unread`. A link it only passes over
  * is not: on disk as here, `**` follows none, so whatever it leads to is never read.
  */
-const commitFiles = (git: Git, top: Entry, checkout: string) => {
+const commitFiles = (git: Git, top: Entry, checkout: string, shown: (path: string) => string) => {
   /** Each directory listed so far, by its path, and those listed with all below them. */
   const listings = new Map<string, Map<string, Entry>>()
   const whole = new Set<string>()
@@ -302,18 +303,23 @@ const commitFiles = (git: Git, top: Entry, checkout: string) => {
 
   /**
    * The tree of the commit the submodule at `path` records, in its repository where it is checked out
-   * here; or what the submodule is when it is not, or its repository lacks that commit.
+   * here; or what the submodule is when it is not, or its repository lacks that commit, with how to
+   * read it: the base is read with its own configuration, so an exclusion written today changes
+   * nothing until the default branch has it.
    */
   const opened = Effect.fnUntraced(function*(path: string, entry: Entry) {
     const repository = `${checkout}${path}`
-    const shown = yield* git(repository, ["rev-parse", "--show-prefix"])
-    if (shown?.code !== 0 || shown.out.toString("utf8") !== "\n") {
-      return "a submodule that is not checked out here (check it out with git submodule update --init, or exclude it)"
+    const fetch = `git -C ${shown(path)} fetch origin ${entry.object}`
+    const otherwise = "or exclude it in the configuration of the default branch, and until then waive the comparison with --base none"
+    const opens = yield* git(repository, ["rev-parse", "--show-prefix"])
+    if (opens?.code !== 0 || opens.out.toString("utf8") !== "\n") {
+      return `a submodule that is not checked out here (check it out with git submodule update --init ${shown(path)}, and fetch the ` +
+        `base's commit ${entry.object.slice(0, 7)} if HEAD records another: ${fetch}; ${otherwise})`
     }
     const held = yield* git(repository, ["cat-file", "-e", `${entry.object}^{commit}`])
     return held?.code === 0
       ? { mode: tree, object: entry.object, repository }
-      : `a submodule whose repository here lacks its commit ${entry.object.slice(0, 7)} (fetch it with git submodule update, or exclude it)`
+      : `a submodule whose repository here lacks the base's commit ${entry.object.slice(0, 7)} (fetch it with ${fetch}, ${otherwise})`
   })
 
   /**
