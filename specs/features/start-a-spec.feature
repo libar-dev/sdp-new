@@ -196,7 +196,7 @@ Feature: Start a spec
     Scenario: A kind without a template
       When I run "sdp new --help"
       Then the output contains "feature, decision, element, pattern, milestone, phase, iteration"
-      And the output contains "idea (default), draft, specified or ready, or any word of the team's own"
+      And the output contains "rung of the maturity ladder, the first by default: idea, draft, specified, ready, or the team's own under vocabulary.maturity"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"

@@ -356,14 +356,14 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (element and pattern: no file, for their code declares them). Any other kind gets the generic template`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (element and pattern: no file, for their code declares them). Any other kind gets the generic template, but for change and a maturity, which are no kind unless the workspace names one`
       )
     ),
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it")),
     id: Flag.String("id").pipe(Flag.withDescription("Use this id instead of one made from the title"), Flag.optional),
     maturity: Flag.String("maturity").pipe(
       Flag.withDescription(
-        "Start at this maturity — idea (default), draft, specified or ready, or any word of the team's own: work still to come declares one, and live work none"
+        "Start at this rung of the maturity ladder, the first by default: idea, draft, specified, ready, or the team's own under vocabulary.maturity. Work still to come declares one, and live work none"
       ),
       Flag.optional
     ),

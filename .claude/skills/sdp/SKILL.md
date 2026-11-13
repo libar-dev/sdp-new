@@ -65,8 +65,7 @@ Feature: Guest checkout
   live Feature or Rule is a test: its examples must pass, a live rule without an example is an
   error, and so is live work — a feature, or any kind a discipline names — without a live rule. A
   Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
-  it, each with a maturity of its own, with `@replaces:<feature>#<rule>` on one that replaces a live
-  rule; nothing moves when it is built.
+  it, each with a maturity of its own; nothing moves when it is built.
 - **Nothing live goes back.** `sdp check` fails when an example live at the git base — where HEAD
   meets the default branch — is gone or has become a gate or work still to come, and when what was
   live there declares a maturity or `@open`. So, in a change:
@@ -192,14 +191,14 @@ than grepping for a guess.
 Plain grep is still right for what tags make literal: `grep -rn '@id=use-postgres'` is the
 declaration, `grep -rn ':use-postgres\b'` every link to it, `grep -rn -A1 '@open'` every open question.
 
-**An answer says when it is incomplete.** If sdp could not read a file, dropped a tag it could not
-read as written, could not follow an import that may name the workspace's code, cut a traversal
-short or, in `sdp check`, compared nothing with a base, it prints `incomplete:` and `note:` lines on
-stderr and exits with code 2; with `--json` the answer is `{ complete, notes, data }` and
-`complete` is `false`. Do not conclude that something is absent from an incomplete answer — fix
-what the note names (`sdp check` lists it) and ask again. A `note:` on a complete answer is worth
-reading too: it is how sdp tells you a kind or relation you typed does not exist and which one is
-closest.
+**An answer says when it is incomplete.** If sdp could not read a file, read none of a spec that
+declares an element or a pattern, dropped a tag it could not read as written, could not follow an
+import that may name the workspace's code, cut a traversal short or, in `sdp check`, compared
+nothing with a base, it prints `incomplete:` and `note:` lines on stderr and exits with code 2;
+with `--json` the answer is `{ complete, notes, data }` and `complete` is `false`. Do not conclude
+that something is absent from an incomplete answer — fix what the note names (`sdp check` lists
+it) and ask again. A `note:` on a complete answer is worth reading too: it is how sdp tells you a
+kind or relation you typed does not exist and which one is closest.
 
 ## Changing behaviour
 
