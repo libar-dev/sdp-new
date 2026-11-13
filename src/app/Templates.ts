@@ -10,7 +10,7 @@ import { Duration, Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, idForm, isWork, saysBuilt, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, idForm, isStage, isWork, offLadder, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -81,15 +81,15 @@ export interface NewSpec {
  * workspace root unless `dir` is absolute. `sdp new element` or `sdp new pattern` writes no file:
  * only the id its code declares, and how.
  * Fails, with the reason, for a change, which is rules of the feature it changes, and for a kind
- * named like a rung of the ladder or a word for built work, which is a maturity — each unless the
- * workspace names a kind of that name — for a maturity asked of a kind that is no work, and
+ * named like a rung of the ladder or a stage — each unless the workspace names a kind of that name
+ * — for a maturity asked of a kind that is no work or that is no rung of the ladder, and
  * when the content would not read back with its id, kind and title: the id of an element or a
  * pattern is read back too, though it has no file.
  */
 export const newSpec = (options: {
   readonly kind: string
   readonly title: string
-  /** Defaults to the first level of the configured ladder. */
+  /** A rung of the configured ladder, the first by default. */
   readonly maturity?: string | undefined
   readonly today: string
   readonly config: Config
@@ -113,12 +113,12 @@ export const newSpec = (options: {
   }
   // How far work has come is its maturity, never its kind, unless the workspace names a kind of that name.
   const first = vocabulary.maturity[0]!
-  const built = saysBuilt(kind)
-  if ((vocabulary.maturity.includes(kind) || built !== undefined) && !vocabularyWords(vocabulary).kinds.includes(kind)) {
+  const stage = isStage(kind)
+  if ((vocabulary.maturity.includes(kind) || stage) && !vocabularyWords(vocabulary).kinds.includes(kind)) {
     const start = `sdp new ${feature} ${JSON.stringify(title)}`
     return Result.fail(
-      built !== undefined
-        ? `${built}, so it is no kind: ${start} writes a ${feature} still to come, at ${first}, the first rung`
+      stage
+        ? `${kind} is a stage sdp derives from the run, so it is no kind: ${start} writes a ${feature} at ${first}, the first rung`
         : kind === first
         ? `${kind} is a maturity, not a kind: ${start} writes a ${feature} at ${kind}, the first rung`
         : `${kind} is a maturity, not a kind: ${start} --maturity ${kind} writes a ${feature} at ${kind}`
@@ -130,6 +130,8 @@ export const newSpec = (options: {
       `kind ${kind} belongs to no discipline, so it is no work and is written without a maturity: leave out --maturity, or add ${kind} to a discipline under vocabulary.disciplines`
     )
   }
+  const instead = offLadder(vocabulary, maturity)
+  if (instead !== undefined) return Result.fail(`${maturity} is no rung of the ladder ${vocabulary.maturity.join(", ")}: ${instead}`)
   const next = guidance({ kind, id, config })
   const home = [options.kind, template].find((name) => Object.hasOwn(directoryFor, name))
   const directory = (dir ?? (home === undefined ? `specs/${kind}` : directoryFor[home]!)).replace(/(.)\/+$/, "$1")

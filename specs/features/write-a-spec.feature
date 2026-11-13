@@ -169,7 +169,7 @@ Feature: Write a spec
         | declared                    | maturity                        | still to come | stage     |
         | nothing                     |                                 | undefined     | unrun     |
         | a rung of the ladder        | @maturity=specified             | true          | specified |
-        | a word of the team's own    | @maturity=someday               | true          | someday   |
+        | a word off the ladder       | @maturity=someday               | true          | someday   |
         | two values                  | @maturity=draft @maturity=ready | true          | draft     |
         | a stage that sdp derives    | @maturity=verified              | true          | undefined |
 

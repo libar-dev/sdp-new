@@ -7,7 +7,7 @@
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
 import { formatSource } from "../model/Graph.ts"
-import { idForm, isId, isValueWord, made, saysBuilt } from "../model/Vocabulary.ts"
+import { idForm, isId, isValueWord, made } from "../model/Vocabulary.ts"
 import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
@@ -50,7 +50,7 @@ export interface CreateInput {
   readonly title: string
   /** Use this id instead of one made from the title. */
   readonly id?: string | undefined
-  /** How far it has come, in the team's judgement: any one word (default: the lowest level of the configured ladder). */
+  /** How far it has come, in the team's judgement: a rung of the configured ladder (default: its lowest). */
   readonly maturity?: string | undefined
   /** Directory to write to, relative to the workspace root or absolute (default: by kind). */
   readonly dir?: string | undefined
@@ -72,8 +72,6 @@ const unusable = (input: CreateInput): string | undefined =>
     ? "--dir needs a directory, relative to the workspace root or absolute"
     : input.maturity !== undefined && !isValueWord(input.maturity)
     ? `${JSON.stringify(input.maturity)}: a maturity is one word: write it without a space, @, = or :`
-    : input.maturity !== undefined && saysBuilt(input.maturity) !== undefined
-    ? `${saysBuilt(input.maturity)}: a new spec is work still to come, and what is built declares no maturity`
     : undefined
 
 /**

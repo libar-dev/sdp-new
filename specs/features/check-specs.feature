@@ -276,7 +276,7 @@ Feature: Check specs
 
     How far work still to come has come is for the team to say, and for a gate of its own to hold
     to a Definition of Ready: a placeholder paragraph with a token scenario would meet any criterion
-    sdp could check. Any value, written once or twice, says that the work is still to come.
+    sdp could check. Any rung, written once or twice, says that the work is still to come.
 
     Scenario Outline: A feature with a rule without an example and a question, at <maturity>
       Given a file "specs/export-to-csv.feature" containing:
@@ -300,11 +300,11 @@ Feature: Check specs
         | idea @maturity=ready |
 
   @replaces:check-specs#the-retired-rung-is-an-error-and-its-hint-is-to-delete-it
-  Rule: A maturity off the ladder is reported, and one that says the work is built is an error whose hint is to delete it
+  Rule: A maturity is a rung of the workspace's ladder, and any other word is an error
 
-    A live test declares no maturity, so a stage sdp derives or a word for built work would say that
-    it is still to come, and switch its examples off in silence. A word off the ladder is most often
-    a slip, and a query ranks it below every rung.
+    A live test declares no maturity, and any maturity makes work still to come, so a word that is
+    no rung would switch its examples off in silence. sdp reads no meaning into a rung, so it cannot
+    tell a word for built work from a slip: it holds every maturity to the ladder, as written.
 
     Scenario Outline: <case>, on <on>
       Given a file "specs/cart.feature" containing:
@@ -322,16 +322,17 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports:
-        | rule   | severity   | node | at                        | message   | hint   |
-        | <rule> | <severity> | <id> | specs/cart.feature:<line> | <message> | <hint> |
+        | rule                | severity | node | at                        | message   | hint   |
+        | maturity-off-ladder | error    | <id> | specs/cart.feature:<line> | <message> | <hint> |
 
       Examples:
-        | case                  | on        | feature's   | rule's   | line | id                               | rule                | severity | message                                                                       | hint                                                                       |
-        | a word for built work | a feature | implemented | ready    | 1    | cart                             | maturity-says-built | error    | implemented says the work is built, but any maturity makes work still to come | delete it: what declares no maturity is live                               |
-        | a word for built work | a rule    | draft       | done     | 6    | cart#a-cart-holds-what-was-added | maturity-says-built | error    | done says the work is built                                                   | delete it                                                                  |
-        | a word for built work | a feature | live        | draft    | 1    | cart                             | maturity-says-built | error    | live says the work is built                                                   | delete it                                                                  |
-        | a stage               | a rule    | ready       | verified | 6    | cart#a-cart-holds-what-was-added | maturity-says-built | error    | verified is a stage sdp derives from a run of what is built                   | delete it                                                                  |
-        | a word off the ladder | a feature | someday     | idea     | 1    | cart                             | maturity-off-ladder | warning  | someday, which is not on the ladder idea, draft, specified, ready             | write a rung of the ladder, or add someday to it under vocabulary.maturity |
+        | case                       | on        | feature's | rule's   | line | id                               | message                                                                                    | hint                                                                                                                                         |
+        | a word for built work      | a feature | Done      | ready    | 1    | cart                             | cart declares @maturity=Done, which is no rung of the ladder idea, draft, specified, ready | write a rung of the ladder, or add Done to it under vocabulary.maturity; if the work is built, delete it: what is built declares no maturity |
+        | a word for built work      | a rule    | draft     | passing  | 6    | cart#a-cart-holds-what-was-added | @maturity=passing, which is no rung of the ladder                                          | add passing to it under vocabulary.maturity; if the work is built, delete it                                                                 |
+        | a word of another language | a feature | fertig    | draft    | 1    | cart                             | @maturity=fertig, which is no rung of the ladder                                           | add fertig to it under vocabulary.maturity                                                                                                   |
+        | a stage                    | a rule    | ready     | verified | 6    | cart#a-cart-holds-what-was-added | @maturity=verified, which is no rung of the ladder                                         | sdp derives verified from the run; delete it                                                                                                 |
+        | a word off the ladder      | a feature | someday   | idea     | 1    | cart                             | @maturity=someday, which is no rung of the ladder                                          | add someday to it under vocabulary.maturity                                                                                                  |
+        | a rung in another case     | a rule    | idea      | Ready    | 6    | cart#a-cart-holds-what-was-added | @maturity=Ready, which is no rung of the ladder                                            | write ready, as the ladder does                                                                                                              |
 
   Rule: Nothing live stops being live without an error
 

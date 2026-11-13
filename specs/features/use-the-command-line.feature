@@ -180,7 +180,7 @@ Feature: Use the command line
         | new feature Carts --id 'cart#x'          | holds #, which names a rule or an example of a spec         | specs/features/cart#x.feature       |
         | new feature Carts --dir ''               | --dir needs a directory                                     | carts.feature                       |
         | new feature Carts --maturity 'not yet'   | a maturity is one word: write it without a space, @, = or : | specs/features/carts.feature        |
-        | new feature Carts --maturity implemented | implemented says the work is built                          | specs/features/carts.feature        |
+        | new feature Carts --maturity implemented | implemented is no rung of the ladder                        | specs/features/carts.feature        |
         | new risk Outage --maturity draft         | kind risk belongs to no discipline, so it is no work        | specs/risk/outage.feature           |
         | new element Bad --id 'ARCH-bad other'    | would not read back from a tag                              | .sdp/results.json                   |
         | new element Bad --id ' '                 | would not read back from a tag                              | .sdp/results.json                   |

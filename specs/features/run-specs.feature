@@ -121,10 +121,10 @@ Feature: Run specs as tests
       And the output line with "wishlist#keep-a-lamp" contains "still to come"
 
       Examples:
-        | maturity                 |
-        | someday                  |
-        | draft                    |
-        | ready @maturity=someday  |
+        | maturity             |
+        | idea                 |
+        | draft                |
+        | ready @maturity=idea |
 
   Rule: A run fails when a live example it ran does not pass
 
@@ -767,13 +767,13 @@ Feature: Run specs as tests
         """
       When I run "<command>"
       Then the exit code is 1
-      And the output contains "specs/wishlist.feature:1 [maturity-says-built]"
+      And the output contains "specs/wishlist.feature:1 [maturity-off-ladder]"
       And the file ".sdp/results.json" does not exist
 
       Examples:
-        | command          | rung        |
-        | sdp run          | implemented |
-        | sdp gate MS-beta | done        |
+        | command          | rung    |
+        | sdp run          | Done    |
+        | sdp gate MS-beta | passing |
 
     Scenario: A path the code globs match that is no file, which is in no spec
       When I run "sh -c 'mkdir src && ln -s nowhere.ts src/gone.ts'"

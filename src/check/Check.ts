@@ -5,10 +5,11 @@
  * never checked: declaring it is the architect's call.
  *
  * A maturity is the team's judgement of how far work still to come has come, so
- * neither its value nor the content behind it is checked. What is checked is
- * what is live — a Feature or a Rule that declares no maturity: a live rule has
- * an example, and, against a base revision (`compareWithBase`), nothing live
- * stops being live without an error.
+ * it is checked only to be a rung of the ladder, never for what it claims, and
+ * the content behind it not at all. What is checked is what is live — a Feature
+ * or a Rule that declares no maturity: a live rule has an example, and, against
+ * a base revision (`compareWithBase`), nothing live stops being live without an
+ * error.
  */
 import { Predicate } from "effect"
 import { createHash } from "node:crypto"
@@ -21,11 +22,12 @@ import {
   hasKind,
   hasRelation,
   isPlanKind,
+  isStage,
   isWork,
   type KindRole,
   made,
+  offLadder,
   type RelationRole,
-  saysBuilt,
   type Vocabulary,
   wordFor
 } from "../model/Vocabulary.ts"
@@ -168,27 +170,19 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  // A maturity says that work is still to come, at a rung of the team's ladder. One that says the
-  // work is built would switch its examples off in silence; one off the ladder is most often a slip.
+  // A maturity says that work is still to come, at a rung of the team's ladder, and any other word
+  // would switch its examples off in silence, whatever it claims: sdp reads none of it.
   const judge = (id: string, declared: unknown, source: SourceRef | undefined) => {
     for (const value of declared === undefined ? [] : [declared].flat()) {
       const word = String(value)
-      const built = saysBuilt(word)
-      if (built !== undefined) {
-        out.push(diagnostic("maturity-says-built", {
-          message: `${id} declares @maturity=${word}: ${built}, but any maturity makes work still to come, so its examples would fail no run`,
-          node: id,
-          source,
-          hint: "delete it: what declares no maturity is live, and its examples must pass"
-        }))
-      } else if (!vocabulary.maturity.includes(word)) {
-        out.push(diagnostic("maturity-off-ladder", {
-          message: `${id} declares @maturity=${word}, which is not on the ladder ${vocabulary.maturity.join(", ")}, so a query ranks it below every rung`,
-          node: id,
-          source,
-          hint: `write a rung of the ladder, or add ${word} to it under vocabulary.maturity in the configuration`
-        }))
-      }
+      const instead = offLadder(vocabulary, word)
+      if (instead === undefined) continue
+      out.push(diagnostic("maturity-off-ladder", {
+        message: `${id} declares @maturity=${word}, which is no rung of the ladder ${vocabulary.maturity.join(", ")}, so its examples would fail no run`,
+        node: id,
+        source,
+        hint: isStage(word) ? `${instead}; delete it` : `${instead}; if the work is built, delete it: what is built declares no maturity`
+      }))
     }
   }
   for (const spec of project.specs) {

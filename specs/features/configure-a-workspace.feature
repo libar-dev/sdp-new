@@ -345,6 +345,23 @@ Feature: Configure a workspace
       When I run "sdp vocabulary"
       Then the output line with "maturity" contains "sketch, agreed, estimated"
 
+    Scenario Outline: A ladder of <ladder>, whose last rung is still to come
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { maturity: [<ladder>] }
+        """
+      And these specs:
+        | tags                      | Feature |
+        | @id=cart @maturity=<last> | Cart    |
+      When the workspace is checked
+      Then sdp reports nothing
+      And node "cart" has attribute toCome = "true"
+
+      Examples:
+        | ladder                       | last     |
+        | proposed, accepted, complete | complete |
+        | Idee, Entwurf, Fertig        | Fertig   |
+
   Rule: sdp vocabulary prints the words sdp interprets as a configuration that reads back, and the words it makes itself, which nothing configures
 
     A team sees which of its words sdp reads meaning into, and starts its own profile from the one
@@ -411,8 +428,8 @@ Feature: Configure a workspace
         | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                               | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                         | at ["vocabulary"]["maturity"]               |
         | vocabulary: { implemented: done }                | excess property                                      | at ["vocabulary"]["implemented"]            |
-        | vocabulary: { maturity: [idea, implemented] }    | implemented says the work is built                   | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [sketch, done] }         | done says the work is built                          | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, Verified] }       | Verified is a stage sdp derives                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [sketch, in-progress] }  | in-progress is a stage sdp derives                   | at ["vocabulary"]["maturity"]               |
         | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                               | at ["vocabulary"]["relations"]["anchor"]    |
         | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                       | at ["vocabulary"]["kinds"]["decision"]      |
         | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                  | at ["vocabulary"]["kinds"]["milestone"]     |

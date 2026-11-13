@@ -1,5 +1,5 @@
 import { Duration, Option, Result, Schema } from "effect"
-import { defaultDisciplines, defaultVocabulary, isKey, isValueWord, made, reservedRelations, saysBuilt, type Vocabulary } from "./Vocabulary.ts"
+import { defaultDisciplines, defaultVocabulary, isKey, isStage, isValueWord, made, reservedRelations, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
@@ -264,7 +264,7 @@ export const readTimeout = (input: Duration.Input | string): Result.Result<Durat
 
 /**
  * What a configuration must satisfy beyond its shape, each problem at its path: a vocabulary sdp
- * can work with, a maturity ladder of distinct levels none of which says the work is built,
+ * can work with, a maturity ladder of distinct levels none of which is a stage sdp derives,
  * id prefixes that kind inference reads back (letters only, one kind each, none of a kind sdp makes
  * itself), and a timeout that is a duration.
  */
@@ -278,11 +278,8 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
     if (ladder.length === 0) issues.push({ path: ["vocabulary", "maturity"], issue: "the maturity ladder needs at least one level" })
     const repeated = ladder.filter((level, index) => ladder.indexOf(level) !== index)
     if (repeated.length > 0) issues.push({ path: ["vocabulary", "maturity"], issue: `levels must be distinct: ${repeated.join(", ")} repeats` })
-    for (const level of ladder) {
-      const built = saysBuilt(level)
-      if (built !== undefined) {
-        issues.push({ path: ["vocabulary", "maturity"], issue: `${built}: what is built declares no maturity, so no rung can say so` })
-      }
+    for (const level of ladder.filter(isStage)) {
+      issues.push({ path: ["vocabulary", "maturity"], issue: `${level} is a stage sdp derives from the run, so no rung can be one` })
     }
   }
   const madeKinds: ReadonlyArray<string> = Object.values(made.kinds)

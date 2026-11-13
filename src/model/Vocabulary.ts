@@ -66,9 +66,9 @@ export interface Vocabulary {
   /** Values of the `quality` attribute that make a node an architectural driver. */
   readonly qualities: Words
   /**
-   * The order of the maturities of work still to come, lowest first. sdp reads no meaning into a
-   * rung: any maturity says that the work is still to come, and the ladder orders the values a query
-   * compares, a value off it below every rung, where `sdp check` reports it.
+   * The rungs of the ladder of work still to come, lowest first: a maturity is one of them, as
+   * written, and `sdp check` reports any other word as an error. sdp reads no meaning into a rung:
+   * any maturity says that the work is still to come, and the ladder orders the values a query compares.
    */
   readonly maturity: Words
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
@@ -215,20 +215,23 @@ export const made = {
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
-/** Maturities that say the work is built, besides the stages sdp derives for what is. */
-const builtWords: Words = ["implemented", "built", "done", "complete", "finished", "live", "shipped", "released"]
+/** Whether a word names a stage sdp derives from a run, in any case: no rung of a ladder can. */
+export const isStage = (word: string): boolean => (Object.values(made.stages) as ReadonlyArray<string>).includes(word.toLowerCase())
 
 /**
- * Why a maturity says that the work is built — it names a stage sdp derives, or is a word for built
- * work — or `undefined` when it does not. A live test declares no maturity, so such a one would say
- * the opposite of what its author meant: it is an error, and no ladder may have it.
+ * What to write instead of a maturity that is no rung of the ladder, or `undefined` for a rung. A
+ * maturity is checked only to be a rung, as written, never for what it claims: a word for built work
+ * is no rung like any other, and only a stage has a hint of its own, for sdp derives it from the run.
  */
-export const saysBuilt = (maturity: string): string | undefined =>
-  (Object.values(made.stages) as ReadonlyArray<string>).includes(maturity)
-    ? `${maturity} is a stage sdp derives from a run of what is built`
-    : builtWords.includes(maturity)
-    ? `${maturity} says the work is built`
-    : undefined
+export const offLadder = (vocabulary: Vocabulary, maturity: string): string | undefined => {
+  if (vocabulary.maturity.includes(maturity)) return undefined
+  const rung = vocabulary.maturity.find((candidate) => candidate.toLowerCase() === maturity.toLowerCase())
+  return isStage(maturity)
+    ? `sdp derives ${maturity} from the run`
+    : rung !== undefined
+    ? `write ${rung}, as the ladder does`
+    : `write a rung of the ladder, or add ${maturity} to it under vocabulary.maturity`
+}
 
 /**
  * Whether a declared maturity makes work still to come: any value does, whatever it is, and a
@@ -335,10 +338,8 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     tags: Object.values(made.tags),
     /** The attributes of a code node. */
     codeAttributes: made.codeAttributes,
-    /** The stages beyond the maturity ladder. */
+    /** The stages beyond the maturity ladder, which no rung can be. */
     stages: Object.values(made.stages),
-    /** The words that say work is built, which no maturity can be, as no stage can. */
-    builtWords,
     /** The names no link can have. */
     reservedRelations
   }

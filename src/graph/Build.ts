@@ -16,6 +16,7 @@ import {
   hasKind,
   hasRelation,
   isDerived,
+  isStage,
   isToCome,
   linkKeys,
   made,
@@ -662,7 +663,7 @@ export const stageOf = (maturity: unknown, statuses: ReadonlyArray<StepStatus | 
   if (toCome) {
     const [first] = [maturity].flat()
     const named = Predicate.isString(first) || Predicate.isNumber(first) ? String(first) : undefined
-    return named === undefined || Object.values<string>(made.stages).includes(named) ? undefined : named
+    return named === undefined || isStage(named) ? undefined : named
   }
   if (statuses.length === 0) return undefined
   if (statuses.some((status) => status !== undefined && notPassing.has(status))) return made.stages.failing

@@ -60,8 +60,8 @@ Feature: Guest checkout
   maturity of a Feature or a Rule — a rung of the ladder, by default idea, draft, specified, ready —
   is how far it has come in the team's judgement, and sdp reads no meaning into the rung: whatever
   it says, the work is still to come, and its examples run and fail no run, so they are written
-  before the code; a rule still to come without an example is a to-do. A word off the ladder is a
-  warning, and one that says the work is built, such as a stage or `done`, an error to delete. A
+  before the code; a rule still to come without an example is a to-do. A maturity is a rung as the
+  ladder writes it, and any other word — `done`, a stage, a slip — is an error `sdp run` refuses. A
   live Feature or Rule is a test: its examples must pass, a live rule without an example is an
   error, and so is live work — a feature, or any kind a discipline names — without a live rule. A
   Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
