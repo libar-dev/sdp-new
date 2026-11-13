@@ -33,6 +33,12 @@ export interface SourceFile {
   readonly content: string
 }
 
+/** A path a glob matches that is no file sdp can read, and what it is instead. */
+export interface NotAFile {
+  readonly path: string
+  readonly is: "a link that leads to no file" | "a named pipe" | "a socket" | "a device" | "no file"
+}
+
 export interface ProjectInput {
   readonly root: string
   readonly config: Config
@@ -42,6 +48,8 @@ export interface ProjectInput {
   readonly codeFiles: ReadonlyArray<SourceFile>
   /** The step definition files: their definitions are read statically, never run. */
   readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
+  /** What the globs match that is no file sdp can read: what it would hold is not read. */
+  readonly notFiles?: ReadonlyArray<NotAFile> | undefined
   /** What the stored results say about the parsed specs' scenarios; without it the graph shows no results. */
   readonly evidence?: ((specs: ReadonlyArray<Spec>) => EvidenceView) | undefined
 }
@@ -108,6 +116,13 @@ export const buildProject = (input: ProjectInput): Project => {
       message: `${file} is Markdown, which sdp does not read: nothing written in it is in the graph`,
       source: { file, line: 1 },
       hint: `a spec is a feature file: write ${file.replace(/\.md$/, ".feature")}, its tags (@id=…) above \`Feature:\` (\`sdp new\` writes one); Markdown is for README.md and AGENTS.md`
+    }))
+  }
+  for (const { is, path: file } of new Map((input.notFiles ?? []).map((notFile) => [notFile.path, notFile])).values()) {
+    diagnostics.push(diagnostic("not-a-file", {
+      message: `${file} is ${is}, matched by the globs of the configuration: sdp reads files, so what it would hold is not read`,
+      source: { file, line: 1 },
+      hint: `make it a file, or leave it out with exclude: ["${file}"] in the configuration`
     }))
   }
   const annotations: Array<Annotation> = []

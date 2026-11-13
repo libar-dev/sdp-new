@@ -11,9 +11,8 @@ import { readFileSync, realpathSync } from "node:fs"
 import { createRequire, findPackageJSON, registerHooks } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
-import { buildProject, type Project, type SourceFile } from "../graph/Build.ts"
+import { buildProject, type NotAFile, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
-import { diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import type { RunResults } from "../model/Results.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
@@ -108,14 +107,8 @@ const globBase = (pattern: string): string => {
   return parts.slice(0, wild < 0 ? -1 : wild).join("/")
 }
 
-/** A path a glob matches that is no file sdp can read, and what it is instead. */
-export interface NotAFile {
-  readonly path: string
-  readonly is: string
-}
-
 /** What sdp calls each type of path that is neither a file nor a directory. */
-const notAFile: Partial<Record<FileSystem.File.Type, string>> = {
+const notAFile: Partial<Record<FileSystem.File.Type, NotAFile["is"]>> = {
   FIFO: "a named pipe",
   Socket: "a socket",
   BlockDevice: "a device",
@@ -135,46 +128,57 @@ export const findPaths = Effect.fn("findPaths")(function*(
 ) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  // What the walk learns of each path that is no file, so that a file costs no look of its own: the
-  // entries of the directories it lists that are not files, and the type of what each path it looks
-  // at leads to, none where nothing is. Named as the globs name what they match: relative to the
-  // root, unless the pattern is absolute.
-  let absolute = false
-  const prefix = root.endsWith("/") ? root : `${root}/`
-  const named = (at: string) => absolute ? at : at.slice(prefix.length)
-  const notFiles = new Map<string, FileSystem.File.Type | undefined>()
+  // What the walk learns of each path, by the path it looks at, so that a file costs no look of its
+  // own: the directories it lists, the entries of theirs that are no file, and the type of what each
+  // path it looks at leads to, none where nothing is.
+  const listed: Array<string> = []
+  const types = new Map<string, FileSystem.File.Type | undefined>()
   const walk = FileSystem.make({
     ...fs,
     readDirectoryEntries: (directory) =>
       Effect.map(fs.readDirectoryEntries(directory), (entries) => {
+        listed.push(directory)
         const at = directory.endsWith("/") ? directory : `${directory}/`
-        for (const entry of entries) if (entry.type !== "File") notFiles.set(named(at + entry.name), entry.type)
+        for (const entry of entries) if (entry.type !== "File") types.set(at + entry.name, entry.type)
         return entries
       }),
     stat: (at) =>
       fs.stat(at).pipe(
-        Effect.map((info) => (notFiles.set(named(at), info.type), info)),
-        Effect.tapError(() => Effect.sync(() => notFiles.set(named(at), undefined)))
+        Effect.map((info) => (types.set(at, info.type), info)),
+        Effect.tapError(() => Effect.sync(() => types.set(at, undefined)))
       )
   })
+  const base = path.resolve(root)
   const found = new Set<string>()
-  for (const pattern of patterns) {
-    absolute = path.isAbsolute(pattern)
-    for (const file of yield* walk.glob(pattern, { root, exclude })) found.add(file)
+  for (const pattern of patterns) for (const file of yield* walk.glob(pattern, { root: base, exclude })) found.add(file)
+  const sorted = [...found].sort()
+  // Each path the walk learnt of by both names a glob gives a path: as it is, and relative to the root.
+  const names = (at: string) => {
+    const named = at.length > 1 && at.endsWith("/") ? at.slice(0, -1) : at
+    return [named, path.relative(base, named)]
   }
-  // A link the walk did not follow is looked at: it is what it leads to.
-  const links = [...found].filter((file) => notFiles.get(file) === "SymbolicLink")
-  for (const { file, type } of yield* Effect.forEach(links, (file) =>
-    fs.stat(path.resolve(root, file)).pipe(
+  const directories = new Set(listed.flatMap(names))
+  const told = new Map([...types].flatMap(([at, type]) => names(at).map((name) => [name, type] as const)))
+  // A path in a directory the walk listed is a file unless the listing said otherwise; of any other, it learnt nothing.
+  const typeOf = new Map(sorted.map((file) => {
+    const slash = file.lastIndexOf("/")
+    const directory = slash < 0 ? "" : slash === 0 ? "/" : file.slice(0, slash)
+    return [file, told.has(file) ? told.get(file) : directories.has(directory) ? "File" : "Unknown"] as const
+  }))
+  // A path the walk did not tell, and a link it did not follow, is looked at: a link is what it leads to.
+  const unknown = sorted.filter((file) => {
+    const type = typeOf.get(file)
+    return type === "SymbolicLink" || type === "Unknown"
+  })
+  for (const { file, type } of yield* Effect.forEach(unknown, (file) =>
+    fs.stat(path.resolve(base, file)).pipe(
       Effect.map((info) => ({ file, type: info.type })),
       Effect.orElseSucceed(() => ({ file, type: undefined }))
-    ), { concurrency: 32 })) notFiles.set(file, type)
-  const sorted = [...found].sort()
-  const typeOf = (file: string) => notFiles.has(file) ? notFiles.get(file) : "File"
+    ), { concurrency: 32 })) typeOf.set(file, type)
   return {
-    files: sorted.filter((file) => typeOf(file) === "File"),
+    files: sorted.filter((file) => typeOf.get(file) === "File"),
     unread: sorted.flatMap((file): ReadonlyArray<NotAFile> => {
-      const type = typeOf(file)
+      const type = typeOf.get(file)
       return type === "File" || type === "Directory" ? [] : [{ path: file, is: type === undefined ? "a link that leads to no file" : notAFile[type] ?? "no file" }]
     })
   }
@@ -372,22 +376,16 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
   }
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const built = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
-  // What the globs match that is no file is reported where it is: what it would hold is not read.
-  const notFiles = new Map([...features.unread, ...code.unread, ...steps.unread, ...inputs.unread].map((file) => [file.path, file]))
-  const project = notFiles.size === 0 ? built : {
-    ...built,
-    diagnostics: sortDiagnostics([
-      ...built.diagnostics,
-      ...[...notFiles.values()].map(({ is, path: file }) =>
-        diagnostic("not-a-file", {
-          message: `${file} is ${is}, matched by the globs of the configuration: sdp reads files, so what it would hold is not read`,
-          source: { file, line: 1 },
-          hint: `make it a file, or leave it out with exclude: ["${file}"] in the configuration`
-        })
-      )
-    ])
-  }
+  const project = buildProject({
+    root,
+    config,
+    featureFiles,
+    markdownFiles,
+    codeFiles,
+    stepFiles,
+    notFiles: [...features.unread, ...code.unread, ...steps.unread, ...inputs.unread],
+    evidence: view
+  })
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources, stored } satisfies Workspace
 })
