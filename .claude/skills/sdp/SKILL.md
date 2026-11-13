@@ -78,11 +78,12 @@ Feature: Guest checkout
   removal, one edited under its name is the same example, and one renamed with its steps edited,
   or merged into another, is named where it went, `@replaces:<feature>#<example>` on that Scenario
   in that change.
-- **An open question is a Rule tagged `@open`**, its name the question. Answering it means
-  renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
-  has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
-  someone is written this way, on the spec it concerns, never kept in a chat or an agent's memory:
-  `sdp q 'rule[tags=@open]'` lists it.
+- **An open question is a Rule tagged `@open`**, its name the question. Answering it means renaming
+  it into the rule that was chosen and deleting the tag. A question is still to come, and has no
+  examples; a Scenario is an example, tagged `@open` or not. In a live feature, a question that
+  declares no maturity is about what is built, and one about work still to come declares that
+  work's. What is undecided or waits on someone is written this way, on the spec it concerns, never
+  kept in a chat or an agent's memory: `sdp q 'rule[tags=@open]'` lists it.
 - **One node, one file**, named by its id: a phase, an iteration and a decision too. An id names
   what it is — `guest-checkout`, `use-postgres`, `IT-payments`, not `ADR-0007` or `E2` — so that
   whoever reads a message citing it needs no lookup. Elements, patterns, milestones, phases and

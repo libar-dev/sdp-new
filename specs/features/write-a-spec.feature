@@ -728,6 +728,46 @@ Feature: Write a spec
         | rule             | severity | line | message                                                                               |
         | question-example | error    | 14   | explorer#a-static-export-or-a-local-server is an open question, so it has no examples |
 
+  Rule: An open question in a live feature is about what is built, unless it declares a maturity, which makes it one about work still to come
+
+    So a gate can ask that nothing built is still undecided, while the questions of work still to
+    come wait for that work.
+
+    Scenario: A question about the live cart, one about a rule of it still to come, and one about a wishlist still to come
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+          @open
+          Rule: Does a cart expire?
+
+          @open @maturity=idea
+          Rule: Can a cart be shared with a friend?
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=draft
+        Feature: Wishlist
+
+          Shoppers keep what they want for later.
+
+          @open
+          Rule: Is a wishlist public?
+        """
+      When the workspace is loaded
+      And I query "*[!toCome] <-rule-of- rule[tags=@open][!maturity]"
+      Then the result is "cart#does-a-cart-expire"
+      And node "cart#can-a-cart-be-shared-with-a-friend" has attribute stage = "idea"
+      And node "wishlist#is-a-wishlist-public" has attribute stage = "draft"
+
   Rule: A scenario runs the Feature's Background, then its Rule's, then its own steps, each at the line it is written on
 
     As Cucumber runs it, so a step that fails is reported at the line it is written on, in the
