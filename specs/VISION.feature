@@ -3,8 +3,8 @@
 @principle:declared-maturity-derived-stage
 Feature: Vision
 
-  sdp manages software delivery end to end. Features with their requirements, quality ones
-  included, from an idea to a live test, decisions, the curated architecture and the delivery
+  sdp manages software delivery end to end. Features — with their requirements, quality ones
+  included, from an idea to a live test — decisions, the curated architecture and the delivery
   lifecycle form one graph, written as plain files next to the code, checked by rules and executable
   wherever behaviour can be verified.
 

@@ -123,8 +123,8 @@ The sharp edges of the format, each what the official parser does:
   is, the rest of that comment says what it is for, and sdp derives which element `imports` which
   from the TypeScript and JavaScript anchored to them, so nobody writes it. `@sdp is PAT-y` declares
   a pattern in the code its instances share, and code that applies it says so with
-  `@sdp plays PAT-y`, so that the element it is plays it too. An element is in the graph because
-  someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
+  `@sdp plays PAT-y`; the element that code is then plays it too. An element is in the graph
+  because someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
   features, and a feature names its element with `@realized-by:`.
@@ -132,8 +132,7 @@ The sharp edges of the format, each what the official parser does:
   examples, not a paragraph. When you would write "X depends on Y" or "this must never happen",
   write the link or the rule (between elements, the code's imports already say it). A description
   says what the examples cannot — never a "verified by" list, a status, or a restatement of the
-  rules below it. When a sentence becomes a rule, delete
-  the sentence: move it, do not copy it.
+  rules below it. When a sentence becomes a rule, delete the sentence: move it, do not copy it.
 - **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
   context and a real trade-off, and that spans features, is recorded: a Feature whose name is the
   choice and one to three sentences on what was chosen over what, why, and the cost accepted with
@@ -157,8 +156,8 @@ The sharp edges of the format, each what the official parser does:
 ## Go through the graph first
 
 The graph already knows which feature an element realizes, which decision constrains it and
-which code is it, each with its `file:line`. Asking it gets you to the right three files
-faster than grepping for a guess.
+which code it is, each with its `file:line`. Asking it gets you to the right three files faster
+than grepping for a guess.
 
 - **One node, everything around it:** `sdp context <id>` — its rules with their state and reason,
   the names of its scenarios with their status and the steps still undefined, then the spec, its
@@ -195,16 +194,16 @@ declaration, `grep -rn ':use-postgres\b'` every link to it, `grep -rn -A1 '@open
 read as written, could not follow an import that may name the workspace's code, cut a traversal
 short or, in `sdp check`, compared nothing with a base, it prints `incomplete:` and `note:` lines on
 stderr and exits with code 2; with `--json` the answer is `{ complete, notes, data }` and
-`complete` is `false`. Do not conclude that something is
-absent from an incomplete answer — fix what the note names (`sdp check` lists it) and ask again. A
-`note:` on a complete answer is worth reading too: it is how sdp tells you a kind or relation you
-typed does not exist and which one is closest.
+`complete` is `false`. Do not conclude that something is absent from an incomplete answer — fix
+what the note names (`sdp check` lists it) and ask again. A `note:` on a complete answer is worth
+reading too: it is how sdp tells you a kind or relation you typed does not exist and which one is
+closest.
 
 ## Changing behaviour
 
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"`
-   writes it where it stays, and says what to write in it next. A change to a built feature is rules
-   of it, each with a maturity of its own until it is built. What a user sees belongs to a
+   writes it where it stays, and says what to write in it next. A change to a built feature is
+   rules of it, each with a maturity of its own until it is built. What a user sees belongs to a
    feature; a rule only the code observes, to the rules of the architecture.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
