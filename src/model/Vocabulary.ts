@@ -31,7 +31,7 @@ export interface Vocabulary {
     readonly pattern: Words
     /** The kinds whose nodes are the architecture: declaring one is the architect's call. */
     readonly architectural: Words
-    /** Architectural drivers, shown next to the architecture they shape. */
+    /** Architectural drivers, shown next to the architecture they shape: a team that keeps quality requirements as specs of a kind of its own names that kind here. */
     readonly driver: Words
     /** The kind of a node an anchor declares when it writes none and its id has no prefix that names one. */
     readonly anchored: string
@@ -58,7 +58,7 @@ export interface Vocabulary {
     readonly end: string
     /** The day a milestone was recorded as met (an ISO date). */
     readonly met: string
-    /** The attribute whose value (one of `qualities`) marks a quality requirement of any kind. */
+    /** The attribute whose value (one of `qualities`) marks a rule or a spec as a quality requirement. */
     readonly quality: string
   }
   /** Values of the `quality` attribute that make a node an architectural driver. */
@@ -86,7 +86,7 @@ const defaultKinds: Vocabulary["kinds"] = {
   iteration: ["iteration"],
   pattern: ["pattern"],
   architectural: ["element", "pattern"],
-  driver: ["decision", "nfr"],
+  driver: ["decision"],
   anchored: "element"
 }
 
@@ -98,7 +98,7 @@ const defaultKinds: Vocabulary["kinds"] = {
 export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
   new Map<string, Words>([
     ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
-    ["requirements", [...new Set(["requirement", "nfr", ...kinds.feature, "story", "use-case", "epic"])]],
+    ["requirements", [...new Set(["requirement", ...kinds.feature, "story", "use-case", "epic"])]],
     ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern])]],
     // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
     ["implementation", []],
@@ -124,7 +124,7 @@ export const defaultVocabulary: Vocabulary = {
     met: "met",
     quality: "type"
   },
-  qualities: ["quality", "non-functional", "nfr", "constraint"],
+  qualities: ["quality"],
   maturity: ["idea", "draft", "specified", "ready"],
   disciplines: defaultDisciplines(defaultKinds),
   words: { kinds: [], relations: [], attributes: [] }

@@ -237,7 +237,7 @@ Feature: Know what is verified
         """
       And a file "specs/fast-exports.feature" containing:
         """
-        @id=fast-exports @kind=nfr @iteration:IT-beta
+        @id=fast-exports @type=quality @iteration:IT-beta
         Feature: Exports are fast
 
           Rule: A report exports within a second
@@ -253,13 +253,13 @@ Feature: Know what is verified
       Then the iterations are:
         | id      | stages                      |
         | IT-beta | failing:1 idea:1 verified:1 |
-      When I query "feature|nfr[stage>ready]"
+      When I query "feature[stage>ready]"
       Then the result is "cart, export, fast-exports"
-      When I query "feature|nfr[stage<verified]"
+      When I query "feature[stage<verified]"
       Then the result is "cart, export, wishlist"
-      When I query "feature|nfr[stage=in-progress]"
+      When I query "feature[stage=in-progress]"
       Then the result is "nothing"
-      When I query "feature|nfr[stage>=in-progress, stage<=failing]"
+      When I query "feature[stage>=in-progress, stage<=failing]"
       Then the result is "export"
 
   Rule: A result counts only while what it ran against is unchanged
