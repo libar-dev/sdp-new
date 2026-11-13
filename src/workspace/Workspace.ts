@@ -471,8 +471,9 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
       ...read.inputs.files,
       ...[...inputs.unread, ...read.inputs.unread].map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
     ], config.evidence.env),
-    // Markdown where specs live counts by its path: the graph warns of it, and reads none of it.
-    specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
+    // Markdown where specs live counts by its path: the graph warns of it, and reads none of it. The
+    // files that say what the names code imports mean decide which element imports which.
+    specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" })), ...moduleConfigs.files])
   }
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
   const project = buildProject({

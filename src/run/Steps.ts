@@ -51,7 +51,9 @@ export interface StepContext<W, A extends ReadonlyArray<unknown>> {
   /**
    * The project the scenarios belong to — what built-in graph steps assert against. An ordinary
    * scenario sees it without any results; a gate sees the results of the ordinary scenarios. A
-   * step that reads it depends on the specs: its result goes stale when a spec or feature file changes.
+   * step that reads it depends on the specs: its result goes stale when a spec or feature file
+   * changes, Markdown where specs live is added or removed, or a file that says what the names code
+   * imports mean changes.
    */
   readonly project: Project
   readonly scenario: ScenarioInfo

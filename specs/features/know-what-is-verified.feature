@@ -1002,10 +1002,14 @@ Feature: Know what is verified
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
-  Rule: A scenario that reads the graph goes stale when a spec changes, or Markdown where specs live is added or removed; one that does not keeps its result
+  Rule: A scenario that reads the graph goes stale when a spec or a file that says what code's imports mean changes, or Markdown where specs live is added or removed; one that does not keeps its result
 
-    What a step that reads the graph sees is built from every spec and the id declarations, and
-    warns of each Markdown file where specs live, none of which it reads.
+    What a step that reads the graph sees is built from every spec, and from the code with the files
+    that say which file each name it imports means: tsconfig.json, tsconfig.build.json,
+    jsconfig.json, package.json, pnpm-workspace.yaml, deno.json and deno.jsonc, those a tsconfig.json
+    extends or references, and the package.json of each package a package manager's workspace lists.
+    It warns of each Markdown file where specs live, none of which it reads. A change to the code
+    makes every result stale already.
 
     Scenario: Another spec is added
       Given a step definition "an empty cart" that passes
@@ -1043,6 +1047,53 @@ Feature: Know what is verified
         """
       Then node "guard#no-warnings" has attribute status = "stale"
       And node "guard#no-warnings" has attribute staleBecause = "specs-changed"
+
+    Scenario: A tsconfig.json maps a name the code imports so that it closes a cycle
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a file "specs/layers.feature" containing:
+        """
+        @id=layers
+        Feature: Layers
+          Rule: No element depends on itself through others
+            Scenario: Tax
+              Then the query "#ARCH-tax -imports+-> #ARCH-tax" returns no results
+        """
+      And a file "tsconfig.json" containing:
+        """
+        { "compilerOptions": { "paths": { "@/*": ["./src/legacy/*"] } } }
+        """
+      And a file "src/legacy/billing.ts" containing:
+        """
+        export const bill = (): number => 0
+        """
+      And a file "src/billing.ts" containing:
+        """
+        import { rate } from "./tax.ts"
+
+        /** @sdp is ARCH-billing */
+        export const bill = (): number => rate
+        """
+      And a file "src/tax.ts" containing:
+        """
+        import { bill } from "@/billing"
+
+        /** @sdp is ARCH-tax */
+        export const rate = 0.25
+        export const total = (): number => bill()
+        """
+      When the workspace is run
+      Then node "layers#tax" has attribute status = "passed"
+      Given a file "tsconfig.json" containing:
+        """
+        { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }
+        """
+      When I query "#ARCH-tax -imports+-> #ARCH-tax"
+      Then the result is "ARCH-tax"
+      And node "layers#tax" has attribute status = "stale"
+      And node "layers#tax" has attribute staleBecause = "specs-changed"
+      And node "cart#add-an-item" has attribute status = "passed"
 
   Rule: No scenario reads the layer of evidence it belongs to
 
