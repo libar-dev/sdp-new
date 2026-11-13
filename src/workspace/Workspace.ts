@@ -40,12 +40,19 @@ export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoad
 export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("SourcesChanged", {
   /** Files this process imported that changed or are gone. */
   files: Schema.Array(Schema.String),
+  /** Paths this process imported through that lead elsewhere now, with where they lead, relative to the real root: nowhere else, or to no file. */
+  links: Schema.Array(Schema.Struct({ file: Schema.String, now: Schema.optional(Schema.String) })),
   /** Step files this process did not load: they were added after it loaded the step modules. */
   added: Schema.Array(Schema.String)
 }) {
   override get message() {
+    const leads = ({ file, now }: (typeof this.links)[number]) =>
+      now === undefined ? `${file} leads to no file now` : now === file ? `${file} leads nowhere else now` : `${file} leads to ${now} now`
     const changes = [
       ...(this.files.length > 0 ? [`${this.files.join(", ")} changed after this process imported ${this.files.length === 1 ? "it" : "them"}`] : []),
+      ...(this.links.length > 0
+        ? [`${this.links.map(leads).join(", ")}, not where ${this.links.length === 1 ? "it" : "they"} led when this process imported ${this.links.length === 1 ? "it" : "them"}`]
+        : []),
       ...(this.added.length > 0 ? [`${this.added.join(", ")} ${this.added.length === 1 ? "was" : "were"} added after this process loaded the step modules`] : [])
     ]
     return `${
@@ -347,6 +354,14 @@ const stepLinks = Effect.fnUntraced(function*(root: string, files: ReadonlyArray
   })
 })
 
+/** Where each of `files`, relative to the root, leads now, relative to the real root: itself unless it is a link or a path through one; nowhere for one that leads to no file. */
+export const whereLeads = Effect.fn("whereLeads")(function*(root: string, files: ReadonlyArray<string>) {
+  const fs = yield* FileSystem.FileSystem
+  if (files.length === 0) return new Map<string, string | undefined>()
+  const where = yield* leadsTo(yield* fs.realPath(root), files)
+  return new Map(files.map((file) => [file, where.get(file)?.at]))
+})
+
 /**
  * Reads a workspace and builds one view of it: the project with the results that `results` lets
  * it show — `all` for readers, `ordinary` for gates, `none` for ordinary scenarios — and the
@@ -552,12 +567,12 @@ export interface LoadedSteps {
    */
   readonly imports: () => ReadonlyArray<string>
   /**
-   * The step files and their imports that `sources` holds with another content than this process
-   * loaded, no longer holds at all or holds as leading elsewhere, and the links they were reached
-   * through that lead elsewhere now: a run against them would record evidence about code that did
-   * not run.
+   * What `sources` holds otherwise than this process loaded it: the step files and their imports it
+   * holds with another content or no longer holds at all, and the paths they were loaded from or
+   * reached through that lead elsewhere now. A run against them would record evidence about code
+   * that did not run.
    */
-  readonly changed: (sources: ReadonlyArray<SourceFile>) => ReadonlyArray<string>
+  readonly changed: (sources: ReadonlyArray<SourceFile>) => { readonly files: ReadonlyArray<string>; readonly links: ReadonlyArray<string> }
   /** The step files of `steps` that this process did not load, which were added since: their definitions did not run either. */
   readonly added: (steps: ReadonlyArray<string>) => ReadonlyArray<string>
 }
@@ -621,18 +636,23 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     // The paths that lead elsewhere now: a module loaded from one of them would be loaded from elsewhere.
     const leading = new Set(sources.flatMap((file) => file.path.includes(arrow) ? [file.path.split(arrow)[0]] : []))
     const { links, modules } = reached()
-    return [
-      ...modules.filter(({ file, url }) => {
+    return {
+      files: modules.filter(({ file, url }) => {
         const content = present.get(file)
-        // Deleted, or now a link: Node still runs what it loaded.
-        if (content === undefined || leading.has(file)) return true
+        // Deleted: Node still runs what it loaded.
+        if (content === undefined) return true
+        if (leading.has(file)) return false
         // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
         const loaded = loadedSources.get(url) ?? content
         loadedSources.set(url, loaded)
         return loaded !== content
-      }),
-      ...links.filter(({ link }) => !present.has(link))
-    ].map(({ file }) => file).sort()
+      }).map(({ file }) => file).sort(),
+      // Now a link, or a link that leads elsewhere: Node still runs what it loaded from where it led.
+      links: [
+        ...modules.filter(({ file }) => present.has(file) && leading.has(file)),
+        ...links.filter(({ link }) => !present.has(link))
+      ].map(({ file }) => file).sort()
+    }
   }
   const added = (steps: ReadonlyArray<string>) => steps.filter((file) => !files.includes(file))
   return { files, modules: [...modules], empty, imports, changed, added } satisfies LoadedSteps

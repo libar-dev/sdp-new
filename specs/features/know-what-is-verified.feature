@@ -815,6 +815,26 @@ Feature: Know what is verified
       When I run "sdp q feature[stage=verified] --ids"
       Then the output lines are ""
 
+    Scenario: A link the process imported through leads elsewhere
+      Given a file "specs/steps/one.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "specs/steps/two.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "ln -sf one.ts specs/steps/lamps.ts"
+      Then the exit code is 0
+      When this process runs the workspace through the API
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "ln -sf two.ts specs/steps/lamps.ts"
+      Then the exit code is 0
+      When this process runs the workspace through the API
+      Then the output contains "specs/steps/lamps.ts leads to specs/steps/two.ts now, not where it led when this process imported it"
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+
     Scenario Outline: A step file is added while a run <that> runs
       Given a file "specs/MS-beta.feature" containing:
         """
@@ -876,7 +896,7 @@ Feature: Know what is verified
         """
       When I run "sdp run"
       Then the exit code is 1
-      And the output contains "specs/steps/cart.steps.ts changed after this process imported it"
+      And the output contains "specs/steps/cart.steps.ts leads to shared/cart.ts now, not where it led when this process imported it"
       And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
 
   Rule: A result goes stale when a lockfile at the workspace root changes

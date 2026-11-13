@@ -33,7 +33,17 @@ import { snippetModule } from "../run/Match.ts"
 import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
 import { commitResults } from "../run/Store.ts"
-import { type LoadedSteps, loadConfig, loadProject, loadSteps, loadWorkspace, readImports, SourcesChanged, type Workspace } from "../workspace/Workspace.ts"
+import {
+  type LoadedSteps,
+  loadConfig,
+  loadProject,
+  loadSteps,
+  loadWorkspace,
+  readImports,
+  SourcesChanged,
+  whereLeads,
+  type Workspace
+} from "../workspace/Workspace.ts"
 import { type Answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
@@ -137,11 +147,14 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
 }) {
   const selected = yield* selects(options.selection ?? {})
   const imports = options.loaded?.imports ?? (() => [])
-  const asLoaded = (workspace: Workspace, sources: Workspace["sources"] = workspace.sources) => {
-    const changed = options.loaded?.changed(sources) ?? []
+  const asLoaded = Effect.fnUntraced(function*(workspace: Workspace, sources: Workspace["sources"] = workspace.sources) {
+    const { files, links } = options.loaded?.changed(sources) ?? { files: [], links: [] }
     const added = options.loaded?.added(workspace.project.steps.files) ?? []
-    return changed.length === 0 && added.length === 0 ? Effect.void : Effect.fail(new SourcesChanged({ files: changed, added }))
-  }
+    if (files.length === 0 && links.length === 0 && added.length === 0) return
+    // Where each link leads now, to say so.
+    const now = yield* whereLeads(root, links)
+    return yield* new SourcesChanged({ files, links: links.map((file) => ({ file, now: now.get(file) })), added })
+  })
 
   // Ordinary scenarios see no results at all, so none of them can depend on another's outcome.
   const before = yield* loadWorkspace(root, { results: "none", imports: imports() })
