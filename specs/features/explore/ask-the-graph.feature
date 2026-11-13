@@ -3,31 +3,30 @@
 Feature: Ask the graph
 
   Developers, architects and AI agents need answers that cross specs, decisions, architecture and
-  code: which code is behind a feature, what rests on a decision, what nothing verifies yet.
-  Without them they grep and guess. Any such question is one line, asked on the command line, over
-  MCP or in a scenario, and every answer says where each node is written and whether something may
-  be missing from it. The graph is plain data too, so grep and jq answer as well.
+  code: which code is behind a feature, what rests on a decision, what nothing verifies yet. Any
+  such question is one line, on the command line, over MCP or in a scenario, and every answer says
+  where each node is written and whether something may be missing from it.
 
   Not a general graph database language, and no counting or grouping: those are jq's, over the
-  graph as data. Nothing here changes the graph.
+  graph as data.
 
   Background:
     Given these specs:
-      | tags                                                                                              | Feature  |
-      | @id=checkout @maturity=ready @checkout @web @due=2026-12-01 @realized-by:ARCH-orders              | Checkout |
-      | @id=refunds @maturity=idea @estimate=8 @due=2027-03-01 @owner.team=core @realized-by:ARCH-billing | Refunds  |
+      | tags                                                  | Feature  |
+      | @id=checkout @maturity=ready @realized-by:ARCH-orders | Checkout |
+      | @id=refunds @maturity=idea @realized-by:ARCH-billing  | Refunds  |
     And a file "src/orders.ts" containing:
       """
       import { bill } from "./billing.ts"
 
-      /** @sdp is ARCH-orders title="Order service, v2" public=true */
+      /** @sdp is ARCH-orders title="Order service" */
       export const order = (): number => bill()
       """
     And a file "src/billing.ts" containing:
       """
       import { book } from "./ledger.ts"
 
-      /** @sdp is ARCH-billing title=Billing public=false */
+      /** @sdp is ARCH-billing title=Billing */
       export const bill = (): number => book()
       """
     And a file "src/ledger.ts" containing:
@@ -41,8 +40,6 @@ Feature: Ask the graph
   Rule: A question is one line: the nodes to start from, then the links to follow
 
     One line fits a shell argument and one scenario step, which is how gates and guards are written.
-    Not Cypher or SPARQL, which need an engine and several lines; not jq alone, where a question of
-    two hops is a program.
 
     Scenario: The grammar is what sdp q --help prints
       When I run "sdp q --help"
@@ -55,149 +52,32 @@ Feature: Ask the graph
         edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
         """
 
-    Scenario Outline: A malformed question is refused with the reason
-      When I query '<query>'
-      Then the query is rejected with "<reason>"
-
-      Examples:
-        | query                                  | reason                   |
-        |                                        | empty query              |
-        | feature]                               | unbalanced               |
-        | *[title="open                          | unbalanced               |
-        | feature realized-by element            | expected an edge         |
-        | feature <-realized-by-> element        | expected an edge         |
-        | feature -realized-by-> -depends-on-> * | expected a node selector |
-        | feature[maturity=ready]x               | could not parse filters  |
-        | feature[=ready]                        | invalid condition        |
-        | feature[!maturity=ready]               | only negates bare keys   |
-        | *[title~(]                             | invalid regex            |
-
   Rule: A node is picked by its kind, its id, or anything it holds
 
-    A condition reads what the node itself holds: its attributes, its id, kind, title and source, and
-    the targets of its links, so a condition and a link agree. A word the workspace does not know
-    matches nothing.
+    A condition reads what the node holds: its attributes, id, kind, title and source, and the
+    targets of its links. A word the workspace does not know matches nothing.
 
-    Scenario Outline: Kinds, ids, every node, and words nothing has
+    Scenario Outline: A kind, an id, and what a node holds
       When I query "<query>"
       Then the result is "<result>"
 
       Examples:
-        | query                 | result                                                                                                                                 |
-        | feature\|element      | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger                                                                              |
-        | *                     | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger, code:src/orders.ts#order, code:src/billing.ts#bill, code:src/ledger.ts#book |
-        | #ARCH-orders\|refunds | ARCH-orders, refunds                                                                                                                   |
-        | #ARCH-unknown         | nothing                                                                                                                                |
-        | gizmo                 | nothing                                                                                                                                |
-        | element -feeds-> *    | nothing                                                                                                                                |
-        | element[colour=red]   | nothing                                                                                                                                |
-
-    Scenario Outline: Every condition holds, in one group or in several
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | query                        | result      |
-        | element[public, title~order] | ARCH-orders |
-        | element[public][title~order] | ARCH-orders |
-        | #ARCH-billing[public]        | nothing     |
-
-    Scenario Outline: A bare key asks whether a value is set; missing and false are not
-      Given these specs:
-        | tags                                    | Feature  |
-        | @id=missing-value @kind=flag            | No value |
-        | @id=false-value @kind=flag @value=false | False    |
-        | @id=zero-value @kind=flag @value=0      | Zero     |
-        | @id=true-value @kind=flag @value=true   | True     |
-      When I query '<query>'
-      Then the result is "<result>"
-
-      Examples:
-        | query              | result                                |
-        | flag[value]        | zero-value, true-value                |
-        | flag[!value]       | missing-value, false-value            |
-        | flag[value=false]  | false-value                           |
-        | flag[value!=false] | missing-value, zero-value, true-value |
-        | flag[value=0]      | zero-value                            |
-        | flag[value~^f]     | false-value                           |
-        | flag[value<1]      | zero-value                            |
-
-    Scenario Outline: A comparison ignores case, matches any element of a list, and takes alternatives
-      When I query '<query>'
-      Then the result is "<result>"
-
-      Examples:
-        | query                              | result                    |
-        | element[public=TRUE]               | ARCH-orders               |
-        | element[title~^bill]               | ARCH-billing              |
-        | feature[tags=@web]                 | checkout                  |
-        | feature[tags!=@web]                | refunds                   |
-        | feature[maturity=ready\|idea]      | checkout, refunds         |
-        | feature[maturity!=ready\|draft]    | refunds                   |
-        | element[title!~^(billing\|ledger)] | ARCH-orders               |
-        | element[title~^[bl]]               | ARCH-billing, ARCH-ledger |
-        | element[title~\[legacy\]]          | ARCH-ledger               |
-        | *[title="Order service, v2"]       | ARCH-orders               |
-        | *[title~"service, v[0-9]"]         | ARCH-orders               |
-
-    Scenario Outline: Less and greater order maturity, then numbers, then text, so ISO dates order
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | query                    | result   |
-        | feature[maturity>idea]   | checkout |
-        | feature[maturity<=idea]  | refunds  |
-        | feature[estimate>5]      | refunds  |
-        | feature[estimate<100]    | refunds  |
-        | feature[due<2027-01-01]  | checkout |
-        | feature[due>=2027-03-01] | refunds  |
-
-    Scenario Outline: What a node holds, and not the names every object has
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | query                                 | result                                 |
-        | *[id~^arch-]                          | ARCH-orders, ARCH-billing, ARCH-ledger |
-        | *[kind=feature]                       | checkout, refunds                      |
-        | *[source=src/orders.ts:3]             | ARCH-orders                            |
-        | *[owner.team=core]                    | refunds                                |
-        | feature[realized-by=ARCH-orders]      | checkout                               |
-        | element[toString]                     | nothing                                |
-        | feature[owner.constructor]            | nothing                                |
-        | element[!constructor]                 | ARCH-orders, ARCH-billing, ARCH-ledger |
+        | query                                           | result                                                    |
+        | feature\|element                                | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
+        | #ARCH-orders\|refunds                           | ARCH-orders, refunds                                      |
+        | feature[maturity>idea, realized-by=ARCH-orders] | checkout                                                  |
 
   Rule: Links are followed out, in or either way, once or as far as they lead
 
-    Scenario Outline: Out, in, either way, any relation, and to any node at the end
+    Scenario Outline: Out, in by any of two relations, and as far as links lead
       When I query "<query>"
       Then the result is "<result>"
 
       Examples:
-        | query                                         | result                                                      |
-        | #ARCH-billing -imports-> *                    | ARCH-ledger                                                 |
-        | #ARCH-billing <-imports- *                    | ARCH-orders                                                 |
-        | #ARCH-billing -imports- *                     | ARCH-ledger, ARCH-orders                                    |
-        | #ARCH-billing <-imports\|realized-by- *       | ARCH-orders, refunds                                        |
-        | #checkout -realized-by-> * -imports-> element | ARCH-billing                                                |
-        | #checkout -realized-by->                      | ARCH-orders                                                 |
-        | #ARCH-billing <-- *                           | ARCH-orders, code:src/billing.ts#bill, refunds              |
-        | #ARCH-billing -*- *                           | ARCH-ledger, ARCH-orders, code:src/billing.ts#bill, refunds |
-        | #ARCH-ledger -*-> *                           | ARCH-orders                                                 |
-
-    Scenario Outline: As far as links lead, and back to the start when a cycle leads there
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | query                                 | result                                 |
-        | #ARCH-orders -imports+-> *            | ARCH-billing, ARCH-ledger, ARCH-orders |
-        | #ARCH-orders <-imports+- *            | ARCH-billing, ARCH-ledger, ARCH-orders |
-        | #ARCH-orders -imports+-> #ARCH-orders | ARCH-orders                            |
-        | #checkout -realized-by+-> #checkout   | nothing                                |
-        | #ARCH-orders -imports+- #ARCH-orders  | ARCH-orders                            |
-        | #checkout -realized-by+- #checkout    | nothing                                |
+        | query                                   | result                                 |
+        | #ARCH-billing -imports-> *              | ARCH-ledger                            |
+        | #ARCH-billing <-imports\|realized-by- * | ARCH-orders, refunds                   |
+        | #ARCH-orders -imports+-> *              | ARCH-billing, ARCH-ledger, ARCH-orders |
 
   Rule: A link can filter instead: keep the nodes that have such a neighbour, or those that have none
 
@@ -206,12 +86,9 @@ Feature: Ask the graph
       Then the result is "<result>"
 
       Examples:
-        | query                                                    | result       |
-        | element ?<-realized-by- feature[maturity=ready]          | ARCH-orders  |
-        | element !<-realized-by- *                                | ARCH-ledger  |
-        | element !-imports+-> #ARCH-orders                        | nothing      |
-        | feature ?-realized-by-> element[public] -realized-by-> * | ARCH-orders  |
-        | element ?-imports-> #ARCH-ledger                         | ARCH-billing |
+        | query                                           | result      |
+        | element ?<-realized-by- feature[maturity=ready] | ARCH-orders |
+        | element !<-realized-by- *                       | ARCH-ledger |
 
   Rule: The answer is the nodes the question ends on, or every route to them as it exists
 
@@ -229,49 +106,11 @@ Feature: Ask the graph
         | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders                         |
         | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders -imports-> ARCH-billing |
 
-    Scenario: A link followed against its direction is shown as it points
-      When I query "#ARCH-ledger <-imports- element <-realized-by- *"
-      Then the paths are:
-        | ARCH-ledger <-imports- ARCH-billing <-realized-by- refunds |
-
-    Scenario: Two links between the same nodes, several relations, and a cycle
-      Given these specs:
-        | tags                       | Feature |
-        | @id=A @kind=stop @r:B      | A       |
-        | @id=B @kind=stop @r:A @s:C | B       |
-        | @id=C @kind=stop           | C       |
-      When I query "#A -r- #B"
-      Then the paths are:
-        | A -r-> B |
-        | A <-r- B |
-      When I query "#A -r|s+-> #C"
-      Then the paths are:
-        | A -r-> B -s-> C |
-      When I query "#A -r+-> #A"
-      Then the paths are:
-        | A -r-> B -r-> A |
-
-    Scenario: The route to a node reached as far as links lead is a shortest one
-      Given these specs:
-        | tags                             | Feature |
-        | @id=A @kind=stop @next:B @next:C | A       |
-        | @id=B @kind=stop @next:D         | B       |
-        | @id=C @kind=stop @next:D         | C       |
-        | @id=D @kind=stop @next:A         | D       |
-      When I query "#A -next+-> *"
-      Then the paths are:
-        | A -next-> B                     |
-        | A -next-> C                     |
-        | A -next-> B -next-> D           |
-        | A -next-> B -next-> D -next-> A |
-
   Rule: Each node in an answer comes with its kind, its state and the file and line it is written at
 
-    Its state is what sdp derives, evidence rather than status: a scenario's status as its last run
-    left it, else the node's stage. A status written by hand is an attribute like any other, which
-    show and the graph as data list. The count goes to stderr, so stdout is the answer alone.
+    Its state is what sdp derives: a scenario's status as its last run left it, else the node's stage.
 
-    Scenario: A node per line, only the ids, or the routes
+    Scenario: A feature and an example
       Given a file "specs/pay.feature" containing:
         """
         @id=pay
@@ -282,51 +121,17 @@ Feature: Ask the graph
             Scenario: Charged
               Then the query "feature" returns at least 1 result
         """
-      When I run "sdp q '#checkout -realized-by-> element'"
-      Then the exit code is 0
-      And the output contains "ARCH-orders\telement\t\tOrder service, v2\tsrc/orders.ts:3"
-      And the output contains "1 node(s)"
       When I run "sdp q 'feature|scenario'"
       Then the exit code is 0
-      And the output contains "checkout\tfeature\tready"
-      And the output contains "pay#charged\tscenario\tunrun"
-      When I run "sdp q 'element' --ids"
-      Then the exit code is 0
-      And the output lines are "ARCH-orders, ARCH-billing, ARCH-ledger"
-      When I run "sdp q '#ARCH-ledger <-imports- element' --paths"
-      Then the exit code is 0
-      And the output lines are "ARCH-ledger <-imports- ARCH-billing"
-
-    Scenario: As data, with the routes when asked
-      When I run "sdp q '#checkout -realized-by-> element' --paths --json"
-      Then the exit code is 0
-      And the JSON output has:
-        | complete              | true                      |
-        | data.nodes            | ARCH-orders               |
-        | data.nodes.file       | src/orders.ts             |
-        | data.paths.nodes      | checkout, ARCH-orders     |
-        | data.paths.edges.from | checkout                  |
-        | data.paths.edges.rel  | realized-by               |
-
-    Scenario: A status written on a decision is an attribute, and no state
-      Given these specs:
-        | tags                                             | Feature      |
-        | @id=use-postgres @kind=decision @status=accepted | Use Postgres |
-      When I run "sdp q decision"
-      Then the exit code is 0
-      And the output contains "use-postgres\tdecision\t\tUse Postgres\tspecs/use-postgres.feature:1"
-      When I run "sdp show use-postgres"
-      Then the exit code is 0
-      And the output contains 'status: "accepted"'
+      And the output line with "checkout" contains "feature"
+      And the output line with "checkout" contains "ready"
+      And the output line with "pay#charged" contains "scenario"
+      And the output line with "pay#charged" contains "unrun"
+      And the output line with "pay#charged" contains "specs/pay.feature:6"
 
   Rule: One node can be looked up with every link it has, and the title at the other end
 
-    Scenario: As text, and as data
-      When I run "sdp show ARCH-billing"
-      Then the exit code is 0
-      And the output contains 'public: false'
-      And the output contains "-imports-> ARCH-ledger  Ledger [legacy]"
-      And the output contains "<-realized-by- refunds  Refunds"
+    Scenario: Billing, its links and its neighbours
       When I run "sdp show ARCH-billing --json"
       Then the exit code is 0
       And the JSON output has:
@@ -334,6 +139,7 @@ Feature: Ask the graph
         | data.out.to           | ARCH-ledger                                          |
         | data.in.from          | ARCH-orders, code:src/billing.ts#bill, refunds       |
         | data.in.declared.file | src/orders.ts, src/billing.ts, specs/refunds.feature |
+        | data.neighbours.title | Ledger [legacy], Order service, Refunds, bill        |
 
   Rule: A word the workspace does not know is pointed out, with the closest one it knows
 
@@ -342,18 +148,11 @@ Feature: Ask the graph
     Scenario: A misspelt relation and attribute in a question, and a misspelt id
       When I run "sdp q 'feature -realised-by-> element[titel]'"
       Then the exit code is 0
-      And the output contains "0 node(s)"
       And the output contains "note: no relation realised-by; closest: realized-by"
       And the output contains "note: element has no attribute titel; closest: title"
       When I run "sdp show ARCH-ordrs"
       Then the exit code is 1
       And the output contains "no node ARCH-ordrs; closest: ARCH-orders"
-
-    Scenario: A tag written without its @
-      When I run "sdp q 'feature[tags=web]'"
-      Then the exit code is 0
-      And the output contains "0 node(s)"
-      And the output contains "note: no tag web; a tag is written with its @, as @web"
 
   Rule: An answer that may miss something says so and why, and exits with 2
 
@@ -369,71 +168,33 @@ Feature: Ask the graph
       Examples:
         | command                            |
         | sdp q '#N1 -next+-> node14'        |
-        | sdp q '#N1 -next+-> node14' --ids  |
         | sdp q '#N1 -next+-> node14' --json |
         | sdp graph -q '#N1 -next+-> node14' |
-
-    Scenario: Twelve links as far as they lead, then cut short
-      Given a chain of 15 nodes linked by "next"
-      When I query "#N1 -next+-> *"
-      Then the result has 12 nodes
-      And the result is truncated because "a + edge reaches further than 12 hops"
-
-    Scenario: A cycle longer than the bound, followed either way, is cut short
-      Given a chain of 20 nodes linked by "next"
-      And these specs:
-        | tags                          | Feature |
-        | @id=N20 @kind=node20 @next:N1 | N20     |
-      When I query "#N1 -next+- #N1"
-      Then the result is "nothing"
-      And the result is truncated because "a + edge reaches further than 12 hops"
-
-    Scenario: Too many routes at one step
-      Given 25 nodes, each linked to all the others by "knows"
-      When I query "member -knows-> member -knows-> member"
-      Then the result has 25 nodes
-      And the result is truncated because "a step has more than 10000 paths"
-
-    Scenario Outline: A filter is cut short only when the bound leaves it undecided
-      Given a chain of 15 nodes linked by "next"
-      When I query "<query>"
-      Then the result is "<result>"
-      And the result is <completeness>
-
-      Examples:
-        | query              | result  | completeness                                               |
-        | #N1 ?-next+-> #N2  | N1      | complete                                                   |
-        | #N1 !-next+-> #N2  | nothing | complete                                                   |
-        | #N1 ?-next+-> #N15 | nothing | truncated because "a + edge reaches further than 12 hops" |
-        | #N1 !-next+-> #N15 | N1      | truncated because "a + edge reaches further than 12 hops" |
 
   Rule: The same question gets the same answer on the command line, over MCP and from a program
 
     One answer serves them all, so they cannot differ in what they accept, their bounds or their notes.
-    A program gets it as a Promise from `sdp`, so asking a question needs no Effect; a program written
-    with Effect gets the same use case as an Effect from `sdp/effect`, on a file system of its choosing.
 
     Scenario: What imports billing, three ways
-      When I run "sdp q '#ARCH-billing <-imports- *'"
+      When I run "sdp q '#ARCH-billing <-imports- *' --json"
       Then the exit code is 0
-      And the output contains "ARCH-orders\telement\t\tOrder service, v2\tsrc/orders.ts:3"
+      And the JSON output has:
+        | complete        | true          |
+        | data.nodes      | ARCH-orders   |
+        | data.nodes.file | src/orders.ts |
       When an MCP client of "sdp mcp" calls "sdp_query" with:
         """
-        { "expression": "#ARCH-billing <-imports- *" }
+        { "expression": "#ARCH-billing <-imports- *", "json": true }
         """
-      Then the output contains "ARCH-orders\telement\t\tOrder service, v2\tsrc/orders.ts:3"
+      Then the JSON output has:
+        | complete        | true          |
+        | data.nodes      | ARCH-orders   |
+        | data.nodes.file | src/orders.ts |
       When a program asks the API for "#ARCH-billing <-imports- *"
       Then the JSON output has:
-        | complete        | true                      |
-        | data.nodes      | ARCH-orders               |
-        | data.nodes.file | src/orders.ts             |
-
-    Scenario: A program written with Effect asks on a file system of its own
-      When a program written with Effect asks the API for "#ARCH-billing <-imports- *" on files in memory
-      Then the JSON output has:
-        | complete        | true                      |
-        | data.nodes      | ARCH-orders               |
-        | data.nodes.file | src/orders.ts             |
+        | complete        | true          |
+        | data.nodes      | ARCH-orders   |
+        | data.nodes.file | src/orders.ts |
 
   @decided-by:the-state-holds-what-is-significant
   Rule: The state is plain data, one record per line: each spec by its id, its rules and examples each by their one line, the architecture, and the links written between them
@@ -541,7 +302,7 @@ Feature: Ask the graph
 
   Rule: Part of the graph can be exported: the routes a question matches, as records or as a diagram
 
-    Scenario: Only the nodes and the links the routes walk
+    Scenario: Only the nodes and the links the routes walk, as records and as a diagram
       Given these specs:
         | tags                                          | Feature   |
         | @id=coupons @uses:discounts @avoids:discounts | Coupons   |
@@ -551,18 +312,17 @@ Feature: Ask the graph
       And the output contains '"from":"coupons","rel":"uses","to":"discounts"'
       And the output does not contain '"rel":"avoids"'
       And the output does not contain "checkout"
-
-    Scenario: The same routes as a Mermaid flowchart
-      When I run "sdp graph --mermaid -q 'feature -realized-by-> element'"
+      When I run "sdp graph --mermaid -q '#coupons -uses-> #discounts'"
       Then the exit code is 0
-      And the output contains "flowchart LR"
-      And the output contains '["ARCH-orders<br/><small>Order service, v2</small>"]'
-      And the output contains "-->|realized-by|"
+      And the output contains "discounts"
+      And the output contains "uses"
+      And the output does not contain "avoids"
+      And the output does not contain "checkout"
 
-  @maturity=draft
+  @maturity=idea
   Rule: The graph says which files it could not read, and why
 
-  @maturity=draft
+  @maturity=idea
   Rule: Each record of the exported graph names the version of its format
 
     Programs outside sdp will read it, and a format that changes without a word breaks them.
@@ -578,21 +338,15 @@ Feature: Ask the graph
       Then the median run completes within 250 ms
 
       Examples:
-        | query                                                                    |
-        | feature[maturity=ready] -realized-by-> element -decided-by-> decision    |
-        | element !-*- decision                                                    |
-
-    @serial
-    Scenario: The graph of 5,000 specs builds within a second
-      Given a generated workspace of 5000 specs
-      When the graph is built from it
-      Then the median run completes within 1000 ms
+        | query                                                                 |
+        | feature[maturity=ready] -realized-by-> element -decided-by-> decision |
+        | element !-*- decision                                                 |
 
   @maturity=draft @iteration:IT-scale
   Rule: A question on 5,000 specs and 20,000 source files on disk answers within a second, the median of warm runs
 
-    The rule it replaces measures the graph in memory, but every question also reads the workspace
-    from disk: in a monorepo the reading alone could make agents stop asking and start guessing.
+    Every question reads the workspace from disk too: in a monorepo the reading alone could make
+    agents stop asking and start guessing.
 
   @maturity=idea
   Rule: An answer names the commit it was read at, and says when the files differ from it

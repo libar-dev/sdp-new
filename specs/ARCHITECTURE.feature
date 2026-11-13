@@ -132,11 +132,7 @@ Feature: Architecture
   @maturity=idea
   Rule: No code compares with a tag sdp interprets, such as `@open`, as a literal either
 
-    The search for interpreted words covers kinds, relations, disciplines and attributes; a tag
-    written out in code escapes it.
-
   @maturity=idea
   Rule: The typecheck fails on an effect that is built and never run, and on an optional property set to undefined
 
-    Plain TypeScript accepts both. Effect's diagnostics catch the first, and Schema decodes an absent
-    property and an undefined one differently, which `exactOptionalPropertyTypes` makes TypeScript see.
+    Plain TypeScript accepts both, and both are bugs in this code.
