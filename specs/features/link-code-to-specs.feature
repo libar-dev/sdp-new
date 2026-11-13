@@ -188,7 +188,11 @@ Feature: Link code to specs
     its declaration, and only a module-level name is unique there.
 
     Scenario: A file and a declaration, each tagged in the comment that describes it
-      Given a file "src/pricing.ts" containing:
+      Given a file "src/round.ts" containing:
+        """
+        export const round = (amount: number): number => Math.round(amount)
+        """
+      And a file "src/pricing.ts" containing:
         """
         /**
          * Prices and VAT.
