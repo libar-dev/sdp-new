@@ -296,9 +296,21 @@ export const sdpVersion = (createRequire(import.meta.url)("../../package.json") 
 const toolchain = (lockfiles: ReadonlyArray<SourceFile>): string =>
   digest([`sdp ${sdpVersion}`, `node ${process.versions.node.split(".")[0]}`, fingerprint(lockfiles)])
 
-/** The inputs the workspace declares: the files of `evidence.inputs` and the variables of `evidence.env`, set or not. */
-const declaredInputs = (files: ReadonlyArray<SourceFile>, env: ReadonlyArray<string>): string =>
-  digest([fingerprint(files), ...env.map((name) => `${name}=${process.env[name] ?? "\0unset"}`)])
+/**
+ * The inputs the workspace declares: the files of `evidence.inputs`, the paths among them that are no
+ * file by what each is, and the variables of `evidence.env`, set or not. Files and what is no file are
+ * fingerprinted apart, so that no file's content can pass for a directory.
+ */
+const declaredInputs = (
+  files: ReadonlyArray<SourceFile>,
+  others: ReadonlyArray<{ readonly path: string; readonly is: string }>,
+  env: ReadonlyArray<string>
+): string =>
+  digest([
+    fingerprint(files),
+    fingerprint(others.map(({ is, path }): SourceFile => ({ path, content: is }))),
+    ...env.map((name) => `${name}=${process.env[name] ?? "\0unset"}`)
+  ])
 
 /** One view of a workspace: its project, and what a scenario run against it would record as evidence. */
 export interface Workspace {
@@ -481,10 +493,10 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
     // What the steps read is no part of the graph: an input that is no file counts by its path and
     // what it is, a directory as much as a named pipe.
-    inputs: declaredInputs([
-      ...read.inputs.files,
-      ...inputs.directories.map((file): SourceFile => ({ path: file, content: "a directory" })),
-      ...[...inputs.unread, ...read.inputs.unread].map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
+    inputs: declaredInputs(read.inputs.files, [
+      ...inputs.directories.map((file) => ({ path: file, is: "a directory" })),
+      ...inputs.unread,
+      ...read.inputs.unread
     ], config.evidence.env),
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it. The
     // files that say what the names code imports mean decide which element imports which.

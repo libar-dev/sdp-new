@@ -1100,6 +1100,38 @@ Feature: Know what is verified
       Then the exit code is 1
       And the output contains "the cart is flagged"
 
+    Scenario: A directory where evidence.inputs names a path, replaced by a file holding what sdp calls a directory
+      Given a file "sdp.config.yaml" containing:
+        """
+        evidence:
+          inputs: [flag]
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { statSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {
+            if (!statSync("flag").isDirectory()) throw new Error("the flag is no directory")
+          })
+        })
+        """
+      When I run "mkdir flag"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 0
+      When I run the pipeline:
+        """
+        rmdir flag && printf 'a directory' > flag
+        """
+      Then the exit code is 0
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
+
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
       Then the exit code is 1
