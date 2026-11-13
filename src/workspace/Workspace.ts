@@ -387,7 +387,8 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     markdownFiles,
     codeFiles,
     stepFiles,
-    notFiles: [...features.unread, ...code.unread, ...steps.unread],
+    notFiles: [...features.unread, ...code.unread],
+    stepNotFiles: steps.unread,
     evidence: view
   })
   const results = view ? view(project.specs).ordinary : ""

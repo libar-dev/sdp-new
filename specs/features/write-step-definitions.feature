@@ -684,6 +684,29 @@ Feature: Write step definitions
       Then the exit code is 1
       And the output contains "matches 2 definitions"
 
+    Scenario Outline: A path the steps globs match that is no file is reported as not read: <what>
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+        })
+        """
+      When I run "<made by>"
+      Then the exit code is 0
+      When I run "sdp steps 'an empty cart' --json"
+      Then the exit code is 2
+      And the JSON output has:
+        | complete  | false                     |
+        | data.file | specs/steps/cart.steps.ts |
+      And the output contains "not read: specs/steps/<file>:1 [not-a-file]"
+
+      Examples:
+        | what              | made by                                    | file          |
+        | a link to nothing | ln -s nowhere.ts specs/steps/gone.steps.ts | gone.steps.ts |
+        | a named pipe      | mkfifo specs/steps/pipe.steps.ts           | pipe.steps.ts |
+
     Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
       Given a file "specs/steps/cart.steps.ts" containing:
         """

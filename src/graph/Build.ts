@@ -48,8 +48,10 @@ export interface ProjectInput {
   readonly codeFiles: ReadonlyArray<SourceFile>
   /** The step definition files: their definitions are read statically, never run. */
   readonly stepFiles?: ReadonlyArray<SourceFile> | undefined
-  /** What the globs match that is no file sdp can read: what it would hold is not read. */
+  /** What the features and code globs match that is no file sdp can read: what it would hold is not read. */
   readonly notFiles?: ReadonlyArray<NotAFile> | undefined
+  /** What the steps globs match that is no file sdp can read: the step definitions it would hold are not known. */
+  readonly stepNotFiles?: ReadonlyArray<NotAFile> | undefined
   /** What the stored results say about the parsed specs' scenarios; without it the graph shows no results. */
   readonly evidence?: ((specs: ReadonlyArray<Spec>) => EvidenceView) | undefined
 }
@@ -77,6 +79,8 @@ export interface ProjectSteps {
   /** Step definition files, relative to the workspace root. */
   readonly files: ReadonlyArray<string>
   readonly definitions: ReadonlyArray<StepSignature>
+  /** What the steps globs match that is no file sdp can read, which `not-a-file` reports: definitions it would hold are not known. */
+  readonly unread: ReadonlyArray<string>
 }
 
 export interface Project {
@@ -118,7 +122,8 @@ export const buildProject = (input: ProjectInput): Project => {
       hint: `a spec is a feature file: write ${file.replace(/\.md$/, ".feature")}, its tags (@id=…) above \`Feature:\` (\`sdp new\` writes one); Markdown is for README.md and AGENTS.md`
     }))
   }
-  for (const { is, path: file } of new Map((input.notFiles ?? []).map((notFile) => [notFile.path, notFile])).values()) {
+  const notFiles = [...input.notFiles ?? [], ...input.stepNotFiles ?? []]
+  for (const { is, path: file } of new Map(notFiles.map((notFile) => [notFile.path, notFile])).values()) {
     diagnostics.push(diagnostic("not-a-file", {
       message: `${file} is ${is}, matched by the globs of the configuration: sdp reads files, so what it would hold is not read`,
       source: { file, line: 1 },
@@ -480,7 +485,11 @@ export const buildProject = (input: ProjectInput): Project => {
     graph,
     diagnostics: sortDiagnostics(diagnostics),
     results: evidence?.results,
-    steps: { files: (input.stepFiles ?? []).map((file) => file.path), definitions: stepDefinitions }
+    steps: {
+      files: (input.stepFiles ?? []).map((file) => file.path),
+      definitions: stepDefinitions,
+      unread: (input.stepNotFiles ?? []).map((notFile) => notFile.path)
+    }
   }
 }
 
