@@ -5,12 +5,12 @@ Feature: Write specs in a richer grammar
   Kept for the day a spec needs what tags cannot say: typed example spaces, alternatives within a
   scenario, values with spaces. Each way costs the tools that read Gherkin today.
 
-  Rule: Specs may use the keywords of a dialect of sdp's own — Question, Requirement, Decision — read by the official parser
+  Rule: Specs may use keywords of sdp's own: Question, Requirement, Decision
 
-    Every Gherkin tool without the dialect fails on the file.
+    Every Gherkin tool that does not know them fails on the file.
 
-  Rule: Specs may use a fork of the Gherkin grammar with fields of their own
+  Rule: A scenario may carry fields of its own beyond tags
 
-    A fork that stays compatible is tags again; one that does not loses every Gherkin tool.
+    Fields that every Gherkin tool still reads are tags again; any others lose those tools.
 
-  Rule: Specs may be written in a language of sdp's own and compiled to Gherkin for runners
+  Rule: Specs may be written in a language of sdp's own, which runners still receive as Gherkin

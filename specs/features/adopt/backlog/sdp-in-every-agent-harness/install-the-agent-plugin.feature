@@ -28,12 +28,14 @@ Feature: Install the agent plugin
     Scenario Outline: The shim of <harness>
       When I run "cat <shim>" in the repository
       Then the exit code is 0
-      And the JSON output has exactly the fields "<fields>"
+      And the JSON output has:
+        | name | sdp |
+      And the output does not contain "Rule:"
 
       Examples:
-        | harness   | shim                      | fields                             |
-        | ZCode     | .zcode-plugin/plugin.json | name, version, description         |
-        | Kimi Code | kimi.plugin.json          | name, version, description, skills |
+        | harness   | shim                      |
+        | ZCode     | .zcode-plugin/plugin.json |
+        | Kimi Code | kimi.plugin.json          |
 
   Rule: Each supported harness finds one wiring of the hook in the plugin, or in the one setting sdp names, and run as that harness runs it, it orients the session
 

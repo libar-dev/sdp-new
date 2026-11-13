@@ -16,6 +16,8 @@ Feature: Draw diagrams from the graph
 
   Rule: A node shows its stage in its label and its colour
 
+  Rule: A label shows its text as written: no title or text of a spec changes the diagram or keeps it from rendering
+
   @quality
   Rule: A diagram of more than 60 nodes is refused with its count and a narrower question, never cut
 

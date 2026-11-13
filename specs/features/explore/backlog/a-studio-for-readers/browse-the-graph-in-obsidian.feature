@@ -19,9 +19,7 @@ Feature: Browse the graph in Obsidian
 
   Rule: The note of an epic, an element or a feature shows its diagram
 
-  Rule: The run that writes the vault writes a page for each note, with the same text, links and diagram, and an index: a static site that opens from its folder, loads nothing from elsewhere, and is the same byte for byte from the same graph
-
-    A page and its note never disagree, and two runs differ only where the graph changed.
+  Rule: The run that writes the vault writes a page for each note, with the same text, links and diagram, and an index: a static site that opens from its folder, loads nothing from elsewhere, links only within itself, and is the same byte for byte from the same graph
 
   Rule: CI publishes the pages to GitHub Pages: the default branch's, and each pull request's beside them under its number
 
