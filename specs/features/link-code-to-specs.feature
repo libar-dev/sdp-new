@@ -222,6 +222,8 @@ Feature: Link code to specs
     Scenario Outline: The words of the comment around the tag describe the code
       Given a file "src/pay.ts" containing:
         """
+        import { charge } from "./charge.ts"
+
         <comment>
         export const pay = (): number => 0
         """
@@ -232,20 +234,25 @@ Feature: Link code to specs
 
       Examples:
         | written as                         | comment                                                                       | line |
-        | the tag after the words            | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */            | 6    |
-        | the tag before the words           | /**\n * @sdp implements pay\n *\n * Charges the card on file.\n */            | 6    |
-        | a JSDoc tag of its own after them  | /**\n * Charges the card on file.\n *\n * @internal\n * @sdp implements pay\n */ | 7    |
-        | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
-        | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
-        | a comment of its own above it      | // Copyright 2026 Acme Corp.\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */ | 7    |
-        | a doc comment of its own above it  | /** @license MIT */\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */      | 7    |
-        | a line comment above a tag alone   | // Charges the card on file.\n/** @sdp implements pay */                      | 3    |
-        | a doc comment above a tag alone    | /** Charges the card on file. */\n/** @sdp implements pay */                  | 3    |
-        | a linter's directive after the tag | /** Charges the card on file. */\n// @sdp implements pay\n// eslint-disable-next-line @typescript-eslint/no-explicit-any | 4    |
-        | a linter's directive above the tag | /**\n * Charges the card on file.\n */\n// eslint-disable-next-line no-console\n// @sdp implements pay | 6    |
+        | the tag after the words            | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */            | 8    |
+        | the tag before the words           | /**\n * @sdp implements pay\n *\n * Charges the card on file.\n */            | 8    |
+        | a JSDoc tag of its own after them  | /**\n * Charges the card on file.\n *\n * @internal\n * @sdp implements pay\n */ | 9    |
+        | a fenced block of code after them  | /**\n * Charges the card on file.\n * ```ts\n * pay()\n * ```\n * @sdp implements pay\n */ | 10   |
+        | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 5    |
+        | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 5    |
+        | a comment of its own above it      | // Copyright 2026 Acme Corp.\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */ | 9    |
+        | a doc comment of its own above it  | /** @license MIT */\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */      | 9    |
+        | a line comment above a tag alone   | // Charges the card on file.\n/** @sdp implements pay */                      | 5    |
+        | a doc comment above a tag alone    | /** Charges the card on file. */\n/** @sdp implements pay */                  | 5    |
+        | a linter's directive after the tag | /** Charges the card on file. */\n// @sdp implements pay\n// eslint-disable-next-line @typescript-eslint/no-explicit-any | 6    |
+        | a linter's directive above the tag | /**\n * Charges the card on file.\n */\n// eslint-disable-next-line no-console\n// @sdp implements pay | 8    |
 
     Scenario Outline: In <language>, the comment lines around the tag describe the code
-      Given a file "<file>" containing:
+      Given a file "sdp.config.yaml" containing:
+        """
+        code: ["src/**"]
+        """
+      And a file "<file>" containing:
         """
         <code>
         """
@@ -255,11 +262,40 @@ Feature: Link code to specs
         | <node> | Charges the card on file. |
 
       Examples:
-        | language | file       | code                                                                         | node                |
-        | Python   | src/pay.py | # Charges the card on file.\n# @sdp implements pay\ndef pay(): pass          | code:src/pay.py#pay |
-        | Go       | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error { | code:src/pay.go#Pay |
-        | Ruby     | src/pay.rb | # @sdp implements pay\n# Charges the card on file.\ndef pay                   | code:src/pay.rb#pay |
-        | Python, with a linter's directive | src/pay.py | # Charges the card on file.\n# @sdp implements pay\n# pylint: disable=invalid-name\ndef pay(): pass | code:src/pay.py#pay |
+        | language                                  | file          | code                                                                                                                       | node                      |
+        | Python                                    | src/pay.py    | # Charges the card on file.\n# @sdp implements pay\ndef pay(): pass                                                        | code:src/pay.py#pay       |
+        | Go                                        | src/pay.go    | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error {                                               | code:src/pay.go#Pay       |
+        | Ruby                                      | src/pay.rb    | # @sdp implements pay\n# Charges the card on file.\ndef pay                                                                 | code:src/pay.rb#pay       |
+        | Python, with a linter's directive         | src/pay.py    | # Charges the card on file.\n# @sdp implements pay\n# pylint: disable=invalid-name\ndef pay(): pass                         | code:src/pay.py#pay       |
+        | Rust, above an attribute                  | src/pay.rs    | /// Charges the card on file.\n/// @sdp implements pay\n#[derive(Debug)]\npub struct Payment {}                             | code:src/pay.rs#Payment   |
+        | Rust, above an attribute of several lines | src/pay.rs    | /// Charges the card on file.\n/// @sdp implements pay\n#[derive(\n    Debug,\n)]\npub struct Payment {}                    | code:src/pay.rs#Payment   |
+        | PHP, above an attribute                   | src/pay.php   | <?php\n// Charges the card on file.\n// @sdp implements pay\n#[Route("/pay")]\nfunction pay() {}                            | code:src/pay.php#pay      |
+        | C#, below a directive of the preprocessor | src/Pay.cs    | #region Payments\n/// Charges the card on file.\n/// @sdp implements pay\npublic class Payment {}                           | code:src/Pay.cs#Payment   |
+        | Java, below a licence                     | src/Pay.java  | /*\n * Copyright 2026 Acme Corp.\n */\n/**\n * Charges the card on file.\n * @sdp implements pay\n */\npublic class Payment {} | code:src/Pay.java#Payment |
+        | Rust, below a licence                     | src/pay.rs    | // Copyright 2026 Acme Corp.\n/// Charges the card on file.\n/// @sdp implements pay\npub struct Payment {}                 | code:src/pay.rs#Payment   |
+        | Python, below its interpreter and encoding | src/pay.py   | #!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n# Charges the card on file.\n# @sdp implements pay\ndef pay(): pass        | code:src/pay.py#pay       |
+        | Ruby, below its magic comment and a linter's directive | src/pay.rb | # frozen_string_literal: true\n# rubocop:disable Metrics/AbcSize\n# Charges the card on file.\n# @sdp implements pay\ndef pay | code:src/pay.rb#pay |
+        | shell, below its interpreter and a linter's directive | src/pay.sh | #!/bin/sh\n# shellcheck disable=SC2034\n# Charges the card on file.\n# @sdp implements pay\n\npay() { | code:src/pay.sh |
+        | Swift, with a linter's directive          | src/Pay.swift | // Charges the card on file.\n// @sdp implements pay\n// swiftlint:disable:next identifier_name\nfunc pay() {                | code:src/Pay.swift#pay    |
+        | PHP, with a linter's directive            | src/pay.php   | <?php\n// phpcs:ignore PSR1.Methods.CamelCapsMethodName\n// Charges the card on file.\n// @sdp implements pay\nfunction pay() {} | code:src/pay.php#pay   |
+
+    Scenario Outline: A tag alone takes no description from the comment that opens the file: <case>
+      Given a file "<file>" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id     | doc |
+        | <node> |     |
+
+      Examples:
+        | case                                 | file         | code                                                                                                                         | node                      |
+        | a line comment above a declaration   | src/pay.ts   | // Copyright 2026 Acme Corp. All rights reserved.\n/** @sdp implements pay */\nexport const pay = (): number => 0           | code:src/pay.ts#pay       |
+        | a block above the file's imports     | src/pay.ts   | /*\n * Copyright 2026 Acme Corp.\n * Licensed under the MIT licence.\n */\n/** @sdp implements pay */\nimport { round } from "./round.ts" | code:src/pay.ts |
+        | a line comment below the interpreter | src/pay.ts   | #!/usr/bin/env node\n// Copyright 2026 Acme Corp.\n/** @sdp implements pay */\nexport const pay = (): number => 0          | code:src/pay.ts#pay       |
+        | a block, in Java                     | src/Pay.java | /* Copyright 2026 Acme Corp. */\n/** @sdp implements pay */\npublic class Payment {}                                        | code:src/Pay.java#Payment |
+        | a line comment, in C#                | src/Pay.cs   | // Copyright 2026 Acme Corp.\n/// @sdp implements pay\npublic class Payment {}                                             | code:src/Pay.cs#Payment   |
 
     Scenario Outline: In Python, a docstring is the doc comment of the module, the class or the function it opens: <opens>
       Given a file "src/pay.py" containing:
@@ -281,6 +317,7 @@ Feature: Link code to specs
         | a class                        | import os\n\n\nclass Payment:\n    """\n    Charges the card on file.\n\n    @sdp implements pay\n    """\n\n    def charge(self):\n        pass | code:src/pay.py#Payment | 4    |
         | a function                     | def pay(order):\n    '''Charges the card on file.\n\n    @sdp implements pay'''\n    return order                     | code:src/pay.py#pay     | 1    |
         | a function of several lines    | def pay(\n    order,\n) -> None:\n    """Charges the card on file.\n\n    @sdp implements pay\n    """                | code:src/pay.py#pay     | 1    |
+      | a function of several lines, with a comment | def pay(\n    order,  # an (order\n) -> None:\n    """Charges the card on file.\n\n    @sdp implements pay\n    """ | code:src/pay.py#pay     | 1    |
 
     Scenario Outline: A decorated declaration, <placed>
       Given a file "src/pay.ts" containing:
@@ -375,6 +412,8 @@ Feature: Link code to specs
         | src/Pay.java | /** @sdp implements pay */   | @RequestMapping("/pay") @ResponseBody\npublic class Payment {} | code:src/Pay.java#Payment |
         | src/Pay.cs   | /// @sdp implements pay      | [ApiController]\n[Route("api/[controller]")]\npublic class Payment {} | code:src/Pay.cs#Payment  |
         | src/pay.rs   | /// @sdp implements pay      | #[derive(\n    Debug,\n)]\npub struct Payment {} | code:src/pay.rs#Payment  |
+        | src/pay.py   | # @sdp implements pay        | @app.route(  # was (legacy\n    "/pay",  # see (legacy\n)\ndef pay(): | code:src/pay.py#pay      |
+        | src/Pay.java | /** @sdp implements pay */   | @RequestMapping(\n    value = "/pay" // see (legacy\n)\npublic class Payment {} | code:src/Pay.java#Payment |
 
     Scenario: After a blank line, inside a doc comment, two in a row, with typed attributes
       Given a file "src/billing.ts" containing:
@@ -442,6 +481,26 @@ Feature: Link code to specs
         | a fenced block                             | * ```ts\n * // @sdp implements pay\n * ```                                  | nothing |
         | an example, then the comment's own tag     | * @example\n * register()\n *\n * @sdp implements pay                       | pay     |
         | a fenced block, then the comment's own tag | * ```ts\n * // @sdp is ARCH-mailer\n * ```\n *\n * @sdp implements pay      | pay     |
+
+    Scenario Outline: In <language>, a doc comment's own tags are read, not those of code it shows in a fenced block
+      Given a file "<file>" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports nothing
+      When I query "code -*-> *"
+      Then the result is "pay"
+
+      Examples:
+        | language                     | file            | code                                                                                                                                                 |
+        | Java                         | src/Mailer.java | /**\n * Registers the mailer:\n * ```java\n * @sdp is ARCH-mailer\n * ```\n * @sdp implements pay\n */\npublic class Mailer {}                       |
+        | Kotlin                       | src/Mailer.kt   | /**\n * ```kotlin\n * @sdp is ARCH-mailer\n * val mailer = Mailer() // @sdp uses ARCH-ledger\n * ```\n * @sdp implements pay\n */\nclass Mailer          |
+        | C#                           | src/Mailer.cs   | /// ```\n/// @sdp is ARCH-mailer\n/// ```\n/// @sdp implements pay\npublic class Mailer {}                                                           |
+        | Rust                         | src/mailer.rs   | /// ```\n/// @sdp is ARCH-mailer\n/// ```\n/// @sdp implements pay\npub struct Mailer {}                                                              |
+        | Python, in a docstring       | src/mailer.py   | def register():\n    """Registers the mailer.\n\n    ```python\n    @sdp is ARCH-mailer\n    mailer = Mailer()  # @sdp uses ARCH-ledger\n    ```\n\n    @sdp implements pay\n    """ |
+        | Ruby                         | src/mailer.rb   | # ~~~ruby\n# @sdp is ARCH-mailer\n# ~~~\n# @sdp implements pay\ndef register                                                                          |
+        | TypeScript, in line comments | src/mailer.ts   | // ```ts\n// // @sdp is ARCH-mailer\n// ```\n// @sdp implements pay\nexport const register = (): number => 0                                            |
 
     Scenario Outline: A tag after words on its line is not read, and is reported: <language>
       Given a file "<file>" containing:

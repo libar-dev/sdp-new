@@ -912,6 +912,36 @@ Feature: See the architecture
       Then the exit code is 0
       And the output contains "PAT-retry <-plays- ARCH-billing"
 
+  Rule: A spec that writes its element's link to a pattern its code plays is told to delete it
+
+    Scenario: Billing's spec writes the retry pattern, which its code plays, and the outbox, which it does not yet
+      Given a file "specs/ARCH-billing.feature" containing:
+        """
+        @id=ARCH-billing @plays:PAT-retry @plays:PAT-outbox
+        Feature: Billing
+        """
+      And a file "src/retry.ts" containing:
+        """
+        /** @sdp is PAT-retry */
+        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
+        """
+      And a file "src/billing.ts" containing:
+        """
+        /** @sdp is ARCH-billing */
+        import { retry } from "./retry.ts"
+
+        /** @sdp plays PAT-retry */
+        export const charge = (): Promise<number> => retry(async () => 0)
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule              | severity | at                           | message                                                                                                     | hint                                     |
+        | derived-attribute | error    | specs/ARCH-billing.feature:1 | ARCH-billing -plays-> PAT-retry: the code of ARCH-billing says it at src/billing.ts:4, so the link written here is ignored | delete it: the code says it, and only while it does |
+      And the workspace graph has edges:
+        | from         | rel   | to         | sources                      |
+        | ARCH-billing | plays | PAT-retry  | src/billing.ts:4             |
+        | ARCH-billing | plays | PAT-outbox | specs/ARCH-billing.feature:1 |
+
   Rule: Each element is shown with its public surface: the shape of what its code exports
 
     Scenario: Billing, anchored by the file that holds its code

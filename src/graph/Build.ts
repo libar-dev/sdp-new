@@ -505,10 +505,11 @@ export const buildProject = (input: ProjectInput): Project => {
 
   const modules = readModules(input.moduleConfigs ?? { root: input.root, top: "", files: [] }, input.codeFiles, exportsOf)
   const elements = elementsOf(annotations, nodes, vocabulary)
+  const played = patternsOfElements(elements, present, nodes, vocabulary)
   const graph = new Graph(nodes.values(), [
-    ...present,
+    ...notPlayedByCode(present, played, diagnostics),
     ...importsBetweenElements(elements, importsOf, modules, diagnostics),
-    ...patternsOfElements(elements, present, nodes, vocabulary)
+    ...played
   ])
 
   return {
@@ -606,6 +607,28 @@ const patternsOfElements = (
     const file = code?.kind === made.kinds.code ? code.attrs.file : undefined
     if (!Predicate.isString(file) || link.rel === vocabulary.relations.anchor || !hasKind(vocabulary, "pattern", nodes.get(link.to)?.kind ?? "")) return []
     return [...elementsOf.get(file) ?? []].map((element) => ({ from: element, rel: link.rel, to: link.to, source: link.source }))
+  })
+
+/**
+ * The links authors wrote, but for one from an element to a pattern that its code makes: the code
+ * says it, and only while it does, so a copy in a spec is reported where it is written, and dropped.
+ * One the code does not make is the author's, and stays.
+ */
+const notPlayedByCode = (
+  links: ReadonlyArray<GraphEdge>,
+  played: ReadonlyArray<GraphEdge>,
+  diagnostics: Array<Diagnostic>
+): ReadonlyArray<GraphEdge> =>
+  links.filter((link) => {
+    const byCode = played.find((edge) => edge.from === link.from && edge.rel === link.rel && edge.to === link.to)
+    if (byCode === undefined) return true
+    diagnostics.push(diagnostic("derived-attribute", {
+      message: `${link.from} -${link.rel}-> ${link.to}: the code of ${link.from} says it at ${formatSource(byCode.source) || "?"}, so the link written here is ignored`,
+      node: link.from,
+      source: link.source,
+      hint: "delete it: the code says it, and only while it does"
+    }))
+    return false
   })
 
 /**
