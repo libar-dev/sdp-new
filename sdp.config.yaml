@@ -4,3 +4,5 @@ code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
 # Until review/redesign is on main, live tests are compared with the pushed branch: main has no specs yet.
 base: origin/review/redesign
+# The guide's rules are tests of this repository, so one still to come is test work, planned as any other.
+vocabulary: { disciplines: { test: [guide] } }

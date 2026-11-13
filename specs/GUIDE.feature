@@ -204,6 +204,16 @@ Feature: sdp, shown by running it
       When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
       Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"
 
+  @maturity=ready
+  Rule: A table cell holds one line, and a case that needs a file of several lines is a scenario of its own, the file its docstring
+
+    A file escaped into one cell does not read as the example it is: as a docstring it reads as the
+    file it is, and the scenario's name says the case.
+
+    Scenario: The table cells of this repository's specs that hold a line break
+      When I run "find specs -name '*.feature' -exec awk '/^[[:space:]]*\|/ { gsub(/\\\\|\\\|/, 0); n += gsub(/\|[^|]*\\n/, 0) } END { print n + 0 }' {} +" in the repository
+      Then the output lines are "0"
+
   Rule: A feature is in specs/features, and declares a maturity only while it is still to come
 
     Rule by rule: a change to a live feature is rules of it with a maturity of their own, so nothing
