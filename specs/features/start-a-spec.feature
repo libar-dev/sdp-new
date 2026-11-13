@@ -73,6 +73,16 @@ Feature: Start a spec
         node_modules/
         """
 
+    Scenario: A .gitignore whose last line on .sdp/ ignores it no more, outside git
+      Given a file ".gitignore" containing:
+        """
+        .sdp/
+        !.sdp/
+        """
+      When I run "sdp init"
+      Then the exit code is 0
+      And the output contains "next: add .sdp/ to .gitignore: what sdp run records holds only in the checkout where it ran"
+
     Scenario Outline: A workspace in a repository whose .gitignore above it ignores .sdp/ <how>
       Given a file ".gitignore" containing:
         """

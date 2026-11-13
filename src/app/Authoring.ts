@@ -33,11 +33,16 @@ const createFile = Effect.fnUntraced(function*(file: string, content: string) {
 })
 
 /**
- * Whether a .gitignore has a line that names a directory, as `.sdp`, `/.sdp/` or `.sdp/**`: what
- * is known of it where git cannot say whether it ignores one.
+ * Whether a .gitignore's lines that name a directory, as `.sdp`, `/.sdp/` or `.sdp/**`, leave it
+ * ignored: the last of them decides, and one that starts with `!` ignores it no more. What is known
+ * of it where git cannot say whether it ignores one.
  */
-const namesDirectory = (gitignore: string, directory: string) =>
-  gitignore.split("\n").some((line) => line.trim().replace(/^\//, "").replace(/\/(\*\*?)?$/, "") === directory)
+const ignoresDirectory = (gitignore: string, directory: string) =>
+  gitignore.split("\n").reduce((ignored, line) => {
+    const pattern = line.trim()
+    const negated = pattern.startsWith("!")
+    return (negated ? pattern.slice(1) : pattern).replace(/^\//, "").replace(/\/(\*\*?)?$/, "") === directory ? !negated : ignored
+  }, false)
 
 /**
  * `sdp init`: a configuration and the skill, and a .gitignore of the directory `sdp run` records in
@@ -61,7 +66,7 @@ export const init = Effect.fn("init")(function*(root: string) {
     const file = ".gitignore"
     const target = path.join(root, file)
     const created = yield* createFile(target, `${records}/\n`)
-    const named = ignored === undefined && !created && namesDirectory(yield* fs.readFileString(target), records)
+    const named = ignored === undefined && !created && ignoresDirectory(yield* fs.readFileString(target), records)
     written.push({
       file,
       created,
