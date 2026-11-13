@@ -218,20 +218,21 @@ export const findFiles = Effect.fn("findFiles")(function*(
 const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
+  const read = (file: string) => Effect.map(fs.readFileString(path.resolve(root, file)), (content): SourceFile => ({ path: file, content }))
   const unreadable = (file: string, error: PlatformError): ReadonlyArray<NotAFile> =>
     error.reason._tag === "NotFound"
       ? []
       : [{ path: file, is: error.reason._tag === "PermissionDenied" ? "a file sdp may not read" : "a file sdp could not read" }]
-  const read = yield* Effect.forEach(
+  // All at once; only when one fails is each read on its own, to tell which, and why.
+  const each = Effect.forEach(
     files,
-    (file) =>
-      fs.readFileString(path.resolve(root, file)).pipe(
-        Effect.map((content) => ({ file: [{ path: file, content }], unread: [] })),
-        Effect.catch((error) => Effect.succeed({ file: [], unread: unreadable(file, error) }))
-      ),
+    (file) => read(file).pipe(Effect.map((found) => ({ files: [found], unread: [] })), Effect.catch((error) => Effect.succeed({ files: [], unread: unreadable(file, error) }))),
     { concurrency: 32 }
   )
-  return { files: read.flatMap((found) => found.file), unread: read.flatMap((found) => found.unread) }
+  return yield* Effect.forEach(files, read, { concurrency: 32 }).pipe(
+    Effect.map((found): { readonly files: ReadonlyArray<SourceFile>; readonly unread: ReadonlyArray<NotAFile> } => ({ files: found, unread: [] })),
+    Effect.catch(() => Effect.map(each, (read) => ({ files: read.flatMap((found) => found.files), unread: read.flatMap((found) => found.unread) })))
+  )
 })
 
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */
