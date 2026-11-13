@@ -458,6 +458,7 @@ Feature: Check specs
             <tags>
             Scenario: Add a lamp and a desk
               Then the cart holds a lamp and a desk
+            <gate>
         """
       When I run "sdp check --json"
       Then the exit code is <exit code>
@@ -466,9 +467,10 @@ Feature: Check specs
         | data.node | <dropped>  |
 
       Examples:
-        | named        | tags                                                | exit code | reported        | dropped         |
-        | both of them | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | 0         | nothing         | nothing         |
-        | one of them  | @replaces:cart#add-a-lamp                           | 1         | example-dropped | cart#add-a-desk |
+        | named                                | tags                                                | gate                                                                                         | exit code | reported        | dropped         |
+        | both of them                         | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk |                                                                                              | 0         | nothing         | nothing         |
+        | one of them                          | @replaces:cart#add-a-lamp                           |                                                                                              | 1         | example-dropped | cart#add-a-desk |
+        | both of them, and a gate one of them | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | \n@gate @replaces:cart#add-a-desk\nScenario: A desk is delivered\n  Then a desk is delivered | 0         | nothing         | nothing         |
 
   Rule: What replaces a live rule or feature takes over its examples only when it is live with a new live example of its own
 

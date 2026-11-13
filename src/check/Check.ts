@@ -436,8 +436,9 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
  * unchanged, then the same id, edited, then the example whose Scenario names it as one it was
  * (`namedBy`, given the id of the Scenario that names it), then the same steps under another name or
  * in another place. No example of the workspace pairs with two, but for one that names several, which
- * takes over each. Rows of one outline pair in their order, a live row with a live one before any
- * other. `named` holds the examples of the base paired with one that names them.
+ * takes over each: a live one that names it before any other that does. Rows of one outline pair in
+ * their order, a live row with a live one before any other. `named` holds the examples of the base
+ * paired with one that names them.
  */
 const pairExamples = (
   before: ReadonlyArray<Example>,
@@ -448,8 +449,9 @@ const pairExamples = (
   const paired = new Map<Example, Example>()
   const named = new Set<Example>()
   /**
-   * A base example's match: an example of the workspace that `keys` gives the key `key` gives it, a
-   * free one first, and one already paired if `merging`.
+   * A base example's match: an example of the workspace that `keys` gives the key `key` gives it, one
+   * as live as it before one that is not, and a free one before one already paired, which only
+   * `merging` takes.
    */
   const index = (
     key: (example: Example) => string,
@@ -460,8 +462,8 @@ const pairExamples = (
     for (const example of now) for (const named of keys(example)) by.set(named, [...by.get(named) ?? [], example])
     return (example: Example) => {
       const candidates = by.get(key(example)) ?? []
-      const choose = (among: ReadonlyArray<Example>) => among.find((candidate) => candidate.live === example.live) ?? among[0]
-      return choose(candidates.filter((candidate) => free.has(candidate))) ?? (merging ? choose(candidates) : undefined)
+      const among = [...candidates.filter((candidate) => free.has(candidate)), ...merging ? candidates.filter((candidate) => !free.has(candidate)) : []]
+      return among.find((candidate) => candidate.live === example.live) ?? among[0]
     }
   }
   const byName = index((example) => example.scenario.id, (example) => namedBy(example.scenario.id), true)
