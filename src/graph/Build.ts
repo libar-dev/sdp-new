@@ -36,7 +36,15 @@ export interface SourceFile {
 /** A path a glob matches that is no file sdp can read, and what it is instead. */
 export interface NotAFile {
   readonly path: string
-  readonly is: "a link that leads to no file" | "a named pipe" | "a socket" | "a device" | "no file"
+  readonly is:
+    | "a link that leads to no file"
+    | "a named pipe"
+    | "a socket"
+    | "a device"
+    | "no file"
+    | "a file sdp may not read"
+    | "a file sdp could not read"
+    | "a directory sdp may not list"
 }
 
 export interface ProjectInput {
@@ -127,7 +135,9 @@ export const buildProject = (input: ProjectInput): Project => {
     diagnostics.push(diagnostic("not-a-file", {
       message: `${file} is ${is}, matched by the globs of the configuration: sdp reads files, so what it would hold is not read`,
       source: { file, line: 1 },
-      hint: `make it a file, or leave it out with exclude: ["${file}"] in the configuration`
+      hint: is === "a directory sdp may not list"
+        ? `let sdp list it, or leave it out with exclude: ["${file}/**"] in the configuration`
+        : `make it a file sdp can read, or leave it out with exclude: ["${file}"] in the configuration`
     }))
   }
   const annotations: Array<Annotation> = []

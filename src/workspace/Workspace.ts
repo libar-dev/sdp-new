@@ -118,8 +118,8 @@ const notAFile: Partial<Record<FileSystem.File.Type, NotAFile["is"]>> = {
 /**
  * Expands globs relative to `root` to the files they match, de-duplicated and sorted for stable
  * output, and to what they match that is no file sdp can read: a link that leads to none, a named
- * pipe, a socket or a device. A glob matches directories too (`fixtures/**` is `fixtures` and all
- * below it); they are neither.
+ * pipe, a socket or a device, and a directory it may not list, which may hold more. A glob matches
+ * directories too (`fixtures/**` is `fixtures` and all below it); they are neither.
  */
 export const findPaths = Effect.fn("findPaths")(function*(
   root: string,
@@ -132,16 +132,21 @@ export const findPaths = Effect.fn("findPaths")(function*(
   // own: the directories it lists, the entries of theirs that are no file, and the type of what each
   // path it looks at leads to, none where nothing is.
   const listed: Array<string> = []
+  const unlisted = new Set<string>()
   const types = new Map<string, FileSystem.File.Type | undefined>()
   const walk = FileSystem.make({
     ...fs,
     readDirectoryEntries: (directory) =>
-      Effect.map(fs.readDirectoryEntries(directory), (entries) => {
-        listed.push(directory)
-        const at = directory.endsWith("/") ? directory : `${directory}/`
-        for (const entry of entries) if (entry.type !== "File") types.set(at + entry.name, entry.type)
-        return entries
-      }),
+      fs.readDirectoryEntries(directory).pipe(
+        Effect.map((entries) => {
+          listed.push(directory)
+          const at = directory.endsWith("/") ? directory : `${directory}/`
+          for (const entry of entries) if (entry.type !== "File") types.set(at + entry.name, entry.type)
+          return entries
+        }),
+        // One sdp may not list is reported where it is, and the walk goes on.
+        Effect.catchIf((error) => error.reason._tag === "PermissionDenied", () => Effect.sync(() => (unlisted.add(directory), [])))
+      ),
     stat: (at) =>
       fs.stat(at).pipe(
         Effect.map((info) => (types.set(at, info.type), info)),
@@ -177,10 +182,16 @@ export const findPaths = Effect.fn("findPaths")(function*(
     ), { concurrency: 32 })) typeOf.set(file, type)
   return {
     files: sorted.filter((file) => typeOf.get(file) === "File"),
-    unread: sorted.flatMap((file): ReadonlyArray<NotAFile> => {
-      const type = typeOf.get(file)
-      return type === "File" || type === "Directory" ? [] : [{ path: file, is: type === undefined ? "a link that leads to no file" : notAFile[type] ?? "no file" }]
-    })
+    unread: [
+      ...sorted.flatMap((file): ReadonlyArray<NotAFile> => {
+        const type = typeOf.get(file)
+        return type === "File" || type === "Directory" ? [] : [{ path: file, is: type === undefined ? "a link that leads to no file" : notAFile[type] ?? "no file" }]
+      }),
+      ...[...unlisted].map((directory): NotAFile => {
+        const inside = path.relative(base, directory)
+        return { path: inside === "" ? "." : inside.startsWith("..") ? directory : inside, is: "a directory sdp may not list" }
+      })
+    ]
   }
 })
 
@@ -193,14 +204,27 @@ export const findFiles = Effect.fn("findFiles")(function*(
   return (yield* findPaths(root, patterns, exclude)).files
 })
 
+/**
+ * Reads `files` relative to the root: a file gone since it was found is no longer there, and one
+ * sdp may not read, or could not, is no file sdp can read.
+ */
 const readAll = Effect.fnUntraced(function*(root: string, files: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
-  return yield* Effect.forEach(
+  const unreadable = (file: string, error: PlatformError): ReadonlyArray<NotAFile> =>
+    error.reason._tag === "NotFound"
+      ? []
+      : [{ path: file, is: error.reason._tag === "PermissionDenied" ? "a file sdp may not read" : "a file sdp could not read" }]
+  const read = yield* Effect.forEach(
     files,
-    (file) => Effect.map(fs.readFileString(path.resolve(root, file)), (content): SourceFile => ({ path: file, content })),
+    (file) =>
+      fs.readFileString(path.resolve(root, file)).pipe(
+        Effect.map((content) => ({ file: [{ path: file, content }], unread: [] })),
+        Effect.catch((error) => Effect.succeed({ file: [], unread: unreadable(file, error) }))
+      ),
     { concurrency: 32 }
   )
+  return { files: read.flatMap((found) => found.file), unread: read.flatMap((found) => found.unread) }
 })
 
 /** Lockfiles at the workspace root: they pin the packages the code and the steps run with. */
@@ -237,7 +261,7 @@ export const readFiles = Effect.fn("readFiles")(function*(root: string, files: R
   const path = yield* Path.Path
   const isFile = (file: string) =>
     fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type === "File"), Effect.orElseSucceed(() => false))
-  return yield* readAll(root, yield* Effect.filter(files, isFile))
+  return (yield* readAll(root, yield* Effect.filter(files, isFile))).files
 })
 
 /** How a run records a path it reached a file through that leads elsewhere — a link, or a path through one — with where it led. */
@@ -297,8 +321,9 @@ export const readImports = Effect.fn("readImports")(function*(root: string, impo
   const read = ({ entry, file, to }: (typeof entries)[number]): Effect.Effect<ReadonlyArray<SourceFile>, PlatformError> => {
     const found = where.get(file)
     if (to !== undefined) return Effect.succeed(found?.at === to ? [{ path: entry, content: "" }] : [])
+    // One sdp may not read is no file it can compare: as gone.
     return found?.at === file && found.type === "File"
-      ? Effect.map(fs.readFileString(path.resolve(real, file)), (content) => [{ path: file, content }])
+      ? fs.readFileString(path.resolve(real, file)).pipe(Effect.map((content) => [{ path: file, content }]), Effect.orElseSucceed(() => []))
       : Effect.succeed([])
   }
   return (yield* Effect.forEach(entries, read, { concurrency: 32 })).flat()
@@ -342,15 +367,21 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     findPaths(root, config.steps, config.exclude),
     findPaths(root, config.evidence.inputs, config.exclude)
   ], { concurrency: "unbounded" })
-  const featureFiles = yield* readAll(root, features.files)
+  const read = {
+    features: yield* readAll(root, features.files),
+    code: yield* readAll(root, code.files),
+    steps: yield* readAll(root, steps.files),
+    inputs: yield* readAll(root, inputs.files)
+  }
+  const featureFiles = read.features.files
   // Markdown where specs live: beside a feature file, or under the directory a features glob starts
   // in. sdp reads none of it, so what is no file is Markdown all the same.
   const beside = [...new Set(features.files.map((file) => path.dirname(file)))].map((directory) => path.join(directory, "*.md"))
   const under = config.features.map(globBase).filter((base) => base !== "").map((base) => `${base}/**/*.md`)
   const markdown = yield* findPaths(root, [...beside, ...under], config.exclude)
-  const markdownFiles = [...markdown.files, ...markdown.unread.map((file) => file.path)].sort()
-  const codeFiles = yield* readAll(root, code.files)
-  const stepFiles = yield* readAll(root, steps.files)
+  const markdownFiles = [...markdown.files, ...markdown.unread.flatMap((file) => file.is === "a directory sdp may not list" ? [] : [file.path])].sort()
+  const codeFiles = read.code.files
+  const stepFiles = read.steps.files
   const stepsLeading = yield* stepLinks(root, steps.files)
   const layer = options.results ?? "all"
   // Only a view that shows results compares them with the files their runs imported.
@@ -373,8 +404,8 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
     // What the steps read is no part of the graph: an input that is no file counts by its path and what it is.
     inputs: declaredInputs([
-      ...yield* readAll(root, inputs.files),
-      ...inputs.unread.map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
+      ...read.inputs.files,
+      ...[...inputs.unread, ...read.inputs.unread].map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
     ], config.evidence.env),
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it.
     specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
@@ -387,8 +418,8 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     markdownFiles,
     codeFiles,
     stepFiles,
-    notFiles: [...features.unread, ...code.unread],
-    stepNotFiles: steps.unread,
+    notFiles: [...features.unread, ...read.features.unread, ...code.unread, ...read.code.unread],
+    stepNotFiles: [...steps.unread, ...read.steps.unread],
     evidence: view
   })
   const results = view ? view(project.specs).ordinary : ""
