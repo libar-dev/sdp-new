@@ -28,13 +28,19 @@ Feature: Keep a vocabulary
 
     The word is the team's to choose; listing it is where a reviewer sees it join.
 
-  @open
+  @open @iteration:IT-agent-plugin
   Rule: Are a workspace's words and their meanings written in its configuration, or in a spec of its own?
 
     In the configuration, they sit beside the roles and words it names there today, read before any
     spec. In a spec, they are reviewed beside the specs that use them, and the listing is a test.
     The configuration already holds `vocabulary.words`, a workspace's own kinds, relations and
     attributes with no meanings, which either answer has to account for.
+
+  @open @iteration:IT-agent-plugin
+  Rule: Is the catalog of a workspace's words its vocabulary or its taxonomy, one word in the commands, the specs and the skill?
+
+    `sdp vocabulary` prints the words sdp interprets today, and the research on the catalog calls it
+    a taxonomy. A second word for one thing is what this feature exists to prevent.
 
   @decided-by:free-vocabulary
   Rule: In a workspace that asks for it, sdp check reports a word used and not listed, with the closest listed word, and a word of its own listed and used nowhere

@@ -1,4 +1,4 @@
-@id=specs-are-written-one-way @kind=guide
+@id=specs-are-written-one-way @kind=guide @decided-by:specs-say-what-not-how
 Feature: A spec of this repository is written one way
 
   What every spec here keeps to, whatever it is about, so that a reader and grep find one thing in
@@ -7,7 +7,7 @@ Feature: A spec of this repository is written one way
   Rule: AGENTS.md holds only what no scenario can check, in at most 40 lines
 
     It is the easiest place to write, so it grows. What a scenario can check is a rule of a guide
-    spec, and how to work in any repository that uses sdp is the skill.
+    spec, a reason is a decision, and how to work in any repository that uses sdp is the skill.
 
     Scenario: The length of AGENTS.md
       When I run "sh -c 'test $(wc -l < AGENTS.md) -le 40'" in the repository
@@ -40,6 +40,13 @@ Feature: A spec of this repository is written one way
     Scenario: The Markdown files of this repository, the example's included
       When I run "git ls-files '*.md'" in the repository
       Then the output lines are "README.md, AGENTS.md, CLAUDE.md, .claude/skills/sdp/SKILL.md, examples/shop/README.md, scripts/orient/README.md"
+
+  @open @maturity=idea @iteration:IT-agent-plugin
+  Rule: Where are the stubs of a spec's significant API shapes kept, in what form, how does a reader reach them from the spec, and do stubs of critical step definitions join them?
+
+    Where the architect calls an API or type shape significant, its conceptual design is shown in
+    a stub outside the spec, in a folder the build does not compile. The rest is left to the
+    session that implements it.
 
   @maturity=ready
   Rule: A table cell holds one line, and a case that needs a file of several lines is a scenario of its own, the file its docstring
