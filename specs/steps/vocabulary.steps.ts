@@ -12,7 +12,7 @@ import type { Project } from "../../src/graph/Build.ts"
 import { isLinkKey, made } from "../../src/model/Vocabulary.ts"
 import { loadProject } from "../../src/workspace/Workspace.ts"
 import { defineSteps } from "sdp/steps"
-import { newWorld, type Table } from "./world.ts"
+import { assertRows, newWorld, show, stdout, type Table, type World } from "./world.ts"
 
 /** What sdp does with a word: makes it itself, reads a meaning into it, or keeps it as written and reads none. */
 type Sdp = "makes" | "interprets" | "carries"
@@ -130,7 +130,31 @@ const holds = (what: string, column: string, used: Words, table: Table | undefin
   assert.deepEqual(problems, [], `the ${what} of this repository differ from the table:\n  ${problems.join("\n  ")}`)
 }
 
+/** The `types` section of what `sdp vocabulary --json` printed last. */
+const printedTypes = (world: World): { readonly links: Record<string, { from: Array<string>; to: Array<string> }>; readonly facts: Record<string, { value: string; on: Array<string> }> } => {
+  const types = JSON.parse(stdout(world))?.data?.types
+  assert.ok(types, "run `sdp vocabulary --json` first: no types were printed")
+  return types
+}
+
 export default defineSteps(newWorld, ({ Then }) => {
+  // The type table as sdp prints it: every typed relation, each end a comma-separated list.
+  Then("the link types are:", ({ table, world }) =>
+    assertRows(
+      "link types",
+      Object.entries(printedTypes(world).links).map(([relation, type]) => ({ relation, from: show(type.from), to: show(type.to) })),
+      table,
+      "exactly"
+    ))
+
+  Then("the fact types are:", ({ table, world }) =>
+    assertRows(
+      "fact types",
+      Object.entries(printedTypes(world).facts).map(([fact, type]) => ({ fact, value: type.value, on: show(type.on) })),
+      table,
+      "exactly"
+    ))
+
   Then("the {word} of this repository are:", ({ args: [name], table, project }) => {
     const known = classes.get(name)
     assert.ok(known, `no class of words "${name}"; there are: ${[...classes.keys()].join(", ")}`)

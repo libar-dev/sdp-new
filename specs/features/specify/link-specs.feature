@@ -401,6 +401,62 @@ Feature: Link specs into one graph
         | src/a.py        | # @sdp status verified\ndef a(): pass                                  | src/a.py:1        | status   | no link can be named status        | written with =                     |
         | specs/a.feature | @id=a @owner=payments @owner:verified\nFeature: A                      | specs/a.feature:1 | owner    | owner is already an attribute of a | give the relation another name     |
 
+  Rule: A word that joins two nodes or dates the plan has a type: the kinds each end of its link may be, or what its value is and what it is written on
+
+    The type table is the contract of every check of a link and of what an agent reads before it
+    writes a tag, so a change to it is a change here. A word bound to a role has the role's type,
+    in the workspace's words; any other relation joins any nodes.
+
+    Scenario: The types, in a workspace that renames nothing
+      When I run "sdp vocabulary --json"
+      Then the exit code is 0
+      And the link types are:
+        | relation    | from                    | to                      |
+        | iteration   | work, rule              | iteration               |
+        | phase       | iteration               | phase                   |
+        | closes      | milestone               | iteration, phase        |
+        | replaces    | feature, rule, scenario | feature, rule, scenario |
+        | is          | code                    | spec                    |
+        | realized-by | feature                 | element                 |
+        | decided-by  | spec, rule              | decision                |
+        | depends-on  | feature                 | feature                 |
+        | includes    | epic                    | feature, rule           |
+        | applies     | code, element           | pattern                 |
+      And the fact types are:
+        | fact     | value | on         |
+        | maturity | rung  | work, rule |
+        | start    | day   | iteration  |
+        | end      | day   | iteration  |
+        | met      | day   | milestone  |
+
+    Scenario: A workspace's words take the types of the roles it binds them to
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary:
+          kinds: { decision: [adr, decision], iteration: [sprint] }
+          relations: { plan: [scheduled, depends-on], closes: [ends] }
+          attributes: { end: date, met: date }
+        """
+      When I run "sdp vocabulary --json"
+      Then the exit code is 0
+      And the link types are:
+        | relation    | from                    | to                      |
+        | scheduled   | work, rule              | sprint                  |
+        | depends-on  | work, rule              | sprint                  |
+        | phase       | sprint                  | phase                   |
+        | ends        | milestone               | sprint, phase           |
+        | replaces    | feature, rule, scenario | feature, rule, scenario |
+        | is          | code                    | spec                    |
+        | realized-by | feature                 | element                 |
+        | decided-by  | spec, rule              | adr, decision           |
+        | includes    | epic                    | feature, rule           |
+        | applies     | code, element           | pattern                 |
+      And the fact types are:
+        | fact     | value | on                |
+        | maturity | rung  | work, rule        |
+        | start    | day   | sprint            |
+        | date     | day   | sprint, milestone |
+
   Rule: A link the vocabulary types joins the kinds its type names, and one that joins others is reported
 
     A feature realized by a decision, or a rule decided by a feature, reads as an answer and is
