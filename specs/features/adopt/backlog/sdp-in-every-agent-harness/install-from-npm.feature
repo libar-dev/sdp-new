@@ -1,4 +1,5 @@
 @id=install-from-npm @maturity=draft
+@realized-by:ARCH-cli @realized-by:ARCH-application @realized-by:ARCH-runner
 @iteration:IT-packaging
 Feature: Install sdp from npm
 

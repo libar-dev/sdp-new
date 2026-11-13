@@ -5,6 +5,7 @@
  * compiler would infer is not there.
  *
  * @sdp is ARCH-code-annotations
+ * @sdp applies PAT-static-reading
  */
 import { children, isNode, type Node, type Script } from "./Script.ts"
 

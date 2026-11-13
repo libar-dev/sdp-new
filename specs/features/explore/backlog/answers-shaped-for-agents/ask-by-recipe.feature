@@ -1,4 +1,5 @@
 @id=ask-by-recipe @maturity=idea
+@realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-mcp
 Feature: Ask by recipe
 
   Agents ask the same questions every session — what does this change touch, which rules have no

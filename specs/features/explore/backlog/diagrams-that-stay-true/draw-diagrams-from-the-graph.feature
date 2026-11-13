@@ -1,4 +1,5 @@
 @id=draw-diagrams-from-the-graph @maturity=idea
+@realized-by:ARCH-reports @realized-by:ARCH-application @realized-by:ARCH-checker
 Feature: Draw diagrams from the graph
 
   Readers on GitHub, in a pull request or in a notes app take in a structure faster from a picture

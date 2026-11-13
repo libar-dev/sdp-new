@@ -1,4 +1,5 @@
 @id=write-specs-in-a-richer-grammar @maturity=idea
+@realized-by:ARCH-spec-parser
 Feature: Write specs in a richer grammar
 
   Alternatives to the official Gherkin parser, kept for the day a spec needs what tags cannot say:

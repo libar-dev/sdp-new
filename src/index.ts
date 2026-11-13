@@ -12,6 +12,8 @@
  * words as one line. Programs written with Effect import the same use cases
  * from "sdp/effect" instead, and choose the file system they run on. Step
  * modules import "sdp/steps", which loads nothing of this.
+ *
+ * @sdp is ARCH-application
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Effect, type FileSystem, Layer, type Path } from "effect"

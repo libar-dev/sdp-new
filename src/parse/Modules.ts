@@ -4,6 +4,7 @@
  * though it could name the workspace's code, comes back with why.
  *
  * @sdp is ARCH-code-annotations
+ * @sdp applies PAT-static-reading
  */
 import { isBuiltin } from "node:module"
 import {

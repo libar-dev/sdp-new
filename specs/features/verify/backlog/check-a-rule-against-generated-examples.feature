@@ -1,4 +1,5 @@
 @id=check-a-rule-against-generated-examples @maturity=idea
+@realized-by:ARCH-runner
 Feature: Check a rule against generated examples
 
   A rule holds for every input it covers, and a handful of examples samples a few. A scenario that

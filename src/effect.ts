@@ -14,6 +14,8 @@
  *
  * Programs that do not use Effect import the same use cases from "sdp", which
  * answer with Promises.
+ *
+ * @sdp is ARCH-application
  */
 export type { Answer } from "./app/Answer.ts"
 export { create, init } from "./app/Authoring.ts"

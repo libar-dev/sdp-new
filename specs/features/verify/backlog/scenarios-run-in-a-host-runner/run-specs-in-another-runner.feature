@@ -1,4 +1,5 @@
 @id=run-specs-in-another-runner @maturity=draft
+@realized-by:ARCH-runner
 @decided-by:a-host-runner-runs-application-suites
 Feature: Run specs in another runner
 

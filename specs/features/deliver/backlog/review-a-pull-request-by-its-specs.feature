@@ -1,4 +1,5 @@
 @id=review-a-pull-request-by-its-specs @maturity=draft
+@realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-workspace
 Feature: Review a pull request by its specs
 
   Reviewers of a pull request, people and agents, need to see what it does to the specs and the

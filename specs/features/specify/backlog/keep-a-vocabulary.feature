@@ -1,4 +1,5 @@
 @id=keep-a-vocabulary @maturity=idea
+@realized-by:ARCH-vocabulary @realized-by:ARCH-checker @realized-by:ARCH-application
 Feature: Keep a vocabulary
 
   Teams and their agents write kinds, relations, fact keys and Cucumber tags in words sdp leaves
