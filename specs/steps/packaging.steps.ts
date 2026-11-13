@@ -76,13 +76,22 @@ const pack = async (signal: AbortSignal): Promise<Packed> => {
   return { ...packed, tarball: tarball && join(destination, tarball), before, after }
 }
 
-/** Packed once per process, by the step that needs it first; one stopped while it packs leaves the next to pack again. */
+/**
+ * Packed once per process, by the step that needs it first. A pack that fails, or whose step is
+ * stopped, is forgotten at once — not once its processes have ended — so the next step packs again.
+ */
 let packing: Promise<Packed> | undefined
-const packed = (signal: AbortSignal) =>
-  packing ??= pack(signal).catch((error: unknown) => {
-    packing = undefined
-    throw error
-  })
+const packed = (signal: AbortSignal): Promise<Packed> => {
+  if (packing !== undefined) return packing
+  const attempt = pack(signal)
+  const forget = () => {
+    if (packing === attempt) packing = undefined
+  }
+  signal.addEventListener("abort", forget, { once: true })
+  attempt.then(() => signal.removeEventListener("abort", forget), forget)
+  packing = attempt
+  return attempt
+}
 
 const readJson = async (file: string): Promise<Record<string, any>> => JSON.parse(await readFile(file, "utf8"))
 
