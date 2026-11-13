@@ -949,6 +949,27 @@ Feature: Know what is verified
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
+    Scenario: A path of evidence.inputs that is no file counts by its path and what it is, and nothing reports it
+      Given a file "fixtures/lamps.json" containing:
+        """
+        []
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
+      When I run "mkfifo fixtures/orders"
+      Then the exit code is 0
+      When I run "sdp status --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | complete                  | true |
+        | data.stale.inputs-changed | 1    |
+      When I run "sdp check --base none"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
+
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
       Then the exit code is 1

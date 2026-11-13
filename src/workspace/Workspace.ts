@@ -371,7 +371,11 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const fingerprints: Fingerprints = {
     sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
-    inputs: declaredInputs(yield* readAll(root, inputs.files), config.evidence.env),
+    // What the steps read is no part of the graph: an input that is no file counts by its path and what it is.
+    inputs: declaredInputs([
+      ...yield* readAll(root, inputs.files),
+      ...inputs.unread.map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
+    ], config.evidence.env),
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it.
     specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
   }
@@ -383,7 +387,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     markdownFiles,
     codeFiles,
     stepFiles,
-    notFiles: [...features.unread, ...code.unread, ...steps.unread, ...inputs.unread],
+    notFiles: [...features.unread, ...code.unread, ...steps.unread],
     evidence: view
   })
   const results = view ? view(project.specs).ordinary : ""
