@@ -6,9 +6,8 @@ Feature: Ask by recipe
   example — and write each as a query again, a little differently each time. A recipe is such a
   question written once, named for the job it answers, with its subject as a parameter.
 
-  Not a second query language: a recipe is answered from the graph as a query is. Not a catalogue
-  that grows by itself: a recipe is added when agents keep asking its question, and the plugin's
-  skill and hook ask none that sdp q, context and lifecycle --brief do not already answer.
+  Not a second query language: a recipe is answered from the graph as a query is, and added only
+  when agents keep asking its question.
 
   Rule: sdp lists its recipes by the job each answers, in at most 20 lines
 

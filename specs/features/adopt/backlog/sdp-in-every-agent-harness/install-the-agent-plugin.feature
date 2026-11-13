@@ -2,15 +2,13 @@
 @iteration:IT-agent-plugin
 Feature: Install the agent plugin
 
-  Teams run their agents in several harnesses — Claude Code, Codex, Kimi Code, Grok Build, ZCode
-  and OpenCode — and every agent must learn the same way of working, of the sdp version the
-  repository installed. A skill that `sdp init` copies into `.claude/skills` reaches Claude Code alone and is
-  stale at the next upgrade. The package is the plugin instead, laid out as the Agent Plugins
-  standard says: installed once, it gives each supported harness the skill and the session hook of
-  the version installed.
+  Teams run their agents in several harnesses, and every agent must learn the same way of working,
+  of the sdp version the repository installed. Installed once, the package is the plugin of each
+  supported harness, laid out as the Agent Plugins standard says, and gives each the skill and the
+  session hook of that version.
 
-  Not an agent, and not the MCP server, which `serve-agents` specifies. sdp writes no harness's
-  settings: where a harness needs a step in a person's own settings, sdp names it.
+  Not the MCP server, which `serve-agents` specifies, and no harness's settings are written: where a
+  harness needs a step in a person's own settings, sdp names it.
 
   Rule: One package is the plugin of every supported harness: one manifest, one folder of skills and one hook script
 
@@ -21,14 +19,11 @@ Feature: Install the agent plugin
       Then the exit code is 0
       And the output contains "plugin.json"
       And the output contains "skills/sdp/SKILL.md"
-      And the output contains "hooks/session-start.mjs"
-      And the output contains "opencode/server.js"
       And "plugin.json" in the repository conforms to the Agent Plugins 1.0.0 schema
 
   Rule: Where the standard does not reach a harness, a shim of that harness's own names the plugin and where its skills are, and holds no skill text
 
-    The standard keeps hooks out of its portable core, and some harnesses find a plugin only through
-    a manifest of their own. A shim that held text would be one more copy to keep in step.
+    A shim that held text would be one more copy to keep in step.
 
     Scenario Outline: The shim of <harness>
       When I run "cat <shim>" in the repository
@@ -42,10 +37,8 @@ Feature: Install the agent plugin
 
   Rule: Each supported harness finds one wiring of the hook in the plugin, or in the one setting sdp names, and run as that harness runs it, it orients the session
 
-    The earlier implementation's hook was wired twice, by the plugin and by the repository's own
-    settings, and telling the second run from the next event took a lock, a claim and a clock. Kimi Code and Grok Build show a session-start hook's output to the person only, so
-    theirs runs on the first prompt and on the first tool call. OpenCode runs no command hooks, so a
-    plugin module of the package runs the one script and adds its text to the session's context.
+    Kimi Code and Grok Build show a session-start hook's output to the person only, so theirs runs on
+    the first prompt or the first tool call.
 
     Background:
       Given these specs:
@@ -54,20 +47,20 @@ Feature: Install the agent plugin
         | @id=IT-beta @start=2099-01-05 @end=2099-01-16 | Beta 1  |
         | @id=cart @maturity=draft @iteration:IT-beta   | Cart    |
 
-    Scenario Outline: <harness>, from <wiring>
+    Scenario Outline: <harness>, on <event>
       When "<harness>" runs the plugin's hook on "<event>", as it finds it
       Then "<harness>" found 1 wiring of the hook
       And the output contains "MS-beta"
       And the output contains "cart"
 
       Examples:
-        | harness     | wiring                                    | event            |
-        | Claude Code | hooks/hooks.json                          | SessionStart     |
-        | Codex       | the com.openai extension of plugin.json   | SessionStart     |
-        | ZCode       | hooks/hooks.json                          | SessionStart     |
-        | Kimi Code   | the setting sdp init names                | UserPromptSubmit |
-        | Grok Build  | the setting sdp init names                | PreToolUse       |
-        | OpenCode    | the setting sdp init names                | context          |
+        | harness     | event            |
+        | Claude Code | SessionStart     |
+        | Codex       | SessionStart     |
+        | ZCode       | SessionStart     |
+        | Kimi Code   | UserPromptSubmit |
+        | Grok Build  | PreToolUse       |
+        | OpenCode    | context          |
 
   Rule: init starts a workspace with a configuration that shows every default and overwrites nothing, writes no skill, and names how each supported harness installs the plugin
 

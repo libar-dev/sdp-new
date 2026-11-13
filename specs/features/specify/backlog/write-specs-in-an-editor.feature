@@ -1,9 +1,9 @@
-@id=write-specs-in-an-editor @maturity=draft
+@id=write-specs-in-an-editor @maturity=idea
 Feature: Write specs in an editor
 
   Authors write specs in their editor, and want it to know what sdp knows of them: without that, an
-  id typed wrong or a relation spelled differently shows up only when `sdp check` runs, and finding
-  the spec behind an id means a search. A language server gives every editor the same help.
+  id typed wrong shows up only when `sdp check` runs, and finding the spec behind an id means a
+  search. A language server gives every editor the same help.
 
   Rule: An id in a tag is completed from the ids the graph declares
 

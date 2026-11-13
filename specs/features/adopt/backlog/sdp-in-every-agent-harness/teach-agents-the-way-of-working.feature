@@ -6,16 +6,11 @@ Feature: Teach agents the way of working
   example before the code, leaves open what nobody decided, and never edits what sdp derives. The
   plugin's one skill teaches that; what only writing a spec needs is read when a spec is written.
 
-  Not a skill per job: skills that overlap are slower to learn than one, and the earlier
-  implementation's five grew to 782 Markdown files. Not a second statement of sdp's rules: where the
-  skill and `sdp check` differ, check is right and the skill is wrong.
+  Not a second statement of sdp's rules: where the skill and `sdp check` differ, check is right.
 
   Rule: The plugin has one skill, and it teaches the whole way of working: orient, find the spec that owns a behaviour, change the rule and its example, write the steps, check and run, plan
 
-    What it is to hold, in this order, detailed before the skill is written: what sdp is; orient;
-    find what owns a behaviour; a spec, by one annotated example; change behaviour; architecture and
-    decisions; plan; never. About 9,000 characters, with the sharp edges of the format, the corners
-    of tag syntax, replacing what is live and gates in the reference, about 5,000.
+    Skills that overlap are slower to learn than one.
 
     Scenario: The skills the plugin ships
       When I run "ls skills" in the repository
@@ -49,5 +44,4 @@ Feature: Teach agents the way of working
   @maturity=idea
   Rule: Agents taught by the skill leave open what a request left open: a choice the requester did not make is a rule tagged @open, not a rule they chose
 
-    In the earlier implementation's trials every cold author settled a choice the requester had left
-    open, with valid syntax and an honest maturity: a check of the format cannot see it.
+    Agents settle such a choice in valid syntax, and a check of the format cannot see it.

@@ -2,9 +2,8 @@
 @closes:IT-packaging
 Feature: Minimum viable product
 
-  What sdp must be before anyone outside this repository is asked to use it: what is built so far,
-  decided and verified, with questions interactive on large repositories, and the package
-  installable. Its gate names what it needs by id, so that no plan tag decides what MVP is.
+  What sdp must be before anyone outside this repository is asked to use it. Its gate names what it
+  needs by id, so that no plan tag decides what MVP is.
 
   Rule: The features it needs are built
 

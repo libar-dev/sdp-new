@@ -5,8 +5,8 @@ Feature: Orient agents through hooks
   An agent that starts a session does not know where the project stands, and does not think to ask.
   The plugin's hook tells it, in a few lines, before its first step.
 
-  Not instructions: the way of working is the skill's and AGENTS.md's, which reach subagents and
-  harnesses without hooks too. The hook shows what sdp answers, never what an agent should do.
+  Not instructions: the hook shows what sdp answers, never what an agent should do, which the skill
+  teaches.
 
   Background:
     Given a file "shop/sdp.config.yaml" containing:
@@ -36,9 +36,8 @@ Feature: Orient agents through hooks
 
   Rule: At session start the agent is shown what sdp lifecycle --brief prints for the workspace sdp finds from where the session started
 
-    The hook carries the brief and adds nothing to it, so a person who runs the command sees what the
-    agent was shown. The earlier implementation read the workspace from where sdp was installed, and
-    a session in one package of a monorepo was told about another.
+    A person who runs the command sees what the agent was shown, and a session in one package of a
+    monorepo is told about its own.
 
     Scenario: A session started below the workspace's root
       When the plugin's hook runs at session start in "shop/src"
@@ -51,8 +50,7 @@ Feature: Orient agents through hooks
   @quality
   Rule: The orientation fits in 2,000 characters and arrives within 5 seconds, or one line says it did not and names the command to run
 
-    Harnesses cut what a hook adds — Codex at about 2,500 tokens, Claude Code at 10,000 characters —
-    and a slow hook holds up the first reply. The earlier hook showed 20,000 characters.
+    Harnesses cut what a hook adds, and a slow hook holds up the first reply.
 
     Scenario: A workspace of 500 specs
       Given a generated workspace of 500 specs
@@ -82,9 +80,7 @@ Feature: Orient agents through hooks
 
   Rule: Run on an event that recurs — a prompt, a tool call — the hook shows the orientation once per session, the first time
 
-    That is how Kimi Code and Grok Build are wired, and a second copy of the orientation costs every
-    later turn its context. Two runs that overlap are no exception: the first to claim the session
-    shows it.
+    A second copy costs every later turn its context. Of two runs that overlap, one shows it.
 
     Scenario: Two tool calls of one session, then a new session
       When the plugin's hook runs on "PreToolUse" for session "a" in "shop"
@@ -96,8 +92,7 @@ Feature: Orient agents through hooks
 
   Rule: The orientation is answered by the sdp the workspace installed, and says so when the plugin is of another version
 
-    A plugin installed for a person serves every repository, each with sdp at a version of its own;
-    the plugin's own sdp would read the specs by rules the repository does not keep.
+    A plugin installed for a person serves every repository, each with sdp at a version of its own.
 
     Scenario: A plugin newer than the workspace's sdp
       Given the workspace "shop" installed sdp "0.1.0"

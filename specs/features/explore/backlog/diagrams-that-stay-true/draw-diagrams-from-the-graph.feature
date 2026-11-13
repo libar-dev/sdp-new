@@ -6,17 +6,13 @@ Feature: Draw diagrams from the graph
   than from a list. A diagram drawn by hand stops being true at the next change and nobody notices;
   one sdp draws says what the graph says, and a stale one fails the check like a failing test.
 
-  Not a drawing tool: a diagram shows what a question selects, never what is placed by hand. Not a
-  kind the graph holds no data for, such as a sequence of calls.
+  Not a drawing tool: a diagram shows what a question selects, never what is placed by hand.
 
   Rule: sdp draws named views as Mermaid: the architecture, a node and what is around it, an epic and its work, and the plan as a Gantt chart of its iterations and milestones
 
-  Rule: sdp writes each diagram into a file it owns, and check fails when one no longer matches the graph
+  Rule: sdp writes each diagram into a file it owns, the same graph draws it the same byte for byte, and check fails when one no longer matches the graph
 
-    sdp reads no Markdown, so it writes none an author also edits: a page shows a diagram by linking
-    to its file.
-
-  Rule: The same graph draws the same diagram, byte for byte: a node is named by its id, and a label escapes what Mermaid would read as syntax
+    sdp writes no Markdown an author also edits: a page shows a diagram by linking to its file.
 
   Rule: A node shows its stage in its label and its colour
 
