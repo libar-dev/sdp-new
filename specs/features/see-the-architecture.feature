@@ -266,6 +266,7 @@ Feature: See the architecture
         | tsconfig.json             | { "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["*"] } } }                                 | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | jsconfig.json             | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }                                               | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | tsconfig.json             | { "compilerOptions": { "moduleSuffixes": [".native", ""] } }                                             | src/tax.ts            | src/tax.native.ts         | ./tax.js  | ARCH-tax |
+        | tsconfig.json             | { "compilerOptions": { "rootDir": 1, "paths": { "@/*": ["./src/*"] } } }                                 | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | package.json              | { "name": "shop", "imports": { "#tax": "./src/tax.ts" } }                                                | lib/tax.ts            | src/tax.ts                | #tax      | ARCH-tax |
         | packages/tax/package.json | { "name": "@shop/tax", "exports": { ".": { "types": "./src/index.ts", "default": "./dist/index.js" } } } | packages/tax/index.ts | packages/tax/src/index.ts | @shop/tax | ARCH-tax |
         | package.json              | { "name": "shop", "dependencies": { "tax": "^1.0.0" } }                                                  | lib/tax.ts            | src/tax.ts                | tax       | nothing  |
@@ -495,6 +496,7 @@ Feature: See the architecture
         | what the tsconfig.json extends is not installed           | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | ARCH-tax | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed |
         | a library, what the tsconfig.json extends not installed   | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts", "dependencies": { "effect": "^4.0.0" } } | effect    | nothing  | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed |
         | the tsconfig.json does not parse                          | tsconfig.json    | { "compilerOptions": { "paths": } }                            | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | ARCH-tax | tsconfig.json:1  | tsconfig.json does not parse                                                                         |
+        | a setting of a type TypeScript does not read | tsconfig.json | { "compilerOptions": { "paths": { "@/*": "./src/*" } } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | @shop/tax | ARCH-tax | tsconfig.json:1 | tsconfig.json sets paths to a value of a type TypeScript does not read |
 
     Scenario Outline: An import that cannot name the workspace's code, or whose answer sdp read, is not reported: <case>
       Given a file "<config>" containing:
@@ -530,6 +532,7 @@ Feature: See the architecture
         | a file that is not code                                  | tsconfig.json | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }            | { "name": "@shop/tax", "exports": "./src/index.ts" }                                                    | @/logo.svg | nothing  |
         | a condition on a branch the import does not take         | package.json  | { "name": "shop" }                                                    | { "name": "@shop/tax", "exports": { "import": "./src/index.ts", "require": { "browser": "./cjs.ts" } } } | @shop/tax  | ARCH-tax |
         | what the tsconfig.json extends is not installed, and sets nothing the import depends on | tsconfig.json | { "extends": "@tsconfig/node22" } | { "name": "@shop/tax", "exports": "./src/index.ts" }                                     | ../packages/tax/src/index.ts | ARCH-tax |
+        | a setting of a type TypeScript does not read, which the import does not depend on | tsconfig.json | { "compilerOptions": { "rootDir": 1, "paths": { "@/*": ["./packages/tax/src/*"] } } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | @/index | ARCH-tax |
 
   Rule: The architecture and its links can be drawn as a Mermaid flowchart
 

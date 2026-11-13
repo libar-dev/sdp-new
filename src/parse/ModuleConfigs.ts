@@ -45,7 +45,7 @@ export const namedBy = (root: string, files: ReadonlyArray<File>): ReadonlyArray
   const packages = packagesOf(files)
   return files.flatMap((file) => {
     if (!isProject(file.path)) return []
-    const read = readConfig(file.content, decodeTsConfig)
+    const read = readTsConfig(file.content)
     if (!("value" in read)) return []
     const bases = [read.value.extends ?? []].flat().flatMap((base) => extendsCandidates(at, packages, file.path, base))
     return [...bases, ...(read.value.references ?? []).map((reference) => referencePath(at, file.path, reference.path))]
@@ -126,7 +126,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
   const at = pathsFrom(configs.root)
   const byPath = new Map(configs.files.map((file) => [file.path, file.content]))
   const packages = packagesOf(configs.files)
-  const tsconfigs = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodeTsConfig))
+  const tsconfigs = cache((path: string) => readTsConfig(byPath.get(path) ?? "{}"))
   const manifests = cache((path: string) => readConfig(byPath.get(path) ?? "{}", decodePackageJson))
   const globs = cache((pattern: string) => Glob.make(pattern))
 
@@ -144,6 +144,14 @@ export const readConfigs = (configs: ModuleConfigs) => {
       return { unread: [{ file: path, line: read.line, message: `${path} ${read.unread}, so what it sets is not read`, hint: `fix the syntax of ${path}` }] }
     }
     const config = read.value
+    const own = config.compilerOptions ?? {}
+    const unread = read.unread.map((setting): Unread => ({
+      file: path,
+      line: lineOf(read.text, setting),
+      setting,
+      message: `${path} sets ${setting} to a value of a type TypeScript does not read, so it is not read`,
+      hint: `correct ${setting} in ${path}: \`tsc --noEmit -p ${path}\` says what it takes`
+    }))
     let inherited: Settings = { unread: [] }
     for (const base of [config.extends ?? []].flat()) {
       const found = extendsCandidates(at, packages, path, base).find((candidate) => byPath.has(candidate))
@@ -164,9 +172,11 @@ export const readConfigs = (configs: ModuleConfigs) => {
       const { from, path } = placed(value)
       return at.join(from, path)
     }
-    const own = config.compilerOptions ?? {}
+    // A setting of its own takes the place of the one inherited, and of what sdp could not read of that one.
+    const overridden = (setting: string | undefined) => setting !== undefined && ((own as Record<string, unknown>)[setting] ?? (config as Record<string, unknown>)[setting]) !== undefined
     return {
       ...inherited,
+      unread: [...inherited.unread.filter((each) => !overridden(each.setting)), ...unread],
       ...own.baseUrl === undefined ? {} : { baseUrl: place(own.baseUrl) },
       ...own.paths === undefined ? {} : { paths: { map: own.paths, from: directory } },
       ...own.customConditions === undefined ? {} : { customConditions: own.customConditions },
@@ -236,24 +246,60 @@ export type Configs = ReturnType<typeof readConfigs>
 
 const Strings = Schema.Array(Schema.String)
 
-/** What sdp reads of a tsconfig.json or a jsconfig.json. */
+/** What sdp reads of a tsconfig.json or a jsconfig.json, but its `compilerOptions`. */
 const TsConfig = Schema.Struct({
   extends: Schema.optional(Schema.Union([Schema.String, Strings])),
-  compilerOptions: Schema.optional(Schema.Struct({
-    baseUrl: Schema.optional(Schema.String),
-    paths: Schema.optional(Schema.Record(Schema.String, Strings)),
-    customConditions: Schema.optional(Strings),
-    module: Schema.optional(Schema.String),
-    moduleResolution: Schema.optional(Schema.String),
-    moduleSuffixes: Schema.optional(Strings),
-    rootDir: Schema.optional(Schema.String),
-    outDir: Schema.optional(Schema.String)
-  })),
+  compilerOptions: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
   files: Schema.optional(Strings),
   include: Schema.optional(Strings),
   exclude: Schema.optional(Strings),
   references: Schema.optional(Schema.Array(Schema.Struct({ path: Schema.String })))
 })
+
+/** What sdp reads of the `compilerOptions` of a tsconfig.json. */
+const CompilerOptions = Schema.Struct({
+  baseUrl: Schema.optional(Schema.String),
+  paths: Schema.optional(Schema.Record(Schema.String, Strings)),
+  customConditions: Schema.optional(Strings),
+  module: Schema.optional(Schema.String),
+  moduleResolution: Schema.optional(Schema.String),
+  moduleSuffixes: Schema.optional(Strings),
+  rootDir: Schema.optional(Schema.String),
+  outDir: Schema.optional(Schema.String)
+})
+
+/**
+ * A tsconfig.json as TypeScript reads it, setting by setting: each that reads, and the names of those
+ * that do not, with its text as JSON reads it; or what kept it from being read at all, and the line where.
+ */
+const readTsConfig = (content: string): {
+  readonly value: Omit<typeof TsConfig.Type, "compilerOptions"> & { readonly compilerOptions?: typeof CompilerOptions.Type }
+  readonly unread: ReadonlyArray<string>
+  readonly text: string
+} | { readonly unread: string; readonly line: number } => {
+  const read = readJson(content)
+  if ("error" in read) return { unread: "does not parse", line: read.line }
+  if (!isRecord(read.value)) return { unread: "holds no object", line: 1 }
+  const top = fieldsOf(TsConfig, read.value)
+  const options = fieldsOf(CompilerOptions, top.read.compilerOptions ?? {})
+  return { value: { ...top.read, compilerOptions: options.read }, unread: [...top.unread, ...options.unread], text: read.text }
+}
+
+/** Each field of `schema` that `value` holds, decoded on its own, and the names of those that do not decode. */
+const fieldsOf = <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fields>, value: Readonly<Record<string, unknown>>) => {
+  const read: Record<string, unknown> = {}
+  const unread: Array<string> = []
+  for (const [key, field] of Object.entries(schema.fields)) {
+    if (value[key] === undefined) continue
+    Option.match(Schema.decodeUnknownOption(field as Schema.Codec<unknown>)(value[key]), {
+      onNone: () => unread.push(key),
+      onSome: (decoded) => void (read[key] = decoded)
+    })
+  }
+  return { read: read as Schema.Struct<Fields>["Type"], unread }
+}
+
+const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !isArray(value)
 
 /** A target of `exports` or `imports`: a path, conditions that each map to one, fallbacks, or `null`, which excludes the name. */
 export type Target = string | null | ReadonlyArray<Target> | { readonly [condition: string]: Target }
@@ -285,23 +331,16 @@ export type PackageJson = typeof PackageJson.Type
 
 const PnpmWorkspace = Schema.Struct({ packages: Schema.optional(Strings) })
 
-const decodeTsConfig = Schema.decodeUnknownOption(TsConfig)
 const decodePackageJson = Schema.decodeUnknownOption(PackageJson)
 
 export const dependencyLists = (read: PackageJson): ReadonlyArray<{ readonly [name: string]: string }> =>
   [read.dependencies, read.devDependencies, read.peerDependencies, read.optionalDependencies].filter((list) => list !== undefined)
 
-/** A tsconfig.json or package.json as `decode` reads it, with its text as JSON reads it, or what kept sdp from reading it and the line where. */
-const readConfig = <A>(
-  content: string,
-  decode: (input: unknown) => Option.Option<A>
-): { readonly value: A; readonly text: string } | { readonly unread: string; readonly line: number } => {
+/** A package.json as `decode` reads it, or that it does not read. */
+const readConfig = <A>(content: string, decode: (input: unknown) => Option.Option<A>): { readonly value: A } | { readonly unread: string } => {
   const read = readJson(content)
-  if ("error" in read) return { unread: "does not parse", line: read.line }
-  return Option.match(decode(read.value), {
-    onNone: () => ({ unread: "holds a setting of a type TypeScript does not read", line: 1 }),
-    onSome: (value) => ({ value, text: read.text })
-  })
+  if ("error" in read) return { unread: "does not parse" }
+  return Option.match(decode(read.value), { onNone: () => ({ unread: "holds a field of a type sdp does not read" }), onSome: (value) => ({ value }) })
 }
 
 /** The line of the first `"key":` in JSON as `readJson` reads it, whose lines are those of the file; the first line when there is none. */

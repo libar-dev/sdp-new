@@ -66,9 +66,10 @@ export interface Modules {
  * `exports` and `imports` are walked in their order under the conditions TypeScript 7 resolves the
  * import by: `import` or `require` as the import is written and the file is compiled, `types`,
  * `node` for Node.js, the tsconfig.json's `customConditions`, and `default`. Any other name is not
- * followed, and reported. What sdp could not read of the tsconfig.json — a file that does not parse,
- * or one it extends that is not there — comes back with each name it could change: any but a
- * relative one, which no setting it could hold maps.
+ * followed, and reported. What sdp could not read of the tsconfig.json — a setting of a type
+ * TypeScript does not read, a file that does not parse, or one it extends that is not there — comes
+ * back with each name it could change: a relative name only by a setting that completes it, and any
+ * other by any setting but those of a build, which only a package's entries depend on.
  */
 export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, exported: ReadonlyMap<string, Exports>): Modules => {
   const read = readConfigs(configs)
@@ -121,23 +122,30 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return new Set([syntax, "types", ...node ? ["node"] : [], ...options.customConditions ?? []])
   }
 
-  /** The source a package's build writes `path` from, by the `rootDir` and `outDir` of the tsconfig.json nearest the package. */
-  const sourceOf = (directory: string, path: string, how: "file" | "entry" | "exactly", lookup: Lookup): string | undefined => {
+  /**
+   * The source a package's build writes `path` from, by the `rootDir` and `outDir` of the
+   * tsconfig.json nearest the package, and what sdp could not read of either.
+   */
+  const sourceOf = (directory: string, path: string, how: "file" | "entry" | "exactly", lookup: Lookup): Walk => {
     const config = at.upFrom(directory).map((above) => at.join(above, tsconfigFile)).find((candidate) => read.has(candidate))
-    if (config === undefined) return undefined
-    const { outDir, rootDir } = settings(config)
-    if (outDir === undefined || !path.startsWith(`${outDir}/`)) return undefined
+    if (config === undefined) return nothing
+    const { outDir, rootDir, unread } = settings(config)
+    const built = { passed: [], unread: unread.filter((each) => each.setting === undefined || building.has(each.setting)) }
+    if (outDir === undefined || !path.startsWith(`${outDir}/`)) return built
     const written = path.slice(outDir.length + 1).replace(/\.d\.([cm]?)ts$/, ".$1js")
-    return fileAt(at.join(rootDir ?? directoryOf(config), written), how, lookup)
+    const source = fileAt(at.join(rootDir ?? directoryOf(config), written), how, lookup)
+    return source === undefined ? built : { ...built, found: { module: source } }
   }
 
   /** What a path of a package means — a subpath, an entry, or a target of its map of names, taken `exactly` — or the path it names when that is no file. */
   const entry = (directory: string, target: string, how: "file" | "entry" | "exactly", lookup: Lookup): Walk => {
     const path = at.join(directory, target)
-    const found = fileAt(path, how, lookup) ?? sourceOf(directory, path, how, lookup)
-    if (found !== undefined) return { found: { module: found }, passed: [] }
-    if (namesNoCode(path)) return { found: {}, passed: [] }
-    return { passed: [], missing: path }
+    const file = fileAt(path, how, lookup)
+    if (file !== undefined) return { found: { module: file }, passed: [] }
+    const source = sourceOf(directory, path, how, lookup)
+    if (source.found !== undefined) return source
+    if (namesNoCode(path)) return { ...source, found: {} }
+    return { ...source, missing: path }
   }
 
   /** What `specifier` means as a package of the workspace, in `directory`, by its subpath. */
@@ -303,10 +311,14 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
     if (/^\.\.?(\/|$)/.test(specifier)) {
       const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options) }
-      return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup) }
+      return {
+        module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup),
+        unread: options.unread.filter((each) => each.setting !== undefined && completing.has(each.setting))
+      }
     }
-    const { module, unresolved } = meaningOf(file, imported, options, project).found ?? {}
-    return { module, unresolved, unread: options.unread }
+    const walk = meaningOf(file, imported, options, project)
+    const unread = options.unread.filter((each) => each.setting === undefined || !building.has(each.setting))
+    return { module: walk.found?.module, unresolved: walk.found?.unresolved, unread: [...unread, ...walk.unread ?? []] }
   }
 
   /** What a code file exports: as already read, or else as it parses. */
@@ -363,16 +375,23 @@ interface Walk {
   readonly found?: Resolved
   readonly passed: ReadonlyArray<string>
   readonly missing?: string
+  /** What sdp could not read of a tsconfig.json that builds an entry on the way. */
+  readonly unread?: ReadonlyArray<Unread>
 }
 
 const nothing: Walk = { passed: [] }
 
-/** A walk that goes on after `before`: what it found, with what both passed over and the first target either did not find. */
+/** A walk that goes on after `before`: what it found, with what both passed over and could not read, and the first target either did not find. */
 const after = (before: Walk, next: Walk): Walk => ({
   ...next,
   passed: [...before.passed, ...next.passed],
-  ...before.missing === undefined ? {} : { missing: before.missing }
+  ...before.missing === undefined ? {} : { missing: before.missing },
+  unread: [...before.unread ?? [], ...next.unread ?? []]
 })
+
+/** The settings that complete a name — all a relative name depends on — and those of a build, which only a package's entries depend on. */
+const completing: ReadonlySet<string> = new Set(["compilerOptions", "moduleSuffixes"])
+const building: ReadonlySet<string> = new Set(["rootDir", "outDir"])
 
 /**
  * What a map of names — `exports`, `imports` — gives under `conditions`: the first target, in the
