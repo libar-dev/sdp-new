@@ -489,8 +489,8 @@ const pairExamples = (
  * or `@open` on a Feature or a Rule that was live there, whatever its examples (`demotion`), and a
  * live example of the base that is gone, a gate or still to come here (`example-dropped`), unless
  * what replaces its rule or its feature — a rule or a feature linked to it, here or at the base, that
- * may replace it — is live here and has a live example the base did not have live: a replacement
- * keeps the coverage it takes over. A link from a live rule names what was live at the
+ * may replace it — is live here and has a live example whose steps no live example of the base had: a
+ * replacement keeps the coverage it takes over. A link from a live rule names what was live at the
  * base, so a replacement can be designed and built in one change, and is judged as check() judges a
  * link to what is there. The base is parsed with its own configuration. An example whose Feature or
  * Rule is reported as demoted is not reported again. `missing` says which files of the base do not
@@ -599,11 +599,14 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
   const { named, paired } = pairExamples(before.examples.filter((example) => example.live), now.examples, namedBy)
   // A replacement counts once it is live and has a live example the base did not have live: a test
   // that was already there takes over no other, and a gate enforces nothing. One that names the
-  // example it was counts as new, as it would unnamed: its name and its steps are.
+  // example it was is new as it would be unnamed: by steps that no live example of the base had.
   const kept = new Set([...paired].flatMap(([example, still]) => named.has(example) ? [] : [still]))
-  const newlyTested = new Set(now.examples.filter((example) => example.live && !kept.has(example)).flatMap(({ scenario, spec }) =>
-    [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])]
-  ))
+  const testedThere = new Set(before.examples.filter((example) => example.live).map((example) => example.tests))
+  const newlyTested = new Set(
+    now.examples.filter((example) => example.live && !kept.has(example) && !testedThere.has(example.tests)).flatMap(({ scenario, spec }) =>
+      [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])]
+    )
+  )
   const replaced = (example: Example) =>
     [example.scenario.rule, example.spec.id].some((id) => id !== undefined && replacersOf(id).some((by) => newlyTested.has(by)))
   for (const example of before.examples.filter((candidate) => candidate.live)) {

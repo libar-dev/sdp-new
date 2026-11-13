@@ -472,8 +472,8 @@ Feature: Check specs
 
   Rule: What replaces a live rule or feature takes over its examples only when it is live with a new live example of its own
 
-    A gate enforces nothing, work still to come fails no run, and a test the base already had takes
-    over no other.
+    A gate enforces nothing, work still to come fails no run, and a test the base already had — steps
+    a live example had there, whatever it is named now — takes over no other.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -591,17 +591,19 @@ Feature: Check specs
 
             <tags>
             Scenario: Put an item in
-              Then the cart holds the item put in
+              Then <then>
         """
       When I run "sdp check --json"
-      Then the exit code is 0
+      Then the exit code is <exit code>
       And the JSON output has:
-        | data.rule | nothing |
+        | data.rule | <reported> |
+        | data.node | <dropped>  |
 
       Examples:
-        | named          | tags                       |
-        | neither        |                            |
-        | the one it was | @replaces:cart#add-an-item |
+        | named                               | tags                       | then                           | exit code | reported        | dropped         |
+        | neither                             |                            | the cart holds the item put in | 0         | nothing         | nothing         |
+        | the one it was                      | @replaces:cart#add-an-item | the cart holds the item put in | 0         | nothing         | nothing         |
+        | the one it was, its steps unchanged | @replaces:cart#add-an-item | the cart holds 1 item          | 1         | example-dropped | cart#add-a-lamp |
 
     Scenario Outline: A live rule replaced by a rule still to come, which <replacement>
       Given a file "specs/cart.feature" containing:
