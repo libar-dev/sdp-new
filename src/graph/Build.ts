@@ -424,15 +424,20 @@ export const buildProject = (input: ProjectInput): Project => {
   const activityPrefix = `${vocabulary.attributes.activity}.`
   const hintFor = (edge: GraphEdge) => {
     const known = hasRelation(vocabulary, "phase", edge.rel)
-      ? { what: "phase", ids: phases }
+      ? { what: "phase", ids: phases, kinds: vocabulary.kinds.phase }
       : hasRelation(vocabulary, "plan", edge.rel) || edge.rel.startsWith(activityPrefix)
-      ? { what: "iteration", ids: iterations }
+      ? { what: "iteration", ids: iterations, kinds: vocabulary.kinds.iteration }
       : hasRelation(vocabulary, "closes", edge.rel)
-      ? { what: "phase or iteration", ids: [...phases, ...iterations] }
+      ? { what: "phase or iteration", ids: [...phases, ...iterations], kinds: [...vocabulary.kinds.phase, ...vocabulary.kinds.iteration] }
       : undefined
-    return prefixCaseHint(edge.to, input.config) ?? (known && known.ids.length > 0
-      ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
-      : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`)
+    // A relation of the plan says the kind its target is, so a prefix of that kind in another case is
+    // the fix; any other link may name a spec still to write whose id only begins like a prefix.
+    const fixed = known && prefixCaseHint(edge.to, input.config, known.kinds)
+    if (fixed !== undefined) return fixed
+    if (known && known.ids.length > 0) return `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
+    const write = `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
+    const prefix = known ? undefined : prefixCaseHint(edge.to, input.config)
+    return prefix === undefined ? write : `${write}; ${prefix}`
   }
   // Live work may name what it replaced in the change that deletes it: what the link names is the
   // base's, which the comparison with the base reads from the specs, and the graph has no node of it.

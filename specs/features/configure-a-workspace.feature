@@ -125,6 +125,16 @@ Feature: Configure a workspace
         | ms-teams-integration |
         | arch_orders          |
 
+    Scenario: A link to no node whose id begins like a prefix in another case is told the prefix after what the link may mean
+      Given these specs:
+        | tags                                                                  | Feature |
+        | @id=pay @maturity=idea @depends-on:ms-office-import @iteration:it_one | Pay     |
+      When the workspace is checked
+      Then sdp reports:
+        | rule          | at                  | message                            | hint                                                                                                                                                                                         |
+        | dangling-link | specs/pay.feature:1 | pay -depends-on-> ms-office-import | write the spec `@id=ms-office-import` (`sdp new <kind> "<title>" --id ms-office-import`), or fix the reference; the prefix of kind milestone is `MS-`, written as configured: `MS-office-import` |
+        | dangling-link | specs/pay.feature:1 | pay -iteration-> it_one            | the prefix of kind iteration is `IT_`, written as configured: `IT_one`                                                                                                                       |
+
     Scenario: A prefix of the team's own, beside the defaults
       Given a file "sdp.config.yaml" containing:
         """

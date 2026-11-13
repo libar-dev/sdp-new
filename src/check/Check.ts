@@ -258,7 +258,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${node.id}: ${rel} "${target}" names no ${what}`,
         node: node.id,
         source,
-        hint: prefixCaseHint(target, project.config) ?? (known.length > 0
+        hint: prefixCaseHint(target, project.config, roles.flatMap((role) => vocabulary.kinds[role])) ?? (known.length > 0
           ? `use one of the declared ${what} ids: ${known.join(", ")}`
           : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``)
       }))
