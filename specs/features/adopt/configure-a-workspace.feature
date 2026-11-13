@@ -52,6 +52,36 @@ Feature: Configure a workspace
         | A list of code, replaced     | sdp.config.yaml | code: ["tools/**/*.ts"]     | login, scratch, code:tools/report.ts#report |
         | An exclusion, added, in JSON | sdp.config.json | { "exclude": ["notes/**"] } | login, code:src/orders.ts#order             |
 
+    Scenario: Step modules only where steps says, an absolute glob too, and results where results says
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart starts empty
+
+            Scenario: A new cart is empty
+              Then the cart is empty
+        """
+      And a file "acceptance/steps/cart.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart is empty", () => {})
+        })
+        """
+      And a file "specs/legacy.steps.ts" containing:
+        """
+        throw new Error("not a step module of this workspace")
+        """
+      When I run "sh -c 'printf \"steps: [$PWD/acceptance/steps/*.ts]\nresults: out/results.json\n\" > sdp.config.yaml'"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "1 scenario(s): 1 passed"
+      And the file "out/results.json" contains "cart#a-new-cart-is-empty"
+
   Rule: An id's prefix says its kind as it is configured, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
     So an id says what it is wherever it is cited. A prefix in another case is a word: an IT asset
@@ -97,6 +127,29 @@ Feature: Configure a workspace
       Then the JSON output has:
         | data.disciplines.requirements | 1           |
         | data.unplanned                | saved-carts |
+
+    Scenario: A milestone recorded as reached
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { attributes: { met: reached } }
+        """
+      And a file "specs/MS-launch.feature" containing:
+        """
+        @id=MS-launch
+        Feature: Launch
+
+          Rule: Launch is planned
+
+            Scenario: There is a milestone
+              Then the query "milestone" returns 1 result
+        """
+      When I run "sdp gate MS-launch --record"
+      Then the exit code is 0
+      And the file "specs/MS-launch.feature" contains "@id=MS-launch @reached=20"
+      When I run "sdp status --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.milestones.met | 1 |
 
   @decided-by:free-vocabulary
   Rule: A ladder of the team's own orders the maturities of work still to come, and a value off it ranks below every rung

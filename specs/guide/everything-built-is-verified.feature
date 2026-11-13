@@ -74,9 +74,12 @@ Feature: A change to sdp is done when everything built is verified
       And the output does not contain "gate MS-"
 
   @maturity=idea
-  Rule: Work reaches main through a pull request on which CI passed npm run verify and the other model family reviewed
+  Rule: Work reaches main through a pull request that passed npm run verify and was reviewed by the other model family
 
     What AGENTS.md asks of every agent then holds without anyone remembering it.
 
   @maturity=idea
-  Rule: A commit runs sdp check and a push runs npm run verify, in every clone, with nothing to set up
+  Rule: CI runs npm run verify for every pull request and every push to main
+
+  @maturity=idea
+  Rule: A commit runs sdp check and a push runs npm run verify, through git hooks that npm install sets up

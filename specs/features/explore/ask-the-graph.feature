@@ -54,8 +54,8 @@ Feature: Ask the graph
 
   Rule: A node is picked by its kind, its id, or anything it holds
 
-    A condition reads what the node holds: its attributes, id, kind, title and source, and the
-    targets of its links. A word the workspace does not know matches nothing.
+    A condition reads a node's attributes, id, kind, title and source, and the targets of its links;
+    a missing or false value is not set, and a word the workspace does not know matches nothing.
 
     Scenario Outline: A kind, an id, and what a node holds
       When I query "<query>"
@@ -66,6 +66,25 @@ Feature: Ask the graph
         | feature\|element                                | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
         | #ARCH-orders\|refunds                           | ARCH-orders, refunds                                      |
         | feature[maturity>idea, realized-by=ARCH-orders] | checkout                                                  |
+
+    Scenario Outline: Missing, false and zero; case, lists, numbers and quoted values
+      Given these specs:
+        | tags                                            | Feature      |
+        | @id=no-value @kind=flag                         | No value     |
+        | @id=false-value @kind=flag @value=false @web    | False        |
+        | @id=zero-value @kind=flag @value=0 @size=9      | Zero         |
+        | @id=true-value @kind=flag @value=true @size=10  | True, or not |
+      When I query '<query>'
+      Then the result is "<result>"
+
+      Examples:
+        | query                      | result                 |
+        | flag[value]                | zero-value, true-value |
+        | flag[!value]               | no-value, false-value  |
+        | flag[value=TRUE]           | true-value             |
+        | flag[tags=@web]            | false-value            |
+        | flag[size>9]               | true-value             |
+        | flag[title="True, or not"] | true-value             |
 
   Rule: Links are followed out, in or either way, once or as far as they lead
 
@@ -105,6 +124,25 @@ Feature: Ask the graph
         | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger                                                |
         | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders                         |
         | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders -imports-> ARCH-billing |
+
+    Scenario: A link followed against its direction is shown as it points
+      When I query "#ARCH-ledger <-imports- element <-realized-by- *"
+      Then the paths are:
+        | ARCH-ledger <-imports- ARCH-billing <-realized-by- refunds |
+
+    Scenario: The route to a node reached as far as links lead is a shortest one
+      Given these specs:
+        | tags                             | Feature |
+        | @id=A @kind=stop @next:B @next:C | A       |
+        | @id=B @kind=stop @next:D         | B       |
+        | @id=C @kind=stop @next:D         | C       |
+        | @id=D @kind=stop @next:A         | D       |
+      When I query "#A -next+-> *"
+      Then the paths are:
+        | A -next-> B                     |
+        | A -next-> C                     |
+        | A -next-> B -next-> D           |
+        | A -next-> B -next-> D -next-> A |
 
   Rule: Each node in an answer comes with its kind, its state and the file and line it is written at
 
@@ -171,11 +209,25 @@ Feature: Ask the graph
         | sdp q '#N1 -next+-> node14' --json |
         | sdp graph -q '#N1 -next+-> node14' |
 
+    Scenario Outline: A filter is cut short only when the bound leaves it undecided
+      Given a chain of 15 nodes linked by "next"
+      When I query "<query>"
+      Then the result is "<result>"
+      And the result is <completeness>
+
+      Examples:
+        | query              | result  | completeness                                              |
+        | #N1 ?-next+-> #N2  | N1      | complete                                                  |
+        | #N1 ?-next+-> #N15 | nothing | truncated because "a + edge reaches further than 12 hops" |
+        | #N1 !-next+-> #N15 | N1      | truncated because "a + edge reaches further than 12 hops" |
+
   Rule: The same question gets the same answer on the command line, over MCP and from a program
 
     One answer serves them all, so they cannot differ in what they accept, their bounds or their notes.
+    A program gets it as a Promise from `sdp`; one written with Effect gets it as an Effect from
+    `sdp/effect`, on a file system of its choosing.
 
-    Scenario: What imports billing, three ways
+    Scenario: What imports billing, four ways
       When I run "sdp q '#ARCH-billing <-imports- *' --json"
       Then the exit code is 0
       And the JSON output has:
@@ -191,6 +243,11 @@ Feature: Ask the graph
         | data.nodes      | ARCH-orders   |
         | data.nodes.file | src/orders.ts |
       When a program asks the API for "#ARCH-billing <-imports- *"
+      Then the JSON output has:
+        | complete        | true          |
+        | data.nodes      | ARCH-orders   |
+        | data.nodes.file | src/orders.ts |
+      When a program written with Effect asks the API for "#ARCH-billing <-imports- *" on files in memory
       Then the JSON output has:
         | complete        | true          |
         | data.nodes      | ARCH-orders   |
@@ -307,11 +364,12 @@ Feature: Ask the graph
         | tags                                          | Feature   |
         | @id=coupons @uses:discounts @avoids:discounts | Coupons   |
         | @id=discounts                                 | Discounts |
-      When I run "sdp graph -q '#coupons -uses-> #discounts'"
+      When I run the pipeline:
+        """
+        sdp graph -q '#coupons -uses-> #discounts' | jq -r 'if .type == "node" then .id else "\(.from) \(.rel) \(.to)" end'
+        """
       Then the exit code is 0
-      And the output contains '"from":"coupons","rel":"uses","to":"discounts"'
-      And the output does not contain '"rel":"avoids"'
-      And the output does not contain "checkout"
+      And the output lines are "coupons, discounts, coupons uses discounts"
       When I run "sdp graph --mermaid -q '#coupons -uses-> #discounts'"
       Then the exit code is 0
       And the output contains "discounts"
@@ -341,6 +399,12 @@ Feature: Ask the graph
         | query                                                                 |
         | feature[maturity=ready] -realized-by-> element -decided-by-> decision |
         | element !-*- decision                                                 |
+
+    @serial
+    Scenario: The graph of 5,000 specs builds within a second
+      Given a generated workspace of 5000 specs
+      When the graph is built from it
+      Then the median run completes within 1000 ms
 
   @maturity=draft @iteration:IT-scale
   Rule: A question on 5,000 specs and 20,000 source files on disk answers within a second, the median of warm runs

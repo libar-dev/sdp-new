@@ -85,8 +85,8 @@ Feature: Link code to specs
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: A tag in a doc comment is the one form of annotation, in every language
 
-    The tag annotates the declaration the comment documents, or the file when the comment opens it,
-    and the rest of the comment describes that code.
+    The tag annotates the module-level declaration the comment documents, or the file when the
+    comment opens it, and the rest of the comment describes that code; code the comment shows is not.
 
     Scenario Outline: In <language>, the comment around the tag describes the code
       Given a file "<file>" containing:
@@ -102,10 +102,30 @@ Feature: Link code to specs
         | <node> | implements | pay |
 
       Examples:
-        | language   | file       | code                                                                                                   | node                |
-        | TypeScript | src/pay.ts | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */\nexport const pay = (): number => 0 | code:src/pay.ts#pay |
-        | Python     | src/pay.py | # Charges the card on file.\n# @sdp implements pay\ndef pay(): pass                                    | code:src/pay.py#pay |
-        | Go         | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error {                           | code:src/pay.go#Pay |
+        | language                     | file       | code                                                                                                     | node                    |
+        | TypeScript                   | src/pay.ts | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */\nexport const pay = (): number => 0   | code:src/pay.ts#pay     |
+        | TypeScript, above a decorator | src/pay.ts | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */\n@sealed()\nexport class Payment {} | code:src/pay.ts#Payment |
+        | Python, above a decorator    | src/pay.py | # Charges the card on file.\n# @sdp implements pay\n@app.route("/pay")\ndef pay(): pass                 | code:src/pay.py#pay     |
+        | Python, in a docstring       | src/pay.py | def pay(order):\n    '''Charges the card on file.\n\n    @sdp implements pay'''\n    return order  | code:src/pay.py#pay     |
+        | Go                           | src/pay.go | // Charges the card on file.\n//\n// @sdp implements pay\nfunc Pay() error {                             | code:src/pay.go#Pay     |
+
+    Scenario Outline: A tag the comment only shows, or one on no module-level declaration, links nothing: <case>
+      Given a file "src/pay.ts" containing:
+        """
+        export const item = 0
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports "<reported>"
+      When I query "code -*-> *"
+      Then the result is "nothing"
+
+      Examples:
+        | case                     | code                                                                                    | reported           |
+        | in an example            | /**\n * Registers the mailer.\n *\n * @example\n * // @sdp implements pay\n */\nexport const register = (): number => 0 | nothing            |
+        | in a fenced block        | /**\n * Registers the mailer.\n * ```ts\n * // @sdp implements pay\n * ```\n */\nexport const register = (): number => 0 | nothing            |
+        | inside a function        | export function first() {\n  /** @sdp implements pay */\n  const local = 1\n}           | annotation-ignored |
+        | apart from what follows  | // @sdp implements pay\n\nexport const other = 1                                        | annotation-ignored |
 
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: An id that no node declares is reported by sdp check where the tag names it
@@ -128,7 +148,7 @@ Feature: Link code to specs
   Rule: Annotated code carries its shape: a declaration's signature, members or type, and a file's exports
 
     So the graph explains the code the architect annotated without the code being read. The shape is
-    read as written: a type only a compiler would infer is not in it.
+    the public surface as written: no body, no private member, and no type only a compiler would infer.
 
     Scenario: A file and a function, each tagged in the comment that describes it
       Given a file "src/pricing.ts" containing:
@@ -154,6 +174,25 @@ Feature: Link code to specs
         | id                        | shape                                              | exports                                                                 |
         | code:src/pricing.ts       |                                                    | type Cents = number, function total(lines: ReadonlyArray<Cents>): Cents |
         | code:src/pricing.ts#total | function total(lines: ReadonlyArray<Cents>): Cents |                                                                         |
+
+    Scenario Outline: The public surface of <declaration>
+      Given a file "src/cart.ts" containing:
+        """
+        import { Effect } from "effect"
+
+        /** @sdp is ARCH-cart */
+        <code>
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                      | shape   |
+        | code:src/cart.ts#<name> | <shape> |
+
+      Examples:
+        | declaration              | name  | code                                                                                                                                                                                                         | shape                                                                                     |
+        | an overloaded function   | parse | export function parse(text: string): number\nexport function parse(text: string, radix: number): number\nexport function parse(text: string, radix = 10): number {\n  return Number.parseInt(text, radix)\n} | function parse(text: string): number; function parse(text: string, radix: number): number |
+        | a class with private members | Cart | export class Cart {\n  readonly lines: Array<number> = []\n  #secret = 1\n  private hidden = 2\n  constructor(readonly owner: string) {}\n  add(line: number): void {\n    this.lines.push(line)\n  }\n} | class Cart { readonly lines: Array<number>; constructor(readonly owner: string); add(line: number): void } |
+        | a function made with Effect | load | export const load = Effect.fn("load")(function*(id: string): Effect.fn.Return<number> {\n  return id.length\n})                                                                                          | function load(id: string): Effect.fn.Return<number>                                       |
 
   Rule: sdp check asks an annotated function to state its return type
 
