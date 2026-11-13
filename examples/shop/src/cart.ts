@@ -1,4 +1,3 @@
-import { annotate } from "sdp/annotations"
 import { type Cents, vatFor } from "./pricing.ts"
 
 /** A shopper's cart: lines of SKUs at a price, totalled with the delivery country's VAT. */
@@ -18,4 +17,3 @@ export class Cart {
     return this.net + vatFor(this.net, country)
   }
 }
-annotate(Cart, { implements: "REQ-cart-totals" })

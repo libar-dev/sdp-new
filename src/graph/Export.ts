@@ -1,91 +1,89 @@
 /**
- * Graph serializations. JSONL and TSV are line-oriented on purpose: one fact
- * per line, so `grep`, `awk`, `jq -c` and `sort | uniq -c` work without any
- * sdp-specific tooling.
+ * The graph as plain data. A node and an edge are each one record with stable
+ * field names (ask-the-graph), and `sdp graph` prints one record per line,
+ * so grep, jq or a few lines of script answer what `sdp q` answers:
  *
- *   grep -P '^edge\t[^\t]*\tsupersedes\t' .sdp/graph.tsv
- *   jq -c 'select(.type=="node" and .attrs.maturity=="ready")' .sdp/graph.jsonl
+ *   sdp graph | grep '"rel":"decided-by"'
+ *   sdp graph | jq -r 'select(.type == "node" and .attrs.maturity == "ready") | .id'
+ *
+ * Every JSON answer of sdp is made of the same records.
  */
-import { annotate } from "sdp/annotations"
-import type { Graph, GraphNode } from "../model/Graph.ts"
-import { formatSource } from "../model/Graph.ts"
+import type { Attrs, Graph, GraphEdge, GraphNode, SourceRef } from "../model/Graph.ts"
+import { hasKind, made, type Vocabulary } from "../model/Vocabulary.ts"
 
-export const graphFormats = ["jsonl", "json", "tsv", "dot", "mermaid"] as const
-export type GraphFormat = (typeof graphFormats)[number]
-
-/** Serializes the graph as JSON, JSONL, TSV, DOT or Mermaid; the line-oriented formats hold one fact per line. */
-export const exportGraph = (graph: Graph, format: GraphFormat): string => {
-  switch (format) {
-    case "jsonl":
-      return toJsonl(graph)
-    case "json":
-      return `${JSON.stringify(toJson(graph), null, 2)}\n`
-    case "tsv":
-      return toTsv(graph)
-    case "dot":
-      return toDot(graph)
-    case "mermaid":
-      return toMermaid(graph)
-  }
+export interface NodeRecord {
+  readonly type: "node"
+  readonly id: string
+  readonly kind: string
+  readonly title: string
+  /** Where the node is declared; `null` for a node nothing declares — the target of a dangling link. */
+  readonly file: string | null
+  readonly line: number | null
+  /** Every attribute, written or derived. */
+  readonly attrs: Attrs
 }
-annotate(exportGraph, { is: "ARCH-reports" })
 
-export const nodeJson = (node: GraphNode) => ({
+export interface EdgeRecord {
+  readonly type: "edge"
+  readonly from: string
+  readonly rel: string
+  readonly to: string
+  /** Every declaration that states the edge, in the order they were read. */
+  readonly declared: ReadonlyArray<SourceRef>
+}
+
+export type GraphRecord = NodeRecord | EdgeRecord
+
+export const nodeRecord = (node: GraphNode): NodeRecord => ({
+  type: "node",
   id: node.id,
   kind: node.kind,
   title: node.title,
-  source: formatSource(node.source) || undefined,
+  file: node.source?.file ?? null,
+  line: node.source?.line ?? null,
   attrs: node.attrs
 })
 
-/** The one status word worth showing in a listing: a decision's status, a spec's stage, or significance. */
-export const statusCell = (n: GraphNode): string =>
-  String((n.kind === "decision" ? n.attrs.status : undefined) ?? n.attrs.stage ?? n.attrs.status ?? (n.attrs.significant === true ? "significant" : ""))
-
-export const toJson = (graph: Graph) => ({
-  nodes: [...graph.nodes.values()].map(nodeJson),
-  edges: graph.edges.map((e) => ({ from: e.from, rel: e.rel, to: e.to, attrs: e.attrs, source: formatSource(e.source) || undefined }))
+export const edgeRecord = (edge: GraphEdge): EdgeRecord => ({
+  type: "edge",
+  from: edge.from,
+  rel: edge.rel,
+  to: edge.to,
+  declared: edge.sources ?? (edge.source ? [edge.source] : [])
 })
 
-const toJsonl = (graph: Graph) => {
-  const json = toJson(graph)
-  return [
-    ...json.nodes.map((n) => JSON.stringify({ type: "node", ...n })),
-    ...json.edges.map((e) => JSON.stringify({ type: "edge", ...e }))
-  ].join("\n") + "\n"
-}
+/**
+ * The whole graph as records: every node, then every edge.
+ *
+ * @sdp is ARCH-reports
+ */
+export const graphRecords = (graph: Graph): ReadonlyArray<GraphRecord> => [
+  ...graph.nodes().map(nodeRecord),
+  ...graph.edges().map(edgeRecord)
+]
 
-const cell = (value: string) => value.replace(/[\t\n\r]+/g, " ")
+/** One JSON value per line. JSON escapes tabs and line breaks, so a record never spans two lines. */
+export const jsonLines = (records: ReadonlyArray<unknown>): string => records.map((record) => `${JSON.stringify(record)}\n`).join("")
 
-const toTsv = (graph: Graph) =>
-  [
-    ...[...graph.nodes.values()].map((n) => ["node", n.id, n.kind, n.title, formatSource(n.source)].map(cell).join("\t")),
-    ...graph.edges.map((e) => ["edge", e.from, e.rel, e.to, formatSource(e.source)].map(cell).join("\t"))
-  ].join("\n") + "\n"
+/** How the diagram draws a node: by the role its kind plays, else by the kind sdp made it. */
+const shapeOf = (vocabulary: Vocabulary, kind: string): readonly [string, string] =>
+  hasKind(vocabulary, "decision", kind)
+    ? ["[/", "/]"]
+    : hasKind(vocabulary, "pattern", kind)
+    ? ["{{", "}}"]
+    : hasKind(vocabulary, "milestone", kind)
+    ? ["{", "}"]
+    : kind === made.kinds.scenario
+    ? ["([", "])"]
+    : kind === made.kinds.code
+    ? ["[[", "]]"]
+    : ["[", "]"]
 
-const shapes: Record<string, string> = {
-  decision: "note",
-  element: "box3d",
-  pattern: "hexagon",
-  scenario: "plaintext",
-  code: "component",
-  milestone: "diamond",
-  missing: "octagon"
-}
-
-const toDot = (graph: Graph) => {
-  const q = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`
-  const lines = ["digraph sdp {", "  rankdir=LR;", "  node [fontname=\"Helvetica\", fontsize=10];", "  edge [fontname=\"Helvetica\", fontsize=9];"]
-  for (const n of graph.nodes.values()) {
-    const style = n.attrs.significant === true ? ", style=bold, penwidth=2" : ""
-    lines.push(`  ${q(n.id)} [label=${q(`${n.id}\n${n.title}`)}, shape=${shapes[n.kind] ?? "ellipse"}${style}];`)
-  }
-  for (const e of graph.edges) lines.push(`  ${q(e.from)} -> ${q(e.to)} [label=${q(e.rel)}];`)
-  lines.push("}")
-  return lines.join("\n") + "\n"
-}
-
-const toMermaid = (graph: Graph) => {
+/**
+ * The graph as a Mermaid flowchart; decisions, patterns, milestones, scenarios and code each have a
+ * shape of their own. A node shows its title under its id, unless the title only repeats the id.
+ */
+export const mermaid = (graph: Graph, vocabulary: Vocabulary): string => {
   const ids = new Map<string, string>()
   const ref = (id: string) => {
     let short = ids.get(id)
@@ -96,19 +94,12 @@ const toMermaid = (graph: Graph) => {
     return short
   }
   const label = (s: string) => s.replace(/"/g, "#quot;")
-  const open: Record<string, [string, string]> = {
-    decision: ["[/", "/]"],
-    pattern: ["{{", "}}"],
-    milestone: ["{", "}"],
-    scenario: ["([", "])"],
-    code: ["[[", "]]"]
-  }
   const lines = ["flowchart LR"]
-  for (const n of graph.nodes.values()) {
-    const [l, r] = open[n.kind] ?? ["[", "]"]
-    lines.push(`  ${ref(n.id)}${l}"${label(n.id)}<br/><small>${label(n.title)}</small>"${r}`)
-    if (n.attrs.significant === true) lines.push(`  style ${ref(n.id)} stroke-width:3px`)
+  for (const n of graph.nodes()) {
+    const [l, r] = shapeOf(vocabulary, n.kind)
+    const title = n.title === n.id ? "" : `<br/><small>${label(n.title)}</small>`
+    lines.push(`  ${ref(n.id)}${l}"${label(n.id)}${title}"${r}`)
   }
-  for (const e of graph.edges) lines.push(`  ${ref(e.from)} -->|${label(e.rel)}| ${ref(e.to)}`)
+  for (const e of graph.edges()) lines.push(`  ${ref(e.from)} -->|${label(e.rel)}| ${ref(e.to)}`)
   return lines.join("\n") + "\n"
 }

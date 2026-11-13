@@ -1,7 +1,5 @@
 {
-  // The example is its own TypeScript program: annotate() ids are global to a program, so the
-  // example is checked against its own ids. sdp's sources come along (the steps import "sdp"),
-  // so their ids are included too.
+  // The example is its own TypeScript program, checked with sdp's sources, which its steps import ("sdp/steps").
   "extends": "../../tsconfig.json",
-  "include": [".", ".sdp/ids.d.ts", "../../.sdp/ids.d.ts"]
+  "include": ["."]
 }

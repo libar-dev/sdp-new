@@ -1,39 +1,33 @@
----
-id: EXAMPLE-shop
-kind: guide
-title: Example — a shop
----
-
 # Example — a shop
 
-A small product specified with sdp the way a team would: domain code in `src/`, specifications
-at every maturity in `specs/`, decisions and the one significant architecture element in `docs/`,
-and step definitions that drive the domain code.
+A small product specified with sdp the way a team would: domain code in `src/`, its features —
+one live, two still to come — and a decision in `specs/`, the one architecture element declared by
+its code, and step definitions that drive the domain code.
 
 | File | Shows |
 | --- | --- |
-| [specs/REQ-cart-totals.md](specs/REQ-cart-totals.md) | a ready requirement whose scenarios pass: *verified* |
-| [specs/REQ-guest-checkout.md](specs/REQ-guest-checkout.md) | specified, not built: its steps are *undefined*, not failing |
-| [specs/REQ-wishlist.md](specs/REQ-wishlist.md) | an idea — a title and a sentence are a valid spec |
-| [specs/NFR-pricing-latency.md](specs/NFR-pricing-latency.md) | a quality requirement whose step definitions are a fitness function |
-| [docs/ARCH-pricing.md](docs/ARCH-pricing.md) | the element an architect marked significant, and why |
-| [docs/DEC-0001-prices-in-cents.md](docs/DEC-0001-prices-in-cents.md) | an accepted architecture decision |
-| [docs/DEC-0002-free-shipping.md](docs/DEC-0002-free-shipping.md) | a proposed product decision |
-| [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp` |
-| [src/pricing.ts](src/pricing.ts), [src/cart.ts](src/cart.ts) | code linked to the graph with typed `annotate()` calls from `sdp/annotations`: `is` anchors ARCH-pricing, `implements` names the requirement |
-| [.sdp/ids.d.ts](.sdp/ids.d.ts) | the ids those calls accept, written by `sdp types`, so a mistyped id fails `tsc` |
+| [specs/features/cart-totals.feature](specs/features/cart-totals.feature) | a live feature — built, so it declares no maturity — whose scenarios pass: *verified*. Its quality rule's step definitions are a fitness function |
+| [specs/features/guest-checkout.feature](specs/features/guest-checkout.feature) | a feature specified and still to come: its steps are *undefined*, which fails no run, and what is still undecided is an open question |
+| [specs/features/wishlist.feature](specs/features/wishlist.feature) | an idea — a title and a sentence are a valid spec |
+| [specs/decisions/integer-cents.feature](specs/decisions/integer-cents.feature) | a decision: what was chosen over what, why, and at what price; the rule it imposes is a rule of cart totals |
+| [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp/steps` |
+| [src/pricing.ts](src/pricing.ts) | the element `ARCH-pricing`, declared where its code is by a tag in the comment that opens the file; the rest of that comment says what it is for |
+| [src/cart.ts](src/cart.ts) | code outside the architecture: nothing anchors it |
+| [sdp.config.yaml](sdp.config.yaml) | the configuration, every key at its default: a command run anywhere in the shop reads the shop, not the repository around it |
 
 From the repository root:
 
 ```sh
 node src/cli/main.ts -C examples/shop run         # 3 scenarios pass, guest checkout is undefined
-node src/cli/main.ts -C examples/shop arch        # ARCH-pricing with its decision and quality requirement
-node src/cli/main.ts -C examples/shop context REQ-guest-checkout
-node src/cli/main.ts -C examples/shop types       # after adding or renaming a spec
+node src/cli/main.ts -C examples/shop arch        # ARCH-pricing, described by its code, and integer-cents through cart totals
+node src/cli/main.ts -C examples/shop context guest-checkout
 ```
 
-Annotations are ordinary code, not comments: `annotate(vatFor, { implements: "REQ-cart-totals" })`
-puts `vatFor` in the graph as a `code` node linked to the requirement. In languages other than
-TypeScript and JavaScript, an `@sdp implements REQ-cart-totals` comment does the same.
+The tag `@sdp is ARCH-pricing` in the comment that opens `src/pricing.ts` says which code the
+element is: that is the architecture, and sdp derives which element imports which from it. In the
+doc comment of a declaration, the same tag says that declaration is the element, in any language.
+Code links to the architecture, not to features: cart totals names the element that realizes it
+with `@realized-by:ARCH-pricing`.
 
-The root [README](../../README.md) runs this suite in a copy of the example with every build.
+[GUIDE.feature](../../specs/GUIDE.feature) runs this suite, and shows this architecture, in a copy
+of the example with every build of sdp.
