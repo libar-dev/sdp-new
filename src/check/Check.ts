@@ -430,38 +430,48 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   }
 
   // A link of a typed relation joins the kinds its type names (the vocabulary's linkTypes), and a
-  // fact that dates a plan is written on what it dates: any other node reads nothing from it. A
-  // relation another rule already holds to its type is reported there, once.
+  // fact that dates the plan is written on what it dates: anything else reads nothing from it. An end
+  // another rule already holds to its type is reported there, once.
+  const links = linkTypes(vocabulary)
   const reportedLinks = new Set<string>()
   for (const edge of graph.edges()) {
-    // An own key only: a relation may be named `constructor` (link-specs).
-    const type = Object.hasOwn(linkTypes, edge.rel) ? linkTypes[edge.rel] : undefined
+    const type = links.get(edge.rel)
     const [from, to] = [graph.node(edge.from), graph.node(edge.to)]
-    if (!type || type.checkedBy || !from || !to || to.kind === made.kinds.missing) continue
-    const wrong = !type.from.some((end) => isEnd(vocabulary, end, from.kind))
+    if (!type || !from || !to || to.kind === made.kinds.missing) continue
+    // A target another rule holds and finds wrong is the one thing said about the link.
+    if (type.checked?.to && !type.to.some((end) => isEnd(vocabulary, end, to.kind))) continue
+    const wrong = !type.checked?.from && !type.from.some((end) => isEnd(vocabulary, end, from.kind))
       ? { end: from, may: type.from }
-      : !type.to.some((end) => isEnd(vocabulary, end, to.kind))
+      : !type.checked?.to && !type.to.some((end) => isEnd(vocabulary, end, to.kind))
       ? { end: to, may: type.to }
       : undefined
+    // A link code writes is also its element's, at the same line: one report says both.
     const key = `${edge.rel} ${edge.to} ${edge.source?.file}:${edge.source?.line}`
     if (!wrong || reportedLinks.has(key)) continue
     reportedLinks.add(key)
+    const may = withArticle(endWords(vocabulary, wrong.may))
     out.push(diagnostic("link-kind", {
-      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${wrong.end.id} is ${withArticle(wrong.end.kind)}, and ${edge.rel} ${wrong.end === from ? "starts at" : "leads to"} ${withArticle(endWords(vocabulary, wrong.may))}`,
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${wrong.end.id} is ${withArticle(wrong.end.kind)}, and ${edge.rel} ${wrong.end === from ? "starts at" : "leads to"} ${may}`,
       node: edge.from,
       source: edge.source,
-      hint: wrong.end === from
-        ? `write it on ${withArticle(endWords(vocabulary, wrong.may))}, or name the link with a relation of your own, which joins any kinds`
-        : `link ${withArticle(endWords(vocabulary, wrong.may))}, or name the link with a relation of your own, which joins any kinds`
+      hint: `${wrong.end === from ? `write it on ${may}` : `link ${may}`}, or name the link with a relation of your own, which joins any kinds`
     }))
   }
-  for (const node of authored) {
-    for (const [fact, type] of Object.entries(factTypes(vocabulary))) {
+  // Scenarios too: a date above a scenario is kept as a fact of it, and dates nothing.
+  const scenarioAt = (node: GraphNode, key: string): SourceRef | undefined => {
+    const spec = project.specById.get(String(node.attrs.spec))
+    const scenario = spec?.scenarios.find((candidate) => candidate.id === node.id)
+    return spec && scenario ? at(spec, scenario.attrLines[key] ?? scenario.line) : node.source
+  }
+  const dated = [...authored, ...graph.nodes().filter((node) => node.kind === made.kinds.scenario)]
+  for (const node of dated) {
+    for (const [fact, type] of factTypes(vocabulary)) {
       if (fact === "maturity" || attribute(node, fact) === undefined || type.on.some((end) => isEnd(vocabulary, end, node.kind))) continue
+      const what = withArticle(endWords(vocabulary, type.on))
       out.push(diagnostic("fact-kind", {
-        message: `${node.id}: @${fact}= dates ${withArticle(endWords(vocabulary, type.on))}, and ${node.id} is ${withArticle(node.kind)}, so it says nothing`,
+        message: `${node.id}: @${fact}= dates ${what}, and ${node.id} is ${withArticle(node.kind)}, so it says nothing`,
         node: node.id,
-        source: writtenAt(node, fact),
+        source: node.kind === made.kinds.scenario ? scenarioAt(node, fact) : writtenAt(node, fact),
         hint: `delete it, or write the date on the ${endWords(vocabulary, type.on)} it belongs to`
       }))
     }

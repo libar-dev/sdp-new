@@ -406,12 +406,14 @@ Feature: Link specs into one graph
     A feature realized by a decision, or a rule decided by a feature, reads as an answer and is
     none. A relation the vocabulary does not type joins any nodes; `sdp vocabulary` prints the types.
 
-    Scenario Outline: <relation> to <to>
+    Scenario Outline: Typed links, <what>
       Given these specs:
-        | tags                                     | Feature  |
-        | @id=use-postgres @kind=decision          | Postgres |
-        | @id=wishlist @maturity=idea              | Wishlist |
-        | @id=cart @maturity=idea @<relation>:<to> | Cart     |
+        | tags                                          | Feature  |
+        | @id=use-postgres @kind=decision               | Postgres |
+        | @id=wishlist @maturity=idea                   | Wishlist |
+        | @id=IT-beta @start=2026-11-16 @end=2026-11-27 | Beta     |
+        | @id=staging @kind=environment @maturity=idea  | Staging  |
+        | <source>                                      | Source   |
       And a file "src/orders.ts" containing:
         """
         /** @sdp is ARCH-orders */
@@ -421,14 +423,29 @@ Feature: Link specs into one graph
       Then sdp reports "<reported>"
 
       Examples:
-        | relation    | to           | reported  |
-        | realized-by | ARCH-orders  | nothing   |
-        | realized-by | use-postgres | link-kind |
-        | decided-by  | use-postgres | nothing   |
-        | decided-by  | wishlist     | link-kind |
-        | depends-on  | wishlist     | nothing   |
-        | depends-on  | ARCH-orders  | link-kind |
-        | uses        | use-postgres | nothing   |
+        | what                                 | source                                            | reported  |
+        | A feature realized by an element     | @id=cart @maturity=idea @realized-by:ARCH-orders  | nothing   |
+        | A feature realized by a decision     | @id=cart @maturity=idea @realized-by:use-postgres | link-kind |
+        | A feature decided by a decision      | @id=cart @maturity=idea @decided-by:use-postgres  | nothing   |
+        | A feature decided by a feature       | @id=cart @maturity=idea @decided-by:wishlist      | link-kind |
+        | A feature that depends on a feature  | @id=cart @maturity=idea @depends-on:wishlist      | nothing   |
+        | A feature that depends on an element | @id=cart @maturity=idea @depends-on:ARCH-orders   | link-kind |
+        | An epic that includes a feature      | @id=next @kind=epic @includes:wishlist            | nothing   |
+        | An epic that includes an environment | @id=next @kind=epic @includes:staging             | link-kind |
+        | A feature that closes an iteration   | @id=cart @maturity=idea @closes:IT-beta           | link-kind |
+        | A relation of the team's own         | @id=cart @maturity=idea @uses:use-postgres        | nothing   |
+
+    Scenario: A word the workspace binds to a role has that role's type, and not its own
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { relations: { plan: [depends-on] } }
+        """
+      And these specs:
+        | tags                                          | Feature |
+        | @id=IT-beta @start=2026-11-16 @end=2026-11-27 | Beta    |
+        | @id=cart @maturity=idea @depends-on:IT-beta   | Cart    |
+      When the workspace is checked
+      Then sdp reports nothing
 
     Scenario: What the report says, in the workspace's words
       Given a file "sdp.config.yaml" containing:

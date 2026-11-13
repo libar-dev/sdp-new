@@ -1206,8 +1206,8 @@ Feature: Plan delivery
 
   Rule: A date of the plan is written on what it dates, and one written on anything else is reported
 
-    An iteration and a phase start and end, and a milestone is met: on a feature, `@start=` reads as
-    a plan and plans nothing.
+    An iteration starts and ends, and a milestone is met; a phase is dated by its iterations. On a
+    feature or above a scenario, `@start=` reads as a plan and plans nothing.
 
     Scenario Outline: @<fact>= on <what>
       Given these specs:
@@ -1221,6 +1221,35 @@ Feature: Plan delivery
         | start | an iteration | @id=IT-beta @start=2026-11-16 @end=2026-11-27 | Beta  | nothing   |
         | start | a feature    | @id=cart @maturity=idea @start=2026-11-16     | Cart  | fact-kind |
         | met   | a feature    | @id=cart @maturity=idea @met=2026-11-27       | Cart  | fact-kind |
+
+    Scenario: Above a scenario
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=idea
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            @start=2026-11-16
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | severity | at                   | message                                                                                              |
+        | fact-kind | warning  | specs/cart.feature:6 | cart#add-an-item: @start= dates an iteration, and cart#add-an-item is a scenario, so it says nothing |
+
+    Scenario: One word for two dates, written on what either dates
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { attributes: { end: date, met: date } }
+        """
+      And these specs:
+        | tags                                           | Feature |
+        | @id=IT-beta @start=2026-11-16 @date=2026-11-27 | Beta    |
+        | @id=MS-beta @closes:IT-beta @date=2026-11-27   | Beta    |
+      When the workspace is checked
+      Then sdp does not report "fact-kind"
 
   @maturity=idea @decided-by:areas-for-reading-epics-for-work
   Rule: An epic names the work it groups, and lifecycle shows each epic with where each of its items stands

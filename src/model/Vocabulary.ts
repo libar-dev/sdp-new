@@ -215,37 +215,85 @@ export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "ma
  * What an end of a typed link, or the node a typed fact is written on, may be: a role of the
  * profile, so a workspace's renames follow it, or a kind the way of working names (`epic`).
  */
-export type End = "feature" | "decision" | "element" | "pattern" | "iteration" | "phase" | "milestone" | "epic" | "work" | "rule" | "spec" | "code"
+export type End =
+  | "feature"
+  | "decision"
+  | "element"
+  | "pattern"
+  | "iteration"
+  | "phase"
+  | "milestone"
+  | "epic"
+  | "work"
+  | "rule"
+  | "scenario"
+  | "spec"
+  | "code"
 
 /**
- * The types of the words that join two nodes: the kinds each end may be. A relation not listed joins
- * any nodes, as the decision free-vocabulary has it. `checkedBy` names the rule of check that
- * already holds a relation to its type, so that check reports a link once.
+ * The type of a word that joins two nodes: the kinds each end may be. `checked` names, per end, the
+ * rule of check that already holds that end to its type, so that check reports a link once.
  */
-export const linkTypes: Readonly<Record<string, { readonly from: ReadonlyArray<End>; readonly to: ReadonlyArray<End>; readonly checkedBy?: string }>> = {
-  "realized-by": { from: ["feature"], to: ["element"] },
-  "decided-by": { from: ["spec", "rule"], to: ["decision"] },
-  "depends-on": { from: ["feature"], to: ["feature"] },
-  includes: { from: ["epic"], to: ["work", "rule"] },
-  applies: { from: ["code", "element"], to: ["pattern"] },
-  is: { from: ["code"], to: ["element", "pattern"], checkedBy: "declared-in-spec" },
-  iteration: { from: ["work", "rule"], to: ["iteration"], checkedBy: "plan-reference" },
-  closes: { from: ["milestone"], to: ["iteration", "phase"], checkedBy: "plan-reference" },
-  replaces: { from: ["spec", "rule"], to: ["spec", "rule"], checkedBy: "replacement" }
+export interface LinkType {
+  readonly from: ReadonlyArray<End>
+  readonly to: ReadonlyArray<End>
+  readonly checked?: { readonly from?: string; readonly to?: string }
+}
+
+/** The relations the way of working teaches and sdp only carries, by their one spelling. */
+const carriedLinkTypes: ReadonlyArray<readonly [string, LinkType]> = [
+  ["realized-by", { from: ["feature"], to: ["element"] }],
+  ["decided-by", { from: ["spec", "rule"], to: ["decision"] }],
+  ["depends-on", { from: ["feature"], to: ["feature"] }],
+  ["includes", { from: ["epic"], to: ["feature", "rule"] }],
+  ["applies", { from: ["code", "element"], to: ["pattern"] }]
+]
+
+/**
+ * The types of the words that join two nodes, by the words the workspace gives each role: a word a
+ * role is bound to has that role's type, every alias of it too, and a carried word bound to a role
+ * has the role's type alone. A relation not listed joins any nodes, as the decision free-vocabulary
+ * has it. A map, so that an author's word such as `constructor` names nothing it does not hold.
+ */
+export const linkTypes = (vocabulary: Vocabulary): ReadonlyMap<string, LinkType> => {
+  const { plan, phase, closes, replaces, anchor } = vocabulary.relations
+  const roles: ReadonlyArray<readonly [Words, LinkType]> = [
+    [plan, { from: ["work", "rule"], to: ["iteration"], checked: { from: "plan-reference", to: "plan-reference" } }],
+    [phase, { from: ["iteration"], to: ["phase"], checked: { to: "plan-reference" } }],
+    [closes, { from: ["milestone"], to: ["iteration", "phase"], checked: { to: "plan-reference" } }],
+    [replaces, { from: ["feature", "rule", "scenario"], to: ["feature", "rule", "scenario"], checked: { from: "replacement", to: "replacement" } }],
+    // An anchor declares the node it names, of the kind it writes: any spec's kind, not only an element's.
+    [[anchor], { from: ["code"], to: ["spec"], checked: { from: "declared-in-spec", to: "declared-in-spec" } }]
+  ]
+  const types = new Map<string, LinkType>()
+  for (const [words, type] of roles) for (const word of words) if (!types.has(word)) types.set(word, type)
+  for (const [word, type] of carriedLinkTypes) if (!types.has(word)) types.set(word, type)
+  return types
+}
+
+/** The type of a fact that takes a value: what the value is, and the kinds it is written on. */
+export interface FactType {
+  readonly value: "rung" | "day"
+  readonly on: ReadonlyArray<End>
 }
 
 /**
- * The types of the facts that take a value: what the value is and the kinds it is written on. A
- * maturity is a rung of the ladder (`maturity-off-ladder`) on work (`maturity-on-no-work`); a day is
- * one of the calendar (`plan-date`, `milestone-met`) on the kinds it dates, and `fact-kind` reports
- * one written on any other, where it says nothing.
+ * The types of the facts that take a value, by the words the workspace gives them. A maturity is a
+ * rung of the ladder (`maturity-off-ladder`) on work (`maturity-on-no-work`); a day is one of the
+ * calendar (`plan-date`, `milestone-met`) on what it dates, and `fact-kind` reports one written on
+ * anything else, where it says nothing. An iteration starts and ends, and a milestone is met; a
+ * phase is dated by its iterations. Two roles given one word share it, so it may be written on what
+ * either dates.
  */
-export const factTypes = (vocabulary: Vocabulary): Readonly<Record<string, { readonly value: "rung" | "day"; readonly on: ReadonlyArray<End> }>> => ({
-  maturity: { value: "rung", on: ["work", "rule"] },
-  [vocabulary.attributes.start]: { value: "day", on: ["iteration", "phase"] },
-  [vocabulary.attributes.end]: { value: "day", on: ["iteration", "phase"] },
-  [vocabulary.attributes.met]: { value: "day", on: ["milestone"] }
-})
+export const factTypes = (vocabulary: Vocabulary): ReadonlyMap<string, FactType> => {
+  const { start, end, met } = vocabulary.attributes
+  const types = new Map<string, FactType>([["maturity", { value: "rung", on: ["work", "rule"] }]])
+  for (const [word, on] of [[start, ["iteration"]], [end, ["iteration"]], [met, ["milestone"]]] as const) {
+    const known = types.get(word)
+    types.set(word, { value: "day", on: [...new Set([...(known?.on ?? []), ...on])] })
+  }
+  return types
+}
 
 /** Whether a node of `kind` is an end of that sort, in the workspace's words. */
 export const isEnd = (vocabulary: Vocabulary, end: End, kind: string): boolean => {
@@ -265,6 +313,8 @@ export const isEnd = (vocabulary: Vocabulary, end: End, kind: string): boolean =
       return !(Object.values(made.kinds) as ReadonlyArray<string>).includes(kind)
     case "rule":
       return kind === made.kinds.rule
+    case "scenario":
+      return kind === made.kinds.scenario
     case "code":
       return kind === made.kinds.code
     case "epic":
@@ -456,11 +506,11 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
   },
   /** What each typed word joins or is written on, in the workspace's words. */
   types: {
-    links: Object.fromEntries(Object.entries(linkTypes).map(([rel, type]) => [
-      rel === "is" ? vocabulary.relations.anchor : rel,
+    links: Object.fromEntries([...linkTypes(vocabulary)].map(([rel, type]) => [
+      rel,
       { from: endWords(vocabulary, type.from).split(" or "), to: endWords(vocabulary, type.to).split(" or ") }
     ])),
-    facts: Object.fromEntries(Object.entries(factTypes(vocabulary)).map(([fact, type]) => [
+    facts: Object.fromEntries([...factTypes(vocabulary)].map(([fact, type]) => [
       fact,
       { value: type.value, on: endWords(vocabulary, type.on).split(" or ") }
     ]))

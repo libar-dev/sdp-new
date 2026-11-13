@@ -407,10 +407,10 @@ Feature: Configure a workspace
     An agent that links a feature reads what it may link to before it writes the tag, and check
     holds the link to the same type.
 
-    Scenario: A team's word for decisions in the types
+    Scenario: A team's words for decisions and for planning, in the types
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { kinds: { decision: [adr] } }
+        vocabulary: { kinds: { decision: [adr] }, relations: { plan: [scheduled] } }
         """
       When I run "sdp vocabulary --json"
       Then the JSON output has:
@@ -418,8 +418,9 @@ Feature: Configure a workspace
         | data.types.links.realized-by.to   | element          |
         | data.types.links.decided-by.to    | adr              |
         | data.types.links.includes.from    | epic             |
+        | data.types.links.scheduled.to     | iteration        |
         | data.types.facts.maturity.value   | rung             |
-        | data.types.facts.start.on         | iteration, phase |
+        | data.types.facts.start.on         | iteration        |
         | data.types.facts.met.on           | milestone        |
       When I run "sdp vocabulary"
       Then the output line with "decided-by" contains "spec, rule → adr"
