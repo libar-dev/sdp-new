@@ -39,7 +39,7 @@ Feature: A spec of this repository is written one way
 
     Scenario: The Markdown files of this repository, the example's included
       When I run "git ls-files '*.md'" in the repository
-      Then the output lines are "README.md, AGENTS.md, CLAUDE.md, .claude/skills/sdp/SKILL.md, examples/shop/README.md"
+      Then the output lines are "README.md, AGENTS.md, CLAUDE.md, .claude/skills/sdp/SKILL.md, examples/shop/README.md, scripts/orient/README.md"
 
   @maturity=ready
   Rule: A table cell holds one line, and a case that needs a file of several lines is a scenario of its own, the file its docstring
