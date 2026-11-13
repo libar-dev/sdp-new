@@ -776,3 +776,19 @@ Feature: Link code to specs
         | annotation-ignored | warning  | src/billing.ts:5 | via=events describes no node: a link has no attributes |
       When the graph is exported
       Then the output contains '{"type":"edge","from":"code:src/billing.ts#Billing","rel":"uses","to":"ARCH-ledger","declared":[{"file":"src/billing.ts","line":5}]}'
+
+  @maturity=ready
+  Rule: A value written on an annotation reads as it does in a spec's tag: a number only when it reads back as the number it is written as
+
+    One key=value is one fact wherever it is written.
+
+    Scenario: Values that look like numbers without being written as one
+      Given a file "src/billing.ts" containing:
+        """
+        /** @sdp is ARCH-billing code=007 rate=1.50 tier=1 */
+        export class Billing {}
+        """
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id           | code | rate | tier |
+        | ARCH-billing | 007  | 1.50 | 1    |

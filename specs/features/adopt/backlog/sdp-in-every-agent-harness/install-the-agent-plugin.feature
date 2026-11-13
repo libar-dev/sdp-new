@@ -69,7 +69,6 @@ Feature: Install the agent plugin
         | Grok Build  | the setting sdp init names                | PreToolUse       |
         | OpenCode    | the setting sdp init names                | context          |
 
-  @replaces:start-a-spec#init-starts-a-workspace-where-it-is-run-with-a-configuration
   Rule: init starts a workspace with a configuration that shows every default and overwrites nothing, writes no skill, and names how each supported harness installs the plugin
 
     A copy of the skill in the repository is one version behind as soon as sdp is upgraded.

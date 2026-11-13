@@ -692,7 +692,6 @@ Feature: See the architecture
       And the output contains "-->|imports|"
       And the output contains '["ARCH-mailer"]'
 
-  @replaces:see-the-architecture#type-quality-marks-a-rule-as-a-quality-requirement-shown-beside
   Rule: `@quality` marks a rule as a quality requirement, shown beside the elements that realize its feature, and a team that keeps quality requirements as specs names their kind a driver
 
     A quality requirement is tested with the rest of what it constrains, as the receipts' delivery

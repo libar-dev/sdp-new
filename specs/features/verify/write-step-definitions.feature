@@ -237,12 +237,12 @@ Feature: Write step definitions
       Then the file "sdp.config.yaml" contains "# timeout: 30s"
       And the file "sdp.config.yaml" contains "sdp run --timeout and sdp gate --timeout override it"
 
-  @maturity=idea @replaces:write-step-definitions#a-step-fails-once-it-outlasts-its-timeout-and-one-that-never
+  @maturity=idea
   Rule: A step that overruns its timeout is stopped, whether or not it yields
 
     An endless loop or a blocking call would otherwise hold the run for as long as it lasts.
 
-  @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-sees-the-global-state-the
+  @maturity=idea
   Rule: No scenario sees the global state another scenario left
 
   Rule: Every step is matched against every definition

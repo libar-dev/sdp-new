@@ -1508,33 +1508,15 @@ Feature: Know what is verified
     A colleague or a reviewer then knows what CI verified without running everything again.
 
   @maturity=idea @decided-by:a-host-runner-runs-application-suites
-  Rule: A scenario that runs in several ways, such as against a simulator and against the real backend, keeps a result for each, and is verified only when it passed in every way it must run
+  Rule: A scenario that runs in several ways keeps a result for each, and passes, as does a gate that needs it, only on a current pass of every way it must run
 
-    Results are kept by scenario today, so a pass against the simulator would take the place of a
-    failure against the backend.
-
-  @maturity=idea
-  Rule: A run of one way leaves the results of the others as it found them
+    A pass against a simulator says nothing of the real backend, and a run of one part says nothing
+    of the rest.
 
   @maturity=idea
-  Rule: A gate knows every scenario it needs and each way that scenario must run, and passes only on a current pass of each: one left out, skipped, not collected, stopped before it ended or stale fails it
+  Rule: A scenario's cleanup always runs, and a scenario or a run whose cleanup failed has not passed
 
-    A run of the part that was selected says nothing about the part that was not.
-
-  @maturity=idea
-  Rule: A scenario's cleanup runs whether it passed, failed or was stopped, and a scenario whose cleanup failed has not passed
-
-    What one scenario left behind would decide the result of the next.
+    What one left behind would decide the result of the next.
 
   @maturity=idea
-  Rule: A run whose last cleanup failed fails, though every scenario passed, and no gate passes on it
-
-    What it left behind, a process, a tenant, a directory, is still there for the next run.
-
-  @maturity=idea
-  Rule: A result says each attempt of a retried scenario, and a scenario that passed only on a retry says so
-
-  @maturity=idea
-  Rule: An earlier result counts again only where the workspace allows it and what it ran against is what is there now; it never makes a stale result current, nor stands for a way of running it was not recorded in
-
-    A pass against the simulator says nothing of the backend a gate requires.
+  Rule: A result says each attempt of a retried scenario
