@@ -567,19 +567,18 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
 /**
  * Each example of the base paired with one example of the workspace at most: the same example
  * unchanged, then the same id, edited, then the example whose Scenario names it as one it was
- * (`namedBy`, given the id of the Scenario that names it), then, where the spec it was in is gone from
- * the workspace (`specsHere`), the one Scenario of its name in another spec, edited or not, as a spec
- * split or renamed keeps its examples' names; then the same steps under another name or in another
- * place. No example of the workspace pairs with two, but for one that names several, which takes over
- * each: a live one that names it before any other that does. Rows of one outline pair in their order,
- * a live row with a live one before any other. `named` holds the examples of the base paired with one
- * that names them.
+ * (`namedBy`, given the id of the Scenario that names it), then the one Scenario of its name in another
+ * spec, edited or not, when no other spec has one of that name, as a spec split or renamed keeps its
+ * examples' names, also while the spec it was in is still there; then the same steps under another
+ * name or in another place. No example of the workspace pairs with two, but for one that names
+ * several, which takes over each: a live one that names it before any other that does. Rows of one
+ * outline pair in their order, a live row with a live one before any other. `named` holds the
+ * examples of the base paired with one that names them.
  */
 const pairExamples = (
   before: ReadonlyArray<Example>,
   now: ReadonlyArray<Example>,
-  namedBy: (id: string) => ReadonlyArray<string>,
-  specsHere: ReadonlySet<string>
+  namedBy: (id: string) => ReadonlyArray<string>
 ): { readonly paired: ReadonlyMap<Example, Example>; readonly named: ReadonlySet<Example> } => {
   const free = new Set(now)
   const paired = new Map<Example, Example>()
@@ -607,7 +606,6 @@ const pairExamples = (
   const nameOf = (example: Example) => example.scenario.id.slice(example.scenario.specId.length + 1)
   const sameName = index(nameOf)
   const moved = (example: Example) => {
-    if (specsHere.has(example.spec.id)) return undefined
     const name = nameOf(example)
     const scenarios = new Set(now.filter((candidate) => nameOf(candidate) === name).map((candidate) => candidate.scenario.id))
     return scenarios.size === 1 ? sameName(example) : undefined
@@ -642,7 +640,9 @@ const pairExamples = (
  * base, so a replacement can be designed and built in one change, and is judged as check() judges a
  * link to what is there. The base is parsed with its own configuration. An example whose Feature or
  * Rule is reported as demoted is not reported again. `missing` says which files of the base do not
- * parse: their live examples were not compared, so the comparison may miss one turned off.
+ * parse: their live examples were not compared, so the comparison may miss one turned off. A dropped
+ * example is reported where it is in the workspace, or, once gone, at its rule or spec there, or at
+ * no file once its spec is gone too; its message names the file and line it had at the base.
  */
 export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly missing: ReadonlyArray<string> } => {
   const parsed = base.files.map((file) => ({ file: file.path, ...parseFeatureSpec(file.path, file.content, base.config) }))
@@ -758,7 +758,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
   }
 
   const liveThere = before.examples.filter((example) => example.live)
-  const { named, paired } = pairExamples(liveThere, now.examples, (id) => namesOf.get(id) ?? [], new Set(project.specs.map((spec) => spec.id)))
+  const { named, paired } = pairExamples(liveThere, now.examples, (id) => namesOf.get(id) ?? [])
   // A replacement counts once it is live and has a live example the base did not have live: a test
   // that was already there takes over no other, and a gate enforces nothing. One that names the
   // example it was is new as it would be unnamed: by steps that no live example of the base had.
@@ -778,12 +778,16 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     if (still !== undefined && [still.spec.id, still.scenario.rule].some((id) => id !== undefined && demoted.has(id))) continue
     if (still === undefined && scenario.rule !== undefined && demoted.has(scenario.rule)) continue
     const rule = scenario.rule ?? spec.id
-    const row = scenario.pickles.length > 1 && pickle.exampleLine !== undefined ? ` (its row at ${spec.file}:${pickle.exampleLine})` : ""
+    const row = scenario.pickles.length > 1 && pickle.exampleLine !== undefined ? " (a row of its outline)" : ""
     const become = still === undefined ? "is gone" : still.gate ? "is a gate here, which fails no run" : "is an example of work still to come"
+    const here = project.specById.get(spec.id)
+    const source = still !== undefined
+      ? { file: still.spec.file, line: still.pickle.exampleLine ?? still.scenario.line }
+      : here === undefined ? undefined : { file: here.file, line: here.rules.find((rule) => rule.id === scenario.rule)?.line ?? 1 }
     out.push(diagnostic("example-dropped", {
-      message: `${scenario.id}${row}, a live example at ${at}, ${become}, and nothing that replaces ${rule} is live with a new live example`,
+      message: `${scenario.id}${row}, a live example at ${spec.file}:${pickle.exampleLine ?? scenario.line} at ${at}, ${become}, and nothing that replaces ${rule} is live with a new live example`,
       node: scenario.id,
-      source: still === undefined ? { file: spec.file, line: pickle.exampleLine ?? scenario.line } : { file: still.spec.file, line: still.pickle.exampleLine ?? still.scenario.line },
+      source,
       hint: still === undefined
         ? `restore it, or, renamed with its steps edited or merged into another, name it on the Scenario it went to, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces ${rule}, \`@${replacesWord}:${rule}\`, with a new live example of its own`
         : "a live test declares no maturity and is no gate: move it back under a live rule, or delete what makes it still to come"
