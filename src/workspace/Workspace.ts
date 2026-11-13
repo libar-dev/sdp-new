@@ -9,13 +9,13 @@ import { Effect, FileSystem, Path, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 import { readFileSync, realpathSync } from "node:fs"
 import { createRequire, findPackageJSON, registerHooks } from "node:module"
-import { delimiter } from "node:path"
+import { basename, delimiter, dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type NotAFile, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
 import type { RunResults } from "../model/Results.ts"
-import { listedPackages, moduleConfigFiles, namedBy, pathFrom } from "../parse/ModuleConfigs.ts"
+import { listedPackages, moduleConfigFiles, namedBy, packageFile, pathFrom } from "../parse/ModuleConfigs.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults } from "../run/Store.ts"
@@ -126,9 +126,9 @@ const notAFile: Partial<Record<FileSystem.File.Type, NotAFile["is"]>> = {
 
 /**
  * Expands globs relative to `root` to the files they match, de-duplicated and sorted for stable
- * output, and to what they match that is no file sdp can read: a link that leads to none, a named
- * pipe, a socket or a device, and a directory it may not list, which may hold more. A glob matches
- * directories too (`fixtures/**` is `fixtures` and all below it); they are neither.
+ * output, to the directories they match (`fixtures/**` is `fixtures` and all below it), and to what
+ * they match that is no file sdp can read: a link that leads to none, a named pipe, a socket or a
+ * device, and a directory it may not list, which may hold more.
  */
 export const findPaths = Effect.fn("findPaths")(function*(
   root: string,
@@ -191,6 +191,7 @@ export const findPaths = Effect.fn("findPaths")(function*(
     ), { concurrency: 32 })) typeOf.set(file, type)
   return {
     files: sorted.filter((file) => typeOf.get(file) === "File"),
+    directories: sorted.filter((file) => typeOf.get(file) === "Directory"),
     unread: [
       ...sorted.flatMap((file): ReadonlyArray<NotAFile> => {
         const type = typeOf.get(file)
@@ -369,7 +370,8 @@ const leadsTo = Effect.fnUntraced(function*(real: string, files: ReadonlyArray<s
  * Reads what the step definitions of a run imported, as it recorded them, relative to the real
  * root: a file while no link leads it elsewhere, and a link, `L → R`, while it leads where it led,
  * which is all it holds. A link is part of what ran: the code that runs is the code it leads to.
- * Anything else is gone.
+ * Anything else is gone. A package.json is read as Node reads it, through any link: what it holds
+ * decides how Node loads the code, wherever it is.
  */
 export const readImports = Effect.fn("readImports")(function*(root: string, imports: ReadonlyArray<string>) {
   const fs = yield* FileSystem.FileSystem
@@ -384,6 +386,9 @@ export const readImports = Effect.fn("readImports")(function*(root: string, impo
   const read = ({ entry, file, to }: (typeof entries)[number]): Effect.Effect<ReadonlyArray<SourceFile>, PlatformError> => {
     const found = where.get(file)
     if (to !== undefined) return Effect.succeed(found?.at === to ? [{ path: entry, content: "" }] : [])
+    if (path.basename(file) === packageFile) {
+      return fs.readFileString(path.resolve(real, file)).pipe(Effect.map((content) => [{ path: file, content }]), Effect.orElseSucceed(() => []))
+    }
     // One sdp may not read is no file it can compare: as gone.
     return found?.at === file && found.type === "File"
       ? fs.readFileString(path.resolve(real, file)).pipe(Effect.map((content) => [{ path: file, content }]), Effect.orElseSucceed(() => []))
@@ -474,9 +479,11 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const fingerprints: Fingerprints = {
     sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
-    // What the steps read is no part of the graph: an input that is no file counts by its path and what it is.
+    // What the steps read is no part of the graph: an input that is no file counts by its path and
+    // what it is, a directory as much as a named pipe.
     inputs: declaredInputs([
       ...read.inputs.files,
+      ...inputs.directories.map((file): SourceFile => ({ path: file, content: "a directory" })),
       ...[...inputs.unread, ...read.inputs.unread].map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
     ], config.evidence.env),
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it. The
@@ -530,6 +537,57 @@ let hooked = false
  */
 const importGraph = new Map<string, Map<string, string>>()
 const loadedSources = new Map<string, string>()
+/**
+ * The package.json files Node looks at to load each workspace module, by its URL — that of its
+ * directory and of each one above, up to the first that is there, and that of each package of the
+ * workspace it imports by name — and what each held when this process first read it, `undefined`
+ * where there was none: its type, its `imports` and its `exports` decide what Node loads, and Node
+ * keeps what it read for the life of the process.
+ */
+const packagesOf = new Map<string, Set<string>>()
+const packageSources = new Map<string, string | undefined>()
+
+/** What a package.json held when this process first read it: `undefined` where there was none. */
+const readPackage = (file: string): string | undefined => {
+  if (!packageSources.has(file)) {
+    try {
+      packageSources.set(file, readFileSync(file, "utf8"))
+    } catch {
+      packageSources.set(file, undefined)
+    }
+  }
+  return packageSources.get(file)
+}
+
+/** The package.json files that decide how Node loads a module, as Node looks for its own: up from its directory, never into a node_modules. */
+const packageScope = (url: string): Set<string> => {
+  const known = packagesOf.get(url)
+  if (known !== undefined) return known
+  const files = new Set<string>()
+  for (let directory = dirname(fileURLToPath(url)); basename(directory) !== "node_modules";) {
+    const file = join(directory, packageFile)
+    files.add(file)
+    if (readPackage(file) !== undefined) break
+    const parent = dirname(directory)
+    if (parent === directory) break
+    directory = parent
+  }
+  packagesOf.set(url, files)
+  return files
+}
+
+/** The package.json of the package an import names by name, by its real path, as first read; `undefined` where Node finds none. */
+const packageManifest = (specifier: string, parent: string): string | undefined => {
+  try {
+    const manifest = findPackageJSON(specifier, parent)
+    if (manifest === undefined) return undefined
+    const real = realpathSync(manifest)
+    readPackage(real)
+    return real
+  } catch {
+    return undefined
+  }
+}
 
 const isWorkspaceFile = (url: string) => url.startsWith("file:") && !url.includes("/node_modules/")
 
@@ -601,6 +659,9 @@ const hookImports = () => {
           ? new URL(specifier, parent).href
           : pathToFileURL(pathBefore(specifier, parent, context.conditions, fileURLToPath(resolved.url))).href
         importGraph.set(parent, (importGraph.get(parent) ?? new Map()).set(named, resolved.url))
+        // A package of the workspace imported by name is what its package.json exports.
+        const manifest = /^(\.{1,2}\/|\/|file:|#)/.test(specifier) ? undefined : packageManifest(specifier, parent)
+        if (manifest !== undefined) packageScope(parent).add(manifest)
       }
       return resolved
     },
@@ -608,6 +669,7 @@ const hookImports = () => {
       const loaded = nextLoad(url, context)
       const { source } = loaded
       if (isWorkspaceFile(url) && source != null) loadedSources.set(url, typeof source === "string" ? source : new TextDecoder().decode(source))
+      if (isWorkspaceFile(url)) packageScope(url)
       return loaded
     }
   })
@@ -621,13 +683,15 @@ export interface LoadedSteps {
   readonly empty: ReadonlyArray<string>
   /**
    * Local files the step definition files have imported so far, directly or not, relative to the
-   * real root, those outside it included, and each link they were reached through, `L → R`. Ask
-   * again after a run: a handler may import a file only when it executes.
+   * real root, those outside it included, each link they were reached through, `L → R`, and the
+   * package.json files Node loaded them by, one that was not there included. Ask again after a run:
+   * a handler may import a file only when it executes.
    */
   readonly imports: () => ReadonlyArray<string>
   /**
-   * What `sources` holds otherwise than this process loaded it: the step files and their imports it
-   * holds with another content or no longer holds at all, and the paths they were loaded from or
+   * What `sources` holds otherwise than this process loaded it: the step files, their imports and
+   * the package.json files Node loaded them by that it holds with another content, no longer holds
+   * at all or, for a package.json, holds where there was none, and the paths they were loaded from or
    * reached through that lead elsewhere now. A run against them would record evidence about code
    * that did not run.
    */
@@ -682,30 +746,37 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     }
     return {
       modules: [...seen].map((url) => ({ url, file: name(url) })),
-      links: [...links].map(([named, url]) => ({ file: name(named), link: leadingTo(name(named), name(url)) }))
+      links: [...links].map(([named, url]) => ({ file: name(named), link: leadingTo(name(named), name(url)) })),
+      packages: [...new Set([...seen].flatMap((url) => [...packageScope(url)]))].map((at) => ({ at, file: path.relative(real, at) }))
     }
   }
   const own = new Set(files)
   const imports = () => {
-    const { links, modules } = reached()
-    return [...new Set([...modules.map(({ file }) => file).filter((file) => !own.has(file)), ...links.map(({ link }) => link)])].sort()
+    const { links, modules, packages } = reached()
+    return [
+      ...new Set([...modules.map(({ file }) => file).filter((file) => !own.has(file)), ...links.map(({ link }) => link), ...packages.map(({ file }) => file)])
+    ].sort()
   }
   const changed = (sources: ReadonlyArray<SourceFile>) => {
     const present = new Map(sources.map((file) => [file.path, file.content]))
     // The paths that lead elsewhere now: a module loaded from one of them would be loaded from elsewhere.
     const leading = new Set(sources.flatMap((file) => file.path.includes(arrow) ? [file.path.split(arrow)[0]] : []))
-    const { links, modules } = reached()
+    const { links, modules, packages } = reached()
     return {
-      files: modules.filter(({ file, url }) => {
-        const content = present.get(file)
-        // Deleted: Node still runs what it loaded.
-        if (content === undefined) return true
-        if (leading.has(file)) return false
-        // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
-        const loaded = loadedSources.get(url) ?? content
-        loadedSources.set(url, loaded)
-        return loaded !== content
-      }).map(({ file }) => file).sort(),
+      files: [
+        ...modules.filter(({ file, url }) => {
+          const content = present.get(file)
+          // Deleted: Node still runs what it loaded.
+          if (content === undefined) return true
+          if (leading.has(file)) return false
+          // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
+          const loaded = loadedSources.get(url) ?? content
+          loadedSources.set(url, loaded)
+          return loaded !== content
+        }).map(({ file }) => file),
+        // Written, rewritten or deleted: Node still loads by what it read.
+        ...packages.filter(({ at, file }) => present.get(file) !== packageSources.get(at)).map(({ file }) => file)
+      ].sort(),
       // Now a link, or a link that leads elsewhere: Node still runs what it loaded from where it led.
       links: [
         ...modules.filter(({ file }) => present.has(file) && leading.has(file)),

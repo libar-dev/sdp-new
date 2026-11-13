@@ -715,8 +715,8 @@ Feature: Plan delivery
 
   Rule: A gate passes only when every one of its scenarios passed, run against the current graph
 
-    A gate scenario nobody has automated has not passed, and a result from before the graph changed
-    says nothing of the graph as it is now.
+    A gate scenario nobody has automated has not passed, and a result from before the graph changed,
+    one that went stale while the gate ran included, says nothing of the graph as it is now.
 
     Scenario: A step not automated yet
       Given a file "specs/MS-release.feature" containing:
@@ -732,6 +732,37 @@ Feature: Plan delivery
       When I run "sdp gate MS-release"
       Then the exit code is 1
       And the output contains "1 undefined"
+
+    Scenario: A gate scenario edited while it runs
+      Given a file "specs/MS-release.feature" containing:
+        """
+        @id=MS-release
+        Feature: Release
+
+          Rule: The package is published
+
+            Scenario: Published
+              Given the gate is edited while it runs
+        """
+      And a file "specs/steps/edit.steps.ts" containing:
+        """
+        import { readFileSync, writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("the gate is edited while it runs", () => {
+            const file = "specs/MS-release.feature"
+            writeFileSync(file, readFileSync(file, "utf8").replace("the gate is edited while it runs", "a step nobody wrote"))
+          })
+        })
+        """
+      When I run "sdp gate MS-release --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.passed                     | false |
+        | data.gates.passed               | 1     |
+        | data.wentStale.scenario-changed | 1     |
+      And the output contains "MS-release#published passed, and went stale while the gate ran (scenario-changed): a gate passes only on results that still count"
 
   Rule: Nothing enforces a gate unasked: a run reports it apart from the work, and only sdp gate fails on it
 
@@ -762,7 +793,8 @@ Feature: Plan delivery
 
     Met is recorded once, not read from the calendar or from today's results: a date would fail
     tomorrow the commit that passes today, and results are local and go stale. Recording is
-    somebody's act, and a gate scenario edited while the gate ran has not run.
+    somebody's act, and a gate that changed while it ran, a scenario of it edited, added or
+    deleted, has not run.
 
     Scenario: Nothing is recorded while the gate does not pass
       Given these specs:
@@ -822,6 +854,70 @@ Feature: Plan delivery
       When I run "sdp gate MS-objectives --record"
       Then the exit code is 1
       And the output contains "MS-objectives is not recorded as met: its gate changed while it ran, and MS-objectives#there-is-a-plan (stale) does not pass"
+      And the file "specs/MS-objectives.feature" does not contain "@met="
+
+    Scenario Outline: Nothing is recorded when <what> while it runs
+      Given a file "specs/MS-objectives.feature" containing:
+        """
+        @id=MS-objectives @closes:PH-inception
+        Feature: Lifecycle objectives
+
+          Rule: The work is planned
+
+            Scenario: There is a plan
+              Given the gate is cut while it runs
+
+            Scenario: There is a date
+              Given the gate is cut while it runs
+        """
+      And a file "specs/steps/cut.steps.ts" containing:
+        """
+        import { readFileSync, writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("the gate is cut while it runs", () => {
+            const file = "specs/MS-objectives.feature"
+            writeFileSync(file, readFileSync(file, "utf8").split("<cut at>")[0])
+          })
+        })
+        """
+      When I run "sdp gate MS-objectives --record"
+      Then the exit code is 1
+      And the output contains "MS-objectives is not recorded as met: its gate changed while it ran<and>"
+      And the file "specs/MS-objectives.feature" does not contain "@met="
+
+      Examples:
+        | what                              | cut at                    | and                       |
+        | its gate is deleted               | Rule:                     | , and has no scenario now |
+        | a scenario of its gate is deleted | Scenario: There is a date | ; run sdp gate            |
+
+  Rule: sdp gate --record records nothing on a graph sdp could not read whole
+
+    What sdp did not read could change whether the gate holds, and a milestone that is met is
+    closed: its gate does not run again to find out.
+
+    Scenario: An import sdp cannot follow
+      Given a file "specs/MS-objectives.feature" containing:
+        """
+        @id=MS-objectives @closes:PH-inception
+        Feature: Lifecycle objectives
+
+          Rule: The work is planned without an error
+
+            Scenario: No error
+              Then there are no error diagnostics
+        """
+      And a file "src/plan.ts" containing:
+        """
+        /** @sdp is ARCH-plan */
+        import "./missing.ts"
+        export const plan = 1
+        """
+      When I run "sdp gate MS-objectives --record"
+      Then the exit code is 2
+      And the output contains "not read: src/plan.ts:2 [import-unresolved]"
+      And the output contains "MS-objectives is not recorded as met: sdp could not read the whole graph"
       And the file "specs/MS-objectives.feature" does not contain "@met="
 
   Rule: Milestones are met in the order of their dates

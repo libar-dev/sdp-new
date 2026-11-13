@@ -36,7 +36,8 @@ export const isGate = (
 export interface Fingerprints {
   /**
    * The `evidence.sources` stored results recorded that still match: the configuration file, the
-   * code files, the step definition files and the workspace files their run had imported.
+   * code files, the step definition files, and the workspace files their run had imported with the
+   * package.json files Node loaded those by.
    */
   readonly sources: ReadonlySet<string>
   /** The sdp version, the Node major version and the lockfile. */

@@ -782,3 +782,37 @@ Feature: Run specs as tests
       And the output contains "cannot run: 1 problem(s) in the workspace must be fixed first (sdp check)"
       And the output contains "src/gone.ts:1 [not-a-file]"
       And the file ".sdp/results.json" does not exist
+
+  Rule: A run on a graph sdp could not read whole answers incomplete, and exits 2 when nothing it ran failed
+
+    What sdp could not follow, an import of the code say, could change what a scenario that reads
+    the graph found. It is no declaration dropped, so the run runs all the same, and says so.
+
+    Scenario Outline: An import sdp cannot follow, for <command>
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+
+          Rule: The workspace has no error
+
+            Scenario: No error
+              Then there are no error diagnostics
+        """
+      And a file "src/search.ts" containing:
+        """
+        /** @sdp is ARCH-search */
+        import "./missing.ts"
+        export const search = 1
+        """
+      When I run "<command> --json"
+      Then the exit code is 2
+      And the JSON output has:
+        | complete    | false |
+        | data.passed | true  |
+      And the output contains "not read: src/search.ts:2 [import-unresolved]"
+
+      Examples:
+        | command          |
+        | sdp run          |
+        | sdp gate MS-beta |
