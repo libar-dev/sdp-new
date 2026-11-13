@@ -1,8 +1,9 @@
 /**
  * The files that say what the names code imports mean, as read: the tsconfig.json — or
  * jsconfig.json — each file of code is read with, with what it extends and references, and the
- * package.json and pnpm-workspace.yaml files around the code, up to the top of the repository.
- * Nothing is installed or run.
+ * package.json, pnpm-workspace.yaml and deno.json files around the code, up to the top of the
+ * repository. Nothing is installed or run; what sdp cannot read of them, or does not follow, is
+ * located where it is written.
  *
  * @sdp is ARCH-code-annotations
  */
@@ -105,9 +106,9 @@ export interface Located {
 }
 
 /**
- * What sdp could not read of a configuration file: reported once, with any name it could change.
- * `setting` is the one it is, or undefined when it could be any — a file that does not parse, or one
- * extended that is not there.
+ * What sdp could not read of a configuration file, or does not follow of it: reported once, with any
+ * name it could change. `setting` is the one it is, or undefined when it could be any — a file that
+ * does not parse, or one extended that is not there.
  */
 export interface Unread extends Located {
   readonly setting?: string | undefined
@@ -140,7 +141,7 @@ export const configDirectory = "${configDir}"
 /**
  * The configuration files read, as they answer the questions resolving a name asks: what a
  * tsconfig.json says with what it extends, which one a file of code is read with, what a package.json
- * says, and which packages the workspace has.
+ * or a deno.json says, which packages the workspace has, and what of each sdp does not follow.
  */
 export const readConfigs = (configs: ModuleConfigs) => {
   const at = pathsFrom(configs.root, configs.top)
@@ -223,8 +224,9 @@ export const readConfigs = (configs: ModuleConfigs) => {
       const { from, path } = placed(value)
       return at.join(from, path)
     }
-    // A setting of its own takes the place of the one inherited, and of what sdp could not read of that one.
-    const overridden = (setting: string | undefined) => setting !== undefined && ((own as Record<string, unknown>)[setting] ?? (config as Record<string, unknown>)[setting]) !== undefined
+    // A setting of its own takes the place of the one inherited, and of what sdp could not read of that
+    // one; its compilerOptions take the place of none but those it sets.
+    const overridden = (setting: string | undefined) => setting !== undefined && setting !== "compilerOptions" && (setting in own || setting in config)
     return {
       ...inherited,
       unread: [...inherited.unread.filter((each) => !overridden(each.setting)), ...unread, ...unfollowed],

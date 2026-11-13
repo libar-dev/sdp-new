@@ -14,6 +14,7 @@ import {
   directoryOf,
   type File,
   isArray,
+  type Located,
   type ModuleConfigs,
   packageFile,
   packageName,
@@ -21,7 +22,6 @@ import {
   type Settings,
   type Target,
   tsconfigFile,
-  type Located,
   type Unread
 } from "./ModuleConfigs.ts"
 import { declaredModules, type Export, type Exports, type Import, parseScript } from "./Script.ts"
@@ -69,18 +69,22 @@ export interface Modules {
  *   from, by the `outDir` and `rootDir` of the package's tsconfig.json or tsconfig.build.json, as
  *   project references map it — without a `rootDir`, from the tsconfig.json's directory, as
  *   TypeScript 7 builds, or the directory of the code it includes, as TypeScript 5 did;
- * - a library a package.json declares, a module of Node.js, a name with a scheme (`node:`,
- *   `virtual:`) or a file that is not code, no code of the workspace.
+ * - a library a package.json declares, a module of Node.js or one the code declares, a name with a
+ *   scheme (`node:`, `virtual:`) or a file that is not code, no code of the workspace.
  *
  * `exports` and `imports` are walked in their order under the conditions TypeScript 7 resolves the
  * import by: `import` or `require` as the import is written and the file is compiled, `types`,
  * `node` for Node.js, the tsconfig.json's `customConditions`, and `default`; a target is the file it
  * names, never one TypeScript would have to complete. They are not read by `node10` resolution —
  * written, which TypeScript 7 rejects, or TypeScript 5's for CommonJS where a package.json declares
- * TypeScript 5 — nor where a tsconfig.json turns them off. Any other name is not followed, and reported. What sdp could not read of the tsconfig.json — a setting of a type
- * TypeScript does not read, a file that does not parse, or one it extends that is not there — comes
- * back with each name it could change: a relative name only by a setting that completes it, and any
- * other by any setting but those of a build, which only a package's entries depend on.
+ * TypeScript 5 — nor where a tsconfig.json turns them off.
+ *
+ * Any other name is not followed, and reported — a relative one where the workspace's code is. What
+ * sdp could not read of a configuration file, or does not follow of it (`readConfigs`), comes back
+ * with each name it could change, to be reported once where it is written: a relative name by a
+ * setting that completes it, or by `rootDirs` where no file is found; a package's entry by its
+ * build's `rootDir` and `outDir`, or its `typesVersions` where it is not exported; any other name by
+ * anything else.
  */
 export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, exported: ReadonlyMap<string, Exports>): Modules => {
   const read = readConfigs(configs)
@@ -107,8 +111,8 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const swapped = written === undefined ? [] : swappedExtensions.get(written)
     const named = swapped === undefined ? [path] : suffixed(stem, swapped, lookup)
     if (how === "exactly") return named.find((candidate) => contents.has(candidate))
-    const file = [...named, ...suffixed(path, addedExtensions, lookup)].find((candidate) => contents.has(candidate))
-    if (how !== "directory" && file !== undefined) return file
+    const file = how === "directory" ? undefined : [...named, ...suffixed(path, addedExtensions, lookup)].find((candidate) => contents.has(candidate))
+    if (file !== undefined) return file
     const { main, types, typings } = how === "entry" ? {} : manifest(at.join(path, packageFile)) ?? {}
     for (const entry of [types, typings, main]) {
       const found = entry === undefined ? undefined : fileAt(at.join(path, entry), "entry", lookup)
