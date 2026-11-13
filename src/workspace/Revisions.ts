@@ -152,12 +152,14 @@ export const gitRevisions = Layer.effect(
         const parsed = yield* Effect.result(parseConfig(configFiles[0]))
         if (Result.isFailure(parsed)) return yield* missing(`the configuration of ${at} does not read: ${parsed.failure.message}`)
         const config = parsed.success
-        // Its specs are those the workspace's own walk finds there: what it reads there that the commit
-        // cannot say is a part of the base that was not compared.
-        const listed = yield* findFiles(workspace, config.features, config.exclude).pipe(
-          Effect.provideService(FileSystem.FileSystem, committed.fileSystem)
-        )
-        const specs = yield* Effect.forEach(listed, (path) =>
+        // Its specs are those the workspace's own walk finds there, what the commit cannot say taken for
+        // a directory and for a file: what the walk reads there that the commit cannot say is a part of
+        // the base that was not compared.
+        const listed = yield* Effect.forEach(["Directory", "File"] as const, (unknownAs) =>
+          findFiles(workspace, config.features, config.exclude).pipe(
+            Effect.provideService(FileSystem.FileSystem, committed.fileSystem(unknownAs))
+          ))
+        const specs = yield* Effect.forEach([...new Set(listed.flat())].sort(), (path) =>
           Effect.map(committed.file(fromTop(path)), (entry) => entry === undefined ? [] : [{ path, entry }])
         )
         const files = yield* committed.read(specs.flat())
@@ -365,12 +367,15 @@ const commitFiles = (git: Git, top: Entry, checkout: string) => {
   const notFound = (method: string, path: string) =>
     Effect.fail(systemError({ _tag: "NotFound", module: "FileSystem", method, pathOrDescriptor: path }))
 
-  const fileSystem = FileSystem.make(FileSystem.makeNoop({
-    // What the commit cannot say is taken for a directory: the walk then reads it only where it reads
-    // one a link leads to, through a segment that names it, and it is recorded there.
+  /**
+   * The commit as a file system, what it cannot say taken for `unknownAs`: neither a file nor a
+   * directory, it is recorded wherever the walk reads it as either — through a segment that names it,
+   * as a directory, or accepted as a file — and nowhere else.
+   */
+  const fileSystem = (unknownAs: "Directory" | "File") => FileSystem.make(FileSystem.makeNoop({
     stat: (path) =>
       Effect.flatMap(reach(path, true), (reached) =>
-        reached === undefined ? notFound("stat", path) : Effect.succeed(fileInfo("found" in reached ? typeOf(reached.entry) : "Directory"))
+        reached === undefined ? notFound("stat", path) : Effect.succeed(fileInfo("found" in reached ? typeOf(reached.entry) : unknownAs))
       ),
     readDirectoryEntries: (path) =>
       Effect.gen(function*() {

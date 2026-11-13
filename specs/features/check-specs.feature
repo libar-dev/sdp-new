@@ -694,8 +694,9 @@ Feature: Check specs
 
     The base is read as it was configured and today's specs as today's configuration says, so a live
     test that a configuration leaves out is dropped like any other. What of its specs sdp cannot read
-    there may be a test turned off; what its globs do not reach, such as a link `**` passes over, is
-    none of them.
+    there may be a test turned off, and a link git cannot follow is one wherever the walk would take
+    it for a file or a directory — a glob that matches it, an exclusion of directories alone; what its
+    globs do not reach, such as a link `**` passes over, is none of them.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -896,6 +897,30 @@ Feature: Check specs
       And the JSON output has:
         | data.rule | example-dropped |
         | data.node | cart#add-an-item |
+
+    Scenario Outline: A spec that is a link out of the repository, deleted, <case>
+      Given a file "sdp.config.yaml" containing:
+        """
+        exclude: ["<excluded>"]
+        """
+      When I run the pipeline:
+        """
+        ln -s /nowhere/basket.feature specs/basket.feature
+        """
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run the pipeline:
+        """
+        rm specs/basket.feature && sdp check --json
+        """
+      Then the exit code is <exit code>
+      And the JSON output has:
+        | complete | <complete> |
+
+      Examples:
+        | case                               | excluded             | exit code | complete |
+        | beside an exclusion of directories | **/*.feature/        | 2         | false    |
+        | excluded whatever it is            | specs/basket.feature | 0         | true     |
 
     Scenario Outline: A file of the base that <case>, deleted
       Given a file "specs/basket.feature" containing:
