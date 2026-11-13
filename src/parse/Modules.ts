@@ -19,7 +19,8 @@ import {
   readConfigs,
   type Settings,
   type Target,
-  tsconfigFile
+  tsconfigFile,
+  type Unread
 } from "./ModuleConfigs.ts"
 import { type Export, type Exports, type Import, parseScript } from "./Script.ts"
 
@@ -29,10 +30,14 @@ export interface Unresolved {
   readonly hint: string
 }
 
-/** What an import means: the code file of the workspace, if any, and what sdp could not follow. */
+/**
+ * What an import means: the code file of the workspace, if any, and what sdp could not follow — of
+ * the name, or of a configuration file whose settings it depends on, reported where that is written.
+ */
 export interface Resolved {
   readonly module?: string | undefined
   readonly unresolved?: Unresolved | undefined
+  readonly unread?: ReadonlyArray<Unread> | undefined
 }
 
 export interface Modules {
@@ -61,9 +66,9 @@ export interface Modules {
  * `exports` and `imports` are walked in their order under the conditions TypeScript 7 resolves the
  * import by: `import` or `require` as the import is written and the file is compiled, `types`,
  * `node` for Node.js, the tsconfig.json's `customConditions`, and `default`. Any other name is not
- * followed, and reported. So is a name whose answer depends on what sdp could not read of the
- * tsconfig.json: a file that does not parse, or one it extends that is neither in the workspace nor
- * installed.
+ * followed, and reported. What sdp could not read of the tsconfig.json — a file that does not parse,
+ * or one it extends that is not there — comes back with each name it could change: any but a
+ * relative one, which no setting it could hold maps.
  */
 export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, exported: ReadonlyMap<string, Exports>): Modules => {
   const read = readConfigs(configs)
@@ -130,16 +135,16 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   const entry = (directory: string, target: string, how: "file" | "entry" | "exactly", lookup: Lookup): Walk => {
     const path = at.join(directory, target)
     const found = fileAt(path, how, lookup) ?? sourceOf(directory, path, how, lookup)
-    if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
-    if (namesNoCode(path)) return { found: {}, passed: [], decided: false }
-    return { passed: [], missing: path, decided: false }
+    if (found !== undefined) return { found: { module: found }, passed: [] }
+    if (namesNoCode(path)) return { found: {}, passed: [] }
+    return { passed: [], missing: path }
   }
 
   /** What `specifier` means as a package of the workspace, in `directory`, by its subpath. */
   const packageExport = (directory: string, specifier: string, subpath: string, lookup: Lookup): Walk => {
     const path = at.join(directory, packageFile)
     // Nothing a package without code means is the workspace's code.
-    if (!hasCode(directory)) return { found: {}, passed: [], decided: false }
+    if (!hasCode(directory)) return { found: {}, passed: [] }
     const { exports, main, types, typings } = manifest(path) ?? {}
     const missed = (walk: Walk): Walk => ({
       ...walk,
@@ -178,7 +183,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
 
   /** What a name that is neither relative nor `#` means as a package: of the workspace, a library, or neither. */
   const packageOf = (file: string, specifier: string, lookup: Lookup): Walk => {
-    if (isBuiltin(specifier) || /^[a-z][a-z0-9+.-]*:/i.test(specifier)) return { found: {}, passed: [], decided: false }
+    if (isBuiltin(specifier) || /^[a-z][a-z0-9+.-]*:/i.test(specifier)) return { found: {}, passed: [] }
     const { name, subpath } = packageName(specifier)
     const link = linkOf(file, name)
     if (link !== undefined && "directory" in link) return packageExport(link.directory, specifier, subpath, lookup)
@@ -192,12 +197,11 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
             hint: "give each package of the workspace a name of its own"
           }
         },
-        passed: [],
-        decided: false
+        passed: []
       }
     }
     if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, lookup)
-    if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return { found: {}, passed: [], decided: false }
+    if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return { found: {}, passed: [] }
     return nothing
   }
 
@@ -232,8 +236,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
             hint: `map it in the imports of ${scope ?? "a package.json"}`
           }
         },
-        passed: [],
-        decided: false
+        passed: []
       }
     }
     const take = (target: string): Walk => {
@@ -256,7 +259,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     }
   }
 
-  /** What a name that is not relative means in `file`, read with `options`, and whether a condition decided it. */
+  /** What a name that is not relative means in `file`, read with `options`. */
   const meaningOf = (file: string, imported: Import, options: Settings, project: string | undefined): Walk => {
     const { specifier } = imported
     const lookup = { conditions: conditionsOf(file, imported, options), suffixes: suffixesOf(options) }
@@ -267,12 +270,12 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
         ? at.join(options.configDir!, target.slice(configDirectory.length).replace("*", key!.star))
         : at.join(options.baseUrl ?? options.paths!.from, target.replace("*", key!.star))
       const found = fileAt(path, "file", lookup)
-      if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
-      if (namesNoCode(path)) return { found: {}, passed: [], decided: false }
+      if (found !== undefined) return { found: { module: found }, passed: [] }
+      if (namesNoCode(path)) return { found: {}, passed: [] }
       mappedTo ??= path
     }
     const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), "file", lookup)
-    if (under !== undefined) return { found: { module: under }, passed: [], decided: false }
+    if (under !== undefined) return { found: { module: under }, passed: [] }
     if (specifier.startsWith("#")) return packageImport(file, specifier, lookup)
     const walk = packageOf(file, specifier, lookup)
     if (walk.found !== undefined) return walk
@@ -302,19 +305,8 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options) }
       return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup) }
     }
-    const walk = meaningOf(file, imported, options, project)
-    const { module, unresolved } = walk.found ?? {}
-    if (options.unread.length === 0 || (unresolved === undefined && !walk.decided)) return { module, unresolved }
-    const unread = options.unread.join(", and ")
-    return {
-      module,
-      unresolved: unresolved === undefined
-        ? {
-          message: `how "${specifier}" is resolved depends on the conditions of ${project}, which ${unread}`,
-          hint: `make ${project} and what it extends readable: fix its syntax, and install or correct what it extends`
-        }
-        : { message: `${unresolved.message}; ${project} could map it, but it ${unread}`, hint: unresolved.hint }
-    }
+    const { module, unresolved } = meaningOf(file, imported, options, project).found ?? {}
+    return { module, unresolved, unread: options.unread }
   }
 
   /** What a code file exports: as already read, or else as it parses. */
@@ -365,24 +357,21 @@ const suffixed = (base: string, extensions: ReadonlyArray<string>, lookup: Looku
 
 /**
  * What walking a map of names, or the entries of a package, came to: what the import means, once a
- * target is found; until then, the conditions passed over and the first target that is no file. And
- * whether a condition other than `types` and `default`, which always hold, decided it.
+ * target is found; until then, the conditions passed over and the first target that is no file.
  */
 interface Walk {
   readonly found?: Resolved
   readonly passed: ReadonlyArray<string>
   readonly missing?: string
-  readonly decided: boolean
 }
 
-const nothing: Walk = { passed: [], decided: false }
+const nothing: Walk = { passed: [] }
 
 /** A walk that goes on after `before`: what it found, with what both passed over and the first target either did not find. */
 const after = (before: Walk, next: Walk): Walk => ({
   ...next,
   passed: [...before.passed, ...next.passed],
-  ...before.missing === undefined ? {} : { missing: before.missing },
-  decided: before.decided || next.decided
+  ...before.missing === undefined ? {} : { missing: before.missing }
 })
 
 /**
@@ -397,11 +386,7 @@ const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take
     : Object.entries(value)
   let walked = nothing
   for (const [condition, target] of branches) {
-    const decided = condition !== undefined && condition !== "types" && condition !== "default"
-    walked = after(
-      { ...walked, decided: walked.decided || decided },
-      condition === undefined || condition === "default" || conditions.has(condition) ? pick(target, star, conditions, take) : { passed: [condition], decided: false }
-    )
+    walked = after(walked, condition === undefined || condition === "default" || conditions.has(condition) ? pick(target, star, conditions, take) : { passed: [condition] })
     if (walked.found !== undefined) return walked
   }
   return walked

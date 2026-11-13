@@ -506,7 +506,8 @@ const elementsOf = (
  * written with `type`, or of names the module exports as types alone — and no element imports
  * itself. A name means the code file TypeScript resolves it to (`readModules`), whether or not
  * that file anchors an element; one sdp cannot follow, though it could name the workspace's code,
- * is reported where it is written. A pattern imports nothing and nothing imports it.
+ * is reported where it is written, and what sdp could not read of a configuration file such a name
+ * depends on is reported once, where that is written. A pattern imports nothing and nothing imports it.
  */
 const importsBetweenElements = (
   elementsOf: ReadonlyMap<string, ReadonlySet<string>>,
@@ -515,11 +516,17 @@ const importsBetweenElements = (
   diagnostics: Array<Diagnostic>
 ): ReadonlyArray<GraphEdge> => {
   const edges: Array<GraphEdge> = []
+  const reported = new Set<string>()
   for (const [file, elements] of elementsOf) {
     for (const imported of importsOf.get(file) ?? []) {
       const { line, names } = imported
-      const { module, unresolved } = modules.resolve(file, imported)
+      const { module, unread, unresolved } = modules.resolve(file, imported)
       if (unresolved !== undefined) diagnostics.push(diagnostic("import-unresolved", { ...unresolved, source: { file, line } }))
+      for (const { file, hint, line, message } of unread ?? []) {
+        if (reported.has(`${file}:${line}:${message}`)) continue
+        reported.add(`${file}:${line}:${message}`)
+        diagnostics.push(diagnostic("import-unresolved", { message, hint, source: { file, line } }))
+      }
       const used = module === undefined ? undefined : elementsOf.get(module)
       if (used === undefined || (names !== undefined && !modules.loadsCode(module!, names))) continue
       for (const to of used) {

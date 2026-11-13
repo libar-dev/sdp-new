@@ -84,7 +84,20 @@ export interface Placed {
   readonly path: string
 }
 
-/** What a tsconfig.json, with what it extends, says of names, and what sdp could not read of it, each as what follows "which". */
+/**
+ * What sdp could not read of a configuration file, where it is written: reported once, with any
+ * name it could change. `setting` is the one it is, or undefined when it could be any — a file that
+ * does not parse, or one extended that is not there.
+ */
+export interface Unread {
+  readonly file: string
+  readonly line: number
+  readonly setting?: string | undefined
+  readonly message: string
+  readonly hint: string
+}
+
+/** What a tsconfig.json, with what it extends, says of names, and what sdp could not read of it. */
 export interface Settings {
   readonly configDir?: string
   readonly baseUrl?: string
@@ -98,7 +111,7 @@ export interface Settings {
   readonly files?: ReadonlyArray<string>
   readonly include?: ReadonlyArray<Placed>
   readonly exclude?: ReadonlyArray<Placed>
-  readonly unread: ReadonlyArray<string>
+  readonly unread: ReadonlyArray<Unread>
 }
 
 /** `${configDir}`, which a path of a tsconfig.json starts with to be from the directory of the one the code is read with. */
@@ -127,16 +140,23 @@ export const readConfigs = (configs: ModuleConfigs) => {
   const settingsOf = (path: string, configDir: string, seen: ReadonlySet<string>): Settings => {
     const read = tsconfigs(path)
     if (seen.has(path)) return { unread: [] }
-    if (!("value" in read)) return { unread: [read.unread] }
+    if (!("value" in read)) {
+      return { unread: [{ file: path, line: read.line, message: `${path} ${read.unread}, so what it sets is not read`, hint: `fix the syntax of ${path}` }] }
+    }
     const config = read.value
     let inherited: Settings = { unread: [] }
     for (const base of [config.extends ?? []].flat()) {
       const found = extendsCandidates(at, packages, path, base).find((candidate) => byPath.has(candidate))
-      const settings = found === undefined ? undefined : settingsOf(found, configDir, new Set([...seen, path]))
-      const unread = settings === undefined
-        ? [`extends ${base}, neither in the workspace nor installed`]
-        : settings.unread.map((why) => `extends ${base}, which ${why}`)
-      inherited = { ...inherited, ...settings, unread: [...inherited.unread, ...unread] }
+      const relative = /^\.\.?(\/|$)/.test(base)
+      const settings: Settings = found !== undefined ? settingsOf(found, configDir, new Set([...seen, path])) : {
+        unread: [{
+          file: path,
+          line: lineOf(read.text, "extends"),
+          message: `${path} extends ${base}, which is ${relative ? "not there" : "neither a package of the workspace nor installed"}, so what it sets is not read`,
+          hint: relative ? `correct the extends of ${path}` : `install the workspace's packages, or extend a tsconfig.json of the workspace in ${path}`
+        }]
+      }
+      inherited = { ...inherited, ...settings, unread: [...inherited.unread, ...settings.unread] }
     }
     const directory = directoryOf(path)
     const placed = (value: string) => value.startsWith(configDirectory) ? { from: configDir, path: value.slice(configDirectory.length) } : { from: directory, path: value }
@@ -271,14 +291,23 @@ const decodePackageJson = Schema.decodeUnknownOption(PackageJson)
 export const dependencyLists = (read: PackageJson): ReadonlyArray<{ readonly [name: string]: string }> =>
   [read.dependencies, read.devDependencies, read.peerDependencies, read.optionalDependencies].filter((list) => list !== undefined)
 
-/** A tsconfig.json or package.json as `decode` reads it, or what kept sdp from reading it, as what follows "which". */
-const readConfig = <A>(content: string, decode: (input: unknown) => Option.Option<A>): { readonly value: A } | { readonly unread: string } => {
+/** A tsconfig.json or package.json as `decode` reads it, with its text as JSON reads it, or what kept sdp from reading it and the line where. */
+const readConfig = <A>(
+  content: string,
+  decode: (input: unknown) => Option.Option<A>
+): { readonly value: A; readonly text: string } | { readonly unread: string; readonly line: number } => {
   const read = readJson(content)
-  if ("error" in read) return { unread: "does not parse" }
+  if ("error" in read) return { unread: "does not parse", line: read.line }
   return Option.match(decode(read.value), {
-    onNone: () => ({ unread: "holds a setting of a type TypeScript does not read" }),
-    onSome: (value) => ({ value })
+    onNone: () => ({ unread: "holds a setting of a type TypeScript does not read", line: 1 }),
+    onSome: (value) => ({ value, text: read.text })
   })
+}
+
+/** The line of the first `"key":` in JSON as `readJson` reads it, whose lines are those of the file; the first line when there is none. */
+const lineOf = (text: string, key: string): number => {
+  const at = text.search(new RegExp(`"${key}"\\s*:`))
+  return at < 0 ? 1 : text.slice(0, at).split("\n").length
 }
 
 /** The packages of the workspace by name — each package.json outside a node_modules that names one — with the dependencies they declare, and those that do not parse. */
@@ -342,8 +371,11 @@ export const packageName = (specifier: string): { readonly name: string; readonl
   return { name: parts.slice(0, length).join("/"), subpath: parts.slice(length).join("/") }
 }
 
-/** JSON as tsconfig.json allows it, with comments and trailing commas, or why it does not parse. */
-const readJson = (text: string): { readonly value: unknown } | { readonly error: string } => {
+/**
+ * JSON as tsconfig.json allows it, with comments and trailing commas, and the text JSON reads of it,
+ * line for line the file's; or why it does not parse, and the line where.
+ */
+const readJson = (text: string): { readonly value: unknown; readonly text: string } | { readonly error: string; readonly line: number } => {
   const stringEnd = (from: number) => {
     let at = from + 1
     while (at < text.length && text[at] !== "\"") at += text[at] === "\\" ? 2 : 1
@@ -360,13 +392,16 @@ const readJson = (text: string): { readonly value: unknown } | { readonly error:
     } else if (text.startsWith("//", at)) {
       at = text.indexOf("\n", at) < 0 ? text.length : text.indexOf("\n", at) - 1
     } else if (text.startsWith("/*", at)) {
-      at = text.indexOf("*/", at + 2) < 0 ? text.length : text.indexOf("*/", at + 2) + 1
+      const end = text.indexOf("*/", at + 2) < 0 ? text.length : text.indexOf("*/", at + 2) + 2
+      json += "\n".repeat(text.slice(at, end).split("\n").length - 1)
+      at = end - 1
     } else if (!trailing.test(text)) json += text[at]
   }
   try {
-    return { value: JSON.parse(json) }
+    return { value: JSON.parse(json), text: json }
   } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) }
+    const message = error instanceof Error ? error.message : String(error)
+    return { error: message, line: Number(/\(line (\d+) column \d+\)/.exec(message)?.[1] ?? 1) }
   }
 }
 
