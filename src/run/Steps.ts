@@ -12,7 +12,7 @@
  *     Then("the total is {float}", ({ world, args: [total] }) => Effect.gen(function*() { ... }))
  *   })
  *
- * Each scenario gets a fresh world per world factory. Modules that pass the same factory
+ * One world per example — a scenario, or one row of an outline — per world factory. Modules that pass the same factory
  * function share one world, so a step library can be split across files:
  *
  *   // world.ts
@@ -20,7 +20,7 @@
  *   // cart.steps.ts and checkout.steps.ts
  *   export default defineSteps(newWorld, ({ Given }) => { ... })
  */
-import { Data, Effect, Predicate } from "effect"
+import { Effect, Predicate, Schema } from "effect"
 import { fileURLToPath } from "node:url"
 import type { Project } from "../graph/Build.ts"
 
@@ -115,7 +115,9 @@ export const defineSteps = <W>(world: () => W, register: (registrar: StepRegistr
 export const isStepModule = (value: unknown): value is StepModule => Predicate.isTagged(value, "StepModule")
 
 /** Signals that a step is recognised but not implemented yet. Return it or `throw` it. */
-export class Pending extends Data.TaggedError("StepPending")<{ readonly reason?: string | undefined }> {}
+export class Pending extends Schema.TaggedError<Pending>()("StepPending", {
+  reason: Schema.optional(Schema.String)
+}) {}
 
 export const pending = (reason?: string): Effect.Effect<never, Pending> => Effect.fail(new Pending({ reason }))
 

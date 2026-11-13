@@ -7,10 +7,10 @@
  *
  * @sdp is ARCH-runner
  */
-import { Effect, FileSystem, Path, Schema } from "effect"
+import { Effect, FileSystem, Path, Schedule, Schema } from "effect"
 import { isDeepStrictEqual } from "node:util"
 import type { Config } from "../model/Config.ts"
-import { RunResults, type ScenarioResult } from "../model/Results.ts"
+import { resultsVersion, RunResults, type ScenarioResult } from "../model/Results.ts"
 
 /** Another run holds the lock on the results file and did not release it in time. */
 export class ResultsLocked extends Schema.TaggedError<ResultsLocked>()("ResultsLocked", {
@@ -21,21 +21,40 @@ export class ResultsLocked extends Schema.TaggedError<ResultsLocked>()("ResultsL
   }
 }
 
-/** The stored results, or `undefined` when there are none that this sdp can read: they are a cache of earlier runs. */
+/** A results file that exists but cannot be read by this version of sdp. */
+export class ResultsUnreadable extends Schema.TaggedError<ResultsUnreadable>()("ResultsUnreadable", {
+  file: Schema.String,
+  problem: Schema.String
+}) {
+  override get message() {
+    return `cannot record results: ${this.file} is not a results file this sdp reads (${this.problem}); move it aside or delete it, then run again`
+  }
+}
+
+/** The stored results, or `undefined` when no results file exists. */
 export const readResults = Effect.fn("readResults")(function*(root: string, config: Config) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const file = path.join(root, config.results)
+  const unreadable = (problem: string) => new ResultsUnreadable({ file: path.relative(root, file), problem })
   if (!(yield* fs.exists(file))) return undefined
   const text = yield* fs.readFileString(file)
-  return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(RunResults))(text).pipe(
-    Effect.orElseSucceed(() => undefined)
+  const json = yield* Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown))(text).pipe(
+    Effect.mapError(() => unreadable("it is not JSON"))
+  )
+  const header = yield* Schema.decodeUnknownEffect(Schema.Struct({ version: Schema.Unknown }))(json).pipe(
+    Effect.mapError(() => unreadable("it has no results version"))
+  )
+  if (header.version !== resultsVersion) {
+    return yield* unreadable(`it is version ${String(header.version)}; this sdp reads version ${resultsVersion}`)
+  }
+  return yield* Schema.decodeUnknownEffect(RunResults)(json).pipe(
+    Effect.mapError((problem) => unreadable(String(problem)))
   )
 })
 
-/** A commit waits two seconds for another run's commit, which takes milliseconds. */
-const lockAttempts = 40
-const lockPause = "50 millis"
+/** A private marker: only a held lock retries, and the delay between attempts is interruptible. */
+class LockHeld extends Schema.TaggedError<LockHeld>()("LockHeld", {}) {}
 
 export interface Commit {
   /** The results of the scenarios this run executed: they replace what is stored for those scenarios, and nothing else. */
@@ -58,17 +77,9 @@ export const commitResults = Effect.fn("commitResults")(function*(root: string, 
   const lock = `${file}.lock`
   yield* fs.makeDirectory(path.dirname(file), { recursive: true })
 
-  const acquire = Effect.gen(function*() {
-    for (let attempt = 0; attempt < lockAttempts; attempt++) {
-      const taken = yield* fs.writeFileString(lock, "", { flag: "wx" }).pipe(
-        Effect.as(true),
-        Effect.catchIf((error) => error.reason._tag === "AlreadyExists", () => Effect.succeed(false))
-      )
-      if (taken) return
-      yield* Effect.sleep(lockPause)
-    }
-    return yield* new ResultsLocked({ lock: path.relative(root, lock) })
-  })
+  const takeOnce = Effect.suspend(() => fs.writeFileString(lock, "", { flag: "wx" })).pipe(
+    Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.fail(new LockHeld({})))
+  )
   const merge = Effect.gen(function*() {
     const stored = yield* readResults(root, config)
     const gone = new Map(commit.gone.map((result) => [result.id, result]))
@@ -81,7 +92,7 @@ export const commitResults = Effect.fn("commitResults")(function*(root: string, 
       ...commit.executed.map((result) => [result.evidence.sources, [...commit.imports].sort()] as const)
     ]
     const results: RunResults = {
-      version: 4,
+      version: resultsVersion,
       imports: Object.fromEntries(imports.filter(([sources]) => recorded.has(sources))),
       scenarios
     }
@@ -96,5 +107,8 @@ export const commitResults = Effect.fn("commitResults")(function*(root: string, 
   // A merge that has begun finishes before the lock goes, interrupted or not: Node cannot take back
   // a write or a rename it has started, and one that lands after the lock is released would
   // overwrite the results another run committed meanwhile.
-  return yield* Effect.acquireUseRelease(acquire, () => Effect.uninterruptible(merge), () => Effect.ignore(fs.remove(lock)))
+  return yield* Effect.acquireUseRelease(takeOnce, () => Effect.uninterruptible(merge), () => Effect.ignore(fs.remove(lock))).pipe(
+    Effect.retry({ while: (error) => error._tag === "LockHeld", schedule: Schedule.spaced("50 millis"), times: 39 }),
+    Effect.catchTag("LockHeld", () => Effect.fail(new ResultsLocked({ lock: path.relative(root, lock) })))
+  )
 })

@@ -9,8 +9,8 @@
 import { Predicate, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 import type { QueryError } from "../graph/Query.ts"
-import type { InvalidStepExpressions } from "../run/Runner.ts"
-import type { ResultsLocked } from "../run/Store.ts"
+import type { InvalidStepExpressions, UnawaitedFailures } from "../run/Runner.ts"
+import type { ResultsLocked, ResultsUnreadable } from "../run/Store.ts"
 import type { BaseNotFound } from "../workspace/Revisions.ts"
 import type { ConfigError, SourcesChanged, StepLoadError, WorkspaceNotFound } from "../workspace/Workspace.ts"
 
@@ -74,6 +74,8 @@ export type AppError =
   | InvalidStepExpressions
   | InvalidTags
   | ResultsLocked
+  | ResultsUnreadable
+  | UnawaitedFailures
   | UnknownTargets
   | UnreadableSpecs
   | QueryError
@@ -91,6 +93,8 @@ const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
   InvalidStepExpressions: true,
   InvalidTags: true,
   ResultsLocked: true,
+  ResultsUnreadable: true,
+  UnawaitedFailures: true,
   UnknownTargets: true,
   UnreadableSpecs: true,
   QueryError: true,

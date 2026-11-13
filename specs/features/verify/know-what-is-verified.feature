@@ -50,7 +50,10 @@ Feature: Know what is verified
         |                     | wishlist             | fails   | failing     |
         |                     | wishlist#keep-a-lamp | passes  | in-progress |
 
-  Rule: A result counts only while what it ran against is unchanged — the code, the toolchain, the inputs the workspace declares and, for a scenario that reads the graph, the specs — and is stale after
+  Rule: A result counts only while what it ran against is unchanged — the code and every file its steps imported, the toolchain, the inputs the workspace declares and, for a scenario that reads the graph, the specs — and is stale after
+
+    This sdp's version, Node's major version and the lockfile decide what ran as much as the code
+    does.
 
     Scenario Outline: <file> changes after a run
       Given a file "sdp.config.yaml" containing:
@@ -80,6 +83,129 @@ Feature: Know what is verified
         | package-lock.json      | { "lockfileVersion": 3 }        | toolchain-changed |
         | fixtures/lamps.json    | [{ "name": "Ada" }]             | inputs-changed    |
         | specs/wishlist.feature | @id=wishlist\nFeature: Wishlist | specs-changed     |
+
+    Scenario: A module the step definitions import, outside the code globs, changes after a run
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      Given a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp q 'scenario[staleBecause=code-changed]' --ids"
+      Then the output lines are "cart#add-an-item"
+
+    Scenario Outline: A result read <reading>
+      When I run "sdp run"
+      Then the exit code is 1
+      When I run "sdp status --json" <reading>
+      Then the JSON output has:
+        | data.stale.toolchain-changed | 1 |
+
+      Examples:
+        | reading          |
+        | as sdp "0.0.1"   |
+        | on Node 99       |
+
+  Rule: A variable of evidence.env counts by its value, which no result keeps
+
+    The environment may hold secrets.
+
+    Scenario: The region a run saw, and another
+      Given a file "sdp.config.yaml" containing:
+        """
+        evidence:
+          env: [SHOP_REGION]
+        """
+      When I run "SHOP_REGION=atlantis sdp run"
+      Then the exit code is 1
+      And the file ".sdp/results.json" does not contain "atlantis"
+      When I run "SHOP_REGION=atlantis sdp status --json"
+      Then the JSON output has:
+        | data.stale | {} |
+      When I run "SHOP_REGION=lemuria sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
+
+  Rule: A result is about the step code that ran: one whose code changed while it ran is stale at once, and a process records nothing on step code that changed after it loaded it
+
+    A result would certify code that never ran.
+
+    Scenario: A step rewrites a module the step definitions imported
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => writeFileSync("specs/steps/lamps.ts", "export const lamps = 2\n"))
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "sdp run --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.summary.passed         | 1 |
+        | data.wentStale.code-changed | 1 |
+
+    Scenario: A program runs the specs, a module they import changes, and it runs them again
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When a program runs:
+        """
+        import { writeFileSync } from "node:fs"
+        import { run } from "$SDP"
+
+        const first = await run(".")
+        writeFileSync("specs/steps/lamps.ts", "export const lamps = 2\n")
+        const again = await run(".").then(() => "recorded", (error) => error.message)
+        console.log(JSON.stringify({ first: first.data.summary.passed, again }))
+        """
+      Then the exit code is 0
+      And the JSON output has:
+        | first | 1 |
+      And the output contains "specs/steps/lamps.ts changed after this process imported it"
+      When I run "sdp q 'scenario[staleBecause=code-changed]' --ids"
+      Then the output lines are "cart#add-an-item"
 
   Rule: Editing a scenario makes its result stale; planning or rewording its spec does not
 
@@ -138,7 +264,33 @@ Feature: Know what is verified
       Then node "MS-beta#the-cart-works" has attribute status = "stale"
       And node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
 
-  Rule: A run records the scenarios it executed, and keeps what every other run recorded, one that overlaps it too
+  Rule: A run records the scenarios it executed and drops the results of those gone when it started, and keeps what every other run recorded, one that overlaps it too
+
+    Scenario: A partial run keeps the results of everything else
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Then the query "#cart" returns 1 result
+        """
+      When the workspace is run
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Remember a lamp
+              Then the query "#cart" returns 1 result
+        """
+      And the workspace is run with "wishlist"
+      Then node "wishlist#remember-a-lamp" has attribute status = "passed"
+      And node "cart#add-an-item" has attribute status = "passed"
+      And the file ".sdp/results.json" does not contain "wishlist#keep-a-lamp-for-later"
 
     Scenario: Two runs at once each record what they executed
       Given a file "specs/wishlist.feature" containing:
@@ -158,6 +310,145 @@ Feature: Know what is verified
       And the workspace is run for "cart" and for "wishlist" at the same time
       Then node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
       And node "cart#add-an-item" has attribute status = "passed"
+
+    Scenario: A run that finds another recording
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      And another run holds the lock on the results for 500 ms
+      When the workspace is run
+      Then node "cart#add-an-item" has attribute status = "passed"
+      And the results were recorded only after the lock was released
+
+  Rule: A run that cannot take the lock on the results within two seconds records nothing, and names the lock
+
+    A run that stopped while it recorded leaves its lock behind, and every run after it would wait
+    for it.
+
+    Scenario: A lock no run holds any more
+      Given a file ".sdp/results.json.lock" containing:
+        """
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains ".sdp/results.json.lock exists"
+      And the file ".sdp/results.json" does not exist
+
+  Rule: A run that stops before its end — interrupted, or failed by what it reports each result to — runs nothing more, and records the scenarios it finished
+
+    A stop says nothing against what finished, and running it again would cost the time the stop
+    saved.
+
+    Scenario: A program whose report of the first result fails
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given a wishlist
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+          Step("a wishlist", () => writeFileSync("started.txt", ""))
+        })
+        """
+      When a program runs:
+        """
+        import { run } from "$SDP"
+
+        const report = () => {
+          throw new Error("the dashboard is down")
+        }
+        await run(".", { onScenario: report }).then(
+          () => console.log(JSON.stringify({ rejected: false })),
+          (error) => console.log(JSON.stringify({ rejected: error.message }))
+        )
+        """
+      Then the exit code is 0
+      And the JSON output has:
+        | rejected | the dashboard is down |
+      And the file "started.txt" does not exist
+      When I run "sdp q 'scenario[status!=unrun]' --ids"
+      Then the output lines are "cart#add-an-item"
+
+    Scenario: Ctrl-C while the second scenario runs
+      Given a file "sdp.config.yaml" containing:
+        """
+        timeout: 5s
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given a wishlist
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+          Step("a wishlist", ({ signal }) => {
+            writeFileSync("started.txt", "")
+            return new Promise((stopped) => signal.addEventListener("abort", stopped))
+          })
+        })
+        """
+      When I run "sdp run" and interrupt it once "started.txt" exists
+      Then the exit code is 130
+      When I run "sdp q 'scenario[status!=unrun]' --ids"
+      Then the output lines are "cart#add-an-item"
+
+  Rule: A results file sdp cannot read is kept: an answer that reads results says it is incomplete and names the file, and a run records nothing over it
+
+    It holds what earlier runs recorded, perhaps written by another version of sdp: read as no
+    results, the next run would drop them all without a word.
+
+    Scenario Outline: A results file <that is>
+      Given a file ".sdp/results.json" containing:
+        """
+        <content>
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      When I run "sdp status --json"
+      Then the exit code is 2
+      And the JSON output has:
+        | complete | false |
+      And the output contains ".sdp/results.json"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains ".sdp/results.json"
+      And the file ".sdp/results.json" is:
+        """
+        <content>
+        """
+
+      Examples:
+        | that is                   | content                                          |
+        | cut short                 | { "version": 4, "scenarios": {                   |
+        | of another version of sdp | { "version": 5, "imports": {}, "scenarios": {} } |
 
   @maturity=idea
   Rule: A result CI recorded counts in every checkout that matches what it ran against
