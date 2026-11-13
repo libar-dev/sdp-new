@@ -239,7 +239,6 @@ Feature: Link code to specs
         | rule               | severity | at               | message                                                |
         | annotation-ignored | warning  | src/billing.ts:3 | via=events describes no node: a link has no attributes |
 
-  @maturity=ready
   Rule: A value written on an annotation reads as it does in a spec's tag: a number only when it reads back as the number it is written as
 
     One key=value is one fact wherever it is written.

@@ -347,7 +347,6 @@ Feature: Ask the graph
       And every node and link of this repository is at a file and line that exist
       And the line of every link of this repository contains the id it links to
 
-  @maturity=ready
   Rule: A program reads the state with the schema of its records that the package exports, and every record sdp graph prints decodes with it
 
     One definition of a record serves sdp, its tests and every program that reads the state, so none
