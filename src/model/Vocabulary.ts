@@ -136,6 +136,9 @@ export const isKey = (word: string): boolean => /^[A-Za-z][\w-]*(?:\.[\w-]+)*$/.
 /** Whether a word can be the value of a tag, as a kind or a maturity is, and an inherited Cucumber tag: no space, `@`, `=` or `:`. */
 export const isValueWord = (word: string): boolean => /^[^\s@=:]+$/.test(word)
 
+/** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
+const tagsKey = "tags"
+
 /** Words sdp makes itself. They are not configurable, and authors cannot write them. */
 export const made = {
   kinds: {
@@ -156,17 +159,17 @@ export const made = {
   /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
   /** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
-  tagsKey: "tags",
+  tagsKey,
   /**
    * Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error.
    * `tags` holds the Cucumber tags of a Feature, a Rule or a Scenario as written, `toCome` marks work
    * still to come, and `rulesToCome` counts a spec's rules still to come.
    */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", "tags", "openQuestions", "toCome", "rulesToCome"],
+  attributes: ["stage", "verification", "scenarios", "summary", "file", tagsKey, "openQuestions", "toCome", "rulesToCome"],
   /** Facts sdp computes on scenario nodes. */
-  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
+  scenarioAttributes: ["spec", "keyword", tagsKey, "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */
-  ruleAttributes: ["spec", "description", "tags", "scenarios", "verification", "stage", "toCome"],
+  ruleAttributes: ["spec", "description", tagsKey, "scenarios", "verification", "stage", "toCome"],
   /** What sdp records on a code node: where the annotated declaration is, what its own comment says of it, and its shape or a file's exports. */
   codeAttributes: ["file", "symbol", "doc", "shape", "exports"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
