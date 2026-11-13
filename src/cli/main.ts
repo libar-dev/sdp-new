@@ -10,7 +10,7 @@
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Console, Duration, Effect, FileSystem, Layer, Option, Path, Result } from "effect"
-import { Argument, Command, Flag } from "effect/cli"
+import { Argument, CliError, CliOutput, Command, Flag, TerminalCapabilities } from "effect/cli"
 import type { Answer } from "../app/Answer.ts"
 import * as Authoring from "../app/Authoring.ts"
 import { describe, isAppError, Refused } from "../app/Errors.ts"
@@ -70,11 +70,12 @@ const failed = 1
 /** The command answered, but from a workspace it could not fully read or a search it could not finish. */
 const incomplete = 2
 
-const fail = (message: string) =>
-  Effect.gen(function*() {
-    yield* Console.error(Text.c.red(message))
-    process.exitCode = failed
-  })
+/** Errors owned elsewhere keep their wording until they declare a CLI user message themselves. */
+const told = <A, E, R>(self: Effect.Effect<A, E, R>) =>
+  Effect.mapError(self, (error) =>
+    isAppError(error) && CliError.getUserMessage(error) === undefined
+      ? new CliError.UserError({ cause: error, userMessage: describe(error) })
+      : error)
 
 /**
  * Prints an answer: its data as text — or, with `--json`, the envelope — on stdout, so the lines
@@ -93,9 +94,9 @@ const print = Effect.fnUntraced(function*<A>(answer: Answer<A>, asJson: boolean,
 const statusCommand = Command.make(
   "status",
   { json },
-  Effect.fn(function*({ json }) {
+  Effect.fn("statusCommand")(function*({ json }) {
     yield* print(yield* Reading.status(yield* workspaceRoot), json, Text.status)
-  })
+  }, told)
 ).pipe(Command.withDescription("One-screen summary of the delivery state"))
 
 const queryCommand = Command.make(
@@ -106,11 +107,11 @@ const queryCommand = Command.make(
     ids: Flag.Boolean("ids").pipe(Flag.withDescription("Print only ids, one per line"), Flag.withDefault(false)),
     json
   },
-  Effect.fn(function*({ expression, ids, json, paths }) {
+  Effect.fn("queryCommand")(function*({ expression, ids, json, paths }) {
     const found = yield* Reading.query(yield* workspaceRoot, { expression, paths })
     yield* print(found, json, (data) => ids ? data.nodes.map((node) => node.id).join("\n") : Text.query(data))
     if (!ids && !json) yield* Console.error(Text.c.dim(`${found.data.nodes.length} node(s)`))
-  })
+  }, told)
 ).pipe(
   Command.withAlias("q"),
   Command.withShortDescription("Query the graph with a path pattern"),
@@ -127,9 +128,9 @@ const id = Argument.String("id").pipe(Argument.withDescription("Node id, e.g. gu
 const showCommand = Command.make(
   "show",
   { id, json },
-  Effect.fn(function*({ id, json }) {
+  Effect.fn("showCommand")(function*({ id, json }) {
     yield* print(yield* Reading.show(yield* workspaceRoot, { id }), json, Text.show)
-  })
+  }, told)
 ).pipe(Command.withDescription("Show one node with its attributes and edges"))
 
 const contextCommand = Command.make(
@@ -141,9 +142,9 @@ const contextCommand = Command.make(
       Flag.withDefault(2)
     )
   },
-  Effect.fn(function*({ depth, id }) {
+  Effect.fn("contextCommand")(function*({ depth, id }) {
     yield* print(yield* Reading.context(yield* workspaceRoot, { id, depth }), false, (document) => document)
-  })
+  }, told)
 ).pipe(
   Command.withDescription(
     "Markdown context bundle for one node: its rules with their state and reason, scenarios with the step definitions still to write, spec, links, architecture, quality requirements, decisions, code"
@@ -156,12 +157,12 @@ const mermaid = Flag.Boolean("mermaid").pipe(Flag.withDescription("Print a Merma
 const graphCommand = Command.make(
   "graph",
   { select, mermaid },
-  Effect.fn(function*({ mermaid, select }) {
+  Effect.fn("graphCommand")(function*({ mermaid, select }) {
     const root = yield* workspaceRoot
     const input = { select: Option.getOrUndefined(select) }
     if (mermaid) return yield* print(yield* Reading.diagram(root, input), false, (diagram) => diagram.trimEnd())
     yield* print(yield* Reading.graph(root, input), false, (records) => jsonLines(records).trimEnd())
-  })
+  }, told)
 ).pipe(
   Command.withDescription("The state as plain data: each spec, its rules and examples by their one line, the architecture and the links written between them; one JSON record per line"),
   Command.withExamples([
@@ -174,29 +175,29 @@ const graphCommand = Command.make(
 const archCommand = Command.make(
   "arch",
   { json, mermaid },
-  Effect.fn(function*({ json, mermaid }) {
+  Effect.fn("archCommand")(function*({ json, mermaid }) {
     const root = yield* workspaceRoot
     if (mermaid) return yield* print(yield* Reading.diagram(root, "architecture"), false, (diagram) => diagram.trimEnd())
     yield* print(yield* Reading.architecture(root), json, Text.architecture)
-  })
+  }, told)
 ).pipe(Command.withDescription("The architecture: every element and pattern, with the decisions and quality requirements linked to it or to the features it realizes"))
 
 const lifecycleCommand = Command.make(
   "lifecycle",
   { json },
-  Effect.fn(function*({ json }) {
+  Effect.fn("lifecycleCommand")(function*({ json }) {
     const root = yield* workspaceRoot
     if (json) return yield* print(yield* Reading.lifecycle(root), true, () => "")
     yield* print(yield* Reading.lifecycleChart(root), false, (chart) => chart.trimEnd())
-  })
+  }, told)
 ).pipe(Command.withDescription("Milestones and where the project is, the work planned into each iteration, discipline activity and the evidence"))
 
 const vocabularyCommand = Command.make(
   "vocabulary",
   { json },
-  Effect.fn(function*({ json }) {
+  Effect.fn("vocabularyCommand")(function*({ json }) {
     yield* print(yield* Reading.vocabulary(yield* workspaceRoot), json, Text.vocabulary)
-  })
+  }, told)
 ).pipe(Command.withDescription("The words sdp interprets — kinds, relations, attributes, maturity, disciplines — as configured"))
 
 // --- checking and running ---------------------------------------------------
@@ -216,11 +217,11 @@ const checkCommand = Command.make(
       Flag.optional
     )
   },
-  Effect.fn(function*({ base, json, severity }) {
+  Effect.fn("checkCommand")(function*({ base, json, severity }) {
     const found = yield* Reading.check(yield* workspaceRoot, { severity, base: Option.getOrUndefined(base) })
     if (found.data.some((diagnostic) => diagnostic.severity === "error")) process.exitCode = failed
     yield* print(found, json, Text.diagnostics)
-  })
+  }, told)
 ).pipe(
   Command.withDescription(
     "Validate tags, links, Gherkin and the plan, and that nothing live at the git base stopped being live; exit 1 on errors"
@@ -240,11 +241,11 @@ const stepsCommand = Command.make(
     ),
     json
   },
-  Effect.fn(function*({ json, text }) {
+  Effect.fn("stepsCommand")(function*({ json, text }) {
     const listed = yield* Reading.steps(yield* workspaceRoot, { text: Option.getOrUndefined(text) })
     yield* print(listed, json, Text.steps)
     if (!json) yield* Console.error(Text.c.dim(`${listed.data.length} step definition(s)`))
-  })
+  }, told)
 ).pipe(
   Command.withDescription(
     "List step definitions, built-in ones included, one per line: file:line, keyword, expression. Read from the step files without running them"
@@ -318,11 +319,11 @@ const runCommand = Command.make(
     verbose: Flag.Boolean("verbose").pipe(Flag.withDescription("Show passed steps too"), Flag.withDefault(false)),
     json
   },
-  Effect.fn(function*({ concurrency, json, snippets, tags, targets, timeout, verbose }) {
+  Effect.fn("runCommand")(function*({ concurrency, json, snippets, tags, targets, timeout, verbose }) {
     const root = yield* workspaceRoot
     const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency, timeout: yield* timeoutOf(timeout) }
     yield* printRun((onScenario) => Running.run(root, { ...input, onScenario }), { json, verbose })
-  })
+  }, told)
 ).pipe(Command.withDescription("Execute scenarios and record results (.sdp/results.json)"))
 
 const gateCommand = Command.make(
@@ -336,11 +337,11 @@ const gateCommand = Command.make(
     timeout,
     json
   },
-  Effect.fn(function*({ json, milestone, record, timeout }) {
+  Effect.fn("gateCommand")(function*({ json, milestone, record, timeout }) {
     const root = yield* workspaceRoot
     const input = { milestone, record, timeout: yield* timeoutOf(timeout) }
     yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
-  })
+  }, told)
 ).pipe(
   Command.withDescription("Evaluate one milestone's gate scenarios against the current graph: it passes, and exits 0, when every one of them passed and its result still counts when the gate ends"),
   Command.withExamples([
@@ -372,7 +373,7 @@ const newCommand = Command.make(
       Flag.optional
     )
   },
-  Effect.fn(function*({ dir, id, kind, maturity, title }) {
+  Effect.fn("newCommand")(function*({ dir, id, kind, maturity, title }) {
     const root = yield* workspaceRoot
     const created = yield* Authoring.create(root, {
       kind,
@@ -384,7 +385,7 @@ const newCommand = Command.make(
     yield* Console.log(created.file === undefined ? created.id : `${created.id}\t${created.file}`)
     for (const line of created.next) yield* Console.error(Text.c.dim(`next: ${line}`))
     if (created.unread !== undefined) yield* Console.error(Text.c.yellow(`note: ${created.unread}`))
-  })
+  }, told)
 ).pipe(
   Command.withDescription(
     `Create a feature, decision, phase, ... from a template; print its id and file, and on stderr what to write in it next. Templates: ${templateKinds.join(", ")}`
@@ -399,7 +400,7 @@ const newCommand = Command.make(
 const initCommand = Command.make(
   "init",
   {},
-  Effect.fn(function*() {
+  Effect.fn("initCommand")(function*() {
     // A new workspace starts here (or at -C), never in a workspace further up.
     const path = yield* Path.Path
     for (const { created, file, next } of yield* Authoring.init((yield* givenRoot) ?? path.resolve("."))) {
@@ -411,17 +412,17 @@ const initCommand = Command.make(
         "next: sdp new feature \"My first feature\"  ·  a plan: sdp new phase \"Elaboration\", then sdp new iteration \"<title>\" and sdp new milestone \"<title>\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill"
       )
     )
-  })
+  }, told)
 ).pipe(Command.withDescription("Create sdp.config.yaml, the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) and, where git does not ignore .sdp/, a .gitignore of it in the workspace"))
 
 const mcpCommand = Command.make(
   "mcp",
   {},
-  Effect.fn(function*() {
+  Effect.fn("mcpCommand")(function*() {
     // Loaded on demand: only `sdp mcp` needs the MCP stack.
     const { serveMcp } = yield* Effect.promise(() => import("../mcp/Server.ts"))
     yield* serveMcp(yield* workspaceRoot, sdpVersion)
-  })
+  }, told)
 ).pipe(Command.withDescription("Serve the graph to AI agents over MCP (stdio)"))
 
 sdp.pipe(
@@ -443,8 +444,15 @@ sdp.pipe(
     mcpCommand
   ]),
   Command.run({ version: sdpVersion }),
-  // A problem with the user's files or input is one line that names it, not a stack trace.
-  Effect.catchIf(isAppError, (e) => fail(describe(e))),
+  // A problem with the user's files or input is the one line its error words, not a stack trace or
+  // an ERROR block; a command line that cannot be parsed keeps Effect's help and error output.
+  Effect.provide(Layer.effect(CliOutput.Formatter)(Effect.map(
+    TerminalCapabilities.TerminalCapabilities,
+    ({ canColor }) => ({
+      ...CliOutput.defaultFormatter({ colors: canColor }),
+      formatError: (error) => Text.c.red(error.message)
+    })
+  ))),
   Effect.provide(Layer.provideMerge(gitRevisions, NodeServices.layer)),
   NodeRuntime.runMain
 )
