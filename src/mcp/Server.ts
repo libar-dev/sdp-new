@@ -8,7 +8,7 @@
  *
  * @sdp is ARCH-mcp
  */
-import { NodeStdio } from "@effect/platform-node"
+import * as NodeStdio from "@effect/platform-node/NodeStdio"
 import { Effect, FileSystem, Layer, Path, Schema } from "effect"
 import { McpProtocol, McpServer, Tool, Toolkit } from "effect/ai"
 import type { Answer } from "../app/Answer.ts"
