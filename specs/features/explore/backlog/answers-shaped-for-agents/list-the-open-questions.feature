@@ -1,5 +1,5 @@
 @id=list-the-open-questions @maturity=specified
-@realized-by:ARCH-application @realized-by:ARCH-reports
+@realized-by:ARCH-application @realized-by:ARCH-reports @realized-by:ARCH-cli
 Feature: List the open questions
 
   The owner of a project needs to see what waits on them — every call still open, where it is asked,
