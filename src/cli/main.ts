@@ -9,7 +9,7 @@
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
 import * as NodeServices from "@effect/platform-node/NodeServices"
-import { Console, Effect, FileSystem, Layer, Option, Path } from "effect"
+import { Console, Duration, Effect, FileSystem, Layer, Option, Path, Result } from "effect"
 import { Argument, Command, Flag } from "effect/cli"
 import type { Answer } from "../app/Answer.ts"
 import * as Authoring from "../app/Authoring.ts"
@@ -20,6 +20,7 @@ import { templateKinds } from "../app/Templates.ts"
 import * as Text from "../app/Text.ts"
 import { jsonLines } from "../graph/Export.ts"
 import { querySyntax } from "../graph/Query.ts"
+import { defaults, readTimeout } from "../model/Config.ts"
 import type { ScenarioResult } from "../model/Results.ts"
 import { gitRevisions } from "../workspace/Revisions.ts"
 import { findWorkspaceRoot, sdpVersion } from "../workspace/Workspace.ts"
@@ -268,6 +269,23 @@ const fromHere = Effect.fnUntraced(function*(root: string, targets: ReadonlyArra
     }))
 })
 
+const timeout = Flag.String("timeout").pipe(
+  Flag.withDescription(
+    `How long a step may take before it fails: a number and a unit, e.g. 90s, 500ms, 2m or 1h (default: the workspace's timeout, ${
+      Duration.format(defaults.timeout)
+    } unless it says otherwise)`
+  ),
+  Flag.optional
+)
+
+/** The duration `--timeout` says, refused in one line when it is none. */
+const timeoutOf = Effect.fnUntraced(function*(written: Option.Option<string>) {
+  if (Option.isNone(written)) return undefined
+  const timeout = readTimeout(written.value)
+  if (Result.isFailure(timeout)) return yield* new Refused({ reason: `--timeout ${written.value} ${timeout.failure}` })
+  return timeout.success
+})
+
 /** Prints a run: each scenario as its result is known, then the summary; a run that did not pass exits with 1. */
 const printRun = Effect.fnUntraced(function*<R extends Running.RunReport, E, S>(
   run: (onScenario: (result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) => Effect.Effect<Answer<R>, E, S>,
@@ -296,12 +314,13 @@ const runCommand = Command.make(
       ),
       Flag.withDefault(1)
     ),
+    timeout,
     verbose: Flag.Boolean("verbose").pipe(Flag.withDescription("Show passed steps too"), Flag.withDefault(false)),
     json
   },
-  Effect.fn(function*({ concurrency, json, snippets, tags, targets, verbose }) {
+  Effect.fn(function*({ concurrency, json, snippets, tags, targets, timeout, verbose }) {
     const root = yield* workspaceRoot
-    const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency }
+    const input = { targets: yield* fromHere(root, targets), tags: Option.getOrUndefined(tags), snippets, concurrency, timeout: yield* timeoutOf(timeout) }
     yield* printRun((onScenario) => Running.run(root, { ...input, onScenario }), { json, verbose })
   })
 ).pipe(Command.withDescription("Execute scenarios and record results (.sdp/results.json)"))
@@ -314,11 +333,13 @@ const gateCommand = Command.make(
       Flag.withDescription("When the gate passes, write `@met=<today>` on the milestone's tag line: it is closed, and the next one is where the project is"),
       Flag.withDefault(false)
     ),
+    timeout,
     json
   },
-  Effect.fn(function*({ json, milestone, record }) {
+  Effect.fn(function*({ json, milestone, record, timeout }) {
     const root = yield* workspaceRoot
-    yield* printRun((onScenario) => Running.gate(root, { milestone, record, onScenario }), { json, verbose: false })
+    const input = { milestone, record, timeout: yield* timeoutOf(timeout) }
+    yield* printRun((onScenario) => Running.gate(root, { ...input, onScenario }), { json, verbose: false })
   })
 ).pipe(
   Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),

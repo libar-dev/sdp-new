@@ -222,6 +222,7 @@ export const runSummary = (report: RunReport | GateReport): string => {
   const of = gated ? ` of ${report.milestone}` : ""
   const unselected = report.scenarios.flatMap((r) => r.examples.filter((p) => p.status === "skipped" && p.steps.length === 0)).length
   const stale = total(report.stale)
+  const wentStale = total(report.wentStale)
   const undefinedSteps = report.scenarios.some((r) => r.examples.some((p) => p.steps.some((s) => s.snippet !== undefined)))
   const toCome = total(report.toCome)
   return [
@@ -234,6 +235,9 @@ export const runSummary = (report: RunReport | GateReport): string => {
       : []),
     ...(unselected > 0
       ? [c.dim(`${unselected} example(s) not selected are skipped: a scenario passes only when one run passes all its examples`)]
+      : []),
+    ...(wentStale > 0
+      ? [c.yellow(`stale: ${wentStale} result(s) of this run no longer count (${tallied(report.wentStale)}): what they ran against changed while they ran; run them again`)]
       : []),
     ...(stale > 0 ? [c.yellow(`stale: ${stale} earlier result(s) no longer count (${tallied(report.stale)}); run them again`)] : []),
     ...(report.snippets !== undefined

@@ -8,6 +8,7 @@
  * @sdp is ARCH-runner
  */
 import { Effect, FileSystem, Path, Schema } from "effect"
+import { isDeepStrictEqual } from "node:util"
 import type { Config } from "../model/Config.ts"
 import { RunResults, type ScenarioResult } from "../model/Results.ts"
 
@@ -39,8 +40,12 @@ const lockPause = "50 millis"
 export interface Commit {
   /** The results of the scenarios this run executed: they replace what is stored for those scenarios, and nothing else. */
   readonly executed: ReadonlyArray<ScenarioResult>
-  /** The ids of the scenarios that exist now: results of any other scenario are dropped. */
-  readonly live: ReadonlySet<string>
+  /**
+   * The results stored when this run read the specs, of scenarios that were not among them: each is
+   * dropped unless another run replaced it since. A scenario added after this run started is no
+   * scenario it knows to be gone, and keeps the result another run records for it.
+   */
+  readonly gone: ReadonlyArray<ScenarioResult>
   /** The workspace files the step definitions of this run had imported when it ended: what its results ran against besides the globs. */
   readonly imports: ReadonlyArray<string>
 }
@@ -66,7 +71,8 @@ export const commitResults = Effect.fn("commitResults")(function*(root: string, 
   })
   const merge = Effect.gen(function*() {
     const stored = yield* readResults(root, config)
-    const kept = Object.entries(stored?.scenarios ?? {}).filter(([id]) => commit.live.has(id))
+    const gone = new Map(commit.gone.map((result) => [result.id, result]))
+    const kept = Object.entries(stored?.scenarios ?? {}).filter(([id, result]) => !isDeepStrictEqual(gone.get(id), result))
     const scenarios = Object.fromEntries([...kept, ...commit.executed.map((result) => [result.id, result] as const)])
     // Each result names its imports through its sources fingerprint; a list no result names any more is dropped.
     const recorded = new Set(Object.values(scenarios).map((result) => result.evidence.sources))

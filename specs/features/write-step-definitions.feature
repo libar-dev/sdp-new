@@ -155,9 +155,43 @@ Feature: Write step definitions
       When the workspace is run and interrupted while "an empty cart" runs
       Then the handler of "an empty cart" saw its signal abort
 
-  Rule: A step runs in sdp's own thread, and fails once it outlasts its timeout
+  Rule: A step runs in sdp's own thread, and sees the global state the scenarios before it left
 
-    Code that never yields cannot be stopped there: it fails once it returns.
+    Scenario: A scenario sees what one before it left in global state
+      Given a file "specs/more.feature" containing:
+        """
+        @id=more
+        Feature: More
+
+          Rule: Another lamp joins the first
+
+            Scenario: Add another
+              When I add a lamp
+              Then the cart holds 2 items
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        const shared = globalThis as { lamps?: number }
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {
+            shared.lamps = (shared.lamps ?? 0) + 1
+          })
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (shared.lamps !== n) throw new Error(`the cart holds ${shared.lamps}`)
+          })
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "2 scenario(s): 2 passed"
+
+  Rule: A step fails once it outlasts its timeout, and one that never yields, once it returns
+
+    It runs in sdp's own thread, where code that never yields cannot be stopped.
 
     Scenario Outline: A step that outlasts its timeout fails, even one that never yields and so cannot be stopped
       Given a step definition "an empty cart" that <handler>
@@ -170,12 +204,45 @@ Feature: Write step definitions
         | takes a second                   |
         | keeps the thread busy for 200 ms |
 
-  @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-fails-once-it-outlasts-its
+  Rule: A step may take as long as the workspace's timeout says, 30 seconds unless it says otherwise, and --timeout overrides it
+
+    Scenario Outline: The workspace's timeout says how long a step may take, and --timeout overrides it
+      Given a file "sdp.config.yaml" containing:
+        """
+        <configuration>
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { setTimeout } from "node:timers/promises"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", ({ signal }) => setTimeout(1000, undefined, { signal }))
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item", () => {})
+        })
+        """
+      When I run "sdp run <option>"
+      Then the exit code is <exit code>
+      And the output contains "<output>"
+
+      Examples:
+        | configuration              | option           | exit code | output                  |
+        | # every key at its default | --timeout 50ms   | 1         | step timed out          |
+        | timeout: 50ms              |                  | 1         | step timed out          |
+        | timeout: 50ms              | --timeout '5 s'  | 0         | 1 scenario(s): 1 passed |
+
+    Scenario: The configuration sdp init writes gives the timeout's default and what overrides it
+      When I run "sdp init"
+      Then the file "sdp.config.yaml" contains "# timeout: 30s"
+      And the file "sdp.config.yaml" contains "sdp run --timeout and sdp gate --timeout override it"
+
+  @maturity=idea @replaces:write-step-definitions#a-step-fails-once-it-outlasts-its-timeout-and-one-that-never
   Rule: A step that overruns its timeout is stopped, whether or not it yields
 
     An endless loop or a blocking call would otherwise hold the run for as long as it lasts.
 
-  @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-fails-once-it-outlasts-its
+  @maturity=idea @replaces:write-step-definitions#a-step-runs-in-sdp-s-own-thread-and-sees-the-global-state-the
   Rule: No scenario sees the global state another scenario left
 
   Rule: Every step is matched against every definition
@@ -247,6 +314,33 @@ Feature: Write step definitions
       And the output contains '  Then("the cart holds {int} item", ({ world, args: [int] }) => pending())' 1 time
       And the output contains "Existing step files: specs/steps/cart.steps.ts"
       And the output contains "step modules that pass the same factory share it"
+
+  Rule: A step module counts once, however many names and files export it
+
+    Scenario: A module exported under two names, and again from another file, is one module
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export const steps = defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item", () => {})
+        })
+        export default steps
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        export { steps } from "./cart.steps.ts"
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      And the output contains "1 scenario(s): 1 passed"
+      When I run "sdp steps 'an empty cart' --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | complete  | true                      |
+        | data.file | specs/steps/cart.steps.ts |
 
   Rule: steps lists the step definitions a run would know, built-in ones included, as file:line, keyword and expression
 
@@ -617,6 +711,55 @@ Feature: Write step definitions
       Then the exit code is 1
       And the JSON output has:
         | data.summary.undefined | 1 |
+
+    Scenario: A file that exports again another step file's module, and a module of its own that cannot be read, is reported
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+        })
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        import * as steps from "sdp/steps"
+
+        export { default as cart } from "./cart.steps.ts"
+        const own = steps.defineSteps(() => ({}), ({ Given }) => {
+          Given("an empty cart", () => {})
+        })
+        export default { ...own }
+        """
+      When I run "sdp steps 'an empty cart'"
+      Then the exit code is 2
+      And the output contains "not read: specs/steps/shop.steps.ts:1: no defineSteps(…) call at the top level of this step file"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "matches 2 definitions"
+
+    Scenario Outline: A path the steps globs match that is no file is reported as not read: <what>
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+        })
+        """
+      When I run "<made by>"
+      Then the exit code is 0
+      When I run "sdp steps 'an empty cart' --json"
+      Then the exit code is 2
+      And the JSON output has:
+        | complete  | false                     |
+        | data.file | specs/steps/cart.steps.ts |
+      And the output contains "not read: specs/steps/<file>:1 [not-a-file]"
+
+      Examples:
+        | what              | made by                                    | file          |
+        | a link to nothing | ln -s nowhere.ts specs/steps/gone.steps.ts | gone.steps.ts |
+        | a named pipe      | mkfifo specs/steps/pipe.steps.ts           | pipe.steps.ts |
 
     Scenario: A malformed step expression stops the run in one line that names the definition; a reader gets an answer marked incomplete
       Given a file "specs/steps/cart.steps.ts" containing:

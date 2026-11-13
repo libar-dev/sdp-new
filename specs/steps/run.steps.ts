@@ -2,7 +2,7 @@
  * Running scenarios in memory: step definitions a scenario scripts (what they match, how they
  * behave, which module and world they belong to), the run, and what it recorded for each step.
  */
-import { Duration, Effect } from "effect"
+import { Duration, Effect, Fiber } from "effect"
 import { strict as assert } from "node:assert"
 import { defineSteps, Pending, pending, type StepContext, type StepModule, type StepOutcome } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
@@ -11,7 +11,7 @@ import { isDeepStrictEqual } from "node:util"
 import type { ScenarioResult, StepResult } from "../../src/model/Results.ts"
 import { builtinSteps } from "../../src/run/Builtin.ts"
 import { readResults } from "../../src/run/Store.ts"
-import { newWorld, node, reload, type World } from "./world.ts"
+import { newWorld, node, reload, setFile, type World } from "./world.ts"
 
 /** A step definition a scenario asks for: what it matches, how it behaves, and where it lives. */
 export interface Scripted {
@@ -31,9 +31,11 @@ interface Received {
 interface Log {
   readonly received: Array<Received>
   readonly timeline: Array<{ readonly scenario: string; readonly start: number; readonly end: number }>
-  /** Expressions whose handler waits for its signal, and those whose handler saw it abort. */
+  /** Expressions whose handler waits for its signal or to be released, and those whose handler saw its signal abort. */
   readonly waiting: Array<string>
   readonly aborted: Array<string>
+  /** Releases the handlers that wait until the scenario releases them. */
+  readonly held: Array<() => void>
 }
 
 type Behaviour = (
@@ -79,6 +81,12 @@ const behaviours: Record<string, Behaviour> = {
         resolve()
       }, { once: true })
     }),
+  // Never settles on its own: the scenario releases it once it has done what it does meanwhile.
+  "waits until it is released": (_, expression, log) =>
+    new Promise<void>((resolve) => {
+      log.waiting.push(expression)
+      log.held.push(resolve)
+    }),
   "records its arguments": ({ args, doc, table }, _, log) => void log.received.push({ args, doc, table }),
   "takes a moment": ({ scenario }, _, log) =>
     Effect.gen(function*() {
@@ -113,7 +121,7 @@ const throwingWorld = "throwing"
 /** One step module per module name; modules naming the same world share one world factory. */
 const scriptedSteps = (
   definitions: ReadonlyArray<Scripted>,
-  log: Log = { received: [], timeline: [], waiting: [], aborted: [] }
+  log: Log = { received: [], timeline: [], waiting: [], aborted: [], held: [] }
 ): ReadonlyArray<StepModule<Record<string, number>>> => {
   const factories = new Map<string, () => Record<string, number>>()
   const factory = (name: string) => {
@@ -145,7 +153,7 @@ interface Execution extends Log {
 }
 
 const execution = (world: World): Execution =>
-  (world.scratch.execution ??= { placements: [], progress: [], received: [], timeline: [], waiting: [], aborted: [], tools: [] }) as Execution
+  (world.scratch.execution ??= { placements: [], progress: [], received: [], timeline: [], waiting: [], aborted: [], held: [], tools: [] }) as Execution
 
 const scripted = (world: World): ReadonlyArray<Scripted> =>
   world.definitions.map((d, i) => ({ ...d, ...(execution(world).placements[i] ?? { module: "steps", world: "steps" }) }))
@@ -239,6 +247,17 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       const project = yield* reload(world)
       world.run = yield* readResults(memoryRoot, project.config)
     }).pipe(Effect.provide(layerMemoryWorkspace(world.files))))
+
+  // A spec added while a run is under way, and run by another while the first waits in a step.
+  When("the workspace is run for {string}, and while {string} runs, a file {string} is added and run:", ({ args: [target, expression, file], doc, world }) =>
+    Effect.gen(function*() {
+      const first = yield* Effect.forkChild(runInMemory(world, { targets: [target] }))
+      while (!execution(world).waiting.includes(expression)) yield* Effect.sleep("5 millis")
+      setFile(world, file, doc ?? "")
+      yield* runInMemory(world, { targets: [file] })
+      for (const release of execution(world).held.splice(0)) release()
+      yield* Fiber.join(first)
+    }))
 
   When(
     "the workspace is run for {string} with concurrency {int} and a reporter that takes a moment",

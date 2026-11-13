@@ -13,11 +13,13 @@
  * @sdp plays PAT-answer
  */
 import parseTagExpression from "@cucumber/tag-expressions"
-import { DateTime, type Duration, Effect, FileSystem, Path } from "effect"
+import { posix } from "node:path"
+import { DateTime, type Duration, Effect, FileSystem, Path, Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { type Livable, livable, regressions } from "../graph/Status.ts"
 import { lifecycle, unmetBefore } from "../lifecycle/Lifecycle.ts"
+import { readTimeout } from "../model/Config.ts"
 import { problemLine, type RuleId } from "../model/Diagnostic.ts"
 import { tally } from "../model/Graph.ts"
 import { type Evidence, notPassing, type RunResults, type ScenarioResult, type StepStatus, worstStatus } from "../model/Results.ts"
@@ -31,7 +33,17 @@ import { snippetModule } from "../run/Match.ts"
 import { runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
 import { commitResults } from "../run/Store.ts"
-import { type LoadedSteps, loadConfig, loadProject, loadSteps, loadWorkspace, readFiles, SourcesChanged, type Workspace } from "../workspace/Workspace.ts"
+import {
+  type LoadedSteps,
+  loadConfig,
+  loadProject,
+  loadSteps,
+  loadWorkspace,
+  readImports,
+  SourcesChanged,
+  whereLeads,
+  type Workspace
+} from "../workspace/Workspace.ts"
 import { type Answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
@@ -66,9 +78,9 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
 const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example", "retired-maturity"])
 
 /**
- * Fails before anything runs when part of the specs was not read as written, a scenario is outside
- * a rule, an open question has examples, or a spec declares the retired rung: a result of such a
- * workspace would be evidence about specs sdp check rejects.
+ * Fails before anything runs when part of the workspace was not read as written, a scenario is
+ * outside a rule, an open question has examples, or a spec declares the retired rung: a result of
+ * such a workspace would be evidence about what sdp check rejects.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
@@ -78,13 +90,19 @@ export const ensureReadable = (project: Project): Effect.Effect<void, Unreadable
   return problems.length === 0 ? Effect.void : Effect.fail(new UnreadableSpecs({ problems: problems.map(problemLine) }))
 }
 
+/** Whether a target names a spec's file or a directory it is in, however it is written: `./specs/cart.feature`, or `.` for the root. */
+const targetsFile = (target: string, spec: Spec) => {
+  const file = posix.normalize(target)
+  return file === "." || file === "./" || spec.file === file || spec.file.startsWith(file.endsWith("/") ? file : `${file}/`)
+}
+
 const targetsScenario = (target: string, scenario: Scenario, spec: Spec) =>
-  target === spec.id || target === scenario.id || spec.file === target || spec.file.startsWith(target.endsWith("/") ? target : `${target}/`)
+  target === spec.id || target === scenario.id || targetsFile(target, spec)
 
 const unmatched = (project: Project, targets: ReadonlyArray<string>): ReadonlyArray<string> =>
   targets.filter((target) =>
     !project.specs.some((spec) =>
-      spec.id === target || spec.file === target || spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec))
+      spec.id === target || targetsFile(target, spec) || spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec))
     )
   )
 
@@ -93,8 +111,10 @@ export interface WorkspaceRun {
   readonly gates: ReadonlyArray<ScenarioResult>
   /** Everything stored after the run, including results of scenarios that were not selected. */
   readonly results: RunResults
-  /** Stored results that no longer count, by what changed since they ran (scenarios the run did not select). */
+  /** Stored results that no longer count, by what changed since they ran (scenarios the run did not run). */
   readonly stale: Readonly<Record<string, number>>
+  /** Results this run recorded that no longer count, by what changed while it ran. */
+  readonly wentStale: Readonly<Record<string, number>>
   /** The scenarios this run ran that are examples of work still to come: whatever they did fails no run. */
   readonly toCome: ReadonlySet<string>
   /** The live examples this run ran that did not pass, by the results it recorded, a gate's rows that are no gate included: they fail the run. */
@@ -106,8 +126,8 @@ export interface WorkspaceRun {
 /**
  * One `sdp run`: ordinary scenarios first, their results committed, then the gates against a graph
  * that shows them. A process imports step modules once, so a run whose step files or their imports
- * changed after that fails before it records anything: its results would be about code that did
- * not run.
+ * changed after that, or that finds a step file it did not load, fails before it records a batch:
+ * its results would be about code that did not run.
  */
 export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, options: {
   readonly modules: ReadonlyArray<StepModule<any>>
@@ -116,8 +136,9 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
    * are part of what the results are evidence about, and are asked for again after each batch, for
    * files a handler imported while it ran.
    */
-  readonly loaded?: Pick<LoadedSteps, "imports" | "changed"> | undefined
+  readonly loaded?: Pick<LoadedSteps, "imports" | "changed" | "added"> | undefined
   readonly selection?: Selection | undefined
+  /** How long a step may take; the workspace's `timeout` when not given. */
   readonly timeout?: Duration.Input | undefined
   /** Scenarios run at once; `@serial` scenarios always run alone. */
   readonly concurrency?: number | undefined
@@ -126,15 +147,19 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
 }) {
   const selected = yield* selects(options.selection ?? {})
   const imports = options.loaded?.imports ?? (() => [])
-  const asLoaded = (sources: Workspace["sources"]) => {
-    const changed = options.loaded?.changed(sources) ?? []
-    return changed.length === 0 ? Effect.void : Effect.fail(new SourcesChanged({ files: changed }))
-  }
+  const asLoaded = Effect.fnUntraced(function*(workspace: Workspace, sources: Workspace["sources"] = workspace.sources) {
+    const { files, links } = options.loaded?.changed(sources) ?? { files: [], links: [] }
+    const added = options.loaded?.added(workspace.project.steps.files) ?? []
+    if (files.length === 0 && links.length === 0 && added.length === 0) return
+    // Where each link leads now, to say so.
+    const now = yield* whereLeads(root, links)
+    return yield* new SourcesChanged({ files, links: links.map((file) => ({ file, now: now.get(file) })), added })
+  })
 
   // Ordinary scenarios see no results at all, so none of them can depend on another's outcome.
   const before = yield* loadWorkspace(root, { results: "none", imports: imports() })
   yield* ensureReadable(before.project)
-  yield* asLoaded(before.sources)
+  yield* asLoaded(before)
   const unknown = unmatched(before.project, options.selection?.targets ?? [])
   if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
   const { config } = before.project
@@ -152,8 +177,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const partlyGates = new Set(before.project.specs.flatMap((spec) =>
     spec.scenarios.flatMap((scenario) => select(false)(scenario, spec) && select(true)(scenario, spec) ? [scenario.id] : [])
   ))
-  const live = new Set(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => scenario.id)))
   const scenarios = new Map(before.project.specs.flatMap((spec) => spec.scenarios.map((scenario) => [scenario.id, { spec, scenario }] as const)))
+  const gone = Object.values(before.stored?.scenarios ?? {}).filter((result) => !scenarios.has(result.id))
   const toCome = (graph: Project["graph"], id: string) => graph.node(id)?.attrs.toCome === true
   const { onScenario } = options
   /**
@@ -166,12 +191,13 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     complete: (result: ScenarioResult) => ScenarioResult = (result) => result
   ) {
     const known = new Set(ranAgainst.sources.map((file) => file.path))
-    const late = yield* readFiles(root, imports().filter((file) => !known.has(file)))
+    const late = yield* readImports(root, imports().filter((file) => !known.has(file)))
     const files = [...ranAgainst.sources, ...late]
-    yield* asLoaded(files)
+    // A batch with no result records nothing that could rest on what this process did not load.
+    if (batch.length > 0) yield* asLoaded(ranAgainst, files)
     const sources = late.length === 0 ? ranAgainst.now.sources : fingerprint(files)
     const executed = batch.map((result) => complete({ ...result, evidence: { ...result.evidence, sources } }))
-    return { sources, executed, results: yield* commitResults(root, config, { executed, live, imports: imports() }) }
+    return { sources, executed, results: yield* commitResults(root, config, { executed, gone, imports: imports() }) }
   })
   const run = (workspace: Workspace, gates: boolean, complete: (result: ScenarioResult) => ScenarioResult | undefined) =>
     runScenarios({
@@ -180,7 +206,7 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       against: workspace.now,
       select: select(gates),
       gates,
-      timeout: options.timeout,
+      timeout: options.timeout ?? config.timeout,
       concurrency: options.concurrency,
       onScenario: onScenario && ((result) => {
         const whole = complete(result)
@@ -218,10 +244,12 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const gates = yield* commit(yield* run(after, true, whole), after, whole)
   const { project } = yield* loadWorkspace(root)
   const { graph } = project
-  const reasons = graph.ofKind([made.kinds.scenario]).flatMap((node) => {
-    const reason = attribute(node, "staleBecause")
-    return typeof reason === "string" ? [reason] : []
-  })
+  const recorded = new Set([...ordinary.executed, ...gates.executed].map((result) => result.id))
+  const staleBecause = (own: boolean) =>
+    tally(graph.ofKind([made.kinds.scenario]).flatMap((node) => {
+      const reason = attribute(node, "staleBecause")
+      return typeof reason === "string" && recorded.has(node.id) === own ? [reason] : []
+    }))
   const ran = new Set(ordinary.executed.map((result) => result.id))
   // Which examples are live is read from the graph the run ran against; whether one
   // fails the run, from the result this run recorded for it.
@@ -241,7 +269,8 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     scenarios: ordinary.executed,
     gates: gates.executed,
     results: gates.results,
-    stale: tally(reasons),
+    stale: staleBecause(false),
+    wentStale: staleBecause(true),
     toCome: new Set([...ran].filter((id) => toCome(ranAgainst, id))),
     regressions: [...regressions(ranAgainst, ordinary.executed), ...ordinaryRows.map((result) => result.id)],
     livable: livable(project, ran)
@@ -274,6 +303,8 @@ export interface RunInput {
   /** Also suggest one step definition module for the undefined steps. */
   readonly snippets?: boolean | undefined
   readonly concurrency?: number | undefined
+  /** How long a step may take, e.g. `"90 seconds"` or `Duration.minutes(2)`; the workspace's `timeout` when not given. */
+  readonly timeout?: Duration.Input | undefined
   /** Called with each scenario's result as it is known, in order, and whether it is an example of work still to come. */
   readonly onScenario?: ((result: ScenarioResult, toCome: boolean) => Effect.Effect<void>) | undefined
 }
@@ -291,8 +322,10 @@ export interface RunReport {
   readonly toCome: Readonly<Record<StepStatus, number>>
   /** The gate scenarios by status. */
   readonly gates: Readonly<Record<StepStatus, number>>
-  /** Stored results of scenarios this run did not select that no longer count, by what changed. */
+  /** Stored results of scenarios this run did not run that no longer count, by what changed. */
   readonly stale: Readonly<Record<string, number>>
+  /** Results this run recorded that no longer count, by what changed while it ran. */
+  readonly wentStale: Readonly<Record<string, number>>
   /** Every result of this run: the ordinary scenarios, then the gates. */
   readonly scenarios: ReadonlyArray<ScenarioResult>
   /** A step definition module for the undefined steps, when asked for and there are any. */
@@ -305,6 +338,8 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   if (!Number.isInteger(concurrency) || concurrency < 1) {
     return yield* new Refused({ reason: `--concurrency ${concurrency}: the number of scenarios to run at once is 1 or more` })
   }
+  const timeout = input.timeout === undefined ? undefined : readTimeout(input.timeout)
+  if (timeout !== undefined && Result.isFailure(timeout)) return yield* new Refused({ reason: `the timeout ${timeout.failure}` })
   const config = yield* loadConfig(root)
   const steps = yield* loadSteps(root, config)
   const run = yield* runWorkspace(root, {
@@ -312,6 +347,7 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     loaded: steps,
     selection: { targets: input.targets, tags: input.tags },
     concurrency: input.concurrency,
+    timeout: timeout?.success,
     onScenario: input.onScenario
   })
   const summary = summarize(run.scenarios.filter((result) => !run.toCome.has(result.id)))
@@ -324,6 +360,7 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
     toCome: summarize(run.scenarios.filter((result) => run.toCome.has(result.id))),
     gates,
     stale: run.stale,
+    wentStale: run.wentStale,
     scenarios,
     snippets: input.snippets && suggested.length > 0 ? snippetModule(suggested, steps.files) : undefined
   }
@@ -353,6 +390,7 @@ export interface GateInput {
   readonly milestone: string
   /** When the gate passes, write `@met=<today>` on the milestone's tag line. */
   readonly record?: boolean | undefined
+  readonly timeout?: RunInput["timeout"]
   readonly onScenario?: RunInput["onScenario"]
 }
 
@@ -423,7 +461,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const spec = project.specById.get(milestone)
   // Closed first: the closing commit may move its last criterion to the spec that owns the rule.
   if (spec && isClosed(spec, vocabulary)) {
-    const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, scenarios: [] }
+    const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, wentStale: {}, scenarios: [] }
     const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
     return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
   }
@@ -434,7 +472,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   }
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
-  const ran = yield* execute(root, { targets: [milestone], onScenario: input.onScenario }, "gates")
+  const ran = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
   const met = input.record && ran.data.passed ? yield* recordMet(root, milestone) : undefined
   const report: GateReport = { ...ran.data, milestone, met }
   const notes = input.record && !ran.data.passed ? [...ran.notes, `${milestone} is not recorded as met: its gate does not pass`] : ran.notes

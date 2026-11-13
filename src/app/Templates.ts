@@ -6,7 +6,7 @@
  *
  * @sdp is ARCH-application
  */
-import { Result } from "effect"
+import { Duration, Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
@@ -303,6 +303,7 @@ export const configTemplate = [
   `# exclude: []                 # added to the built-in ${yamlList(defaults.exclude)}`,
   "# evidence: { inputs: [], env: [] }   # files (globs) and environment variables the steps read: results go stale when they change",
   `# results: ${defaults.results}`,
+  `# timeout: ${Duration.format(defaults.timeout)}                # how long a step may take before it fails; sdp run --timeout and sdp gate --timeout override it`,
   "# base: main                  # what sdp check compares live tests with, where HEAD meets it; default: origin's HEAD, else main, else master; none waives it",
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
   `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]   # how far work still to come has come, in order; live work declares none`,

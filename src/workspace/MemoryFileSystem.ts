@@ -2,7 +2,7 @@
  * An in-memory `FileSystem` for tests and executable specs: the real loading
  * pipeline runs against a map of `relative path → content` rooted at "/ws".
  */
-import { Effect, FileSystem, Glob, Layer, Path } from "effect"
+import { Effect, FileSystem, Layer, Path } from "effect"
 import { systemError } from "effect/PlatformError"
 import { noRevisions, Revisions } from "./Revisions.ts"
 import { loadProject } from "./Workspace.ts"
@@ -35,19 +35,32 @@ export const makeMemoryFileSystem = (files: Map<string, string>): FileSystem.Fil
       }),
     remove: (path) => Effect.sync(() => void files.delete(rel(path))),
     makeDirectory: () => Effect.void,
-    // Like the real one: paths under `root`, relative to it.
-    glob: (pattern, options) =>
-      Effect.sync(() => {
-        const glob = Glob.make(pattern, { dot: options?.dot ?? false })
-        const excludes = (options?.exclude ?? []).map((p) => Glob.make(p, { dot: true }))
-        const root = rel(options?.root ?? memoryRoot)
-        const prefix = root === "" ? "" : `${root}/`
-        return [...files.keys()]
-          .filter((file) => file.startsWith(prefix))
-          .map((file) => file.slice(prefix.length))
-          .filter((file) => Glob.match(glob, file) && !excludes.some((ex) => Glob.match(ex, file)))
-          .sort()
-      })
+    // Globs walk directories as on disk: each lists its entries with their types.
+    readDirectoryEntries: (path) => {
+      const directory = rel(path)
+      const prefix = directory === "" ? "" : `${directory}/`
+      const entries = new Map<string, FileSystem.File.Type>()
+      for (const file of files.keys()) {
+        if (!file.startsWith(prefix)) continue
+        const [name = "", ...below] = file.slice(prefix.length).split("/")
+        entries.set(name, below.length > 0 ? "Directory" : "File")
+      }
+      return entries.size === 0 && path !== memoryRoot
+        ? Effect.fail(notFound("readDirectoryEntries", path))
+        : Effect.succeed([...entries].map(([name, type]) => ({ name, type })))
+    },
+    // No path is a link.
+    realPath: (path) =>
+      path === memoryRoot || files.has(rel(path)) || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))
+        ? Effect.succeed(path)
+        : Effect.fail(notFound("realPath", path)),
+    // Only the type: whether a path is a file or a directory is all sdp asks.
+    stat: (path) =>
+      files.has(rel(path))
+        ? Effect.succeed({ type: "File" } as FileSystem.File.Info)
+        : path === memoryRoot || [...files.keys()].some((f) => f.startsWith(`${rel(path)}/`))
+        ? Effect.succeed({ type: "Directory" } as FileSystem.File.Info)
+        : Effect.fail(notFound("stat", path))
   })
 }
 

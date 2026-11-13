@@ -169,6 +169,8 @@ Feature: Use the command line
         | -C specs/search.feature status           | a workspace is a directory, and this is a file              | .sdp/results.json                   |
         | -C specs/search.feature init             | a workspace is a directory, and this is a file              | sdp.config.yaml                     |
         | run --concurrency 0                      | the number of scenarios to run at once is 1 or more         | .sdp/results.json                   |
+        | run --timeout '60 parsecs'               | --timeout 60 parsecs is not a duration: a number and a unit | .sdp/results.json                   |
+        | gate MS-beta --timeout 0s                | --timeout 0s is not more than nothing                       | .sdp/results.json                   |
         | run --tags '(@fast'                      | invalid --tags                                              | .sdp/results.json                   |
         | run serach                               | nothing matches serach                                      | .sdp/results.json                   |
         | gate search                              | search has no gate scenarios                                | .sdp/results.json                   |

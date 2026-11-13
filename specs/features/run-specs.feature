@@ -55,11 +55,13 @@ Feature: Run specs as tests
         | data.scenarios | <scenarios> |
 
       Examples:
-        | target               | scenarios                             |
-        | sort                 | sort#sort-by-name, sort#sort-by-price |
-        | sort#sort-by-price   | sort#sort-by-price                    |
-        | specs/search.feature | search#find-a-product-by-name         |
-        | specs/sort           | sort#sort-by-name, sort#sort-by-price |
+        | target                 | scenarios                                                            |
+        | sort                   | sort#sort-by-name, sort#sort-by-price                                |
+        | sort#sort-by-price     | sort#sort-by-price                                                   |
+        | specs/search.feature   | search#find-a-product-by-name                                        |
+        | ./specs/search.feature | search#find-a-product-by-name                                        |
+        | specs/sort             | sort#sort-by-name, sort#sort-by-price                                |
+        | .                      | search#find-a-product-by-name, sort#sort-by-name, sort#sort-by-price |
 
   Rule: An example of work still to come runs, and fails no run
 
@@ -771,3 +773,12 @@ Feature: Run specs as tests
         | command          | rung        |
         | sdp run          | implemented |
         | sdp gate MS-beta | implemented |
+
+    Scenario: A path the code globs match that is no file, which is in no spec
+      When I run "sh -c 'mkdir src && ln -s nowhere.ts src/gone.ts'"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "cannot run: 1 problem(s) in the workspace must be fixed first (sdp check)"
+      And the output contains "src/gone.ts:1 [not-a-file]"
+      And the file ".sdp/results.json" does not exist

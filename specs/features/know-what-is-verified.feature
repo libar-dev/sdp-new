@@ -309,6 +309,142 @@ Feature: Know what is verified
       And the output contains 'cart.stage is "unrun", expected "verified"'
       And the output contains "stale: 1 earlier result(s) no longer count (1 code-changed)"
 
+    Scenario Outline: In a monorepo, a file outside the workspace that the step definitions import changes, after a run <where>
+      Given a file "shop/sdp.config.yaml" containing:
+        """
+        features: ["specs/**/*.feature"]
+        """
+      And a file "shop/specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "shop/specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "../../../shared/lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "shared/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "sh -c 'mkdir links && ln -s ../shop links/shop'"
+      Then the exit code is 0
+      When I run "sdp -C <root> run"
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "sdp status --json" in "shop"
+      Then the JSON output has:
+        | data.stale | {} |
+      Given a file "shared/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp status --json" in "shop"
+      Then the JSON output has:
+        | data.stale.code-changed | 1 |
+
+      Examples:
+        | where                           | root       |
+        | in the workspace                | shop       |
+        | through a link to the workspace | links/shop |
+
+    Scenario Outline: The step definitions run through links, and <what>
+      Given a file "shop/sdp.config.yaml" containing:
+        """
+        features: ["specs/**/*.feature"]
+        """
+      And a file "shop/specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "shared/package.json" containing:
+        """
+        { "type": "module", "imports": { "#lamps": "./lamps.ts" } }
+        """
+      And a file "shared/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "<import>"
+
+        export default defineSteps(() => ({}), ({ Then }) => {
+          Then("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "shared/one.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "shared/two.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sh -c 'ln -s ../../shared/cart.steps.ts shop/specs/cart.steps.ts && ln -s one.ts shared/lamps.ts'"
+      Then the exit code is 0
+      When I run "sdp run" in "shop"
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "<change>"
+      Then the exit code is 0
+      When I run "sdp q scenario[status=stale] --ids" in "shop"
+      Then the output lines are "cart#add-an-item"
+
+      Examples:
+        | what                                                                     | import     | change                         |
+        | the file a link leads to changes                                         | ./lamps.ts | cp shared/two.ts shared/one.ts |
+        | a link is made to lead to another, unchanged file                        | ./lamps.ts | ln -sf two.ts shared/lamps.ts  |
+        | a link a package import names is made to lead to another, unchanged file | #lamps     | ln -sf two.ts shared/lamps.ts  |
+
+    Scenario: A step file is made a link to a copy of it elsewhere, beside other files it imports
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "./lamps.ts"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      And a file "specs/steps/lamps.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "shared/lamps.ts" containing:
+        """
+        export const lamps = 2
+        """
+      When I run "sdp run"
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "sh -c 'cp specs/steps/cart.steps.ts shared/cart.ts && ln -sf ../../shared/cart.ts specs/steps/cart.steps.ts'"
+      Then the exit code is 0
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+
     Scenario: An outline whose ordinary row changed the code while it ran, and whose gate row ran after
       Given a file "src/cart.ts" containing:
         """
@@ -349,6 +485,7 @@ Feature: Know what is verified
         """
       When I run "sdp run"
       Then the exit code is 0
+      And the output contains "stale: 1 result(s) of this run no longer count (1 code-changed): what they ran against changed while they ran"
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "cart#add-item"
 
@@ -627,11 +764,11 @@ Feature: Know what is verified
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "wishlist#keep-a-lamp"
 
-  Rule: A long-lived process records no run once a module it imported changed or was deleted
+  Rule: A process records no result on step code it did not load: a module it imported that changed or is gone, or a step file added since; a result from before the change is stale
 
-    Node.js keeps a module for the life of a process: the changed code did not run, and a result
-    would certify code that never ran. A module that is gone is as changed as one whose content
-    differs.
+    A process loads the step files once, and Node.js keeps a module for the life of a process: the
+    code there now did not run, and a result would certify code that never ran. A module that is
+    gone is as changed as one whose content differs.
 
     Background:
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -677,6 +814,90 @@ Feature: Know what is verified
       Then the output contains "specs/steps/lamps.ts changed after this process imported it"
       When I run "sdp q feature[stage=verified] --ids"
       Then the output lines are ""
+
+    Scenario: A link the process imported through leads elsewhere
+      Given a file "specs/steps/one.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "specs/steps/two.ts" containing:
+        """
+        export const lamps = 1
+        """
+      When I run "ln -sf one.ts specs/steps/lamps.ts"
+      Then the exit code is 0
+      When this process runs the workspace through the API
+      Then the output contains "1 scenario(s): 1 passed"
+      When I run "ln -sf two.ts specs/steps/lamps.ts"
+      Then the exit code is 0
+      When this process runs the workspace through the API
+      Then the output contains "specs/steps/lamps.ts leads to specs/steps/two.ts now, not where it led when this process imported it"
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+
+    Scenario Outline: A step file is added while a run <that> runs
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "cart" has stage "verified"
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {
+            writeFileSync(new URL("./more.steps.ts", import.meta.url), "export const lamps = 2")
+          })
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      When I run "sdp run <targets>"
+      Then the exit code is <exit code>
+      And the output contains "<output>"
+      And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+
+      Examples:
+        | that                       | targets | exit code | output                                                                                      |
+        | that would record a gate   | .       | 1         | specs/steps/more.steps.ts was added after this process loaded the step modules              |
+        | that records no gate       | cart    | 0         | stale: 1 result(s) of this run no longer count (1 code-changed): what they ran against changed |
+
+    Scenario: A step file the process loaded is made a link while a run that would record a gate runs
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "cart" has stage "verified"
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { copyFileSync, mkdirSync, rmSync, symlinkSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {
+            mkdirSync("shared")
+            copyFileSync("specs/steps/cart.steps.ts", "shared/cart.ts")
+            rmSync("specs/steps/cart.steps.ts")
+            symlinkSync("../../shared/cart.ts", "specs/steps/cart.steps.ts")
+          })
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "specs/steps/cart.steps.ts leads to shared/cart.ts now, not where it led when this process imported it"
+      And the file ".sdp/results.json" does not contain "MS-beta#the-cart-works"
 
   Rule: A result goes stale when a lockfile at the workspace root changes
 
@@ -730,6 +951,45 @@ Feature: Know what is verified
       And node "cart#add-an-item" has attribute staleBecause = "inputs-changed"
       And node "cart" has attribute stage = "unrun"
 
+    Scenario: A file of evidence.inputs, named by an absolute glob, changes
+      Given a file "fixtures/lamps.json" containing:
+        """
+        []
+        """
+      When I run "sh -c 'echo evidence: { inputs: [$PWD/fixtures/**] } > sdp.config.yaml'"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
+      Given a file "fixtures/lamps.json" containing:
+        """
+        [{ "name": "Ada" }]
+        """
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
+
+    Scenario: A path of evidence.inputs that is no file counts by its path and what it is, and nothing reports it
+      Given a file "fixtures/lamps.json" containing:
+        """
+        []
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
+      When I run "mkfifo fixtures/orders"
+      Then the exit code is 0
+      When I run "sdp status --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | complete                  | true |
+        | data.stale.inputs-changed | 1    |
+      When I run "sdp check --base none"
+      Then the exit code is 0
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "1 scenario(s): 1 undefined"
+
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
       Then the exit code is 1
@@ -742,9 +1002,10 @@ Feature: Know what is verified
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
-  Rule: A scenario that reads the graph goes stale when any spec changes; one that does not keeps its result
+  Rule: A scenario that reads the graph goes stale when a spec changes, or Markdown where specs live is added or removed; one that does not keeps its result
 
-    What a step that reads the graph sees is built from every spec and the id declarations.
+    What a step that reads the graph sees is built from every spec and the id declarations, and
+    warns of each Markdown file where specs live, none of which it reads.
 
     Scenario: Another spec is added
       Given a step definition "an empty cart" that passes
@@ -765,6 +1026,23 @@ Feature: Know what is verified
       Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
       And node "catalogue#the-cart-is-specified" has attribute staleBecause = "specs-changed"
       And node "cart#add-an-item" has attribute status = "passed"
+
+    Scenario: Markdown is written where specs live
+      Given a file "specs/guard.feature" containing:
+        """
+        @id=guard
+        Feature: Guard
+          Rule: The specs are clean
+            Scenario: No warnings
+              Then there are no warning diagnostics
+        """
+      When the workspace is run
+      And a file "specs/notes.md" containing:
+        """
+        # Notes
+        """
+      Then node "guard#no-warnings" has attribute status = "stale"
+      And node "guard#no-warnings" has attribute staleBecause = "specs-changed"
 
   Rule: No scenario reads the layer of evidence it belongs to
 
@@ -903,7 +1181,7 @@ Feature: Know what is verified
       Then node "MS-beta#the-cart-works" has attribute status = "failed"
       And node "MS-alpha#nothing-fails" has attribute status = "passed"
 
-  Rule: A run records the scenarios it executed and what they ran against, and leaves every other result as it found it
+  Rule: A run records the scenarios it executed and what they ran against, drops the results of scenarios that were gone when it started, and leaves every other result as it found it
 
     Runs overlap: agents, shells and CI jobs record into one store.
 
@@ -950,6 +1228,22 @@ Feature: Know what is verified
       And a step definition "a wishlist" that fails
       And the workspace is run for "cart" and for "wishlist" at the same time
       Then node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
+      And node "cart#add-an-item" has attribute status = "passed"
+
+    Scenario: A run keeps the result another run recorded of a scenario added after it started
+      Given a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that waits until it is released
+      And a step definition "the cart holds {int} item(s)" that passes
+      And a step definition "a wishlist" that passes
+      When the workspace is run for "cart", and while "I add a lamp" runs, a file "specs/wishlist.feature" is added and run:
+        """
+        @id=wishlist
+        Feature: Wishlist
+          Rule: A wishlist keeps what a shopper wants for later
+            Scenario: Keep a lamp for later
+              Given a wishlist
+        """
+      Then node "wishlist#keep-a-lamp-for-later" has attribute status = "passed"
       And node "cart#add-an-item" has attribute status = "passed"
 
     Scenario: One plain record per scenario in the results file

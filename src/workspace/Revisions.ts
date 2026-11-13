@@ -11,13 +11,13 @@
  *
  * @sdp is ARCH-workspace
  */
-import { ByteSize, Context, Effect, FileSystem, Layer, Option, Result, Schema, Stream } from "effect"
+import { ByteSize, Context, Effect, FileSystem, Layer, Option, Path, Result, Schema, Stream } from "effect"
 import { type PlatformError, systemError } from "effect/PlatformError"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import type { SourceFile } from "../graph/Build.ts"
 import type { BaseSpecs } from "../check/Check.ts"
 import { configFileNames } from "../model/Config.ts"
-import { findFiles, parseConfig } from "./Workspace.ts"
+import { findPaths, parseConfig } from "./Workspace.ts"
 
 /** The base that waives the comparison: `--base none`, or `base: none` in the configuration. */
 export const noBase = "none"
@@ -88,6 +88,7 @@ export const gitRevisions = Layer.effect(
   Revisions,
   Effect.gen(function*() {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const paths = committedPath(yield* Effect.provide(Path.Path, Path.layer))
     /** A git command run in the workspace, in `env` if given: its exit code and what it wrote, or undefined when git does not run. */
     const git = (root: string, args: ReadonlyArray<string>, input?: string, env?: Record<string, string | undefined>) =>
       Effect.scoped(Effect.gen(function*() {
@@ -161,12 +162,14 @@ export const gitRevisions = Layer.effect(
         const config = parsed.success
         // Its specs are those the workspace's own walk finds there, what the commit cannot say taken for
         // a directory and for a file: what the walk reads there that the commit cannot say is a part of
-        // the base that was not compared.
+        // the base that was not compared, and so is a path it found that is no file.
         const listed = yield* Effect.forEach(["Directory", "File"] as const, (unknownAs) =>
-          findFiles(workspace, config.features, config.exclude).pipe(
-            Effect.provideService(FileSystem.FileSystem, committed.fileSystem(unknownAs))
+          findPaths(workspace, config.features, config.exclude).pipe(
+            Effect.provideService(FileSystem.FileSystem, committed.fileSystem(unknownAs)),
+            Effect.provideService(Path.Path, paths)
           ))
-        const specs = yield* Effect.forEach([...new Set(listed.flat())].sort(), (path) =>
+        const found = listed.flatMap((walked) => [...walked.files, ...walked.unread.map((unread) => unread.path)])
+        const specs = yield* Effect.forEach([...new Set(found)].sort(), (path) =>
           Effect.map(committed.file(fromTop(path)), (entry) => entry === undefined ? [] : [{ path, entry }])
         )
         const files = yield* committed.read(specs.flat())
@@ -186,6 +189,18 @@ export const gitRevisions = Layer.effect(
     return { base }
   })
 )
+
+/**
+ * Paths as the commit's file system reads them: from the top of the repository, so that a relative
+ * path stays relative — `..` above the top included, which the commit says is outside it — where the
+ * system's own would resolve it from the directory sdp runs in.
+ */
+const committedPath = (posix: Path.Path): Path.Path =>
+  Path.make({
+    ...posix,
+    resolve: (...segments) => segments.some(posix.isAbsolute) ? posix.resolve(...segments) : posix.join(...segments),
+    relative: (from, to) => posix.relative(posix.resolve("/", from), posix.resolve("/", to))
+  })
 
 /** The mode `git ls-tree` gives a directory, a symbolic link, whose blob holds its target, and a submodule, whose files are another repository's. */
 const tree = "040000"
@@ -247,7 +262,7 @@ const treeEntries = (out: Buffer, repository: string) =>
 
 /**
  * The files of a commit, `top` its tree, by their path from the top of the repository, as a file
- * system the workspace's walk (`findFiles`) finds specs in as it finds them on disk: a symbolic link
+ * system the workspace's walk (`findPaths`) finds specs in as it finds them on disk: a symbolic link
  * leads where its target does, and a submodule checked out in `checkout`, the top of the working tree,
  * holds the files of the commit the tree records for it, read from its own repository; `shown` is a
  * path as a note names it. A directory is listed from git when a path first goes through it, and with

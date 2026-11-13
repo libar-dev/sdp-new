@@ -17,14 +17,14 @@ import { type EdgeRecord, edgeRecord, type GraphRecord, graphRecords, mermaid, t
 import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } from "../lifecycle/Lifecycle.ts"
-import { atLeast, type Diagnostic, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
+import { atLeast, type Diagnostic, problemLine, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
 import { Graph } from "../model/Graph.ts"
 import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
 import { type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
 import { loadConfig, loadProject } from "../workspace/Workspace.ts"
-import { type Answer, answer } from "./Answer.ts"
+import { type Answer, answer, unread } from "./Answer.ts"
 import { Refused, UnknownNode } from "./Errors.ts"
 
 /** The node with this id; the target of a dangling link is not one. */
@@ -174,8 +174,13 @@ export const check = Effect.fn("check")(function*(root: string, input: { readonl
 export const steps = Effect.fn("steps")(function*(root: string, input: { readonly text?: string | undefined } = {}) {
   const project = yield* loadProject(root, { withResults: false })
   const data: ReadonlyArray<ListedStep> = listSteps(project, builtinSteps.definitions, input.text)
-  // The listing is read from the step files alone: a spec that was not read takes nothing from it.
-  const notes = stepsMissing(project)
+  // The listing is read from the step files alone: a spec that was not read takes nothing from it,
+  // and a path the steps globs match that was not read may hold definitions it misses.
+  const notStepFiles = new Set(project.steps.unread)
+  const notes = [
+    ...unread(project).filter((diagnostic) => notStepFiles.has(diagnostic.source?.file ?? "")).map((diagnostic) => `not read: ${problemLine(diagnostic)}`),
+    ...stepsMissing(project)
+  ]
   return { complete: notes.length === 0, notes, data } satisfies Answer<typeof data>
 })
 
