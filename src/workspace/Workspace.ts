@@ -5,7 +5,7 @@
  * pipeline against an in-memory workspace. Reading never runs workspace code:
  * only `loadSteps`, for `sdp run` and `sdp gate`, imports step modules.
  */
-import { Effect, FileSystem, Path, Schema } from "effect"
+import { Effect, FileSystem, Path, Result, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 import { readFileSync, realpathSync } from "node:fs"
 import { createRequire, findPackageJSON, registerHooks } from "node:module"
@@ -13,17 +13,22 @@ import { basename, delimiter, dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type NotAFile, type Project, type SourceFile } from "../graph/Build.ts"
-import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
+import { type Config, configFileNames, decodeConfigFile, resolveConfig } from "../model/Config.ts"
 import type { RunResults } from "../model/Results.ts"
 import { listedPackages, moduleConfigFiles, namedBy, packageFile, pathFrom } from "../parse/ModuleConfigs.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults } from "../run/Store.ts"
 import { PackageJson } from "../model/PackageJson.ts"
+/** Every problem of a configuration, each on a line of its own; as a message, on one line. */
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   file: Schema.String,
-  message: Schema.String
-}) {}
+  problems: Schema.Array(Schema.String)
+}) {
+  override get message() {
+    return this.problems.join("; ")
+  }
+}
 
 export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()("WorkspaceNotFound", {
   root: Schema.String
@@ -79,30 +84,48 @@ export const findWorkspaceRoot = Effect.fn("findWorkspaceRoot")(function*(start:
   }
 })
 
+/**
+ * The name of the workspace's configuration file, if it has one: a workspace has one configuration,
+ * so more than one file is refused, naming each, rather than one read and the others ignored.
+ */
+export const configFileName = Effect.fnUntraced(function*(root: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const existing = yield* Effect.filter(configFileNames, (name) => fs.exists(path.join(root, name)))
+  if (existing.length > 1) {
+    return yield* new ConfigError({ file: existing.join(" and "), problems: ["a workspace has one configuration: keep one of these files and delete the others"] })
+  }
+  return existing[0]
+})
+
 /** The workspace's configuration file, if it has one. */
 const readConfigFile = Effect.fnUntraced(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   if (!(yield* fs.exists(root))) return yield* new WorkspaceNotFound({ root })
-  for (const name of configFileNames) {
-    const file = path.join(root, name)
-    if (yield* fs.exists(file)) return { path: name, content: yield* fs.readFileString(file) } satisfies SourceFile
-  }
-  return undefined
+  const name = yield* configFileName(root)
+  return name === undefined ? undefined : { path: name, content: yield* fs.readFileString(path.join(root, name)) } satisfies SourceFile
 })
 
-/** A configuration file as sdp reads it, or the defaults when there is none: the workspace's, or the one a base revision had. */
+/** One line: a problem quotes what was written, which may hold a line break. */
+const oneLine = (text: string) => text.replace(/\s*\n\s*/g, " ").trim()
+
+/**
+ * A configuration file as sdp reads it, or the defaults when there is none: the workspace's, or the
+ * one a base revision had. Every problem it has is refused at once, each with the key it is at.
+ */
 export const parseConfig = Effect.fnUntraced(function*(file: SourceFile | undefined) {
   if (!file) return resolveConfig(undefined)
   const raw = yield* Effect.try({
     try: () => file.path.endsWith(".json") ? JSON.parse(file.content) : parseYaml(file.content) ?? {},
-    catch: (e) => new ConfigError({ file: file.path, message: e instanceof Error ? e.message : String(e) })
+    catch: (e) => new ConfigError({ file: file.path, problems: [oneLine(e instanceof Error ? e.message : String(e))] })
   })
-  // Unknown keys are errors: a misspelled `spec:` must not silently fall back to the defaults.
-  const decoded = yield* Schema.decodeUnknownEffect(ConfigFile)(raw, { onExcessProperty: "error" }).pipe(
-    Effect.mapError((e) => new ConfigError({ file: file.path, message: e.message }))
-  )
-  return resolveConfig(decoded)
+  const decoded = decodeConfigFile(raw)
+  if (Result.isFailure(decoded)) {
+    const at = (path: ReadonlyArray<PropertyKey>) => path.length === 0 ? "" : ` at ${path.map((key) => `[${JSON.stringify(typeof key === "symbol" ? String(key) : key)}]`).join("")}`
+    return yield* new ConfigError({ file: file.path, problems: decoded.failure.map(({ message, path }) => oneLine(message) + at(path)) })
+  }
+  return resolveConfig(decoded.success)
 })
 
 export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
@@ -128,7 +151,7 @@ const notAFile: Partial<Record<FileSystem.File.Type, NotAFile["is"]>> = {
  * Expands globs relative to `root` to the files they match, de-duplicated and sorted for stable
  * output, to the directories they match (`fixtures/**` is `fixtures` and all below it), and to what
  * they match that is no file sdp can read: a link that leads to none, a named pipe, a socket or a
- * device, and a directory it may not list, which may hold more.
+ * device, and a directory it may not list, which may hold more. Distinct patterns walk concurrently.
  */
 export const findPaths = Effect.fn("findPaths")(function*(
   root: string,
@@ -140,7 +163,7 @@ export const findPaths = Effect.fn("findPaths")(function*(
   // What the walk learns of each path, by the path it looks at, so that a file costs no look of its
   // own: the directories it lists, the entries of theirs that are no file, and the type of what each
   // path it looks at leads to, none where nothing is.
-  const listed: Array<string> = []
+  const listed = new Set<string>()
   const unlisted = new Set<string>()
   const types = new Map<string, FileSystem.File.Type | undefined>()
   const walk = FileSystem.make({
@@ -148,13 +171,13 @@ export const findPaths = Effect.fn("findPaths")(function*(
     readDirectoryEntries: (directory) =>
       fs.readDirectoryEntries(directory).pipe(
         Effect.map((entries) => {
-          listed.push(directory)
+          listed.add(directory)
           const at = directory.endsWith("/") ? directory : `${directory}/`
           for (const entry of entries) if (entry.type !== "File") types.set(at + entry.name, entry.type)
           return entries
         }),
         // One sdp may not list is reported where it is, and the walk goes on.
-        Effect.catchIf((error) => error.reason._tag === "PermissionDenied", () => Effect.sync(() => (unlisted.add(directory), [])))
+        Effect.catchReason("PlatformError", "PermissionDenied", () => Effect.sync(() => (unlisted.add(directory), [])))
       ),
     stat: (at) =>
       fs.stat(at).pipe(
@@ -164,14 +187,15 @@ export const findPaths = Effect.fn("findPaths")(function*(
   })
   const base = path.resolve(root)
   const found = new Set<string>()
-  for (const pattern of patterns) for (const file of yield* walk.glob(pattern, { root: base, exclude })) found.add(file)
+  const walked = yield* Effect.forEach([...new Set(patterns)], (pattern) => walk.glob(pattern, { root: base, exclude }), { concurrency: 16 })
+  for (const files of walked) for (const file of files) found.add(file)
   const sorted = [...found].sort()
   // Each path the walk learnt of by both names a glob gives a path: as it is, and relative to the root.
   const names = (at: string) => {
     const named = at.length > 1 && at.endsWith("/") ? at.slice(0, -1) : at
     return [named, path.relative(base, named)]
   }
-  const directories = new Set(listed.flatMap(names))
+  const directories = new Set([...listed].flatMap(names))
   const told = new Map([...types].flatMap(([at, type]) => names(at).map((name) => [name, type] as const)))
   // A path in a directory the walk listed is a file unless the listing said otherwise; of any other, it learnt nothing.
   const typeOf = new Map(sorted.map((file) => {

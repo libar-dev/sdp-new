@@ -1,4 +1,4 @@
-import { Duration, Option, Result, Schema, Struct } from "effect"
+import { Duration, Option, Result, Schema, SchemaIssue, Struct } from "effect"
 import { defaultDisciplines, defaultVocabulary, isKey, isStage, isValueWord, made, reservedRelations, Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
@@ -61,7 +61,8 @@ export const ConfigFile = Schema.Struct({
   // A number alone is read so that it is refused for its missing unit, not for its type.
   timeout: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-  base: Schema.optional(Schema.String),
+  // `base:` with no revision names none, as if it were left out: the configuration init writes shows it so.
+  base: Schema.optional(Schema.NullOr(Schema.String)),
   vocabulary: Schema.optional(VocabularyFile)
 }).check(Schema.makeFilter((file) => configProblems(file)))
 export type ConfigFile = typeof ConfigFile.Type
@@ -156,7 +157,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     results: file.results ?? defaults.results,
     timeout: file.timeout === undefined ? defaults.timeout : Result.getOrElse(readTimeout(String(file.timeout)), () => defaults.timeout),
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
-    base: file.base,
+    base: file.base ?? undefined,
     vocabulary: resolveVocabulary(file.vocabulary)
   }
 }
@@ -307,6 +308,54 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
     })
   }
   return issues
+}
+
+/** A problem of a configuration as it was written: what is wrong, at the path of the key it is at. */
+export interface ConfigProblem {
+  readonly path: ReadonlyArray<PropertyKey>
+  readonly message: string
+}
+
+/** The problems of a decoding that failed, each at its path; none of one that succeeded. */
+const problemsOf = (decoded: Result.Result<unknown, Schema.SchemaError>): ReadonlyArray<ConfigProblem> =>
+  Result.isSuccess(decoded)
+    ? []
+    : SchemaIssue.makeFormatterStandardSchemaV1()(decoded.failure.issue).issues.map(({ message, path = [] }) => ({
+      path: path.map((key) => typeof key === "object" ? key.key : key),
+      message
+    }))
+
+/** `input` without each key a problem lies under: the deepest on its path that an object, not a list, holds. */
+const without = (input: object, problems: ReadonlyArray<ConfigProblem>): object => {
+  const rest = structuredClone(input)
+  for (const { path } of problems) {
+    let at: unknown = rest
+    let key: readonly [holder: Record<PropertyKey, unknown>, key: PropertyKey] | undefined
+    for (const step of path) {
+      if (typeof at !== "object" || at === null) break
+      const holder = at as Record<PropertyKey, unknown>
+      if (!Array.isArray(at)) key = [holder, step]
+      at = holder[step]
+    }
+    if (key !== undefined) delete key[0][key[1]]
+  }
+  return rest
+}
+
+/**
+ * A configuration as it was written, or every problem it has, each at its key: what does not fit
+ * the shape of `ConfigFile`, and what the rest means that sdp cannot work with. The rest is the file
+ * without each key that holds what does not fit, so that a misspelt key hides no problem of another.
+ * Unknown keys are problems: a misspelt `spec:` must not silently fall back to the defaults.
+ */
+export const decodeConfigFile = (input: unknown): Result.Result<ConfigFile, ReadonlyArray<ConfigProblem>> => {
+  const options = { onExcessProperty: "error", errors: "all" } as const
+  const decoded = Schema.decodeUnknownResult(ConfigFile)(input, options)
+  if (Result.isSuccess(decoded)) return Result.succeed(decoded.success)
+  const shape = problemsOf(Schema.decodeUnknownResult(Schema.Struct(ConfigFile.fields))(input, options))
+  if (shape.length === 0) return Result.fail(problemsOf(decoded))
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return Result.fail(shape)
+  return Result.fail([...shape, ...problemsOf(Schema.decodeUnknownResult(ConfigFile)(without(input, shape), options))])
 }
 
 export const configFileNames = ["sdp.config.yaml", "sdp.config.yml", "sdp.config.json"] as const

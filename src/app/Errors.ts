@@ -104,11 +104,11 @@ const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
 export const isAppError = (error: unknown): error is AppError =>
   Predicate.hasProperty(error, "_tag") && Predicate.isString(error._tag) && Object.hasOwn(appErrorTags, error._tag)
 
-/** Any of them as one line for the person or agent who caused it. */
+/** Any of them as one line for the person or agent who caused it; a configuration, one line for each of its problems. */
 export const describe = (error: AppError): string => {
   switch (error._tag) {
     case "ConfigError":
-      return `${error.file}: invalid configuration: ${error.message.replace(/\s*\n\s*/g, " ")}`
+      return error.problems.map((problem) => `${error.file}: invalid configuration: ${problem}`).join("\n")
     case "StepLoadError":
       return `${error.file}: could not load step definitions: ${error.message}`
     case "QueryError":

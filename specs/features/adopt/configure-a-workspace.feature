@@ -90,6 +90,9 @@ Feature: Configure a workspace
 
   Rule: A configuration that cannot work stops sdp with the file and the key
 
+    Worked around, it would answer from another configuration than the one written: a misspelt key
+    would fall back to its default, and a word no tag can hold would match nothing.
+
     Scenario Outline: A configuration that cannot work
       Given a file "sdp.config.yaml" containing:
         """
@@ -100,7 +103,66 @@ Feature: Configure a workspace
       And loading the workspace fails with '<path>'
 
       Examples:
-        | config                                     | problem                                     | path                          |
-        | feature: ["specs/**/*.feature"]            | excess property                             | at ["feature"]                |
-        | vocabulary: { maturity: [idea, verified] } | verified is a stage sdp derives             | at ["vocabulary"]["maturity"] |
-        | ids: { component: ARCH }                   | element and component share the prefix ARCH | at ["ids"]                    |
+        | config                                                   | problem                                                        | path                                     |
+        | feature: ["specs/**/*.feature"]                          | excess property                                                | at ["feature"]                           |
+        | vocabulary: { maturity: [idea, verified] }               | verified is a stage sdp derives                                | at ["vocabulary"]["maturity"]            |
+        | ids: { component: ARCH }                                 | element and component share the prefix ARCH                    | at ["ids"]                               |
+        | vocabulary: { kinds: { decision: [""] } }                | a word cannot be empty                                         | at ["vocabulary"]["kinds"]["decision"]   |
+        | vocabulary: { kinds: { decision: [] } }                  | a role needs at least one word                                 | at ["vocabulary"]["kinds"]["decision"]   |
+        | vocabulary: { relations: { plan: ["planned for"] } }     | `planned for` cannot be the key of a tag                       | at ["vocabulary"]["relations"]["plan"]   |
+        | vocabulary: { kinds: { decision: ["design decision"] } } | `design decision` cannot be the value of a tag                 | at ["vocabulary"]["kinds"]["decision"]   |
+        | vocabulary: { kinds: { decision: [scenario] } }          | scenario is a kind sdp makes itself                            | at ["vocabulary"]["kinds"]["decision"]   |
+        | vocabulary: { relations: { plan: [status] } }            | status is an attribute sdp derives or checks itself            | at ["vocabulary"]["relations"]["plan"]   |
+        | vocabulary: { relations: { plan: [imports] } }           | imports is a relation sdp makes itself                         | at ["vocabulary"]["relations"]["plan"]   |
+        | vocabulary: { relations: { anchor: iteration } }         | iteration is also a relation of the plan                       | at ["vocabulary"]["relations"]["anchor"] |
+        | vocabulary: { maturity: [] }                             | the maturity ladder needs at least one level                   | at ["vocabulary"]["maturity"]            |
+        | vocabulary: { maturity: [idea, draft, idea] }            | levels must be distinct: idea repeats                          | at ["vocabulary"]["maturity"]            |
+        | timeout: 30                                              | 30 is not a duration                                           | at ["timeout"]                           |
+        | timeout: 0s                                              | 0s is not more than nothing                                    | at ["timeout"]                           |
+        | ids: { scenario: SC }                                    | scenario is a kind sdp makes itself, so no id an author writes | at ["ids"]["scenario"]                   |
+        | ids: { requirement: US1 }                                | must be letters only                                           | at ["ids"]["requirement"]                |
+        | ids: { requirement: arch }                               | element and requirement share the prefix ARCH, as arch         | at ["ids"]                               |
+
+  Rule: Every problem of a configuration is reported at once, one line each, with the file and the key it is at
+
+    Whoever fixes a configuration fixes it in one pass, not one problem per run.
+
+    Scenario: A misspelt key, a timeout without a unit and a rung written twice
+      Given a file "sdp.config.yaml" containing:
+        """
+        timeout: 30
+        vocabulary: { kind: { decision: [adr] }, maturity: [idea, idea] }
+        """
+      When I run "sdp q feature"
+      Then the exit code is 1
+      And the output is one line per configuration problem:
+        | file            | key                        | message                 |
+        | sdp.config.yaml | ["vocabulary"]["kind"]     | excess property         |
+        | sdp.config.yaml | ["timeout"]                | 30 is not a duration    |
+        | sdp.config.yaml | ["vocabulary"]["maturity"] | levels must be distinct |
+
+  Rule: A workspace has one configuration, so two configuration files stop sdp, naming both
+
+    Which one sdp read would depend on an order nobody sees, and what the other says would be
+    ignored without a word.
+
+    Scenario Outline: sdp.config.yaml beside sdp.config.json, then <command>
+      Given a file "sdp.config.yaml" containing:
+        """
+        features: ["specs/**/*.feature"]
+        """
+      And a file "sdp.config.json" containing:
+        """
+        { "exclude": ["notes/**"] }
+        """
+      When I run "<command>"
+      Then the exit code is 1
+      And the output is one line per configuration problem:
+        | file                                | message                           |
+        | sdp.config.yaml and sdp.config.json | a workspace has one configuration |
+      And the file ".claude/skills/sdp/SKILL.md" does not exist
+
+      Examples:
+        | command       |
+        | sdp q feature |
+        | sdp init      |

@@ -6,19 +6,28 @@
  */
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
+import { fileURLToPath } from "node:url"
 import { defaults } from "../model/Config.ts"
 import { formatSource } from "../model/Graph.ts"
 import { idForm, isId, isValueWord, made } from "../model/Vocabulary.ts"
 import { Revisions } from "../workspace/Revisions.ts"
-import { findFiles, loadProject } from "../workspace/Workspace.ts"
+import { configFileName, findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
 
 /** The skill that teaches an agent to work with sdp, where agents look for skills. sdp ships the one it is developed with. */
 const skillFile = ".claude/skills/sdp/SKILL.md"
 
-/** sdp's own copy of the skill, from where this sdp is installed: a file of sdp's, not of the workspace, so not read through its FileSystem. */
-const ownSkill = Effect.promise(() => readFile(new URL(`../../${skillFile}`, import.meta.url), "utf8"))
+/**
+ * sdp's own copy of the skill, from where this sdp is installed: a file of sdp's, not of the
+ * workspace, so not read through its FileSystem. An installation without it is broken, which is
+ * said, with the file it misses, before init writes anything.
+ */
+const ownSkillFile = new URL(`../../${skillFile}`, import.meta.url)
+const ownSkill = Effect.tryPromise({
+  try: () => readFile(ownSkillFile, "utf8"),
+  catch: () => new Refused({ reason: `this sdp could not read its skill, ${fileURLToPath(ownSkillFile)}: reinstall sdp` })
+})
 
 /**
  * Writes a file that does not exist yet, and says whether it did: creating it is the check, so a
@@ -28,7 +37,7 @@ const createFile = Effect.fnUntraced(function*(file: string, content: string) {
   const fs = yield* FileSystem.FileSystem
   return yield* fs.writeFileString(file, content, { flag: "wx" }).pipe(
     Effect.as(true),
-    Effect.catchIf((error) => error.reason._tag === "AlreadyExists", () => Effect.succeed(false))
+    Effect.catchReason("PlatformError", "AlreadyExists", () => Effect.succeed(false))
   )
 })
 
@@ -47,14 +56,18 @@ const ignoresDirectory = (gitignore: string, directory: string) =>
 /**
  * `sdp init`: a configuration and the skill, and a .gitignore of the directory `sdp run` records in
  * where git does not ignore it already, for a result holds only in the checkout where it ran. Files
- * that exist are left alone, and `next` says what to add to a .gitignore that does not ignore it.
+ * that exist are left alone, a configuration in any of its names among them, and `next` says what to
+ * add to a .gitignore that does not ignore it.
  */
 export const init = Effect.fn("init")(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const skill = yield* ownSkill
-  const files = [["sdp.config.yaml", configTemplate], [skillFile, skill]] as const
-  const written: Array<{ readonly file: string; readonly created: boolean; readonly next?: string }> = []
+  const configured = yield* configFileName(root)
+  const files = [...(configured === undefined ? [["sdp.config.yaml", configTemplate] as const] : []), [skillFile, skill] as const]
+  const written: Array<{ readonly file: string; readonly created: boolean; readonly next?: string }> = configured === undefined
+    ? []
+    : [{ file: configured, created: false }]
   for (const [file, content] of files) {
     const target = path.join(root, file)
     yield* fs.makeDirectory(path.dirname(target), { recursive: true })
