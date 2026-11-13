@@ -2,7 +2,7 @@
  * 2 now: where the project is — the milestone it is at and what its gate still lacks, the iteration
  * of today, what each iteration holds, and any live rule that fails. What to build next starts here.
  */
-import { at, type Recipe, type Row } from "../lib.ts"
+import { at, type Recipe, type Row, specOf } from "../lib.ts"
 
 export default {
   title: "where the project is: milestone, gate, iterations",
@@ -18,7 +18,7 @@ export default {
       // FINDING: the gate's unmet examples come back as titles; finding each one's file:line and status
       // is a join on the title among the milestone's own scenarios.
       for (const title of ms.gate.unmet) {
-        const scenario = graph.into(ms.id, "verifies").map((e) => graph.node(e.from)).find((s) => s?.title === title)
+        const scenario = graph.examplesOf(ms.id).find((s) => s.title === title)
         rows.push({ rec: "gate", status: (scenario?.attrs["status"] as string | undefined) ?? "unrun", at: scenario && at(scenario), example: title })
       }
     }
@@ -40,7 +40,7 @@ export default {
     // Live rules that fail, but for a milestone's own, which are its gate above.
     const milestones = new Set(l.milestones.map((m) => m.id))
     for (const rule of graph.ofKind("rule")) {
-      if (rule.attrs["stage"] === "failing" && rule.attrs["toCome"] !== true && !milestones.has(rule.attrs["spec"] as string)) {
+      if (rule.attrs["stage"] === "failing" && rule.attrs["toCome"] !== true && !milestones.has(specOf(rule))) {
         rows.push({ rec: "failing", id: rule.id, at: at(rule) })
       }
     }

@@ -6,7 +6,7 @@
  * Open questions are section 4's and are not repeated here. An epic has no line: it is plan, says no
  * status, and each line it groups says `epic <id>`.
  */
-import { at, examples, type Graph, isOpen, maturity, type Node, type Recipe, type Row, sameAsId, specOf } from "../lib.ts"
+import { at, examples, type Graph, isOpen, maturity, type Node, type Recipe, type Row, sameAsId, specOf, toCome } from "../lib.ts"
 
 const LADDER = ["ready", "specified", "draft", "idea"]
 
@@ -60,9 +60,9 @@ export default {
       if (["rule", "scenario", "code"].includes(spec.kind)) continue
       const rules = rulesToCome.get(spec.id) ?? []
       if (spec.attrs["toCome"] === true) {
-        const n = spec.attrs["rulesToCome"] as number | undefined
+        const n = graph.rulesOf(spec.id).filter(toCome).length
         const ex = examples(graph, spec.id)
-        const open = spec.attrs["openQuestions"] as number | undefined
+        const open = graph.rulesOf(spec.id).filter(isOpen).length
         row(spec, (spec.attrs["maturity"] as string | undefined) ?? "-", [
           ...(n ? [`rules ${n}`] : []),
           ...(ex === undefined ? [] : [`ex ${ex}`]),

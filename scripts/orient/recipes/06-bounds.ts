@@ -22,8 +22,8 @@ export default {
     const work = Object.values(vocabulary.vocabulary.disciplines).flat().filter((k) => !architectural.has(k))
     for (const kind of work) {
       for (const n of graph.ofKind(kind)) {
-        const rules = graph.into(n.id, "rule-of").map((e) => graph.node(e.from))
-        const coming = rules.filter((r) => r?.attrs["toCome"] === true).length
+        const rules = graph.rulesOf(n.id)
+        const coming = rules.filter((r) => r.attrs["toCome"] === true).length
         rows.push({
           rec: kind,
           id: n.id,

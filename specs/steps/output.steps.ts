@@ -8,6 +8,7 @@ import { strict as assert } from "node:assert"
 import { defineSteps } from "sdp/steps"
 import { ids, load, newWorld, output, stdout } from "./world.ts"
 import { existingFile, fileOf } from "./process.ts"
+import { stateRecords } from "../../src/graph/Export.ts"
 
 /** One step of a path into JSON: a key of an object, an index of a list, or the key in every item of a list. */
 const field = (value: unknown, key: string): unknown => {
@@ -111,7 +112,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Then("the output has one line per node and edge", ({ world }) =>
     Effect.map(load(world), (project) => {
       const lines = output(world).trimEnd().split("\n")
-      assert.equal(lines.length, project.graph.nodes().length + project.graph.edges().length)
+      assert.equal(lines.length, stateRecords(project.graph, project.config.vocabulary).length)
     }))
 
   Then("the file {string} is:", async ({ args: [file], doc, world }) => {

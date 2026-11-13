@@ -40,6 +40,10 @@ export interface Graph {
   /** The edges into `id`, of `rel` when given. */
   readonly into: (id: string, rel?: string) => ReadonlyArray<Edge>
   readonly ofKind: (kind: string) => ReadonlyArray<Node>
+  /** The rules of a spec: the state names a rule's spec in its id, `spec#rule`, and draws no edge. */
+  readonly rulesOf: (spec: string) => ReadonlyArray<Node>
+  /** The examples of a rule, by their `rule`, or of a spec, by their id. */
+  readonly examplesOf: (id: string) => ReadonlyArray<Node>
 }
 
 /** What a recipe is given: the surfaces it asked for, parsed; any other is undefined. */
@@ -108,13 +112,23 @@ export const indexGraph = (records: ReadonlyArray<Node | Edge>): Graph => {
   const to = group((e) => e.to)
   const kinds = new Map<string, Array<Node>>()
   for (const n of nodes) kinds.set(n.kind, [...(kinds.get(n.kind) ?? []), n])
+  const under = new Map<string, Array<Node>>()
+  const add = (key: string, n: Node) => under.set(key, [...(under.get(key) ?? []), n])
+  for (const n of nodes) {
+    if (n.kind === "rule") add(`rules:${specOf(n)}`, n)
+    if (n.kind !== "scenario") continue
+    add(`examples:${specOf(n)}`, n)
+    if (typeof n.attrs["rule"] === "string") add(`examples:${n.attrs["rule"]}`, n)
+  }
   return {
     nodes,
     edges,
     node: (id) => byId.get(id),
     out: (id, rel) => (from.get(id) ?? []).filter((e) => rel === undefined || e.rel === rel),
     into: (id, rel) => (to.get(id) ?? []).filter((e) => rel === undefined || e.rel === rel),
-    ofKind: (kind) => kinds.get(kind) ?? []
+    ofKind: (kind) => kinds.get(kind) ?? [],
+    rulesOf: (spec) => under.get(`rules:${spec}`) ?? [],
+    examplesOf: (id) => under.get(`examples:${id}`) ?? []
   }
 }
 
@@ -129,25 +143,23 @@ export const isOpen = (node: Node): boolean => tags(node).includes("@open")
 export const toCome = (node: Node): boolean => node.attrs["toCome"] === true
 
 /**
- * The maturity a rule is at: its own, or else its spec's.
- * FINDING: a rule that declares none carries no maturity in its attrs, though the skill says it has
- * its feature's; a recipe joins through `attrs.spec` to find it.
+ * The maturity work still to come is at: the one it declares, or else the one it has from its spec,
+ * which `attrs.stage` already carries, for the stage of work still to come is its maturity. Live
+ * work has none. No join: a rule that declares none is not looked up through its spec.
  */
-export const maturity = (graph: Graph, node: Node): string | undefined => {
-  const own = node.attrs["maturity"] as string | undefined
-  if (own !== undefined || node.kind !== "rule") return own
-  const spec = graph.node(node.attrs["spec"] as string)
-  return spec?.attrs["maturity"] as string | undefined
-}
+export const maturity = (_graph: Graph, node: Node): string | undefined =>
+  (node.attrs["maturity"] as string | undefined) ?? (toCome(node) ? (node.attrs["stage"] as string | undefined) : undefined)
 
-/** The spec a rule or scenario belongs to: its id before `#`, which `attrs.spec` also says. */
-export const specOf = (node: Node): string => (node.attrs["spec"] as string | undefined) ?? node.id.split("#")[0] ?? node.id
+/** The spec a rule or scenario belongs to: its id before `#`. */
+export function specOf(node: Node): string {
+  return node.id.split("#")[0] ?? node.id
+}
 
 /** The examples of a spec or rule, counted by status: `failed 2, undefined 4`. */
 export const examples = (graph: Graph, id: string): string | undefined => {
   const counts = new Map<string, number>()
-  for (const e of graph.into(id, "verifies")) {
-    const status = (graph.node(e.from)?.attrs["status"] as string | undefined) ?? "unrun"
+  for (const example of graph.examplesOf(id)) {
+    const status = (example.attrs["status"] as string | undefined) ?? "unrun"
     counts.set(status, (counts.get(status) ?? 0) + 1)
   }
   return counts.size === 0 ? undefined : [...counts].sort().map(([s, n]) => `${s} ${n}`).join(", ")

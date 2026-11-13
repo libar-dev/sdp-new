@@ -12,7 +12,7 @@ import * as EffectApi from "sdp/effect"
 import * as Reading from "../../src/app/Reading.ts"
 import * as Text from "../../src/app/Text.ts"
 import { contextBundle } from "../../src/graph/Context.ts"
-import { graphRecords, jsonLines } from "../../src/graph/Export.ts"
+import { jsonLines, stateRecords } from "../../src/graph/Export.ts"
 import { formatPath, projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
 import { check } from "../../src/check/Check.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
@@ -292,7 +292,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   When("the graph is exported", ({ world }) =>
     Effect.map(load(world), (project) => {
-      produce(world, jsonLines(graphRecords(project.graph)))
+      produce(world, jsonLines(stateRecords(project.graph, project.config.vocabulary)))
     }))
 
   // The programmatic API as a program calls it: `query` from the package's entry point, on these files on disk.

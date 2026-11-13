@@ -22,7 +22,7 @@ const work = (graph: Graph, element: string): string | undefined => {
   const features = graph.into(element, "realized-by").map((e) => graph.node(e.from)).filter((n): n is Node => n !== undefined)
   const live = features.filter((f) => !toCome(f))
   const coming = features.filter(toCome)
-  const rules = live.reduce((n, f) => n + ((f.attrs["rulesToCome"] as number | undefined) ?? 0), 0)
+  const rules = live.reduce((n, f) => n + graph.rulesOf(f.id).filter(toCome).length, 0)
   const parts = [
     ...(live.length > 0 ? [`live ${live.length}`] : []),
     ...(rules > 0 ? [`+${rules} rules to come`] : []),

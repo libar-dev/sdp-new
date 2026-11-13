@@ -163,7 +163,7 @@ const graphCommand = Command.make(
     yield* print(yield* Reading.graph(root, input), false, (records) => jsonLines(records).trimEnd())
   })
 ).pipe(
-  Command.withDescription("The graph as plain data: one JSON record per line, every node and then every edge"),
+  Command.withDescription("The state as plain data: each spec, its rules and examples by their one line, the architecture and the links written between them; one JSON record per line"),
   Command.withExamples([
     { command: "sdp graph | grep '\"rel\":\"decided-by\"'", description: "Every decided-by edge, with where it is declared" },
     { command: "sdp graph | jq -r 'select(.type == \"node\" and .attrs.maturity == \"ready\") | .id'", description: "The ids of the ready nodes" },

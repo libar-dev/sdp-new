@@ -78,6 +78,12 @@ export default {
     // Relations: what an edge says.
     const relCount = new Map<string, number>()
     for (const e of graph.edges) relCount.set(e.rel, (relCount.get(e.rel) ?? 0) + 1)
+    // The state says these through its records, not as edges: a rule's id names its spec, and an
+    // example's id its spec and its `rule` its rule.
+    const count = (rel: string | undefined, n: number) => rel !== undefined && relCount.set(rel, (relCount.get(rel) ?? 0) + n)
+    const examples = graph.ofKind("scenario")
+    count("rule-of", graph.ofKind("rule").length)
+    count(list(v.vocabulary.relations["scenario"] ?? [])[0], examples.length + examples.filter((s) => s.attrs["rule"] !== undefined).length)
     const configured = new Set(Object.values(v.vocabulary.relations).flatMap(list))
     const rels = new Set([...(pin.get("relation")?.keys() ?? []), ...relCount.keys(), ...Object.keys(v.types.links), ...v.made.relations])
     for (const rel of rels) {

@@ -13,7 +13,7 @@ import { architectureView, workOn } from "../arch/Architecture.ts"
 import { check as checkProject, compareWithBase } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
 import { contextBundle } from "../graph/Context.ts"
-import { type EdgeRecord, edgeRecord, type GraphRecord, graphRecords, mermaid, type NodeRecord, nodeRecord } from "../graph/Export.ts"
+import { type EdgeRecord, edgeRecord, type GraphRecord, mermaid, type NodeRecord, nodeRecord, stateRecords } from "../graph/Export.ts"
 import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } from "../lifecycle/Lifecycle.ts"
@@ -348,11 +348,11 @@ const selected = Effect.fnUntraced(function*(project: Project, select: string | 
   return { graph, about }
 })
 
-/** `sdp graph`: the graph as records, every node and then every edge. */
+/** `sdp graph`: the state as records, every node and then every edge; with a query, the routes it matches. */
 export const graph = Effect.fn("graph")(function*(root: string, input: { readonly select?: string | undefined } = {}) {
   const project = yield* loadProject(root)
   const { about, graph } = yield* selected(project, input.select)
-  const data: ReadonlyArray<GraphRecord> = graphRecords(graph)
+  const data: ReadonlyArray<GraphRecord> = stateRecords(graph, project.config.vocabulary, input.select !== undefined)
   return answer(project, data, about)
 })
 

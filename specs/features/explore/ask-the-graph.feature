@@ -435,11 +435,14 @@ Feature: Ask the graph
         | data.nodes      | ARCH-orders               |
         | data.nodes.file | src/orders.ts             |
 
-  Rule: The whole graph is plain data, one record per line, so plain tools answer what a question answers
+  @decided-by:the-state-holds-what-is-significant
+  Rule: The state is plain data, one record per line: each spec by its id, its rules and examples each by their one line, the architecture, and the links written between them
 
-    Agents and scripts take records apart faster than they learn a query language. Every record has
-    every field, in the same order, and the field names do not change with the workspace. Nothing is
-    written to disk: a dump cannot say that it is stale or incomplete.
+    Agents and scripts take records apart faster than they learn a query language, and an agent reads
+    the state before its first step. What is under a line — a reason, a step, the shape of an export —
+    is read at the file and line the record names. Every record has every field, in the same order,
+    and the field names do not change with the workspace. Nothing is written to disk: a dump cannot
+    say that it is stale or incomplete.
 
     Scenario Outline: A node, a node nothing declares, and a link stated in two places
       Given a file "specs/alpha.feature" containing:
@@ -464,10 +467,34 @@ Feature: Ask the graph
         | record                                                                                                                                                                                                         |
         | {"type":"node","id":"gone","kind":"missing","title":"gone","file":null,"line":null,"attrs":{}}                                                                                                                 |
         | {"type":"edge","from":"alpha","rel":"realized-by","to":"ARCH-ledger","declared":[{"file":"specs/alpha.feature","line":1},{"file":"specs/alpha.feature","line":2}]}                                  |
-        | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"spec":"alpha","description":"Its reason runs |
-        | over two lines.","scenarios":1,"stage":"idea","toCome":true}} |
-        | {"type":"edge","from":"alpha#first","rel":"verifies","to":"alpha#alpha-comes-first","declared":[{"file":"specs/alpha.feature","line":10}]}                                                          |
+        | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"stage":"idea","toCome":true}}                                 |
+        | {"type":"node","id":"alpha","kind":"feature","title":"Alpha                                                                                                                                   |
+        | {"type":"node","id":"alpha#first","kind":"scenario","title":"First","file":"specs/alpha.feature","line":10,"attrs":{"rule":"alpha#alpha-comes-first","status":"unrun"}}                            |
         | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"src/ledger.ts","line":3,"attrs":{}}                                                                         |
+
+    Scenario: What is under a line is read where it is written, and where a node is written is its record's
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers keep what they mean to buy.
+
+          Rule: A cart holds each item once
+
+            Adding it again changes nothing.
+
+            Scenario: Adding an item twice
+              When I add "a lamp" twice
+        """
+      When the graph is exported
+      Then the output contains '"id":"cart","kind":"feature","title":"Cart","file":"specs/cart.feature","line":1,"attrs":{"summary":"Shoppers keep what they mean to buy.",'
+      And the output contains '"id":"cart#a-cart-holds-each-item-once","kind":"rule","title":"A cart holds each item once","file":"specs/cart.feature","line":6,"attrs":{"stage":"unrun"}}'
+      And the output contains '"id":"cart#adding-an-item-twice","kind":"scenario","title":"Adding an item twice","file":"specs/cart.feature","line":10,"attrs":{"rule":"cart#a-cart-holds-each-item-once","status":"unrun"}}'
+      And the output does not contain "Adding it again"
+      And the output does not contain "a lamp"
+      And the output does not contain '"rel":"rule-of"'
+      And the output does not contain '"rel":"verifies"'
 
     Scenario: Every node first, then every link
       When I run the pipeline:
@@ -502,6 +529,16 @@ Feature: Ask the graph
       And every node and link of this repository is at a file and line that exist
       And the line of every link of this repository contains the id it links to
 
+  @maturity=ready
+  Rule: A program reads the state with the schema of its records that the package exports, and every record sdp graph prints decodes with it
+
+    One definition of a record serves sdp, its tests and every program that reads the state, so none
+    of them drifts from the others.
+
+    Scenario: The records of this repository's state
+      When a program decodes every record of "sdp graph" in the repository with the package's record schema
+      Then no record fails to decode
+
   Rule: Part of the graph can be exported: the routes a question matches, as records or as a diagram
 
     Scenario: Only the nodes and the links the routes walk
@@ -521,19 +558,6 @@ Feature: Ask the graph
       And the output contains "flowchart LR"
       And the output contains '["ARCH-orders<br/><small>Order service, v2</small>"]'
       And the output contains "-->|realized-by|"
-
-  @maturity=draft @decided-by:files-are-the-source-of-truth
-  Rule: Whatever an answer of sdp's says, a program can compute from the graph as data
-
-    Views of one delivery state — the architecture around a set of specs, a diagram, an explorer,
-    an editor, sdp's own answers — agree only when each is computed from the graph alone, when it is
-    asked for: none is kept.
-
-  @maturity=draft
-  Rule: The graph holds each spec as written: its descriptions whole, its Backgrounds, and each step with its table or doc string
-
-  @maturity=draft
-  Rule: The graph holds each step a run recorded, with its outcome and error
 
   @maturity=draft
   Rule: The graph says which files it could not read, and why
@@ -564,7 +588,7 @@ Feature: Ask the graph
       When the graph is built from it
       Then the median run completes within 1000 ms
 
-  @maturity=draft @iteration:IT-scale @replaces:ask-the-graph#questions-stay-interactive-on-workspaces-far-larger-than-a
+  @maturity=draft @iteration:IT-scale
   Rule: A question on 5,000 specs and 20,000 source files on disk answers within a second, the median of warm runs
 
     The rule it replaces measures the graph in memory, but every question also reads the workspace

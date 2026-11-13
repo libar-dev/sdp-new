@@ -192,8 +192,10 @@ than grepping for a guess.
 - **From a feature to its code:** `sdp q '#guest-checkout -realized-by-> element <-is- code' --ids`.
   From an element: `sdp q '#ARCH-x <-is- code'`. A query answers with the last node of the
   pattern; `--paths` shows the route. Syntax and examples: `sdp q --help`.
-- **The graph as data:** `sdp graph` prints one JSON record per line, so anything a query cannot
-  say, jq, grep or a short script can:
+- **The state as data:** `sdp graph` prints the state, one JSON record per line: each spec by its
+  id, its rules and examples each by their one line, the architecture and the code anchored to it,
+  and the links written between them. What is under a line — a reason, a step — is read at the
+  `file:line` its record names. Anything a query cannot say, jq, grep or a short script can:
 
   ```sh
   sdp graph | jq -r 'select(.type=="edge" and .rel=="realized-by" and .to=="ARCH-x") | .from'
@@ -202,11 +204,12 @@ than grepping for a guess.
   ```
 
   A node is `{type, id, kind, title, file, line, attrs}`; an edge is
-  `{type, from, rel, to, declared: [{file, line}]}`, for a link has no attributes. A rule is a
-  node of kind `rule` that is `rule-of` its spec, a scenario `verifies` its rule and its spec, and
-  an element `imports` each element whose code its code imports and links to each pattern its code
-  links to, by the relation the code wrote. `sdp graph -q '<pattern>'` exports only what a query
-  matches.
+  `{type, from, rel, to, declared: [{file, line}]}`, for a link has no attributes. A rule's id
+  names its spec (`spec#rule`) and an example's `rule` its rule, so the state draws no edge for
+  either; `sdp q` still walks them as `rule-of` and `verifies`. An element `imports` each element
+  whose code its code imports and links to each pattern its code links to, by the relation the code
+  wrote. `sdp graph -q '<pattern>'` exports only the routes a query matches, the edges they walk
+  included.
 - **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it with the
   shape of what it exports, what each element imports, the code that applies each pattern, and the
   live work on each and the work still to come),

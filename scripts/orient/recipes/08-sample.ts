@@ -24,7 +24,7 @@ export default {
         rows.push({ rec: "missing", hop: "-", id, at: "-", what: "no such node in this workspace" })
         continue
       }
-      const rules = graph.into(id, "rule-of").map((e) => graph.node(e.from)).filter((n) => n !== undefined)
+      const rules = graph.rulesOf(id)
       rows.push({
         rec: "feature",
         hop: "start",
