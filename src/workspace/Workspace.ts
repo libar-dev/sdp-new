@@ -6,6 +6,7 @@
  * only `loadSteps`, for `sdp run` and `sdp gate`, imports step modules.
  */
 import { Effect, FileSystem, Path, Schema } from "effect"
+import type { PlatformError } from "effect/PlatformError"
 import { readFileSync, realpathSync } from "node:fs"
 import { createRequire, findPackageJSON, registerHooks } from "node:module"
 import { fileURLToPath, pathToFileURL } from "node:url"
@@ -240,6 +241,40 @@ const arrow = " → "
 const leadingTo = (file: string, to: string) => `${file}${arrow}${to}`
 
 /**
+ * Where each of `files` leads, relative to the real root `real`, and what it is there; nothing for
+ * one that is not there. Each directory is resolved and listed once, so a path costs no look at
+ * each directory it goes through, and only a link costs a look of its own.
+ */
+const leadsTo = Effect.fnUntraced(function*(real: string, files: ReadonlyArray<string>) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const directories = new Map(
+    yield* Effect.forEach(new Set(files.map((file) => path.dirname(path.resolve(real, file)))), (directory) =>
+      Effect.all([fs.realPath(directory), fs.readDirectoryEntries(directory)]).pipe(
+        Effect.map(([to, entries]) => [directory, { to, types: new Map(entries.map(({ name, type }) => [name, type])) }] as const),
+        Effect.orElseSucceed(() => [directory, undefined] as const)
+      ), { concurrency: 32 })
+  )
+  const at = (file: string, to: string, type: FileSystem.File.Type) => [file, { at: path.relative(real, to), type }] as const
+  return new Map(
+    yield* Effect.forEach(files, (file) => {
+      const absolute = path.resolve(real, file)
+      const directory = directories.get(path.dirname(absolute))
+      const type = directory?.types.get(path.basename(absolute))
+      if (directory === undefined || type === undefined) return Effect.succeed([file, undefined] as const)
+      // A link, or an entry whose type its directory does not tell: what it leads to.
+      if (type === "SymbolicLink" || type === "Unknown") {
+        return Effect.all([fs.realPath(absolute), fs.stat(absolute)]).pipe(
+          Effect.map(([to, info]) => at(file, to, info.type)),
+          Effect.orElseSucceed(() => [file, undefined] as const)
+        )
+      }
+      return Effect.succeed(at(file, path.join(directory.to, path.basename(absolute)), type))
+    }, { concurrency: 32 })
+  )
+})
+
+/**
  * Reads what the step definitions of a run imported, as it recorded them, relative to the real
  * root: a file while no link leads it elsewhere, and a link, `L → R`, while it leads where it led,
  * which is all it holds. A link is part of what ran: the code that runs is the code it leads to.
@@ -250,15 +285,19 @@ export const readImports = Effect.fn("readImports")(function*(root: string, impo
   const path = yield* Path.Path
   if (imports.length === 0) return []
   const real = yield* fs.realPath(root)
-  const read = Effect.fnUntraced(function*(entry: string) {
+  const entries = imports.map((entry) => {
     const [file = entry, to] = entry.split(arrow)
-    const absolute = path.resolve(real, file)
-    const at = yield* fs.realPath(absolute).pipe(Effect.map((target) => path.relative(real, target)), Effect.orElseSucceed(() => undefined))
-    if (to !== undefined) return at === to ? [{ path: entry, content: "" }] : []
-    const type = yield* fs.stat(absolute).pipe(Effect.map((info) => info.type), Effect.orElseSucceed(() => undefined))
-    return at === file && type === "File" ? [{ path: file, content: yield* fs.readFileString(absolute) }] : []
+    return { entry, file, to }
   })
-  return (yield* Effect.forEach(imports, read, { concurrency: 32 })).flat()
+  const where = yield* leadsTo(real, [...new Set(entries.map(({ file }) => file))])
+  const read = ({ entry, file, to }: (typeof entries)[number]): Effect.Effect<ReadonlyArray<SourceFile>, PlatformError> => {
+    const found = where.get(file)
+    if (to !== undefined) return Effect.succeed(found?.at === to ? [{ path: entry, content: "" }] : [])
+    return found?.at === file && found.type === "File"
+      ? Effect.map(fs.readFileString(path.resolve(real, file)), (content) => [{ path: file, content }])
+      : Effect.succeed([])
+  }
+  return (yield* Effect.forEach(entries, read, { concurrency: 32 })).flat()
 })
 
 /**
@@ -271,13 +310,12 @@ const stepLinks = Effect.fnUntraced(function*(root: string, files: ReadonlyArray
   const path = yield* Path.Path
   if (files.length === 0) return []
   const real = yield* fs.realPath(root)
-  return (yield* Effect.forEach(files, (file) => {
-    const named = path.resolve(real, file)
-    return fs.realPath(named).pipe(
-      Effect.map((to): ReadonlyArray<SourceFile> => to === named ? [] : [{ path: leadingTo(path.relative(real, named), path.relative(real, to)), content: "" }]),
-      Effect.orElseSucceed(() => [])
-    )
-  }, { concurrency: 32 })).flat()
+  const where = yield* leadsTo(real, files)
+  return files.flatMap((file): ReadonlyArray<SourceFile> => {
+    const named = path.relative(real, path.resolve(real, file))
+    const to = where.get(file)?.at
+    return to === undefined || to === named ? [] : [{ path: leadingTo(named, to), content: "" }]
+  })
 })
 
 /**
@@ -310,7 +348,9 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const codeFiles = yield* readAll(root, code.files)
   const stepFiles = yield* readAll(root, steps.files)
   const stepsLeading = yield* stepLinks(root, steps.files)
-  const recorded = Object.entries(stored?.imports ?? {})
+  const layer = options.results ?? "all"
+  // Only a view that shows results compares them with the files their runs imported.
+  const recorded = layer === "none" ? [] : Object.entries(stored?.imports ?? {})
   const imports = options.imports ?? []
   const imported = new Map(
     (yield* readImports(root, [...new Set([...recorded.flatMap(([, files]) => files), ...imports])])).map((file) => [file.path, file])
@@ -331,7 +371,6 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it.
     specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" }))])
   }
-  const layer = options.results ?? "all"
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
   const built = buildProject({ root, config, featureFiles, markdownFiles, codeFiles, stepFiles, evidence: view })
   // What the globs match that is no file is reported where it is: what it would hold is not read.
