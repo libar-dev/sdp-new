@@ -163,7 +163,10 @@ export const vocabulary = (data: VocabularyData): string => {
       Array.isArray(value) || typeof value !== "object" || value === null ? [`${pad(section, 20)} ${words(value)}`] : [section, ...roles(value)]
     ),
     "made by sdp, not configurable",
-    ...roles(data.made)
+    ...roles(data.made),
+    "types",
+    ...Object.entries(data.types.links).map(([rel, t]) => `  ${pad(rel, 18)} ${t.from.join(", ")} → ${t.to.join(", ")}`),
+    ...Object.entries(data.types.facts).map(([fact, t]) => `  ${pad(fact, 18)} a ${t.value} on ${t.on.join(", ")}`)
   ].join("\n")
 }
 

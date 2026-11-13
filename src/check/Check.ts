@@ -19,17 +19,22 @@ import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
   attribute,
   dayOf,
+  endWords,
+  factTypes,
   hasKind,
   hasRelation,
   isPlanKind,
+  isEnd,
   isStage,
   isWork,
   type KindRole,
+  linkTypes,
   made,
   notAKind,
   offLadder,
   type RelationRole,
   type Vocabulary,
+  withArticle,
   wordFor
 } from "../model/Vocabulary.ts"
 import { type Project, type SourceFile, workOf } from "../graph/Build.ts"
@@ -420,6 +425,44 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         node: node.id,
         source: writtenAt(node, activityKey),
         hint: `plan each discipline with a link of its own: \`@${activityKey}.implementation:IT-beta @${activityKey}.test:IT-beta\``
+      }))
+    }
+  }
+
+  // A link of a typed relation joins the kinds its type names (the vocabulary's linkTypes), and a
+  // fact that dates a plan is written on what it dates: any other node reads nothing from it. A
+  // relation another rule already holds to its type is reported there, once.
+  const reportedLinks = new Set<string>()
+  for (const edge of graph.edges()) {
+    // An own key only: a relation may be named `constructor` (link-specs).
+    const type = Object.hasOwn(linkTypes, edge.rel) ? linkTypes[edge.rel] : undefined
+    const [from, to] = [graph.node(edge.from), graph.node(edge.to)]
+    if (!type || type.checkedBy || !from || !to || to.kind === made.kinds.missing) continue
+    const wrong = !type.from.some((end) => isEnd(vocabulary, end, from.kind))
+      ? { end: from, may: type.from }
+      : !type.to.some((end) => isEnd(vocabulary, end, to.kind))
+      ? { end: to, may: type.to }
+      : undefined
+    const key = `${edge.rel} ${edge.to} ${edge.source?.file}:${edge.source?.line}`
+    if (!wrong || reportedLinks.has(key)) continue
+    reportedLinks.add(key)
+    out.push(diagnostic("link-kind", {
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${wrong.end.id} is ${withArticle(wrong.end.kind)}, and ${edge.rel} ${wrong.end === from ? "starts at" : "leads to"} ${withArticle(endWords(vocabulary, wrong.may))}`,
+      node: edge.from,
+      source: edge.source,
+      hint: wrong.end === from
+        ? `write it on ${withArticle(endWords(vocabulary, wrong.may))}, or name the link with a relation of your own, which joins any kinds`
+        : `link ${withArticle(endWords(vocabulary, wrong.may))}, or name the link with a relation of your own, which joins any kinds`
+    }))
+  }
+  for (const node of authored) {
+    for (const [fact, type] of Object.entries(factTypes(vocabulary))) {
+      if (fact === "maturity" || attribute(node, fact) === undefined || type.on.some((end) => isEnd(vocabulary, end, node.kind))) continue
+      out.push(diagnostic("fact-kind", {
+        message: `${node.id}: @${fact}= dates ${withArticle(endWords(vocabulary, type.on))}, and ${node.id} is ${withArticle(node.kind)}, so it says nothing`,
+        node: node.id,
+        source: writtenAt(node, fact),
+        hint: `delete it, or write the date on the ${endWords(vocabulary, type.on)} it belongs to`
       }))
     }
   }

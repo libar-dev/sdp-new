@@ -400,3 +400,48 @@ Feature: Link specs into one graph
         | specs/a.feature | @id=a\nFeature: A\n\n  Rule: R\n\n    @stage:verified\n    Scenario: S | specs/a.feature:6 | stage    | no link can be named stage         | written with =: @stage=verified    |
         | src/a.py        | # @sdp status verified\ndef a(): pass                                  | src/a.py:1        | status   | no link can be named status        | written with =                     |
         | specs/a.feature | @id=a @owner=payments @owner:verified\nFeature: A                      | specs/a.feature:1 | owner    | owner is already an attribute of a | give the relation another name     |
+
+  Rule: A link the vocabulary types joins the kinds its type names, and one that joins others is reported
+
+    A feature realized by a decision, or a rule decided by a feature, reads as an answer and is
+    none. A relation the vocabulary does not type joins any nodes; `sdp vocabulary` prints the types.
+
+    Scenario Outline: <relation> to <to>
+      Given these specs:
+        | tags                                     | Feature  |
+        | @id=use-postgres @kind=decision          | Postgres |
+        | @id=wishlist @maturity=idea              | Wishlist |
+        | @id=cart @maturity=idea @<relation>:<to> | Cart     |
+      And a file "src/orders.ts" containing:
+        """
+        /** @sdp is ARCH-orders */
+        export const orders = (): void => {}
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | relation    | to           | reported  |
+        | realized-by | ARCH-orders  | nothing   |
+        | realized-by | use-postgres | link-kind |
+        | decided-by  | use-postgres | nothing   |
+        | decided-by  | wishlist     | link-kind |
+        | depends-on  | wishlist     | nothing   |
+        | depends-on  | ARCH-orders  | link-kind |
+        | uses        | use-postgres | nothing   |
+
+    Scenario: What the report says, in the workspace's words
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary:
+          kinds:
+            decision: [adr]
+        """
+      And these specs:
+        | tags                                         | Feature  |
+        | @id=wishlist @maturity=idea                  | Wishlist |
+        | @id=cart @maturity=idea @decided-by:wishlist | Cart     |
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | severity | at                   | message                                                                            | hint                                                                             |
+        | link-kind | warning  | specs/cart.feature:1 | cart -decided-by-> wishlist: wishlist is a feature, and decided-by leads to an adr | link an adr, or name the link with a relation of your own, which joins any kinds |

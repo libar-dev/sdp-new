@@ -211,6 +211,88 @@ export const made = {
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
+/**
+ * What an end of a typed link, or the node a typed fact is written on, may be: a role of the
+ * profile, so a workspace's renames follow it, or a kind the way of working names (`epic`).
+ */
+export type End = "feature" | "decision" | "element" | "pattern" | "iteration" | "phase" | "milestone" | "epic" | "work" | "rule" | "spec" | "code"
+
+/**
+ * The types of the words that join two nodes: the kinds each end may be. A relation not listed joins
+ * any nodes, as the decision free-vocabulary has it. `checkedBy` names the rule of check that
+ * already holds a relation to its type, so that check reports a link once.
+ */
+export const linkTypes: Readonly<Record<string, { readonly from: ReadonlyArray<End>; readonly to: ReadonlyArray<End>; readonly checkedBy?: string }>> = {
+  "realized-by": { from: ["feature"], to: ["element"] },
+  "decided-by": { from: ["spec", "rule"], to: ["decision"] },
+  "depends-on": { from: ["feature"], to: ["feature"] },
+  includes: { from: ["epic"], to: ["work", "rule"] },
+  applies: { from: ["code", "element"], to: ["pattern"] },
+  is: { from: ["code"], to: ["element", "pattern"], checkedBy: "declared-in-spec" },
+  iteration: { from: ["work", "rule"], to: ["iteration"], checkedBy: "plan-reference" },
+  closes: { from: ["milestone"], to: ["iteration", "phase"], checkedBy: "plan-reference" },
+  replaces: { from: ["spec", "rule"], to: ["spec", "rule"], checkedBy: "replacement" }
+}
+
+/**
+ * The types of the facts that take a value: what the value is and the kinds it is written on. A
+ * maturity is a rung of the ladder (`maturity-off-ladder`) on work (`maturity-on-no-work`); a day is
+ * one of the calendar (`plan-date`, `milestone-met`) on the kinds it dates, and `fact-kind` reports
+ * one written on any other, where it says nothing.
+ */
+export const factTypes = (vocabulary: Vocabulary): Readonly<Record<string, { readonly value: "rung" | "day"; readonly on: ReadonlyArray<End> }>> => ({
+  maturity: { value: "rung", on: ["work", "rule"] },
+  [vocabulary.attributes.start]: { value: "day", on: ["iteration", "phase"] },
+  [vocabulary.attributes.end]: { value: "day", on: ["iteration", "phase"] },
+  [vocabulary.attributes.met]: { value: "day", on: ["milestone"] }
+})
+
+/** Whether a node of `kind` is an end of that sort, in the workspace's words. */
+export const isEnd = (vocabulary: Vocabulary, end: End, kind: string): boolean => {
+  switch (end) {
+    case "feature":
+    case "decision":
+    case "pattern":
+    case "iteration":
+    case "phase":
+    case "milestone":
+      return hasKind(vocabulary, end, kind)
+    case "element":
+      return hasKind(vocabulary, "architectural", kind) && !hasKind(vocabulary, "pattern", kind)
+    case "work":
+      return isWork(vocabulary, kind)
+    case "spec":
+      return !(Object.values(made.kinds) as ReadonlyArray<string>).includes(kind)
+    case "rule":
+      return kind === made.kinds.rule
+    case "code":
+      return kind === made.kinds.code
+    case "epic":
+      return kind === "epic"
+  }
+}
+
+/** A word with its indefinite article: an element, a decision. */
+export const withArticle = (word: string): string => `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`
+
+/** The kinds an end may be, in the workspace's words, as a hint says them. */
+export const endWords = (vocabulary: Vocabulary, ends: ReadonlyArray<End>): string =>
+  ends.map((end) => {
+    switch (end) {
+      case "element":
+        return vocabulary.kinds.architectural.filter((kind) => !vocabulary.kinds.pattern.includes(kind)).join(" or ") || end
+      case "feature":
+      case "decision":
+      case "pattern":
+      case "iteration":
+      case "phase":
+      case "milestone":
+        return vocabulary.kinds[end].join(" or ")
+      default:
+        return end
+    }
+  }).join(" or ")
+
 /** Words sdp once read and reads no more: a change to a feature is rules of it, not a spec of kind change. */
 export const retired = { kinds: ["change"] } as const
 
@@ -371,5 +453,16 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     retiredKinds: retired.kinds,
     /** The names no link can have. */
     reservedRelations
+  },
+  /** What each typed word joins or is written on, in the workspace's words. */
+  types: {
+    links: Object.fromEntries(Object.entries(linkTypes).map(([rel, type]) => [
+      rel === "is" ? vocabulary.relations.anchor : rel,
+      { from: endWords(vocabulary, type.from).split(" or "), to: endWords(vocabulary, type.to).split(" or ") }
+    ])),
+    facts: Object.fromEntries(Object.entries(factTypes(vocabulary)).map(([fact, type]) => [
+      fact,
+      { value: type.value, on: endWords(vocabulary, type.on).split(" or ") }
+    ]))
   }
 })

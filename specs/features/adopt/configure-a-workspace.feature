@@ -402,6 +402,28 @@ Feature: Configure a workspace
       Then the exit code is 0
       And the output lines are "iteration"
 
+  Rule: sdp vocabulary prints the type of each word that joins two nodes or takes a value, in the workspace's words
+
+    An agent that links a feature reads what it may link to before it writes the tag, and check
+    holds the link to the same type.
+
+    Scenario: A team's word for decisions in the types
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { kinds: { decision: [adr] } }
+        """
+      When I run "sdp vocabulary --json"
+      Then the JSON output has:
+        | data.types.links.realized-by.from | feature          |
+        | data.types.links.realized-by.to   | element          |
+        | data.types.links.decided-by.to    | adr              |
+        | data.types.links.includes.from    | epic             |
+        | data.types.facts.maturity.value   | rung             |
+        | data.types.facts.start.on         | iteration, phase |
+        | data.types.facts.met.on           | milestone        |
+      When I run "sdp vocabulary"
+      Then the output line with "decided-by" contains "spec, rule → adr"
+
   Rule: A configuration that cannot work stops sdp with the file and the key, not later in a spec or a query
 
     A misspelt key read as its default, or a word that no tag can hold, would turn something off

@@ -36,6 +36,8 @@ export const rules = {
   "decision-shape": "warning",
   "template-placeholder": "warning",
   "plan-reference": "warning",
+  "link-kind": "warning",
+  "fact-kind": "warning",
   "plan-date": "warning",
   "milestone-met": "warning",
   "annotation-ignored": "warning",

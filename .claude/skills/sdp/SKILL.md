@@ -174,7 +174,10 @@ The sharp edges of the format, each what the official parser does, and what `sdp
   written by hand: `@stage=` is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words, but for a rung of the ladder
   or a stage, which is a maturity, and `change`, which is rules of a feature: `sdp check` reports such
-  a kind. `sdp vocabulary` prints the few words sdp itself interprets in this workspace.
+  a kind. `sdp vocabulary` prints the few words sdp itself interprets in this workspace, and the
+  type of each word that joins two nodes: `realized-by` leads from a feature to an element,
+  `decided-by` from a spec or a rule to a decision, and `sdp check` reports a link that does not;
+  a relation of the team's own joins any nodes.
 
 ## Go through the graph first
 

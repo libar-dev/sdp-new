@@ -1204,6 +1204,24 @@ Feature: Plan delivery
       Then the exit code is 0
       And the output contains "0 error(s)"
 
+  Rule: A date of the plan is written on what it dates, and one written on anything else is reported
+
+    An iteration and a phase start and end, and a milestone is met: on a feature, `@start=` reads as
+    a plan and plans nothing.
+
+    Scenario Outline: @<fact>= on <what>
+      Given these specs:
+        | tags   | Feature |
+        | <tags> | <title> |
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | fact  | what         | tags                                          | title | reported  |
+        | start | an iteration | @id=IT-beta @start=2026-11-16 @end=2026-11-27 | Beta  | nothing   |
+        | start | a feature    | @id=cart @maturity=idea @start=2026-11-16     | Cart  | fact-kind |
+        | met   | a feature    | @id=cart @maturity=idea @met=2026-11-27       | Cart  | fact-kind |
+
   @maturity=idea @decided-by:areas-for-reading-epics-for-work
   Rule: An epic names the work it groups, and lifecycle shows each epic with where each of its items stands
 
