@@ -140,13 +140,19 @@ export const gitRevisions = Layer.effect(
       return yield* Effect.gen(function*() {
         // The base is read as it was configured — its features globs, its exclusions and its vocabulary —
         // from the first configuration file it has, as on disk. One that is a link to no file git holds
-        // may lead to a file of this machine, so the configuration the base would use is not known.
+        // may lead to a file of this machine, and one by a name in another case is read only where a
+        // file system ignores case, so the configuration the base would use is not known.
         const configName = Option.getOrUndefined(yield* Effect.findFirst(configFileNames, (name) =>
           Effect.map(committed.reach(fromTop(name), false), (reached) => reached !== undefined)
         ))
-        const configEntry = configName === undefined ? undefined : yield* committed.file(fromTop(configName))
+        const configReached = configName === undefined ? undefined : yield* committed.reach(fromTop(configName), true)
+        const configEntry = configReached !== undefined && "found" in configReached && isFile(configReached.entry) ? configReached.entry : undefined
         if (configName !== undefined && configEntry === undefined) {
-          return yield* missing(`the configuration of ${at} is not known: its ${configName} is a link to no file git holds`)
+          return yield* missing(`the configuration of ${at} is not known: ${
+            configReached !== undefined && "folded" in configReached
+              ? `its ${configName} is ${fromWorkspace(configReached.folded)}, which a file system that ignores case reads for it, and git does not`
+              : `its ${configName} is a link to no file git holds`
+          }`)
         }
         const configFiles = yield* committed.read(configName === undefined || configEntry === undefined ? [] : [{ path: configName, entry: configEntry }])
         if (configFiles === undefined) return yield* missing(`git cat-file could not read the configuration of ${at}`)

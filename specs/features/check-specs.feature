@@ -792,11 +792,13 @@ Feature: Check specs
       Then the exit code is <exit code>
       And the JSON output has:
         | complete | <complete> |
+      And the output contains "<reason>"
 
       Examples:
-        | case                               | configuration                                  | exit code | complete |
-        | a link to a file git does not hold | ln -s untracked.yaml sdp.config.yaml           | 2         | false    |
-        | a link out of the repository       | ln -s /nowhere/sdp.config.yaml sdp.config.yaml | 2         | false    |
+        | case                               | configuration                                       | exit code | complete | reason                                                                                                       |
+        | a link to a file git does not hold | ln -s untracked.yaml sdp.config.yaml                | 2         | false    | its sdp.config.yaml is a link to no file git holds                                                           |
+        | a link out of the repository       | ln -s /nowhere/sdp.config.yaml sdp.config.yaml      | 2         | false    | its sdp.config.yaml is a link to no file git holds                                                           |
+        | a file named in another case       | echo '# every key at its default' > SDP.config.yaml | 2         | false    | its sdp.config.yaml is SDP.config.yaml, which a file system that ignores case reads for it, and git does not |
 
     Scenario Outline: A link out of the repository or in a circle at the base, <case>
       When I run the pipeline:
