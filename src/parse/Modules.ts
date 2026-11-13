@@ -77,21 +77,27 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   )
 
   /**
-   * The code file a path names, as TypeScript completes a name: the file, or else the directory's
-   * index; or, `exactly` as a target of `exports` or `imports` names it, the file whose extension
-   * TypeScript puts in place of the one written, and nothing it would have to complete.
+   * The code file a path names, as TypeScript completes a name: the file, or else the directory —
+   * the entry its package.json names, `types`, `typings` or `main`, else its index. A `directory`
+   * is only the directory; an `entry` of a package.json is no package.json's again; and a target of
+   * `exports` or `imports` is taken `exactly`: the file whose extension TypeScript puts in place of
+   * the one written, and nothing it would have to complete.
    */
-  const fileAt = (path: string, how: "file" | "directory" | "exactly"): string | undefined => {
-    const indexes = addedExtensions.map((extension) => at.join(path, `index${extension}`))
-    if (how === "directory") return indexes.find((candidate) => contents.has(candidate))
+  const fileAt = (path: string, how: "file" | "directory" | "entry" | "exactly"): string | undefined => {
     const written = /\.[^./]*$/.exec(path)?.[0]
     const stem = path.slice(0, path.length - (written?.length ?? 0))
-    const candidates = [
-      ...written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path],
-      ...how === "exactly" ? [] : [...addedExtensions.map((extension) => `${path}${extension}`), ...indexes]
-    ]
-    return candidates.find((candidate) => contents.has(candidate))
+    const named = written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path]
+    const file = [...named, ...addedExtensions.map((extension) => `${path}${extension}`)].find((candidate) => contents.has(candidate))
+    if (how === "exactly") return named.find((candidate) => contents.has(candidate))
+    if (how !== "directory" && file !== undefined) return file
+    const { main, types, typings } = how === "entry" ? {} : manifest(at.join(path, packageFile)) ?? {}
+    for (const entry of [types, typings, main]) {
+      const found = entry === undefined ? undefined : fileAt(at.join(path, entry), "entry")
+      if (found !== undefined) return found
+    }
+    return indexOf(path)
   }
+  const indexOf = (directory: string) => addedExtensions.map((extension) => at.join(directory, `index${extension}`)).find((candidate) => contents.has(candidate))
 
   /** The conditions `imported` is resolved under in `file`, read with `options`, besides `default`. */
   const conditionsOf = (file: string, imported: Import, options: Settings): ReadonlySet<string> => {
@@ -109,7 +115,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 
   /** The source a package's build writes `path` from, by the `rootDir` and `outDir` of the tsconfig.json nearest the package. */
-  const sourceOf = (directory: string, path: string, how: "file" | "exactly"): string | undefined => {
+  const sourceOf = (directory: string, path: string, how: "file" | "entry" | "exactly"): string | undefined => {
     const config = at.upFrom(directory).map((above) => at.join(above, tsconfigFile)).find((candidate) => read.has(candidate))
     if (config === undefined) return undefined
     const { outDir, rootDir } = settings(config)
@@ -118,8 +124,8 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return fileAt(at.join(rootDir ?? directoryOf(config), written), how)
   }
 
-  /** What a target of a package's map of names (`exactly`), or one of its entries, means; the path it names when that is no file. */
-  const entry = (directory: string, target: string, how: "file" | "exactly"): Walk => {
+  /** What a path of a package means — a subpath, an entry, or a target of its map of names, taken `exactly` — or the path it names when that is no file. */
+  const entry = (directory: string, target: string, how: "file" | "entry" | "exactly"): Walk => {
     const path = at.join(directory, target)
     const found = fileAt(path, how) ?? sourceOf(directory, path, how)
     if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
@@ -133,7 +139,6 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     // Nothing a package without code means is the workspace's code.
     if (!hasCode(directory)) return { found: {}, passed: [], decided: false }
     const { exports, main, types, typings } = manifest(path) ?? {}
-    const take = (target: string) => entry(directory, target, "file")
     const missed = (walk: Walk): Walk => ({
       ...walk,
       found: {
@@ -158,14 +163,14 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       const key = matchKey(Object.keys(map), subpath === "" ? "." : `./${subpath}`)
       return found(key === undefined ? nothing : pick(map[key.key]!, key.star, conditions, (target) => entry(directory, target, "exactly")))
     }
-    if (subpath !== "") return found(take(subpath))
+    if (subpath !== "") return found(entry(directory, subpath, "file"))
     let walked = nothing
     for (const named of [types, typings, main]) {
       if (named === undefined) continue
-      walked = after(walked, take(named))
+      walked = after(walked, entry(directory, named, "entry"))
       if (walked.found !== undefined) return walked
     }
-    const index = fileAt(directory, "directory")
+    const index = indexOf(directory)
     return index !== undefined ? { ...walked, found: { module: index } } : missed(walked)
   }
 

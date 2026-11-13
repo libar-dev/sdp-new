@@ -261,6 +261,7 @@ Feature: See the architecture
         | package.json              | { "name": "shop" }                                                                                       | src/tax.ts            | src/tax.js                | ./tax.js  | nothing  |
         | package.json              | { "name": "shop" }                                                                                       | src/tax.js            | src/tax.tsx               | ./tax.js  | ARCH-tax |
         | package.json              | { "name": "shop" }                                                                                       | src/tax.ts            | src/tax/index.ts          | ./tax/    | ARCH-tax |
+        | src/tax/package.json      | { "main": "rates.js" }                                                                                   | src/tax/index.ts      | src/tax/rates.ts          | ./tax     | ARCH-tax |
         | tsconfig.json             | {\n  // the aliases of the code\n  "compilerOptions": { "paths": { "@/*": ["./src/*"] } },\n}          | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | tsconfig.json             | { "compilerOptions": { "baseUrl": "./src", "paths": { "@/*": ["*"] } } }                                 | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
         | jsconfig.json             | { "compilerOptions": { "paths": { "@/*": ["./src/*"] } } }                                               | lib/tax.ts            | src/tax.ts                | @/tax     | ARCH-tax |
