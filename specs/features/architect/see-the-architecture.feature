@@ -135,7 +135,6 @@ Feature: See the architecture
         | a value of code of no element             | import { send } from "./send.ts"          | ARCH-mailer |
         | a type alone through code of no element   | import { Receipt } from "./send.ts"       | nothing     |
 
-  @maturity=specified
   Rule: sdp reads what TypeScript and JavaScript import, and an answer that shows what elements import says so when code of an element is in another language
 
     What that element imports is then missing from the answer. It is a note, and the answer stays

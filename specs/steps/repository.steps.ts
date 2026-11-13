@@ -9,7 +9,7 @@ import { readdir, readFile } from "node:fs/promises"
 import { join, relative } from "node:path"
 import { parseSync } from "oxc-parser"
 import { parse } from "yaml"
-import { projectOrderings, query, queryProject } from "../../src/graph/Query.ts"
+import { queryProject } from "../../src/graph/Query.ts"
 import { formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
 import { defaultVocabulary, hasKind, made, vocabularyWords } from "../../src/model/Vocabulary.ts"
@@ -270,18 +270,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.ok(Object.hasOwn(values, what), `no example of a ${what}; there are: ${Object.keys(values).join(", ")}`)
     const node: GraphNode = { id: "a", kind: "element", title: "a", attrs: { nested: { value: values[what] } } }
     assert.throws(() => new Graph([node], []), new RegExp(`an attribute is JSON data, not a ${what}`))
-  })
-
-  When("the query {string} runs on it", ({ args: [q], world }) => {
-    const graph = world.graph!
-    const samples: Array<number> = []
-    for (let i = 0; i < 7; i++) {
-      const started = performance.now()
-      const result = query(graph, q, { orderings: projectOrderings(defaultVocabulary) })
-      samples.push(performance.now() - started)
-      assert.ok(Result.isSuccess(result))
-    }
-    world.durationMs = samples.sort((a, b) => a - b)[3]!
   })
 
   Then("the median run completes within {int} ms", ({ args: [budget], world }) => {

@@ -15,7 +15,7 @@ import { contextBundle } from "../../src/graph/Context.ts"
 import { jsonLines, stateRecords } from "../../src/graph/Export.ts"
 import { formatPath, queryProject } from "../../src/graph/Query.ts"
 import { check } from "../../src/check/Check.ts"
-import { formatSource, Graph, type GraphEdge, type GraphNode } from "../../src/model/Graph.ts"
+import { formatSource, Graph } from "../../src/model/Graph.ts"
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, loadMemoryProject, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
 import * as NodeServices from "@effect/platform-node/NodeServices"
@@ -86,25 +86,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     for (let i = 1; i <= count; i++) {
       setFile(world, `specs/N${i}.feature`, `@id=N${i} @kind=node${i}${i < count ? ` @${rel}:N${i + 1}` : ""}\nFeature: N${i}\n`)
     }
-  })
-
-  Given("a generated graph of {int} nodes and {int} edges", ({ args: [nodeCount, edgeCount], world }) => {
-    const kinds = ["feature", "element", "decision", "scenario", "code"]
-    const nodes: Array<GraphNode> = Array.from({ length: nodeCount }, (_, i) => ({
-      id: `N${i}`,
-      kind: kinds[i % kinds.length]!,
-      title: `node ${i}`,
-      attrs: { maturity: ["idea", "draft", "specified", "ready"][i % 4] }
-    }))
-    let seed = 42
-    const random = () => (seed = (seed * 1103515245 + 12345) % 2 ** 31) / 2 ** 31
-    const rels = ["realized-by", "decided-by", "verifies", "depends-on"]
-    const edges: Array<GraphEdge> = Array.from({ length: edgeCount }, (_, i) => ({
-      from: `N${Math.floor(random() * nodeCount)}`,
-      rel: rels[i % rels.length]!,
-      to: `N${Math.floor(random() * nodeCount)}`
-    }))
-    world.graph = new Graph(nodes, edges)
   })
 
   Given("a generated workspace of {int} specs", ({ args: [count], world }) => {

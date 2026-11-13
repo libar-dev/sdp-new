@@ -11,10 +11,9 @@ Feature: Install the agent plugin
   Rule: One package is the plugin of every supported harness: one manifest, one folder of skills and one hook script
 
     Scenario: The plugin is the package
-      When I run "npm pack --dry-run --json" in the repository
+      Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
+      When I run "ls node_modules/sdp/plugin.json node_modules/sdp/skills/sdp/SKILL.md"
       Then the exit code is 0
-      And the output contains '"path": "plugin.json"'
-      And the output contains '"path": "skills/sdp/SKILL.md"'
       And "plugin.json" in the repository conforms to the Agent Plugins 1.0.0 schema
 
   Rule: Where the standard does not reach a harness, a shim of that harness's own names the plugin and where its skills are, and holds no skill text

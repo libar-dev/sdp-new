@@ -10,8 +10,9 @@ Feature: A spec of this repository is written one way
     spec, a reason is a decision, and how to work in any repository that uses sdp is the skill.
 
     Scenario: The length of AGENTS.md
-      When I run "sh -c 'test $(wc -l < AGENTS.md) -le 40'" in the repository
+      When I run "cat AGENTS.md" in the repository
       Then the exit code is 0
+      And the output has at most 40 lines
 
   Rule: In this repository a word means one thing, and so does an id's prefix
 

@@ -47,14 +47,31 @@ export interface QueryData {
   readonly paths?: ReadonlyArray<QueryPath> | undefined
 }
 
-/** A query's result, and what to say about it: the limits that cut it short and the words the workspace does not know. */
+/**
+ * One note for each element with code in a language whose imports sdp does not read: what the
+ * element imports there is missing from an answer that shows imports. The answer stays complete,
+ * for nothing in the workspace can be fixed so that sdp reads it.
+ */
+const importsNotRead = (project: Project): ReadonlyArray<string> => {
+  const files = new Map<string, Array<string>>()
+  for (const { element, file } of project.importsUnread) files.set(element, [...files.get(element) ?? [], file])
+  return [...files].map(([element, [first, ...others]]) =>
+    `what ${element} imports in ${first}${others.length === 0 ? "" : ` and ${others.length} other file(s)`} is not read: sdp reads the imports of TypeScript and JavaScript`
+  )
+}
+
+/** A query's result, and what to say about it: the limits that cut it short, the words the workspace does not know and, when it follows `imports`, the code whose imports sdp does not read. */
 const evaluate = Effect.fnUntraced(function*(project: Project, expression: string) {
   const parsed = parseQuery(expression)
   if (Result.isFailure(parsed)) return yield* parsed.failure
   const result = runQuery(project.graph, parsed.success, projectQueryOptions(project))
+  const followsImports = parsed.success.steps.some(({ edge }) => edge.rels.includes(made.relations.imports))
   return {
     result,
-    about: { missing: result.limits.map((limit) => `cut short: ${limit}`), notes: unknownWords(project, parsed.success) }
+    about: {
+      missing: result.limits.map((limit) => `cut short: ${limit}`),
+      notes: [...unknownWords(project, parsed.success), ...followsImports ? importsNotRead(project) : []]
+    }
   }
 })
 
@@ -270,7 +287,7 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
       return { node: node.id, live: live.map(nodeRecord), toCome: toCome.map(nodeRecord) }
     })
   }
-  return answer(project, data)
+  return answer(project, data, { notes: importsNotRead(project) })
 })
 
 const today = Effect.map(DateTime.now, DateTime.formatIsoDate)
@@ -373,7 +390,7 @@ const architectureGraph = (project: Project): Graph => {
 export const diagram = Effect.fn("diagram")(function*(root: string, input: { readonly select?: string | undefined } | "architecture" = {}) {
   const project = yield* loadProject(root)
   const { about, graph } = input === "architecture"
-    ? { about: {}, graph: architectureGraph(project) }
+    ? { about: { notes: importsNotRead(project) }, graph: architectureGraph(project) }
     : yield* selected(project, input.select)
   return answer(project, mermaid(graph, project.config.vocabulary), about)
 })

@@ -13,7 +13,7 @@ import type { Project } from "../../src/graph/Build.ts"
 import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { type Attrs, formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
+import { type Attrs, formatSource, type GraphNode } from "../../src/model/Graph.ts"
 import type { RunResults } from "../../src/model/Results.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
 
@@ -33,7 +33,6 @@ export interface World {
   /** A real directory on disk, for steps that run the CLI as a process. */
   directory: string | undefined
   lifecycle: LifecycleReport | undefined
-  graph: Graph | undefined
   durationMs: number
   /** Anything else a step module needs to carry between its own steps. */
   scratch: Record<string, unknown>
@@ -50,7 +49,6 @@ export const newWorld = (): World => ({
   outcome: undefined,
   directory: undefined,
   lifecycle: undefined,
-  graph: undefined,
   durationMs: 0,
   scratch: {}
 })

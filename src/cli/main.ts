@@ -305,15 +305,16 @@ const runCommand = Command.make(
       Argument.withDescription("Spec ids, scenario ids, files or directories (default: everything)"),
       Argument.variadic()
     ),
-    tags: Flag.String("tags").pipe(Flag.withDescription("Cucumber tag expression, e.g. '@checkout and not @slow'"), Flag.optional),
+    tags: Flag.String("tags").pipe(
+      Flag.withDescription("Cucumber tag expression, e.g. '@checkout and not @slow'; one that selects no example is refused"),
+      Flag.optional
+    ),
     snippets: Flag.Boolean("snippets").pipe(
       Flag.withDescription("Print one step definition module with a suggested definition for every undefined step"),
       Flag.withDefault(false)
     ),
     concurrency: Flag.Int("concurrency").pipe(
-      Flag.withDescription(
-        "Scenarios to run at once; one by default, since steps written for a sequential run may share state (scenarios tagged @serial always run alone)"
-      ),
+      Flag.withDescription("Scenarios to run at once (default 1); scenarios tagged @serial always run alone"),
       Flag.withDefault(1)
     ),
     timeout,

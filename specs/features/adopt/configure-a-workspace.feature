@@ -27,12 +27,12 @@ Feature: Configure a workspace
         """
       And a file "src/orders.ts" containing:
         """
-        // @sdp implements login
+        /** @sdp is ARCH-orders */
         export function order() {}
         """
       And a file "tools/report.ts" containing:
         """
-        // @sdp implements login
+        /** @sdp is ARCH-reports */
         export function report() {}
         """
       And a file "<file>" containing:

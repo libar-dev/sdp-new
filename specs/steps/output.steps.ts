@@ -3,12 +3,11 @@
  * sections of a Markdown document or as JSON, and the files of the workspace. After a command its
  * exit code comes first (world.ts).
  */
-import { Effect, Predicate } from "effect"
+import { Predicate } from "effect"
 import { strict as assert } from "node:assert"
 import { defineSteps } from "sdp/steps"
-import { ids, load, newWorld, output, stdout } from "./world.ts"
+import { ids, newWorld, output, stdout } from "./world.ts"
 import { existingFile, fileOf } from "./process.ts"
-import { stateRecords } from "../../src/graph/Export.ts"
 
 /** One step of a path into JSON: a key of an object, an index of a list, or the key in every item of a list. */
 const field = (value: unknown, key: string): unknown => {
@@ -120,12 +119,6 @@ export default defineSteps(newWorld, ({ Then }) => {
       assert.ok(!has(parent, keys.at(-1)!), `${path} is a field:\n${text}`)
     }
   })
-
-  Then("the output has one line per node and edge", ({ world }) =>
-    Effect.map(load(world), (project) => {
-      const lines = output(world).trimEnd().split("\n")
-      assert.equal(lines.length, stateRecords(project.graph, project.config.vocabulary).length)
-    }))
 
   Then("the file {string} is:", async ({ args: [file], doc, world }) => {
     assert.equal((await existingFile(world, file)).trimEnd(), doc)

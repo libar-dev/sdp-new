@@ -14,11 +14,14 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type NotAFile, type Project, type SourceFile } from "../graph/Build.ts"
 import { type Config, configFileNames, decodeConfigFile, resolveConfig } from "../model/Config.ts"
+import { diagnostic } from "../model/Diagnostic.ts"
 import type { RunResults } from "../model/Results.ts"
 import { listedPackages, moduleConfigFiles, namedBy, packageFile, pathFrom } from "../parse/ModuleConfigs.ts"
+import { matchKey } from "../parse/Modules.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
+import { aTurn, startedBy, watchUnawaited } from "../run/Runner.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
-import { readResults } from "../run/Store.ts"
+import { readResults, type ResultsUnreadable } from "../run/Store.ts"
 import { PackageJson } from "../model/PackageJson.ts"
 /** Every problem of a configuration, each on a line of its own; as a message, on one line. */
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
@@ -363,11 +366,6 @@ const readThere = Effect.fnUntraced(function*(root: string, files: ReadonlyArray
     fs.stat(path.resolve(root, file)).pipe(Effect.map((info) => info.type === "File"), Effect.orElseSucceed(() => false))
   return yield* readAll(root, yield* Effect.filter(files, isFile))
 })
-
-import { diagnostic } from "../model/Diagnostic.ts"
-import { matchKey } from "../parse/Modules.ts"
-import { aTurn, startedBy, watchUnawaited } from "../run/Runner.ts"
-import type { ResultsUnreadable } from "../run/Store.ts"
 
 /** How a run records a path it reached a file through that leads elsewhere — a link, or a path through one — with where it led. */
 const arrow = " → "

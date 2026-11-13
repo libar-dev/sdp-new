@@ -138,14 +138,14 @@ const textOf = Effect.fn("textOf")(function*(path: string) {
 })
 
 /**
- * Each feature planned into the iteration, with a rule and an open question: work an orientation
- * must show, cut to its bound.
+ * Each feature planned into the iteration, in the specs of the workspace at `root`, with a rule and
+ * an open question: work an orientation must show, cut to its bound.
  */
 const plannedFeatures = (world: World, count: number, iteration: string, root: string) => {
   for (let i = 1; i <= count; i++) {
     setFile(
       world,
-      `${root === "" ? "" : `${root}/`}specs/planned-${i}.feature`,
+      `${root}/specs/planned-${i}.feature`,
       `@id=planned-${i} @maturity=draft @iteration:${iteration}\nFeature: Planned ${i}\n\n` +
         `  Rule: Planned ${i} keeps what it was given\n\n  @open\n  Rule: Does planned ${i} need more?\n`
     )
@@ -255,14 +255,10 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(lineCount(output(world)), count, `lines of the output:\n${output(world)}`)
   })
 
-  // Characters as a reader counts them: one per code point.
-  Then("the output is at most {int} characters", ({ args: [limit], world }) => {
-    const length = [...output(world)].length
-    assert.ok(length <= limit, `the output is ${length} characters:\n${output(world)}`)
+  Then("the output has at most {int} line(s)", ({ args: [limit], world }) => {
+    const count = lineCount(output(world))
+    assert.ok(count <= limit, `the output has ${count} lines, more than ${limit}:\n${output(world)}`)
   })
-
-  Given("{int} features planned into {string}, each with an open question", ({ args: [count, iteration], world }) =>
-    plannedFeatures(world, count, iteration, ""))
 
   Given("{int} features in {string} planned into {string}, each with an open question", ({ args: [count, root, iteration], world }) =>
     plannedFeatures(world, count, iteration, root))

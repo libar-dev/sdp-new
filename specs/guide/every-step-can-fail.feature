@@ -206,49 +206,32 @@ Feature: Every step of this repository can fail
     Scenario: The steps still to be defined
       When the steps of every example of this repository are matched with its step definitions
       Then the steps that no definition matches are:
-        | spec                            | step                                                                                                                            |
-        | install-the-agent-plugin        | "plugin.json" in the repository conforms to the Agent Plugins 1.0.0 schema                                                      |
-        | install-the-agent-plugin        | "Claude Code" runs the plugin's hook on "SessionStart", as it finds it                                                          |
-        | install-the-agent-plugin        | "Claude Code" found 1 wiring of the hook                                                                                        |
-        | install-the-agent-plugin        | "Codex" runs the plugin's hook on "SessionStart", as it finds it                                                                |
-        | install-the-agent-plugin        | "Codex" found 1 wiring of the hook                                                                                              |
-        | install-the-agent-plugin        | "ZCode" runs the plugin's hook on "SessionStart", as it finds it                                                                |
-        | install-the-agent-plugin        | "ZCode" found 1 wiring of the hook                                                                                              |
-        | install-the-agent-plugin        | "Kimi Code" runs the plugin's hook on "UserPromptSubmit", as it finds it                                                        |
-        | install-the-agent-plugin        | "Kimi Code" found 1 wiring of the hook                                                                                          |
-        | install-the-agent-plugin        | "Grok Build" runs the plugin's hook on "PreToolUse", as it finds it                                                             |
-        | install-the-agent-plugin        | "Grok Build" found 1 wiring of the hook                                                                                         |
-        | install-the-agent-plugin        | "OpenCode" runs the plugin's hook on "context", as it finds it                                                                  |
-        | install-the-agent-plugin        | "OpenCode" found 1 wiring of the hook                                                                                           |
-        | install-the-agent-plugin        | "Claude Code" at version "2.1.318", with the plugin installed in a workspace whose project is at "MS-beta"                      |
-        | install-the-agent-plugin        | "Codex" at version "0.166.0", with the plugin installed in a workspace whose project is at "MS-beta"                            |
-        | install-the-agent-plugin        | "ZCode" at version "0.17.0", with the plugin installed in a workspace whose project is at "MS-beta"                             |
-        | install-the-agent-plugin        | "Kimi Code" at version "2.4.1", with the plugin installed in a workspace whose project is at "MS-beta"                          |
-        | install-the-agent-plugin        | "Grok Build" at version "1.0.70", with the plugin installed in a workspace whose project is at "MS-beta"                        |
-        | install-the-agent-plugin        | "OpenCode" at version "2.2.5", with the plugin installed in a workspace whose project is at "MS-beta"                           |
-        | install-the-agent-plugin        | a session starts there and its model is asked what it was given                                                                 |
-        | install-the-agent-plugin        | the model's context held the skill "sdp"                                                                                        |
-        | install-the-agent-plugin        | the model's context held the orientation once, naming "MS-beta"                                                                 |
-        | orient-agents-through-hooks     | the plugin's hook runs at session start in "shop/src"                                                                           |
-        | orient-agents-through-hooks     | the output is what the hook showed                                                                                              |
-        | orient-agents-through-hooks     | the plugin's hook runs at session start in the workspace                                                                        |
-        | orient-agents-through-hooks     | the output is at most 2000 characters                                                                                           |
-        | orient-agents-through-hooks     | the hook answered within 5000 ms                                                                                                |
-        | orient-agents-through-hooks     | the plugin's hook runs at session start in "elsewhere"                                                                          |
-        | orient-agents-through-hooks     | the output is empty                                                                                                             |
-        | orient-agents-through-hooks     | the plugin's hook runs at session start in "shop"                                                                               |
-        | orient-agents-through-hooks     | the output has 1 line                                                                                                           |
-        | orient-agents-through-hooks     | the plugin's hook runs on "PreToolUse" for session "a" in "shop"                                                                |
-        | orient-agents-through-hooks     | the plugin's hook runs on "PreToolUse" for session "b" in "shop"                                                                |
-        | orient-agents-through-hooks     | the workspace "shop" installed sdp "0.1.0"                                                                                      |
-        | orient-agents-through-hooks     | the plugin is of sdp "0.2.0"                                                                                                    |
-        | teach-agents-the-way-of-working | every file under "skills/sdp/references" in the repository is named in "skills/sdp/SKILL.md"                                    |
-        | teach-agents-the-way-of-working | every sdp command shown in "skills/sdp" is run in the workspace                                                                 |
-        | teach-agents-the-way-of-working | each exited 0, or as the text beside it says                                                                                    |
-        | plan-delivery                   | 80 features planned into "IT-later", each with an open question                                                                 |
-        | plan-delivery                   | the output is at most 2000 characters                                                                                           |
-        | start-from-the-state            | the records of type "word" are:                                                                                                 |
-        | start-from-the-state            | the records of type "node" are:                                                                                                 |
+        | spec                            | step                                                                                                       |
+        | install-the-agent-plugin        | "Claude Code" runs the plugin's hook on "SessionStart", as it finds it                                     |
+        | install-the-agent-plugin        | "Claude Code" found 1 wiring of the hook                                                                   |
+        | install-the-agent-plugin        | "Codex" runs the plugin's hook on "SessionStart", as it finds it                                           |
+        | install-the-agent-plugin        | "Codex" found 1 wiring of the hook                                                                         |
+        | install-the-agent-plugin        | "ZCode" runs the plugin's hook on "SessionStart", as it finds it                                           |
+        | install-the-agent-plugin        | "ZCode" found 1 wiring of the hook                                                                         |
+        | install-the-agent-plugin        | "Kimi Code" runs the plugin's hook on "UserPromptSubmit", as it finds it                                   |
+        | install-the-agent-plugin        | "Kimi Code" found 1 wiring of the hook                                                                     |
+        | install-the-agent-plugin        | "Grok Build" runs the plugin's hook on "PreToolUse", as it finds it                                        |
+        | install-the-agent-plugin        | "Grok Build" found 1 wiring of the hook                                                                    |
+        | install-the-agent-plugin        | "OpenCode" runs the plugin's hook on "context", as it finds it                                             |
+        | install-the-agent-plugin        | "OpenCode" found 1 wiring of the hook                                                                      |
+        | install-the-agent-plugin        | "Claude Code" at version "2.1.318", with the plugin installed in a workspace whose project is at "MS-beta" |
+        | install-the-agent-plugin        | "Codex" at version "0.166.0", with the plugin installed in a workspace whose project is at "MS-beta"       |
+        | install-the-agent-plugin        | "ZCode" at version "0.17.0", with the plugin installed in a workspace whose project is at "MS-beta"        |
+        | install-the-agent-plugin        | "Kimi Code" at version "2.4.1", with the plugin installed in a workspace whose project is at "MS-beta"     |
+        | install-the-agent-plugin        | "Grok Build" at version "1.0.70", with the plugin installed in a workspace whose project is at "MS-beta"   |
+        | install-the-agent-plugin        | "OpenCode" at version "2.2.5", with the plugin installed in a workspace whose project is at "MS-beta"      |
+        | install-the-agent-plugin        | a session starts there and its model is asked what it was given                                            |
+        | install-the-agent-plugin        | the model's context held the skill "sdp"                                                                   |
+        | install-the-agent-plugin        | the model's context held the orientation once, naming "MS-beta"                                            |
+        | orient-agents-through-hooks     | the workspace "shop" installed sdp "0.1.0"                                                                 |
+        | orient-agents-through-hooks     | the plugin is of sdp "0.2.0"                                                                               |
+        | teach-agents-the-way-of-working | every sdp command shown in "skills/sdp" is run in the workspace                                            |
+        | teach-agents-the-way-of-working | each exited 0, or as the text beside it says                                                               |
 
   Rule: A step that is stopped ends the processes it started, and theirs
 
