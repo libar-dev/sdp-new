@@ -17,7 +17,7 @@ Feature: Architecture
         | ARCH-cli |
 
   @decided-by:effect-for-io
-  Rule: Only workspace IO touches files, and each stage after it is a pure function of its input
+  Rule: Parsing, the model, the graph and the checks do no IO, and sdp reads and writes a workspace through the `FileSystem` service
 
     That is what lets executable specs run the real pipeline against an in-memory file system.
 
