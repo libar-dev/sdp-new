@@ -7,11 +7,11 @@
  * words sdp itself reads are its vocabulary profile (`Vocabulary.ts`).
  */
 
-export interface SourceRef {
-  readonly file: string
-  readonly line: number
-}
-
+/**
+ * The graph and its exported records share the schema's source-reference type.
+ */
+import type { SourceRef } from "./Records.ts"
+export type { SourceRef } from "./Records.ts"
 /** Attributes are JSON data: text, numbers, booleans, null, lists and maps of them. A graph accepts nothing else. */
 export type Attrs = Readonly<Record<string, unknown>>
 

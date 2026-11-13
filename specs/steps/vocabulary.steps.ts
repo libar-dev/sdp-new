@@ -31,7 +31,7 @@ const collect = (words: Iterable<string>, sdp: (word: string) => Sdp): Words =>
 /** The kinds of the nodes in the graph. */
 const kinds = (project: Project): Words => {
   const vocabulary = project.config.vocabulary
-  const interpreted = new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat()])
+  const interpreted = new Set([...Object.values(vocabulary.kinds).flat(), ...Object.values(vocabulary.disciplines).flat()])
   const makes = new Set<string>(Object.values(made.kinds))
   return collect(project.graph.nodes().map((n) => n.kind), (kind) =>
     makes.has(kind) ? "makes" : interpreted.has(kind) ? "interprets" : "carries")

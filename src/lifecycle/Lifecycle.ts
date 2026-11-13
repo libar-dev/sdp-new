@@ -157,7 +157,7 @@ const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<Plann
   const declared = plannedDisciplines(project, node)
   const home = planIterations(project, node)
   const kind = workKind(project, node)
-  return [...vocabulary.disciplines].flatMap(([discipline, kinds]) => {
+  return Object.entries(vocabulary.disciplines).flatMap(([discipline, kinds]) => {
     const iterations = declared.has(discipline)
       ? iterationsBy(project, node, (rel) => rel === activityRelation(vocabulary, discipline))
       : kinds.includes(kind)
@@ -301,7 +301,7 @@ export const lifecycle = (project: Project, today?: string): LifecycleReport => 
     }
   })
 
-  const disciplines = [...vocabulary.disciplines.keys()].map((discipline) => ({
+  const disciplines = Object.keys(vocabulary.disciplines).map((discipline) => ({
     discipline,
     activity: iterations.map((it) => activityIn.get(discipline)?.get(it.id)?.size ?? 0)
   }))

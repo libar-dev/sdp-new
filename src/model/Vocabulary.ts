@@ -14,65 +14,42 @@
  * @sdp is ARCH-vocabulary
  */
 
-export type Words = ReadonlyArray<string>
+import { Schema } from "effect"
 
-export interface Vocabulary {
-  /** Kinds sdp reads meaning into; each role lists the kinds that play it. */
-  readonly kinds: {
-    /** Features: what a user can do, one spec each. An id with no prefix sdp knows names one, and a change changes one. */
-    readonly feature: Words
-    /** Decisions: a title and a sentence, shown with what rests on them. */
-    readonly decision: Words
-    /** Milestones: their scenarios are gates, and `met` records that the gate passed. */
-    readonly milestone: Words
-    readonly phase: Words
-    readonly iteration: Words
-    /** Patterns: the architecture view shows each with the elements that apply it. */
-    readonly pattern: Words
-    /** The kinds whose nodes are the architecture: declaring one is the architect's call. */
-    readonly architectural: Words
-    /** Architectural drivers, shown next to the architecture they shape: a team that keeps quality requirements as specs of a kind of its own names that kind here. */
-    readonly driver: Words
-    /** The kind of a node an anchor declares when it writes none and its id has no prefix that names one. */
-    readonly anchored: string
-  }
-  readonly relations: {
-    /** From planned work to the iteration it is planned into. */
-    readonly plan: Words
-    /** From an iteration to its phase. */
-    readonly phase: Words
-    /** From a milestone to the phase or the iteration it ends. */
-    readonly closes: Words
-    /** The edge sdp makes from a scenario to its spec. */
-    readonly scenario: string
-    /** The relation of the code annotation that anchors a node in code and declares it. */
-    readonly anchor: string
-    /** From a rule still to come to the live rule it replaces, which stays live until then. */
-    readonly replaces: Words
-  }
-  readonly attributes: {
-    /** Disciplines mapped to the iterations their work on the node is planned into. */
-    readonly activity: string
-    /** An iteration's first and last day (ISO dates). */
-    readonly start: string
-    readonly end: string
-    /** The day a milestone was recorded as met (an ISO date). */
-    readonly met: string
-  }
-  /**
-   * The rungs of the ladder of work still to come, lowest first: a maturity is one of them, as
-   * written, and `sdp check` reports any other word as an error. sdp reads no meaning into a rung:
-   * any maturity says that the work is still to come, and the ladder orders the values a query compares.
-   */
-  readonly maturity: Words
-  /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
-  readonly disciplines: ReadonlyMap<string, Words>
-  /**
-   * Words of the workspace's own that nothing in its graph has yet. An assertion names only words
-   * sdp knows — or a typo would pass — so a rule that there is none of something declares its word here.
-   */
-  readonly words: { readonly kinds: Words; readonly relations: Words; readonly attributes: Words }
-}
+export const Words = Schema.Array(Schema.String)
+export type Words = typeof Words.Type
+
+export const Vocabulary = Schema.Struct({
+  kinds: Schema.Struct({
+    feature: Words.annotate({ description: "Features: what a user can do, one spec each. An id with no prefix sdp knows names one, and a change changes one." }),
+    decision: Words.annotate({ description: "Decisions: a title and a sentence, shown with what rests on them." }),
+    milestone: Words.annotate({ description: "Milestones: their scenarios are gates, and `met` records that the gate passed." }),
+    phase: Words,
+    iteration: Words,
+    pattern: Words.annotate({ description: "Patterns: the architecture view shows each with the elements that apply it." }),
+    architectural: Words.annotate({ description: "The kinds whose nodes are the architecture: declaring one is the architect's call." }),
+    driver: Words.annotate({ description: "Architectural drivers, shown next to the architecture they shape: a team that keeps quality requirements as specs of a kind of its own names that kind here." }),
+    anchored: Schema.String.annotate({ description: "The kind of a node an anchor declares when it writes none and its id has no prefix that names one." })
+  }).annotate({ description: "Kinds sdp reads meaning into; each role lists the kinds that play it." }),
+  relations: Schema.Struct({
+    plan: Words.annotate({ description: "From planned work to the iteration it is planned into." }),
+    phase: Words.annotate({ description: "From an iteration to its phase." }),
+    closes: Words.annotate({ description: "From a milestone to the phase or the iteration it ends." }),
+    scenario: Schema.String.annotate({ description: "The edge sdp makes from a scenario to its spec." }),
+    anchor: Schema.String.annotate({ description: "The relation of the code annotation that anchors a node in code and declares it." }),
+    replaces: Words.annotate({ description: "From a rule still to come to the live rule it replaces, which stays live until then." })
+  }),
+  attributes: Schema.Struct({
+    activity: Schema.String.annotate({ description: "Disciplines mapped to the iterations their work on the node is planned into." }),
+    start: Schema.String.annotate({ description: "An iteration's first and last day (ISO dates)." }),
+    end: Schema.String.annotate({ description: "An iteration's first and last day (ISO dates)." }),
+    met: Schema.String.annotate({ description: "The day a milestone was recorded as met (an ISO date)." })
+  }),
+  maturity: Words.annotate({ description: "The rungs of the ladder of work still to come, lowest first: a maturity is one of them, as written, and `sdp check` reports any other word as an error. sdp reads no meaning into a rung: any maturity says that the work is still to come, and the ladder orders the values a query compares." }),
+  disciplines: Schema.Record(Schema.String, Words).annotate({ description: "Disciplines and the kinds whose planned nodes are, by default, work in each." }),
+  words: Schema.Struct({ kinds: Words, relations: Words, attributes: Words }).annotate({ description: "Words of the workspace's own that nothing in its graph has yet. An assertion names only words sdp knows — or a typo would pass — so a rule that there is none of something declares its word here." })
+}).annotate({ identifier: "Vocabulary", title: "Vocabulary", description: "The vocabulary profile: the few words sdp itself interprets, in the workspace's own words." })
+export type Vocabulary = typeof Vocabulary.Type
 
 const defaultKinds: Vocabulary["kinds"] = {
   feature: ["feature"],
@@ -93,8 +70,8 @@ const defaultKinds: Vocabulary["kinds"] = {
  * kinds sdp's own specs need: a rule is a feature's requirement and a story is a slice of delivery,
  * no spec, so a team that writes either as a kind of its own names it here.
  */
-export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
-  new Map<string, Words>([
+export const defaultDisciplines = (kinds: Vocabulary["kinds"]): Vocabulary["disciplines"] =>
+  Object.fromEntries([
     ["business-modeling", ["vision"]],
     ["requirements", [...kinds.feature]],
     ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern, "architecture"])]],
@@ -157,6 +134,15 @@ export const idWordBreak = new RegExp(`[^${idWord}]+`, "u")
 /** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
 const tagsKey = "tags"
 
+/** The closed set of stages sdp derives for live work; a maturity remains a workspace-defined string. */
+export const LiveStage = Schema.Union([
+  Schema.Literal("unrun").annotate({ description: "None of the live examples has a result that still counts." }),
+  Schema.Literal("failing").annotate({ description: "At least one live example failed, is pending, is ambiguous or has no step definition." }),
+  Schema.Literal("in-progress").annotate({ description: "Some live examples passed and others have no result that still counts." }),
+  Schema.Literal("verified").annotate({ description: "Every live example passed against inputs that still match." })
+]).annotate({ identifier: "LiveStage", title: "Live stage", description: "Where live work is in delivery, derived from its examples." })
+export type LiveStage = typeof LiveStage.Type
+
 /** Words sdp makes itself. They are not configurable, and authors cannot write them. */
 export const made = {
   kinds: {
@@ -201,7 +187,7 @@ export const made = {
    * Where live work is in delivery, as its examples say (the decision declared-maturity-derived-stage):
    * not run yet, failing, run in part, or verified. Work still to come is at the stage its maturity names.
    */
-  stages: { unrun: "unrun", failing: "failing", inProgress: "in-progress", verified: "verified" }
+  stages: { unrun: LiveStage.members[0].literal, failing: LiveStage.members[1].literal, inProgress: LiveStage.members[2].literal, verified: LiveStage.members[3].literal }
 } as const
 
 /**
@@ -415,7 +401,7 @@ export const hasRelation = (vocabulary: Vocabulary, role: RelationRole, rel: str
  * and planned. Any other kind is what it is, live, and nothing plans it.
  */
 export const isWork = (vocabulary: Vocabulary, kind: string): boolean =>
-  [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
+  Object.values(vocabulary.disciplines).some((kinds) => kinds.includes(kind))
 
 /**
  * Whether a kind's specs hold the rules its code keeps, such as which element may import which:
@@ -424,7 +410,7 @@ export const isWork = (vocabulary: Vocabulary, kind: string): boolean =>
  */
 export const holdsCodeRules = (vocabulary: Vocabulary, kind: string): boolean =>
   !hasKind(vocabulary, "architectural", kind) &&
-  [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind) && vocabulary.kinds.architectural.some((own) => kinds.includes(own)))
+  Object.values(vocabulary.disciplines).some((kinds) => kinds.includes(kind) && vocabulary.kinds.architectural.some((own) => kinds.includes(own)))
 
 /** The plan's own nodes — phases, iterations, milestones: they say when, and are no work themselves. */
 export const isPlanKind = (vocabulary: Vocabulary, kind: string): boolean =>
@@ -476,10 +462,10 @@ export const isDerived = (kind: string, key: string): boolean =>
 
 /** Every word the profile names, by what it is: for the unknown words of queries and the guard of ARCH-vocabulary. */
 export const vocabularyWords = (vocabulary: Vocabulary) => ({
-  kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat(), ...vocabulary.words.kinds])],
+  kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...Object.values(vocabulary.disciplines).flat(), ...vocabulary.words.kinds])],
   relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary), ...vocabulary.words.relations])],
   attributes: [...new Set([...Object.values(vocabulary.attributes), ...vocabulary.words.attributes])],
-  disciplines: [...vocabulary.disciplines.keys()]
+  disciplines: Object.keys(vocabulary.disciplines)
 })
 
 /**
@@ -487,7 +473,7 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
  * configuration section of that name, and `made`, the words sdp makes itself, which nothing configures.
  */
 export const vocabularyJson = (vocabulary: Vocabulary) => ({
-  vocabulary: { ...vocabulary, disciplines: Object.fromEntries(vocabulary.disciplines) },
+  vocabulary: { ...vocabulary, disciplines: vocabulary.disciplines },
   made: {
     /** The kinds of the nodes sdp makes; no author's node has one. */
     kinds: Object.values(made.kinds),

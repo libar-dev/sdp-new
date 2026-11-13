@@ -8,24 +8,11 @@
 import { execFile } from "node:child_process"
 import { fileURLToPath } from "node:url"
 
-/** A record of `sdp graph`, as it prints it. */
-export interface Node {
-  readonly type: "node"
-  readonly id: string
-  readonly kind: string
-  readonly title: string
-  readonly file: string | null
-  readonly line: number | null
-  readonly attrs: { readonly [key: string]: unknown }
-}
+import { Schema } from "effect"
+import { GraphRecord } from "sdp/effect"
+export type { NodeRecord as Node, EdgeRecord as Edge } from "sdp/effect"
 
-export interface Edge {
-  readonly type: "edge"
-  readonly from: string
-  readonly rel: string
-  readonly to: string
-  readonly declared?: ReadonlyArray<{ readonly file: string; readonly line: number }>
-}
+const decodeRecord = Schema.decodeUnknownSync(Schema.fromJsonString(GraphRecord))
 
 /** Each surface: the arguments that ask for it. */
 export const surfaces = {
@@ -63,7 +50,7 @@ const command0 = (args: ReadonlyArray<string>) => `sdp ${args.join(" ")}`
 export const ask = async (surface: Surface, root: string): Promise<Asked> => {
   const { stdout, stderr, code } = await run(surfaces[surface], root)
   if (surface === "graph") {
-    const records = stdout.split("\n").filter((line) => line !== "").map((line) => JSON.parse(line) as Node | Edge)
+    const records = stdout.split("\n").filter((line) => line !== "").map(decodeRecord)
     const notes = code === 2 ? stderr.split("\n").filter((line) => /^(incomplete|note):/.test(line)) : []
     return { value: records, notes }
   }

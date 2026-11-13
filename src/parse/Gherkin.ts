@@ -14,7 +14,7 @@ import { createHash } from "node:crypto"
 import type { RuleId } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
 import { idForm, idWordBreak, isId, isKey } from "../model/Vocabulary.ts"
-
+import { tagValue } from "../model/TagValue.ts"
 export interface LinkDecl {
   readonly rel: string
   readonly to: string
@@ -174,12 +174,6 @@ const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<
 /** Where a tag sits: what a fact or a link there is about, and which ones it may hold. */
 type Level = "Feature" | "Rule" | "Scenario" | "Examples"
 
-/** A value that reads back as the number it is written as is a number; `true` and `false` are booleans; the rest is text. */
-const tagValue = (text: string): unknown => {
-  if (text === "true" || text === "false") return text === "true"
-  const number = Number(text)
-  return Number.isFinite(number) && String(number) === text ? number : text
-}
 
 /**
  * What the tags of one element say. `=` makes a fact, `:` a link, and the first of them decides;

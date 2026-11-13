@@ -19,7 +19,7 @@ import { listedPackages, moduleConfigFiles, namedBy, packageFile, pathFrom } fro
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
 import { readResults } from "../run/Store.ts"
-
+import { PackageJson } from "../model/PackageJson.ts"
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   file: Schema.String,
   message: Schema.String
@@ -639,8 +639,8 @@ const packageImport = (imports: Record<string, unknown>, specifier: string, cond
 const pathBefore = (specifier: string, parent: string, conditions: ReadonlyArray<string>, real: string): string => {
   try {
     const scope = specifier.startsWith("#") ? findPackageJSON(parent) : undefined
-    const imports = scope === undefined ? undefined : (JSON.parse(readFileSync(scope, "utf8")) as { readonly imports?: unknown }).imports
-    const target = imports !== null && typeof imports === "object" ? packageImport(imports as Record<string, unknown>, specifier, conditions) : undefined
+    const imports = scope === undefined ? undefined : Schema.decodeUnknownSync(Schema.fromJsonString(PackageJson))(readFileSync(scope, "utf8")).imports
+    const target = imports === undefined ? undefined : packageImport(imports, specifier, conditions)
     const before = scope !== undefined && target?.startsWith("./") ? fileURLToPath(new URL(target, pathToFileURL(scope))) : undefined
     // Only a path that leads where Node resolved is one it went through.
     return before !== undefined && realpathSync(before) === real ? before : real

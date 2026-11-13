@@ -9,7 +9,7 @@ import { Predicate } from "effect"
 import type { Config } from "../model/Config.ts"
 import { type Diagnostic, diagnostic, sortDiagnostics } from "../model/Diagnostic.ts"
 import { type Attrs, formatSource, Graph, type GraphEdge, type GraphNode, type SourceRef } from "../model/Graph.ts"
-import { notPassing, type RunResults, type StepStatus } from "../model/Results.ts"
+import { notPassing, type RunResults, type ScenarioStatus, type Staleness, type StepStatus } from "../model/Results.ts"
 import {
   activityRelation,
   attribute,
@@ -21,7 +21,7 @@ import {
   linkKeys,
   made,
   reservedRelations,
-  type Vocabulary
+  type LiveStage, type Vocabulary
 } from "../model/Vocabulary.ts"
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
@@ -73,7 +73,7 @@ export interface ProjectInput {
 export interface Settled {
   readonly status: StepStatus | undefined
   /** What changed since the result was recorded, when it no longer counts. */
-  readonly stale: string | undefined
+  readonly stale: Staleness | undefined
   readonly lastRun: string | undefined
 }
 
@@ -279,7 +279,7 @@ export const buildProject = (input: ProjectInput): Project => {
           rule: scenario.rule,
           steps: scenario.steps.length,
           examples: scenario.pickles.length > 1 ? scenario.pickles.length : undefined,
-          status: status ?? (stale ? "stale" : "unrun"),
+          status: (status ?? (stale ? "stale" : "unrun")) satisfies ScenarioStatus,
           staleBecause: stale,
           lastRun,
           hash: scenario.hash,
@@ -665,6 +665,10 @@ export const stageOf = (maturity: unknown, statuses: ReadonlyArray<StepStatus | 
     const named = Predicate.isString(first) || Predicate.isNumber(first) ? String(first) : undefined
     return named === undefined || isStage(named) ? undefined : named
   }
+  return liveStageOf(statuses)
+}
+
+const liveStageOf = (statuses: ReadonlyArray<StepStatus | undefined>): LiveStage | undefined => {
   if (statuses.length === 0) return undefined
   if (statuses.some((status) => status !== undefined && notPassing.has(status))) return made.stages.failing
   return statuses.every((status) => status === "passed")

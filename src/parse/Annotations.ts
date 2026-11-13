@@ -24,7 +24,7 @@
 import { idForm, idSyntax, isId } from "../model/Vocabulary.ts"
 import { children, type Exports, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"
-
+import { tagValue } from "../model/TagValue.ts"
 export interface Annotation {
   readonly file: string
   /** The line of the tag. */
@@ -608,7 +608,7 @@ const readTag = (
   for (const token of tokenize(text)) {
     const eq = token.indexOf("=")
     if (eq > 0) {
-      attrs.push([token.slice(0, eq), coerce(unquote(token.slice(eq + 1)))])
+      attrs.push([token.slice(0, eq), tagValue(unquote(token.slice(eq + 1)))])
       listing = false
     } else if (listing || (token.startsWith(",") && attrs.length === 0)) {
       targets.push(...token.split(",").map((t) => t.trim()).filter(Boolean))
@@ -698,9 +698,6 @@ const commentAt = (line: string, at: number): boolean => line.startsWith("//", a
 const tokenize = (text: string): ReadonlyArray<string> => text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []
 
 const unquote = (value: string) => value.replace(/^(["'])(.*)\1$/, "$2")
-
-const coerce = (value: string): unknown =>
-  value === "true" ? true : value === "false" ? false : /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value
 
 export const codeNodeId = (annotation: Pick<Annotation, "file" | "symbol">): string =>
   annotation.symbol ? `code:${annotation.file}#${annotation.symbol}` : `code:${annotation.file}`

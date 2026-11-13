@@ -1,46 +1,46 @@
-import { Duration, Option, Result, Schema } from "effect"
-import { defaultDisciplines, defaultVocabulary, isKey, isStage, isValueWord, made, reservedRelations, type Vocabulary } from "./Vocabulary.ts"
+import { Duration, Option, Result, Schema, Struct } from "effect"
+import { defaultDisciplines, defaultVocabulary, isKey, isStage, isValueWord, made, reservedRelations, Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
-const Words = Schema.Array(Schema.String)
-const Word = Schema.String
-
-/** The `vocabulary:` section: every role is optional and replaces its default. */
-const VocabularyFile = Schema.Struct({
-  kinds: Schema.optional(Schema.Struct({
-    feature: Schema.optional(Words),
-    decision: Schema.optional(Words),
-    milestone: Schema.optional(Words),
-    phase: Schema.optional(Words),
-    iteration: Schema.optional(Words),
-    pattern: Schema.optional(Words),
-    architectural: Schema.optional(Words),
-    driver: Schema.optional(Words),
-    anchored: Schema.optional(Word)
-  })),
-  relations: Schema.optional(Schema.Struct({
-    plan: Schema.optional(Words),
-    phase: Schema.optional(Words),
-    closes: Schema.optional(Words),
-    scenario: Schema.optional(Word),
-    anchor: Schema.optional(Word),
-    replaces: Schema.optional(Words)
-  })),
-  attributes: Schema.optional(Schema.Struct({
-    activity: Schema.optional(Word),
-    start: Schema.optional(Word),
-    end: Schema.optional(Word),
-    met: Schema.optional(Word)
-  })),
-  maturity: Schema.optional(Words),
-  disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
-  words: Schema.optional(Schema.Struct({
-    kinds: Schema.optional(Words),
-    relations: Schema.optional(Words),
-    attributes: Schema.optional(Words)
+/**
+ * The `vocabulary:` section: every role is optional and replaces its default.
+ * Only role groups are partial; a dictionary of disciplines keeps its complete values.
+ * Keep each group's annotation when deriving its optional fields.
+ */
+const VocabularyFile = Vocabulary
+  .mapFields(Struct.map(Schema.optional))
+  .mapFields((fields) => ({
+    ...fields,
+    kinds: Schema.optional(
+      Vocabulary.fields.kinds
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.kinds) ?? {})
+    ),
+    relations: Schema.optional(
+      Vocabulary.fields.relations
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.relations) ?? {})
+    ),
+    attributes: Schema.optional(
+      Vocabulary.fields.attributes
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.attributes) ?? {})
+    ),
+    words: Schema.optional(
+      Vocabulary.fields.words
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.words) ?? {})
+    )
   }))
-})
 type VocabularyFile = typeof VocabularyFile.Type
 
 /**
@@ -137,7 +137,7 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
     relations: { ...d.relations, ...file.relations },
     attributes: { ...d.attributes, ...file.attributes },
     maturity: file.maturity ?? d.maturity,
-    disciplines: new Map([...defaultDisciplines(kinds), ...Object.entries(file.disciplines ?? {})]),
+    disciplines: { ...defaultDisciplines(kinds), ...file.disciplines },
     words: { ...d.words, ...file.words }
   }
 }
@@ -192,7 +192,7 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   const keys: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
     ...Object.entries(v.relations).map(([role, words]) => [["relations", role], said(words)] as const),
     ...Object.entries(v.attributes).map(([role, word]) => [["attributes", role], said(word)] as const),
-    [["disciplines"], [...v.disciplines.keys()].map((discipline) => `${v.attributes.activity}.${discipline}`)]
+    [["disciplines"], Object.keys(v.disciplines).map((discipline) => `${v.attributes.activity}.${discipline}`)]
   ]
   for (const [path, words] of keys) {
     for (const word of words.filter((candidate) => !isKey(candidate))) {

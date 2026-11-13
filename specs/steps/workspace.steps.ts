@@ -3,7 +3,7 @@
  * a query answers and what sdp reports about them. Everything here runs the real pipeline in
  * memory; cli.steps.ts runs the same files through the command line.
  */
-import { Effect, FileSystem, Path, Result } from "effect"
+import { Effect, FileSystem, Path, Result, Schema } from "effect"
 import { strict as assert } from "node:assert"
 import { cp, stat } from "node:fs/promises"
 import { basename, join } from "node:path"
@@ -24,7 +24,7 @@ import { newId, newSpec } from "../../src/app/Templates.ts"
 import { findFiles, loadProject } from "../../src/workspace/Workspace.ts"
 import { statusSummary } from "../../src/graph/Status.ts"
 import { assertRows, ids, load, newWorld, node, produce, reload, reportRow, setFile, show, type World } from "./world.ts"
-import { directoryOf, repository, workspace } from "./process.ts"
+import { directoryOf, exec, repository, workspace } from "./process.ts"
 
 const reported = (world: World) => {
   assert.ok(world.reported, "nothing was parsed, loaded, checked or scanned yet")
@@ -298,6 +298,23 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // The programmatic API as a program calls it: `query` from the package's entry point, on these files on disk.
   When("a program asks the API for {string}", async ({ args: [expression], world }) => {
     produce(world, JSON.stringify(await Api.query(await workspace(world), { expression }), null, 2))
+  })
+
+  When("a program decodes every record of {string} in the repository with the package's record schema", async ({ args: [command], project, world }) => {
+    const result = await exec(command, project.root)
+    assert.equal(result.code, 0, `${command} exited ${result.code}: ${result.stderr}`)
+    const lines = result.stdout.trimEnd().split("\n")
+    assert.ok(lines.length > 0 && lines[0] !== "", "the command printed no records")
+    const decode = Schema.decodeUnknownResult(Schema.fromJsonString(EffectApi.GraphRecord))
+    world.scratch.recordFailures = lines.flatMap((line, index) => {
+      const record = decode(line)
+      return Result.isFailure(record) ? [`line ${index + 1}: ${record.failure.message}`] : []
+    })
+  })
+
+  Then("no record fails to decode", ({ world }) => {
+    assert.ok(world.scratch.recordFailures, "no records were decoded")
+    assert.deepEqual(world.scratch.recordFailures, [])
   })
 
   // A program written with Effect: the same use case from "sdp/effect", on a file system it provides.

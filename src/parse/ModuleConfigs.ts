@@ -8,6 +8,8 @@
  * @sdp is ARCH-code-annotations
  */
 import { Glob, Option, Schema } from "effect"
+import { PackageJson } from "../model/PackageJson.ts"
+export type { PackageJson, Target } from "../model/PackageJson.ts"
 import { parse as parseYaml } from "yaml"
 
 /** A file as read, by its path from the workspace's root: `../` leads above it. */
@@ -412,34 +414,6 @@ const fieldsOf = <Fields extends Schema.Struct.Fields>(schema: Schema.Struct<Fie
 
 const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> => typeof value === "object" && value !== null && !isArray(value)
 
-/** A target of `exports` or `imports`: a path, conditions that each map to one, fallbacks, or `null`, which excludes the name. */
-export type Target = string | null | ReadonlyArray<Target> | { readonly [condition: string]: Target }
-const Target: Schema.Codec<Target> = Schema.Union([
-  Schema.String,
-  Schema.Null,
-  Schema.Array(Schema.suspend((): Schema.Codec<Target> => Target)),
-  Schema.Record(Schema.String, Schema.suspend((): Schema.Codec<Target> => Target))
-])
-
-const Dependencies = Schema.Record(Schema.String, Schema.String)
-
-/** What sdp reads of a package.json. */
-const PackageJson = Schema.Struct({
-  name: Schema.optional(Schema.String),
-  type: Schema.optional(Schema.String),
-  exports: Schema.optional(Target),
-  imports: Schema.optional(Schema.Record(Schema.String, Target)),
-  types: Schema.optional(Schema.String),
-  typings: Schema.optional(Schema.String),
-  main: Schema.optional(Schema.String),
-  typesVersions: Schema.optional(Schema.Unknown),
-  dependencies: Schema.optional(Dependencies),
-  devDependencies: Schema.optional(Dependencies),
-  peerDependencies: Schema.optional(Dependencies),
-  optionalDependencies: Schema.optional(Dependencies),
-  workspaces: Schema.optional(Schema.Union([Strings, Schema.Struct({ packages: Schema.optional(Strings) })]))
-})
-export type PackageJson = typeof PackageJson.Type
 
 const PnpmWorkspace = Schema.Struct({ packages: Schema.optional(Strings) })
 

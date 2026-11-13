@@ -1,6 +1,12 @@
+import { Schema } from "effect"
 import type { SourceRef } from "./Graph.ts"
 
-export type Severity = "error" | "warning" | "info"
+export const Severity = Schema.Union([
+  Schema.Literal("error").annotate({ description: "A problem that must be fixed for the workspace to pass checking." }),
+  Schema.Literal("warning").annotate({ description: "A problem worth addressing that does not fail checking." }),
+  Schema.Literal("info").annotate({ description: "Information about how the workspace was read." })
+]).annotate({ identifier: "Severity", title: "Diagnostic severity", description: "How severe a diagnostic is." })
+export type Severity = typeof Severity.Type
 
 /**
  * Every rule sdp can report, with its severity. Diagnostics can only name a

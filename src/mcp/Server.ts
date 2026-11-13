@@ -17,7 +17,7 @@ import * as Reading from "../app/Reading.ts"
 import { relationVocabulary } from "../app/Templates.ts"
 import * as Text from "../app/Text.ts"
 import { querySyntax } from "../graph/Query.ts"
-
+import { Severity } from "../model/Diagnostic.ts"
 const queryHelp = `SDPQ path patterns, one line:\n${querySyntax}`
 
 /** A tool failure the agent should read: delivered as an MCP tool error whose text is the message. */
@@ -25,7 +25,7 @@ class SdpToolError extends Schema.TaggedError<SdpToolError>()("SdpToolError", { 
 
 const text = { success: Schema.String, failure: SdpToolError, failureMode: "error" as const }
 
-const json = Schema.optional(Schema.Boolean).annotate({
+const json = Schema.optionalKey(Schema.Boolean).annotate({
   description: "Answer as JSON instead of text: { complete, notes, data }, as the command line prints with --json"
 })
 
@@ -54,7 +54,7 @@ const SdpQuery = readOnly(Tool.make("sdp_query", {
     `Query the system graph (specs, decisions, architecture, scenarios, code links). Answers with one node per line: id, kind, status or stage, title, file:line, separated by tabs.\n${queryHelp}`,
   parameters: Schema.Struct({
     expression: Schema.String.annotate({ description: "SDPQ expression" }),
-    paths: Schema.optional(Schema.Boolean).annotate({ description: "Answer with the paths that led to the nodes, one per line" }),
+    paths: Schema.optionalKey(Schema.Boolean).annotate({ description: "Answer with the paths that led to the nodes, one per line" }),
     json
   }),
   ...text
@@ -62,7 +62,7 @@ const SdpQuery = readOnly(Tool.make("sdp_query", {
 
 const SdpShow = readOnly(Tool.make("sdp_show", {
   description: "One node: its attributes, where it is declared, its outgoing and incoming edges.",
-  parameters: Schema.Struct({ id: Schema.String, json }),
+  parameters: Schema.Struct({ id: Schema.String.annotate({ description: "Id of the node to read" }), json }),
   ...text
 }))
 
@@ -70,8 +70,8 @@ const SdpContext = readOnly(Tool.make("sdp_context", {
   description:
     "Everything needed to work on one node, as Markdown: its rules with their state and reason, its scenarios with their status and the step definitions still to write (no run needed), the rest of the spec as written, relationships, architecture, quality requirements with their measures and decisions in reach, linked code.",
   parameters: Schema.Struct({
-    id: Schema.String,
-    depth: Schema.optional(Schema.Int).annotate({ description: "Hops to search for architecture, quality requirements and decisions, 1 to 6 (default 2)" })
+    id: Schema.String.annotate({ description: "Id of the node to read" }),
+    depth: Schema.optionalKey(Schema.Int).annotate({ description: "Hops to search for architecture, quality requirements and decisions, 1 to 6 (default 2)" })
   }),
   ...text
 }))
@@ -80,7 +80,7 @@ const SdpSteps = readOnly(Tool.make("sdp_steps", {
   description:
     "The step definitions a run would know, sdp's built-in ones included, one per line: file:line, keyword, expression. Ask before writing a step definition: extend one that exists instead of adding a near-duplicate. Read from the step files without running them.",
   parameters: Schema.Struct({
-    text: Schema.optional(Schema.String).annotate({
+    text: Schema.optionalKey(Schema.String).annotate({
       description: "Only definitions whose expression contains this text, or that match it as a step"
     }),
     json
@@ -98,8 +98,8 @@ const SdpSnippets = readOnly(Tool.make("sdp_snippets", {
 const SdpCheck = readOnly(Tool.make("sdp_check", {
   description: "Validate the workspace: tags, links, Gherkin, that every live rule has an example and nothing live at the git base stopped being live, the shape of decisions and the plan. Each diagnostic has a rule, a file:line and a hint.",
   parameters: Schema.Struct({
-    severity: Schema.optional(Schema.Literals(["error", "warning", "info"])).annotate({ description: "Minimum severity (default info: everything)" }),
-    base: Schema.optional(Schema.String).annotate({
+    severity: Schema.optionalKey(Severity).annotate({ description: "Minimum severity (default info: everything)" }),
+    base: Schema.optionalKey(Schema.String).annotate({
       description: "The git revision to compare live tests with, where HEAD meets it (default: the configuration's base, else the default branch)"
     }),
     json

@@ -24,7 +24,7 @@ import { defaults, readTimeout } from "../model/Config.ts"
 import type { ScenarioResult } from "../model/Results.ts"
 import { gitRevisions } from "../workspace/Revisions.ts"
 import { findWorkspaceRoot, sdpVersion } from "../workspace/Workspace.ts"
-
+import { Severity } from "../model/Diagnostic.ts"
 // `sdp … | head` closes the pipe early; that is the reader's choice, not an error.
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code === "EPIPE") process.exit(process.exitCode ?? 0)
@@ -205,7 +205,7 @@ const checkCommand = Command.make(
   "check",
   {
     json,
-    severity: Flag.Literals("severity", ["error", "warning", "info"]).pipe(
+    severity: Flag.Literals("severity", Severity.members.map((member) => member.literal)).pipe(
       Flag.withDescription("Minimum severity to print"),
       Flag.withDefault("info")
     ),

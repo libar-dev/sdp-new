@@ -8,31 +8,11 @@
  *
  * Every JSON answer of sdp is made of the same records; the state's hold less.
  */
-import type { Attrs, Graph, GraphEdge, GraphNode, SourceRef } from "../model/Graph.ts"
+import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import { hasKind, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { type EdgeRecord, type GraphRecord, type NodeRecord } from "../model/Records.ts"
 
-export interface NodeRecord {
-  readonly type: "node"
-  readonly id: string
-  readonly kind: string
-  readonly title: string
-  /** Where the node is declared; `null` for a node nothing declares — the target of a dangling link. */
-  readonly file: string | null
-  readonly line: number | null
-  /** Every attribute, written or derived. */
-  readonly attrs: Attrs
-}
-
-export interface EdgeRecord {
-  readonly type: "edge"
-  readonly from: string
-  readonly rel: string
-  readonly to: string
-  /** Every declaration that states the edge, in the order they were read. */
-  readonly declared: ReadonlyArray<SourceRef>
-}
-
-export type GraphRecord = NodeRecord | EdgeRecord
+export { EdgeRecord, GraphRecord, NodeRecord, SourceRef } from "../model/Records.ts"
 
 export const nodeRecord = (node: GraphNode): NodeRecord => ({
   type: "node",
@@ -41,7 +21,7 @@ export const nodeRecord = (node: GraphNode): NodeRecord => ({
   title: node.title,
   file: node.source?.file ?? null,
   line: node.source?.line ?? null,
-  attrs: node.attrs
+  attrs: node.attrs as NodeRecord["attrs"]
 })
 
 export const edgeRecord = (edge: GraphEdge): EdgeRecord => ({
@@ -79,7 +59,7 @@ const madeFacts: ReadonlySet<string> = new Set([
 export const stateRecord = (node: GraphNode): NodeRecord => {
   const keep = stateFacts.get(node.kind) ?? specFacts
   const attrs = Object.fromEntries(Object.entries(node.attrs).filter(([key]) => !madeFacts.has(key) || keep.includes(key)))
-  return { ...nodeRecord(node), attrs }
+  return { ...nodeRecord(node), attrs: attrs as NodeRecord["attrs"] }
 }
 
 /**
@@ -91,18 +71,9 @@ const contains = (vocabulary: Vocabulary, graph: Graph, edge: GraphEdge): boolea
   (edge.rel === vocabulary.relations.scenario && graph.node(edge.from)?.kind === made.kinds.scenario)
 
 /**
- * The state: every spec, rule, example, element, pattern and anchored code, then every link an author
- * wrote and every import sdp derived from the code. What only says where a node is written is left to
- * the records; with a query, the routes it walks are kept whole.
- *
- * @sdp is ARCH-reports
+ * One JSON value per line.
+ * JSON escapes tabs and line breaks, so a record never spans two lines.
  */
-export const stateRecords = (graph: Graph, vocabulary: Vocabulary, routes = false): ReadonlyArray<GraphRecord> => [
-  ...graph.nodes().map(stateRecord),
-  ...graph.edges().filter((edge) => routes || !contains(vocabulary, graph, edge)).map(edgeRecord)
-]
-
-/** One JSON value per line. JSON escapes tabs and line breaks, so a record never spans two lines. */
 export const jsonLines = (records: ReadonlyArray<unknown>): string => records.map((record) => `${JSON.stringify(record)}\n`).join("")
 
 /** How the diagram draws a node: by the role its kind plays, else by the kind sdp made it. */
@@ -118,6 +89,18 @@ const shapeOf = (vocabulary: Vocabulary, kind: string): readonly [string, string
     : kind === made.kinds.code
     ? ["[[", "]]"]
     : ["[", "]"]
+
+/**
+ * The state: every spec, rule, example, element, pattern and anchored code, then every link an author
+ * wrote and every import sdp derived from the code. What only says where a node is written is left to
+ * the records; with a query, the routes it walks are kept whole.
+ *
+ * @sdp is ARCH-reports
+ */
+export const stateRecords = (graph: Graph, vocabulary: Vocabulary, routes = false): ReadonlyArray<GraphRecord> => [
+  ...graph.nodes().map(stateRecord),
+  ...graph.edges().filter((edge) => routes || !contains(vocabulary, graph, edge)).map(edgeRecord)
+]
 
 /**
  * The graph as a Mermaid flowchart; decisions, patterns, milestones, scenarios and code each have a

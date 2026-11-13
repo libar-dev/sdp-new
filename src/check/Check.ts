@@ -364,7 +364,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       }))
     }
     const activityKey = vocabulary.attributes.activity
-    const disciplines = [...vocabulary.disciplines.keys()].join(", ")
+    const disciplines = Object.keys(vocabulary.disciplines).join(", ")
     for (const edge of graph.out(node.id)) {
       if (edge.rel === activityKey) {
         out.push(diagnostic("plan-reference", {
@@ -411,7 +411,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       }))
     }
     for (const [discipline, edge] of plannedDisciplines(project, node)) {
-      if (vocabulary.disciplines.has(discipline)) continue
+      if (Object.hasOwn(vocabulary.disciplines, discipline)) continue
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${activityKey} names "${discipline}", which is not a discipline`,
         node: node.id,
