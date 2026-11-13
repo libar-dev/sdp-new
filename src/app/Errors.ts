@@ -50,14 +50,17 @@ export class UnknownTargets extends Schema.TaggedError<UnknownTargets>()("Unknow
   }
 }
 
-/** Problems that leave specs not read as written, or a scenario outside a rule, so no run could be recorded truthfully. */
+/**
+ * Problems that leave part of the workspace not read as written — a spec, a code or step file, a
+ * path that is no file — or a scenario outside a rule, so no run could be recorded truthfully.
+ */
 export class UnreadableSpecs extends Schema.TaggedError<UnreadableSpecs>()("UnreadableSpecs", {
   /** One line each: `file:line [rule] message`. */
   problems: Schema.Array(Schema.String)
 }) {
   override get message() {
     return [
-      `cannot run: ${this.problems.length} problem(s) in the specs must be fixed first (sdp check)`,
+      `cannot run: ${this.problems.length} problem(s) in the workspace must be fixed first (sdp check)`,
       ...this.problems.map((problem) => `  ${problem}`)
     ].join("\n")
   }

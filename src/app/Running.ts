@@ -68,9 +68,9 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
 const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example", "retired-maturity"])
 
 /**
- * Fails before anything runs when part of the specs was not read as written, a scenario is outside
- * a rule, an open question has examples, or a spec declares the retired rung: a result of such a
- * workspace would be evidence about specs sdp check rejects.
+ * Fails before anything runs when part of the workspace was not read as written, a scenario is
+ * outside a rule, an open question has examples, or a spec declares the retired rung: a result of
+ * such a workspace would be evidence about what sdp check rejects.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
