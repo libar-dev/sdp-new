@@ -22,10 +22,14 @@ Feature: Run specs as tests
             Then the desk lamp is found
       """
 
-  Rule: run executes what its targets name: a spec id, a scenario id, or a file or directory relative to the current directory
+  Rule: run executes what its targets name — a spec id, a scenario id, or a file or directory relative to the current directory — and, with --tags, only the examples whose tags match it
 
-    Scenario Outline: Run <target> from <directory>
-      Given a file "specs/sort.feature" containing:
+    Scenario Outline: Run <arguments> from <directory>
+      Given a file "sdp.config.yaml" containing:
+        """
+        # every key at its default
+        """
+      And a file "specs/shelf/sort.feature" containing:
         """
         @id=sort @maturity=idea
         Feature: Sort
@@ -35,19 +39,41 @@ Feature: Run specs as tests
             Scenario: Sort by name
               When a shopper sorts by name
 
+            @smoke
             Scenario: Sort by price
               When a shopper sorts by price
         """
-      When I run "sdp run <target> --json" in "<directory>"
+      When I run "sdp run <arguments> --json" in "<directory>"
       Then the exit code is 0
       And the JSON output has:
         | data.scenarios | <scenarios> |
 
       Examples:
-        | target             | directory | scenarios                             |
+        | arguments          | directory | scenarios                             |
         | sort               | .         | sort#sort-by-name, sort#sort-by-price |
         | sort#sort-by-price | .         | sort#sort-by-price                    |
         | search.feature     | specs     | search#find-a-product-by-name         |
+        | shelf              | specs     | sort#sort-by-name, sort#sort-by-price |
+        | --tags @smoke      | .         | sort#sort-by-price                    |
+
+  Rule: A run whose targets or --tags select no scenario is refused, in one line that names what selected nothing
+
+    A misspelt target or tag would otherwise run nothing and pass: a CI job that runs --tags @smok
+    would stay green without running a single example.
+
+    Scenario Outline: Run <arguments>, <case>
+      Given these specs:
+        | tags                        | Feature  |
+        | @id=wishlist @maturity=idea | Wishlist |
+      When I run "sdp run <arguments>"
+      Then the exit code is 1
+      And the output contains "nothing matches <arguments>"
+
+      Examples:
+        | arguments    | case                   |
+        | serach       | a misspelt target      |
+        | wishlist     | a spec with no example |
+        | --tags @smok | a tag no example has   |
 
   Rule: A run fails when a live example it ran does not pass; an example of work still to come runs and fails no run
 
@@ -70,9 +96,10 @@ Feature: Run specs as tests
           <definitions>
         })
         """
-      When I run "sdp run wishlist"
+      When I run "sdp run wishlist --json"
       Then the exit code is <exit code>
-      And the output line with "wishlist#keep-a-lamp" contains "<status>"
+      And the JSON output has:
+        | data.scenarios.status | <status> |
 
       Examples:
         | work          | declaring           | outcome                 | definitions                                                                                | status    | exit code |
@@ -107,6 +134,9 @@ Feature: Run specs as tests
       And the output contains "delete @maturity=ready at specs/wishlist.feature:1"
 
   Rule: A run executes one scenario at a time unless asked otherwise, and never one tagged @serial beside another
+
+    Steps written for a run of one scenario at a time may share state, so running several at once
+    is asked for, never assumed; a scenario that measures time would measure the others beside it.
 
     Scenario Outline: Three scenarios, one of them @serial, run <how>
       Given a file "specs/timing.feature" containing:
@@ -156,21 +186,74 @@ Feature: Run specs as tests
       When I run "sdp run search --verbose"
       Then the output contains "Given a catalogue with a desk lamp"
 
-  Rule: A run starts only on a workspace sdp check accepts, and answers incomplete, with exit code 2, where it could not read the graph whole
+  Rule: A run refuses a workspace on which a result would mean nothing: a file it could not read as written, a scenario outside a rule, an example of an open question, or a maturity off the ladder
 
-    Scenario Outline: A run beside <file>
-      Given a file "<file>" containing:
-        """
-        <content>
-        """
-      When I run "sdp run"
-      Then the exit code is <exit code>
-      And the output contains "<said>"
+    A spec, step or code file sdp could not read as written may hold what a result rests on; an example
+    outside a rule verifies no rule; one of an open question or a maturity off the ladder fails no run.
+    What else sdp check rejects leaves results true: check gates it, and npm run verify runs both.
 
-      Examples:
-        | file                 | content                                                                                     | exit code | said                                          |
-        | specs/broken.feature | Feature: Broken\n  Scenario: Half written\n    Given a note:\n      ```\n      never closed | 1         | specs/broken.feature:6 [gherkin-syntax]       |
-        | src/search.ts        | /** @sdp is ARCH-search */\nimport "./missing.ts"\nexport const search = 1                  | 2         | not read: src/search.ts:2 [import-unresolved] |
+    Scenario: Every problem a run refuses, in one workspace
+      Given a file "specs/broken.feature" containing:
+        """
+        Feature: Broken
+          Scenario: Half written
+            Given a note:
+              ```
+              never closed
+        """
+      And a file "specs/reports.feature" containing:
+        """
+        @id=reports
+        Feature: Reports
+
+          Scenario: Daily
+            Then a report is mailed
+
+          @open
+          Rule: Are reports mailed weekly too?
+
+            Scenario: Weekly
+              Then a report is mailed
+        """
+      And a file "specs/export.feature" containing:
+        """
+        @id=export @maturity=done
+        Feature: Export
+
+          Rule: A report is exported as CSV
+
+            Scenario: To CSV
+              Then a report is exported
+        """
+      When I run the pipeline:
+        """
+        mkdir src && ln -s missing.ts src/reports.ts
+        sdp run
+        """
+      Then the exit code is 1
+      And the output contains "src/reports.ts:1 [not-a-file]"
+      And the output contains "specs/broken.feature:6 [gherkin-syntax]"
+      And the output contains "specs/reports.feature:4 [scenario-outside-rule]"
+      And the output contains "specs/reports.feature:10 [question-example]"
+      And the output contains "specs/export.feature:1 [maturity-off-ladder]"
+
+    Scenario: A run beside a link to no spec and an import sdp cannot follow
+      Given a file "specs/reports.feature" containing:
+        """
+        @id=reports @maturity=idea @depends-on:mailer
+        Feature: Reports
+        """
+      And a file "src/search.ts" containing:
+        """
+        /** @sdp is ARCH-search */
+        import "./missing.ts"
+        export const search = 1
+        """
+      When I run "sdp run --json"
+      Then the exit code is 2
+      And the JSON output has:
+        | complete       | false                         |
+        | data.scenarios | search#find-a-product-by-name |
 
   @maturity=idea
   Rule: A run can write Cucumber Messages, so the reporters and dashboards that read Cucumber's runs read sdp's

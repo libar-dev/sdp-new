@@ -6,8 +6,8 @@
  * then runs the gates (milestones and `@gate` examples) against a graph that
  * shows the ordinary results and no gate results. The gate of a milestone
  * that is met does not run again, and a workspace that cannot all be read as
- * written, or has a scenario outside a rule or under a question, does not run at all. Works on any
- * `FileSystem`, so executable specs run it in memory.
+ * written, has a scenario outside a rule or under a question, or a maturity off the ladder,
+ * does not run at all. Works on any `FileSystem`, so executable specs run it in memory.
  *
  * @sdp is ARCH-application
  * @sdp applies PAT-answer
@@ -47,6 +47,7 @@ import {
 import { type Answer, answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
+/** A selection with targets or tags that selects no scenario is refused. */
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */
   readonly targets?: ReadonlyArray<string> | undefined
@@ -78,9 +79,9 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
 const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example", "maturity-off-ladder"])
 
 /**
- * Fails before anything runs when part of the workspace was not read as written, a scenario is
- * outside a rule, an open question has examples, or a maturity is no rung of the ladder: a result of
- * such a workspace would be evidence about what sdp check rejects.
+ * Fails before anything runs on a workspace on which a result would mean nothing (run-specs says
+ * why): part of it was not read as written, a scenario is outside a rule, an open question has
+ * examples, or a maturity is no rung of the ladder.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
@@ -104,6 +105,11 @@ const unmatched = (project: Project, targets: ReadonlyArray<string>): ReadonlyAr
     !project.specs.some((spec) =>
       spec.id === target || targetsFile(target, spec) || spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec))
     )
+  )
+
+const withoutScenarios = (project: Project, targets: ReadonlyArray<string>): ReadonlyArray<string> =>
+  targets.filter((target) =>
+    !project.specs.some((spec) => spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec)))
   )
 
 /**
@@ -173,8 +179,21 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const before = yield* loadWorkspace(root, { results: "none", imports: imports() })
   yield* ensureReadable(before.project)
   yield* asLoaded(before)
-  const unknown = unmatched(before.project, options.selection?.targets ?? [])
+  const targets = options.selection?.targets ?? []
+  const unknown = unmatched(before.project, targets)
   if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
+  // What selected nothing is named on one line, however it was written.
+  const shown = (written: ReadonlyArray<string>) => written.map((text) => text.replace(/\s*[\r\n]\s*/g, " ")).join(", ")
+  const empty = withoutScenarios(before.project, targets)
+  if (empty.length > 0) {
+    return yield* new Refused({ reason: `nothing matches ${shown(empty)}: ${empty.length === 1 ? "it holds" : "they hold"} no scenario` })
+  }
+  const tags = options.selection?.tags
+  if (tags !== undefined && !before.project.specs.some((spec) => spec.scenarios.some((scenario) => selected(scenario, spec) !== undefined))) {
+    return yield* new Refused({
+      reason: `nothing matches --tags ${shown([tags])}${targets.length > 0 ? ` in ${shown(targets)}` : ""}: no example's tags match it`
+    })
+  }
   const { config } = before.project
   // Whether an example is a gate is decided by its own tags and spec, and it runs as one only if it
   // is: an outline that is partly gates runs its other selected rows with the ordinary scenarios.
@@ -411,7 +430,8 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
       }${keep.length > 0 ? `, and write it above the rules still to come at ${file}:${keep.join(", ")}` : ""}`
     )
   ]
-  // Nothing runs on a workspace sdp check rejects; what else sdp did not read leaves the answer incomplete.
+  // Nothing runs on a workspace on which a result would mean nothing (see ensureReadable);
+  // what else sdp did not read leaves the answer incomplete.
   const missing = run.unread.map((diagnostic) => `not read: ${problemLine(diagnostic)}`)
   return { run, answer: { complete: missing.length === 0, notes: [...missing, ...notes], data: report } satisfies Answer<RunReport> }
 })
