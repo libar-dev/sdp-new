@@ -65,9 +65,9 @@ export const namedBy = (root: string, top: string, files: ReadonlyArray<File>): 
 }
 
 /**
- * The package.json files a workspace that `files` holds lists as its packages — the `workspaces`
- * of a package.json, the `packages` of a pnpm-workspace.yaml — as globs from the directory that
- * lists them, which only reading that directory expands.
+ * The package.json files the repository's package manager lists as its packages, by what `files`
+ * holds — the `workspaces` of a package.json, the `packages` of a pnpm-workspace.yaml — as globs
+ * from the directory that lists them, which only reading that directory expands.
  */
 export const listedPackages = (files: ReadonlyArray<File>): ReadonlyArray<{
   readonly directory: string
@@ -199,7 +199,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
           file: path,
           line: lineOf(read.text, "extends"),
           message: `${path} extends ${base}, which is ${relative ? "not there" : "neither a package of the workspace nor installed in the repository"}, so what it sets is not read`,
-          hint: relative ? `correct the extends of ${path}` : `install the workspace's packages, or extend a tsconfig.json of the workspace in ${path}`
+          hint: relative ? `correct the extends of ${path}` : `install what package.json declares, or extend a tsconfig.json of the workspace in ${path}`
         }]
       }
       const outside: ReadonlyArray<Located> = left
@@ -457,7 +457,7 @@ const lineOf = (text: string, key: string): number => {
   return at < 0 ? 1 : text.slice(0, at).split("\n").length
 }
 
-/** The packages of the workspace by name — each package.json outside a node_modules that names one — with the dependencies they declare, and those that do not parse. */
+/** The packages of the workspace by name — each package.json outside a node_modules that names one — with the names their dependencies list, and those that do not parse. */
 const packagesOf = (files: ReadonlyArray<File>) => {
   const named = new Map<string, Array<string>>()
   const declared = new Set<string>()

@@ -265,7 +265,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 
   /**
-   * What the nearest package.json at or above `file` that declares `name` as a dependency links it
+   * What the nearest package.json at or above `file` that declares `name` links it
    * to, when that is not a library by that name: another package (`"tax": "npm:@shop/tax@1"`), or a
    * directory, from the package.json (`"tax": "file:./packages/tax"`).
    */
@@ -317,7 +317,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
         ...walk,
         found: {
           unresolved: {
-            message: `"${specifier}" is mapped by the imports of ${scope} to ${target}, which is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved`,
+            message: `"${specifier}" is mapped by the imports of ${scope} to ${target}, which is neither a package of the workspace nor a library a package.json declares, so it is not resolved`,
             hint: `declare ${packageName(target).name} in the dependencies of package.json, or map ${specifier} to a code file in the imports of ${scope}`
           }
         }
@@ -367,7 +367,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
         ...walk,
         found: {
           unresolved: {
-            message: `"${specifier}" is mapped by the imports of ${map.path} to ${target}, which is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved`,
+            message: `"${specifier}" is mapped by the imports of ${map.path} to ${target}, which is neither a package of the workspace nor a library a package.json declares, so it is not resolved`,
             hint: `map it to a code file, or to a library with its scheme (npm:, jsr:), in the imports of ${map.path}`
           }
         }
@@ -396,11 +396,11 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       found: {
         unresolved: mappedTo !== undefined
           ? {
-            message: `"${specifier}" is mapped by the paths of ${project} to ${mappedTo}, which is no code file, and is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved${unread}`,
+            message: `"${specifier}" is mapped by the paths of ${project} to ${mappedTo}, which is no code file, and is neither a package of the workspace nor a library a package.json declares, so it is not resolved${unread}`,
             hint: `map it to a code file in the paths of ${project}`
           }
           : {
-            message: `"${specifier}" is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved${unread}`,
+            message: `"${specifier}" is neither a package of the workspace nor a library a package.json declares, so it is not resolved${unread}`,
             hint: map === undefined
               ? `declare ${name} in the dependencies of package.json, or map it in the paths of a tsconfig.json`
               : `map ${name} in the imports of ${map.path}, or declare it in the dependencies of package.json`
@@ -574,10 +574,10 @@ const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take
   return walked
 }
 
-/** A dependency declared as another package, by npm or by the workspace: `npm:@shop/tax@1.0.0`, `workspace:@shop/tax@*`. */
+/** A package.json's name for another package, by npm's protocol or pnpm's: `npm:@shop/tax@1.0.0`, `workspace:@shop/tax@*`. */
 const aliasPattern = /^(?:npm|workspace):((?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*)(?:@|$)/i
 
-/** A dependency declared as a directory, by its path from the package.json: `file:../tax`, `link:packages/tax`, `portal:./tax`, `workspace:../tax`. */
+/** A package.json's name for a directory, by its path from the package.json: `file:../tax`, `link:packages/tax`, `portal:./tax`, `workspace:../tax`. */
 const directoryPattern = /^(?:(?:file|link|portal):(?![\\/]|[a-z]:)|workspace:(?=\.\.?\/))(.+)$/i
 
 /** The package of TypeScript declarations that declares a library's types: `@types/node-fetch`, `@types/babel__core`. */
