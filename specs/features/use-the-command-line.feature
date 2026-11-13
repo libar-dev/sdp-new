@@ -187,6 +187,8 @@ Feature: Use the command line
         | new risk Outage --maturity draft         | kind risk belongs to no discipline, so it is no work        | specs/risk/outage.feature           |
         | new element Bad --id 'ARCH-bad other'    | would not read back from a tag                              | .sdp/results.json                   |
         | new element Bad --id ' '                 | would not read back from a tag                              | .sdp/results.json                   |
+        | new element Bad --id 'ARCH-a+b'          | would not read back from a tag                              | .sdp/results.json                   |
+        | new feature Carts --id 'carts.'          | would not read back from a tag                              | specs/features/carts..feature       |
 
     Scenario: A configuration or a step module that cannot be loaded, without a stack trace
       Given a file "broken/sdp.config.yaml" containing:

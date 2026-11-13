@@ -817,6 +817,7 @@ Feature: Write a spec
         | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link              |
         | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                |
         | @id=pay#card                |             |             |                  | 1    | @id=pay#card: a spec's id holds no #        |
+        | @id=pay(card)               |             |             |                  | 1    | @id=pay(card): pay(card) is no id           |
         | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =    |
         | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map    |
         | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing   |

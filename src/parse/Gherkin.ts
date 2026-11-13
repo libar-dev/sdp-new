@@ -13,7 +13,7 @@ import { Result } from "effect"
 import { createHash } from "node:crypto"
 import type { RuleId } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
-import { isKey } from "../model/Vocabulary.ts"
+import { idForm, idWordBreak, isId, isKey } from "../model/Vocabulary.ts"
 
 export interface LinkDecl {
   readonly rel: string
@@ -225,6 +225,8 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
       problem(tag, `a spec's ${key} is written with =, so this links nothing`, `write @${key}=${value}`)
     } else if (key === "id" && value.includes("#")) {
       problem(tag, "a spec's id holds no #, which names a rule or an example of a spec", "write the id without #; a rule is a `Rule:` in its spec's file")
+    } else if (key === "id" && !isId(value)) {
+      problem(tag, `${value} is no id, so no tag in code could name it`, `write an id: ${idForm}`)
     } else if ((key === "id" || key === "kind") && values.has(key)) {
       problem(tag, `a spec has one ${key}`, `keep one @${key}= tag: another node is a file of its own`)
     } else if (separator === ":" && value.includes(",")) {
@@ -475,7 +477,7 @@ const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : 
 export const slugify = (text: string): string =>
   shortened(
     text.normalize("NFKD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").normalize("NFC").toLowerCase()
-      .split(/[^\p{L}\p{N}\p{M}]+/u).map((word) => word.replace(/^\p{M}+/u, "")).filter((word) => word !== "").join("-")
+      .split(idWordBreak).map((word) => word.replace(/^\p{M}+/u, "")).filter((word) => word !== "").join("-")
   )
 
 /** A slug of at most 64 characters, cut after the last whole word that fits, so an id never ends in half a word. */

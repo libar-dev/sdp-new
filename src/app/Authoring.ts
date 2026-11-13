@@ -7,7 +7,7 @@
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
 import { formatSource } from "../model/Graph.ts"
-import { isValueWord, made, retiredMaturity } from "../model/Vocabulary.ts"
+import { idForm, isId, isValueWord, made, retiredMaturity } from "../model/Vocabulary.ts"
 import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
@@ -66,6 +66,8 @@ const unusable = (input: CreateInput): string | undefined =>
     ? `the id ${JSON.stringify(input.id)} cannot name a file: write it without a slash, and choose the directory with --dir`
     : input.id?.includes("#")
     ? `the id ${JSON.stringify(input.id)} holds #, which names a rule or an example of a spec: write a rule as a \`Rule:\` in its spec's file, and an id without #`
+    : input.id !== undefined && !isId(input.id)
+    ? `the id ${JSON.stringify(input.id)} would not read back from a tag: an id is ${idForm}`
     : input.dir !== undefined && input.dir.trim() === ""
     ? "--dir needs a directory, relative to the workspace root or absolute"
     : input.maturity !== undefined && !isValueWord(input.maturity)

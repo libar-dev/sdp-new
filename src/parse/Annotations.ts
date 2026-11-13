@@ -21,6 +21,7 @@
  * @sdp is ARCH-code-annotations
  * @sdp plays PAT-static-reading
  */
+import { idForm, idSyntax, isId } from "../model/Vocabulary.ts"
 import { children, type Exports, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"
 
@@ -403,11 +404,6 @@ const directive = new RegExp(`^\\s*(?:${
 })`)
 
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
-/**
- * An id as a spec declares it: a letter or a digit, then letters, digits and - _ . : # /, in any
- * script — but for a full stop at its end, which ends a sentence.
- */
-const idToken = /^[\p{L}\p{N}](?:[\p{L}\p{M}\p{N}_.:#/-]*[\p{L}\p{M}\p{N}_:#/-])?$/u
 /** A placeholder for an id, as a guide writes the form of a tag: `<ID>`. */
 const placeholder = /^<[^<>\s]+>$/
 const declaration =
@@ -576,8 +572,10 @@ const lineCommentMarker = /^\s*(\/\/+!?|#+|--+|;+|%+)/
 /** A line that only opens the file: an interpreter line, or PHP's opening tag. */
 const preamble = /^\s*(?:#!|<\?php\s*$)/
 
-const trailing =
-  /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*(?:,[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*)*)(?=\s|$|\*\/|-->)/u
+const trailing = new RegExp(
+  String.raw`\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+${idSyntax}(?:,${idSyntax})*\.?)(?=\s|$|\*\/|-->)`,
+  "u"
+)
 
 /** Languages without a parser: tags after code or words on their line, which look like tags but, not opening it, are not read. */
 const ignoredLines = (lines: ReadonlyArray<string>, shown: ReadonlySet<number>): ReadonlyArray<Unread> =>
@@ -618,9 +616,8 @@ const readTag = (
     } else after.push(token)
   }
   if (targets.length > 0 && targets.every((t) => placeholder.test(t))) return undefined
-  const wrong = targets.filter((t) => !idToken.test(t))
-  const hint =
-    "write the ids it links to, separated by commas, then any key=value: an id is a letter or a digit, then letters, digits and - _ . : # /, with no full stop at its end"
+  const wrong = targets.filter((t) => !isId(t))
+  const hint = `write the ids it links to, separated by commas, then any key=value: an id is ${idForm}`
   const unread = (says: string) => ({ unread: { message: `"@sdp ${rel} ${text}" ${says}, so the tag is not read`, hint } })
   if (wrong.length > 0) return unread(`names ${wrong.join(", ")}, which ${wrong.length === 1 ? "is" : "are"} no id`)
   if (after.length > 0) return unread(`goes on after its ids with "${after.join(" ")}"`)

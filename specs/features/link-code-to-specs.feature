@@ -70,6 +70,34 @@ Feature: Link code to specs
         | 支払い             |
         | pay#ein-schritt  |
 
+    Scenario: A tag names a rule by its id, the slug of its name in any script
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: Корзина пуста
+
+            Scenario: Новая корзина
+              Then the cart is empty
+
+          Rule: भुगतान विफल
+
+            Scenario: कार्ड
+              Then the payment fails
+        """
+      And a file "src/cart.ts" containing:
+        """
+        /** @sdp checks cart#корзина-пуста, cart#भुगतान-विफल */
+        export const empty = (): boolean => true
+        """
+      When the workspace is loaded
+      Then the workspace graph has edges:
+        | from                   | rel    | to                 | source        |
+        | code:src/cart.ts#empty | checks | cart#корзина-пуста | src/cart.ts:1 |
+        | code:src/cart.ts#empty | checks | cart#भुगतान-विफल   | src/cart.ts:1 |
+      And sdp reports nothing
+
     Scenario: A maturity given in code decides the stage like one written in the spec
       Given a file "src/pay.py" containing:
         """

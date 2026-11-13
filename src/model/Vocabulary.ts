@@ -136,6 +136,28 @@ export const isKey = (word: string): boolean => /^[A-Za-z][\w-]*(?:\.[\w-]+)*$/.
 /** Whether a word can be the value of a tag, as a kind or a maturity is, and an inherited Cucumber tag: no space, `@`, `=` or `:`. */
 export const isValueWord = (word: string): boolean => /^[^\s@=:]+$/.test(word)
 
+/** The characters of the words of an id, in any script: letters, the marks attached to them, and digits. */
+const idWord = String.raw`\p{L}\p{M}\p{N}`
+
+/**
+ * An id, as sdp makes one — a slug, a new spec's — and as a tag reads one, `@id=` in a spec and
+ * `@sdp <rel> <ID>` in code: a letter or a digit, then the characters of words and `-`, `_`, `.`,
+ * `:`, `#` and `/`, but for a full stop at its end, which ends a sentence.
+ */
+export const idSyntax = String.raw`[\p{L}\p{N}](?:[${idWord}_.:#/-]*[${idWord}_:#/-])?`
+
+const wholeId = new RegExp(`^(?:${idSyntax})$`, "u")
+
+/** Whether `text` is an id (`idSyntax`), which every tag that names one reads back. */
+export const isId = (text: string): boolean => wholeId.test(text)
+
+/** What an id is, as a hint says it. */
+export const idForm =
+  "a letter or a digit, then letters, digits and - _ . : / in any script, # only before the name of a rule or an example, and no full stop at its end"
+
+/** What lies between the words of an id, so a slug is the words of its title split there. */
+export const idWordBreak = new RegExp(`[^${idWord}]+`, "u")
+
 /** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
 const tagsKey = "tags"
 

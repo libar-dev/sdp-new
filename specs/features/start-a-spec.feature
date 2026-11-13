@@ -215,6 +215,16 @@ Feature: Start a spec
       When I run "sdp new element '🛒 2'"
       Then the output lines are "ARCH-2"
 
+    Scenario: The id sdp new answers, in any script, reads back from a tag in code
+      When I run the pipeline:
+        """
+        mkdir src
+        printf '/** @sdp is %s */\nexport const pay = (): number => 0\n' "$(sdp new element 'Платёж')" > src/pay.ts
+        sdp q '#ARCH-платёж <-is- code' --ids
+        """
+      Then the exit code is 0
+      And the output lines are "code:src/pay.ts#pay"
+
     Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so
       Given a file "shop/sdp.config.yaml" containing:
         """

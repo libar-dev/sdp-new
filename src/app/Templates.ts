@@ -10,7 +10,7 @@ import { Duration, Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, isWork, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, idForm, isWork, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -127,7 +127,7 @@ export const newSpec = (options: {
     return back?.id === id
       ? Result.succeed({ id, file: undefined, next })
       : Result.fail(
-        `the id ${JSON.stringify(id)} would not read back from a tag such as @realized-by:<id>: write it without whitespace or @`
+        `the id ${JSON.stringify(id)} would not read back from a tag such as @realized-by:<id>: an id is ${idForm}`
       )
   }
   const endKey = vocabulary.attributes.end
