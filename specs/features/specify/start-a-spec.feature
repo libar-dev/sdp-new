@@ -223,3 +223,22 @@ Feature: Start a spec
       Then sdp reports:
         | rule                 | severity | node         | line | message      |
         | template-placeholder | warning  | use-postgres | 4    | (and 1 more) |
+
+    Scenario: An outline named by its parameter, a step one too
+      Given a file "specs/gift-wrapping.feature" containing:
+        """
+        @id=gift-wrapping
+        Feature: Gift wrapping
+
+          Rule: A gift is wrapped in the paper chosen
+
+            Scenario Outline: <case>
+              Given <paper>
+              Then the gift is wrapped in <paper>
+
+              Examples:
+                | case        | paper       |
+                | Plain paper | plain paper |
+        """
+      When the workspace is checked
+      Then sdp reports "nothing"

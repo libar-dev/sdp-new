@@ -56,26 +56,18 @@ export const maturityTags = (maturity: unknown): string => [maturity].flat().map
 export const changeIsRules = (feature: string) =>
   `write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
 
-/** What `sdp new` writes for the author to replace. A decision starts as its shape, what it was chosen over, why and at what cost: */
+/**
+ * What `sdp new` writes for the author to replace: a decision starts as its shape, what it was chosen
+ * over, why and at what cost. Only that text is template text: a name or a step in angle brackets is
+ * a parameter of an outline as often (`Scenario Outline: <case>`).
+ */
 export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>."
-/** and template scenarios name their parts in angle brackets: `Given <context>`. */
-const placeholderStep = /^<[^<>]+>$/
 
-/** Template text still in a spec, with its line: its description, rule and scenario names and steps. */
-const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
-  const found: Array<{ text: string; line: number }> = []
-  for (const paragraph of spec.description) {
-    if (paragraph.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: paragraph.line })
-  }
-  for (const rule of spec.rules) {
-    if (placeholderStep.test(rule.name)) found.push({ text: `Rule: ${rule.name}`, line: rule.line })
-  }
-  for (const scenario of spec.scenarios) {
-    if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })
-    for (const step of scenario.steps) if (placeholderStep.test(step.text)) found.push({ text: `${step.keyword} ${step.text}`, line: step.line })
-  }
-  return found.sort((a, b) => a.line - b.line)
-}
+/** Template text still in a spec, with its line. */
+const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> =>
+  spec.description
+    .filter((paragraph) => paragraph.text.startsWith(decisionPlaceholder))
+    .map((paragraph) => ({ text: decisionPlaceholder, line: paragraph.line }))
 
 /** A rule, a feature or an example as a link that replaces names it: its id, its kind, and a rule's or an example's spec. */
 interface Replacing {
@@ -116,7 +108,7 @@ const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): 
 
 const replacementHint = (rel: string, from: Replacing, to: Replacing) =>
   isExample(from)
-    ? `an example renamed with its steps edited, or merged into another, names each example it was, @${rel}:<feature>#<example>, in the change that does it`
+    ? `an example renamed or moved to another spec with its steps edited, or merged into another, names each example it was, @${rel}:<feature>#<example>, in the change that does it`
     : to.spec === from.id
     ? `put \`@${rel}:${to.id}\` on the rule that replaces it, above its \`Rule:\``
     : `work still to come names the live rule or feature it replaces: @${rel}:<feature>#<rule>, or @${rel}:<feature> for all its rules`
@@ -567,12 +559,12 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
 /**
  * Each example of the base paired with one example of the workspace at most: the same example
  * unchanged, then the same id, edited, then the example whose Scenario names it as one it was
- * (`namedBy`, given the id of the Scenario that names it), then the one Scenario of its name in another
- * spec, edited or not, when no other spec has one of that name, as a spec split or renamed keeps its
- * examples' names, also while the spec it was in is still there; then the same steps under another
- * name or in another place. No example of the workspace pairs with two, but for one that names
- * several, which takes over each: a live one that names it before any other that does. Rows of one
- * outline pair in their order, a live row with a live one before any other. `named` holds the
+ * (`namedBy`, given the id of the Scenario that names it), then the same steps under another name or
+ * in another place. A name alone is no evidence in another spec: an example deleted there and an
+ * unrelated one of its name added elsewhere would hide each other, so one moved with its steps edited
+ * is named by the Scenario it went to. No example of the workspace pairs with two, but for one that
+ * names several, which takes over each: a live one that names it before any other that does. Rows of
+ * one outline pair in their order, a live row with a live one before any other. `named` holds the
  * examples of the base paired with one that names them.
  */
 const pairExamples = (
@@ -602,19 +594,10 @@ const pairExamples = (
     }
   }
   const byName = index((example) => example.scenario.id, (example) => namedBy(example.scenario.id), true)
-  // An example's name within its spec: its id without the spec's.
-  const nameOf = (example: Example) => example.scenario.id.slice(example.scenario.specId.length + 1)
-  const sameName = index(nameOf)
-  const moved = (example: Example) => {
-    const name = nameOf(example)
-    const scenarios = new Set(now.filter((candidate) => nameOf(candidate) === name).map((candidate) => candidate.scenario.id))
-    return scenarios.size === 1 ? sameName(example) : undefined
-  }
   const passes: ReadonlyArray<(example: Example) => Example | undefined> = [
     index((example) => `${example.scenario.id}\u0000${example.tests}`),
     index((example) => example.scenario.id),
     byName,
-    moved,
     index((example) => example.tests)
   ]
   for (const find of passes) {
@@ -789,7 +772,7 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
       node: scenario.id,
       source,
       hint: still === undefined
-        ? `restore it, or, renamed with its steps edited or merged into another, name it on the Scenario it went to, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces ${rule}, \`@${replacesWord}:${rule}\`, with a new live example of its own`
+        ? `restore it, or, renamed or moved to another spec with its steps edited, or merged into another, name it on the Scenario it went to, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces ${rule}, \`@${replacesWord}:${rule}\`, with a new live example of its own`
         : "a live test declares no maturity and is no gate: move it back under a live rule, or delete what makes it still to come"
     }))
   }

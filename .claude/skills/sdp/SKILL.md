@@ -69,11 +69,11 @@ Feature: Guest checkout
 - **Nothing live goes back.** `sdp check` fails when an example live at the git base — where HEAD
   meets the default branch — is gone or has become a gate or work still to come, and when what was
   live there declares a maturity or `@open`. So, in a change:
-  - keep either a live example's name or its steps: it is then the same example, and so is one that
-    keeps its name in another spec when the spec it was in is gone, split or renamed, and no other
-    spec has an example of that name;
-  - if you change both, or merge it into another, tag the Scenario it went to
-    `@replaces:<feature>#<example>`;
+  - keep either a live example's name in its spec or its steps: it is then the same example. A name
+    is no evidence in another spec, so an example moved when its spec is split or renamed keeps its
+    steps;
+  - if you change both, move it with its steps edited, or merge it into another, tag the Scenario it
+    went to `@replaces:<feature>#<example>`;
   - to remove a live rule or feature, write what replaces it, tagged `@replaces:<feature>#<rule>`
     or `@replaces:<feature>`, and make it live with a new live example of its own;
   - once that is merged, delete a `@replaces:` when check warns that it replaces nothing: on the

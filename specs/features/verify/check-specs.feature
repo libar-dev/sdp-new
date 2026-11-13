@@ -234,9 +234,11 @@ Feature: Check specs
         | A rung the workspace names a kind | vocabulary: { words: { kinds: [idea] } } | kind     | idea     | nothing             |
 
   @decided-by:still-to-come-is-marked-where-it-is-written
-  Rule: Nothing live at the base stops being live without an error, and an example stays itself under its name, its steps, or the @replaces that names it
+  Rule: Nothing live at the base stops being live without an error, and an example stays itself under its name in its spec, its steps, or the @replaces that names it
 
-    A test turned off fails no run, so only the comparison with the base can tell that it is gone.
+    A test turned off fails no run, so only the comparison with the base can tell that it is gone. A
+    name is no evidence in another spec: an example deleted and an unrelated one of its name added
+    elsewhere would hide each other.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -324,18 +326,9 @@ Feature: Check specs
 
           Rule: A basket holds what was added
 
+            <tags>
             Scenario: Add an item
               Then the basket holds 1 item
-        """
-      And a file "specs/wishlist.feature" containing:
-        """
-        @id=wishlist
-        Feature: Wishlist
-
-          Rule: A wishlist holds what was added
-
-            Scenario: <wishlist example>
-              Then the wishlist holds 1 item
         """
       When I run the pipeline:
         """
@@ -346,10 +339,11 @@ Feature: Check specs
         | data.rule | <reported> |
 
       Examples:
-        | case                                                         | command                                   | wishlist example | exit code | reported        |
-        | the spec it was in gone                                      | rm specs/cart.feature && sdp check --json | Keep an item     | 0         | nothing         |
-        | the spec it was in split, its rule moved with it             | sdp check --json                          | Keep an item     | 0         | nothing         |
-        | the spec it was in gone, another with an example of its name | rm specs/cart.feature && sdp check --json | Add an item      | 1         | example-dropped |
+        | case                                                                  | command                                   | tags                       | exit code | reported        |
+        | the spec it was in gone                                               | rm specs/cart.feature && sdp check --json |                            | 1         | example-dropped |
+        | the spec it was in still there                                        | sdp check --json                          |                            | 1         | example-dropped |
+        | the spec it was in gone, the example it was named by @replaces        | rm specs/cart.feature && sdp check --json | @replaces:cart#add-an-item | 0         | nothing         |
+        | the spec it was in still there, the example it was named by @replaces | sdp check --json                          | @replaces:cart#add-an-item | 0         | nothing         |
 
     Scenario Outline: What @replaces names once live rules are gone: <case>
       Given a file "specs/cart.feature" containing:
