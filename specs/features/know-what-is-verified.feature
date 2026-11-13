@@ -615,10 +615,13 @@ Feature: Know what is verified
       When I run "sdp run wishlist"
       Then the exit code is 1
 
-  Rule: Any change to the code, the step definitions or sdp's configuration makes every result stale
+  Rule: Any change to the code, the step definitions, a package.json that decides how Node loads them or sdp's configuration makes every result stale
 
     Knowing which scenarios reached a change would take tracing, and still miss what a step reads
-    through a service.
+    through a service. A package.json decides how Node loads the files below it, up to the next
+    one: their type, and what an import of `#` or of the package's own name names. So the nearest
+    one of each file the step definitions loaded counts, and so does one written nearer it, as does
+    the one of a package of the workspace that a step definition imports by name.
 
     Scenario Outline: A code file, sdp's configuration or a step definition file changes
       Given a step definition "an empty cart" that passes
@@ -638,6 +641,50 @@ Feature: Know what is verified
         | src/cart.ts               | export const lamps = 1     |
         | sdp.config.yaml           | results: .sdp/results.json |
         | specs/steps/cart.steps.ts | export const phrases = []  |
+
+    Scenario Outline: A package.json the step definitions were loaded by <changes>
+      Given a file "package.json" containing:
+        """
+        { "type": "module", "imports": { "#lamps": "./lib/one.ts" } }
+        """
+      And a file "lib/one.ts" containing:
+        """
+        export const lamps = 1
+        """
+      And a file "lib/two.ts" containing:
+        """
+        export const lamps = 2
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "#lamps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      Given a file "<file>" containing:
+        """
+        <content>
+        """
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale.code-changed | 1 |
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "<failure>"
+
+      Examples:
+        | changes                    | file             | content                                                       | failure                                  |
+        | maps an import elsewhere   | package.json     | { "type": "module", "imports": { "#lamps": "./lib/two.ts" } } | the cart holds 2                         |
+        | is written nearer the code | lib/package.json | { "type": "commonjs" }                                        | does not provide an export named 'lamps' |
 
   Rule: A file a handler imports only while it runs is part of what its result ran against
 
@@ -764,11 +811,12 @@ Feature: Know what is verified
       When I run "sdp q scenario[status=stale] --ids"
       Then the output lines are "wishlist#keep-a-lamp"
 
-  Rule: A process records no result on step code it did not load: a module it imported that changed or is gone, or a step file added since; a result from before the change is stale
+  Rule: A process records no result on step code it did not load: a module it imported, or a package.json it loaded one by, that changed or is gone, or a step file added since; a result from before the change is stale
 
-    A process loads the step files once, and Node.js keeps a module for the life of a process: the
-    code there now did not run, and a result would certify code that never ran. A module that is
-    gone is as changed as one whose content differs.
+    A process loads the step files once, and Node.js keeps a module for the life of a process, and
+    what it read of the package.json each was loaded by: the code there now did not run, and a
+    result would certify code that never ran. A module that is gone is as changed as one whose
+    content differs.
 
     Background:
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -814,6 +862,42 @@ Feature: Know what is verified
       Then the output contains "specs/steps/lamps.ts changed after this process imported it"
       When I run "sdp q feature[stage=verified] --ids"
       Then the output lines are ""
+
+    Scenario: A package.json the process loaded a module by changed
+      Given a file "package.json" containing:
+        """
+        { "type": "module", "imports": { "#lamps": "./specs/steps/lamps.ts" } }
+        """
+      And a file "specs/steps/two.ts" containing:
+        """
+        export const lamps = 2
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+        import { lamps } from "#lamps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", ({ args: [n] }) => {
+            if (lamps !== n) throw new Error(`the cart holds ${lamps}`)
+          })
+        })
+        """
+      When this process runs the workspace through the API
+      Then the output contains "1 scenario(s): 1 passed"
+      Given a file "package.json" containing:
+        """
+        { "type": "module", "imports": { "#lamps": "./specs/steps/two.ts" } }
+        """
+      When this process runs the workspace through the API
+      Then the output contains "package.json changed after this process imported it"
+      When I run "sdp q scenario[status=stale] --ids"
+      Then the output lines are "cart#add-an-item"
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "the cart holds 2"
 
     Scenario: A link the process imported through leads elsewhere
       Given a file "specs/steps/one.ts" containing:

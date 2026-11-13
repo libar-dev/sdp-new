@@ -41,8 +41,9 @@ export type ExampleResult = typeof ExampleResult.Type
  */
 export const Evidence = Schema.Struct({
   /**
-   * The configuration file, the code, the step definitions and every workspace file they imported
-   * up to the end of the run: `RunResults.imports` names those files under this fingerprint.
+   * The configuration file, the code, the step definitions, every workspace file they imported up
+   * to the end of the run and the package.json files Node loaded those by: `RunResults.imports`
+   * names those files under this fingerprint.
    */
   sources: Schema.String,
   /** The sdp version, the Node major version and the lockfile. */
