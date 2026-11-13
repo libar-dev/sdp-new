@@ -562,10 +562,15 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
   )
   // A link counts only where what it starts from may replace what it names: a rule or a feature
   // replaces each rule or feature it names — a feature stands for its rules too — and an example here
-  // names the examples it was.
-  const counted = links.filter(({ problem, to }) => to !== undefined && problem === undefined)
-  const replacersOf = (id: string) => counted.filter(({ from, link }) => !isExample(from) && link.to === id).map(({ from }) => from.id)
-  const namedBy = (id: string) => counted.filter(({ from, inWorkspace }) => inWorkspace && from.id === id).map(({ link }) => link.to)
+  // names the examples it was. Each is read once, into the replacers of each id and what each
+  // example here names.
+  const replacers = new Map<string, Array<string>>()
+  const namesOf = new Map<string, Array<string>>()
+  for (const { from, inWorkspace, link, problem, to } of links) {
+    if (to === undefined || problem !== undefined) continue
+    if (!isExample(from)) replacers.set(link.to, [...replacers.get(link.to) ?? [], from.id])
+    else if (inWorkspace) namesOf.set(from.id, [...namesOf.get(from.id) ?? [], link.to])
+  }
   // Once a replacement has landed, its base has no more what it replaced, and the tag is done; or
   // the tag means what was built at the base and is gone here, the one whose id begins most like it.
   const builtThere = [...before.built, ...before.examples.filter((example) => example.live).map((example) => example.scenario.id)]
@@ -598,20 +603,21 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     }))
   }
 
-  const { named, paired } = pairExamples(before.examples.filter((example) => example.live), now.examples, namedBy)
+  const liveThere = before.examples.filter((example) => example.live)
+  const { named, paired } = pairExamples(liveThere, now.examples, (id) => namesOf.get(id) ?? [])
   // A replacement counts once it is live and has a live example the base did not have live: a test
   // that was already there takes over no other, and a gate enforces nothing. One that names the
   // example it was is new as it would be unnamed: by steps that no live example of the base had.
   const kept = new Set([...paired].flatMap(([example, still]) => named.has(example) ? [] : [still]))
-  const testedThere = new Set(before.examples.filter((example) => example.live).map((example) => example.tests))
+  const testedThere = new Set(liveThere.map((example) => example.tests))
   const newlyTested = new Set(
     now.examples.filter((example) => example.live && !kept.has(example) && !testedThere.has(example.tests)).flatMap(({ scenario, spec }) =>
       [spec.id, ...(scenario.rule === undefined ? [] : [scenario.rule])]
     )
   )
   const replaced = (example: Example) =>
-    [example.scenario.rule, example.spec.id].some((id) => id !== undefined && replacersOf(id).some((by) => newlyTested.has(by)))
-  for (const example of before.examples.filter((candidate) => candidate.live)) {
+    [example.scenario.rule, example.spec.id].some((id) => id !== undefined && (replacers.get(id) ?? []).some((by) => newlyTested.has(by)))
+  for (const example of liveThere) {
     const { pickle, scenario, spec } = example
     const still = paired.get(example)
     if (still?.live || replaced(example)) continue
