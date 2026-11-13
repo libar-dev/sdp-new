@@ -57,6 +57,11 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     }
   })
 
+  // A repository that git init started on that branch, with nothing committed yet.
+  Given("the files are not yet committed on the branch {string}", async ({ args: [branch], world }) => {
+    await promisify(execFile)("git", ["init", "-q", "-b", branch], { cwd: await workspace(world), env: gitEnv })
+  })
+
   Given("the files are in no git repository", async ({ world }) => {
     const directory = await workspace(world)
     const inside = await exec("git rev-parse --is-inside-work-tree", directory)

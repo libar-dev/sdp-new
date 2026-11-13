@@ -139,12 +139,23 @@ Feature: sdp, shown by running it
         """
       And the output does not contain "src/cart.ts"
 
+  Rule: The shop example is a workspace of its own
+
+    Its configuration is how sdp finds it, so a command run anywhere in the shop reads the shop, not
+    the repository around it.
+
+    Scenario: A command run in the shop's code
+      Given the workspace is a copy of "examples/shop"
+      When I run "sdp q feature --ids" in "src"
+      Then the output lines are "cart-totals, guest-checkout, wishlist"
+
   Rule: A repository of your own starts with sdp init
 
     Scenario: Start in a repository of your own
       When I run "sdp init"
       Then the output contains "created sdp.config.yaml"
-      When I run "sdp new idea 'Gift wrapping'"
+      And the output contains 'next: sdp new feature "My first feature"'
+      When I run "sdp new feature 'Gift wrapping'"
       Then the output lines are "gift-wrapping\tspecs/features/gift-wrapping.feature"
       When I run "sdp new decision 'Use Postgres for orders'"
       Then the output lines are "use-postgres-for-orders\tspecs/decisions/use-postgres-for-orders.feature"
@@ -192,6 +203,16 @@ Feature: sdp, shown by running it
     Scenario: The Markdown files of this repository, the example's included
       When I run "find . -name '*.md' -not -path './node_modules/*' -not -path './.git/*'" in the repository
       Then the output lines are "./README.md, ./AGENTS.md, ./CLAUDE.md, ./.claude/skills/sdp/SKILL.md, ./examples/shop/README.md"
+
+  @maturity=ready
+  Rule: A table cell holds one line, and a case that needs a file of several lines is a scenario of its own, the file its docstring
+
+    A file escaped into one cell does not read as the example it is: as a docstring it reads as the
+    file it is, and the scenario's name says the case.
+
+    Scenario: The table cells of this repository's specs that hold a line break
+      When I run "find specs -name '*.feature' -exec awk '/^[[:space:]]*\|/ { gsub(/\\\\|\\\|/, 0); n += gsub(/\|[^|]*\\n/, 0) } END { print n + 0 }' {} +" in the repository
+      Then the output lines are "0"
 
   Rule: A feature is in specs/features, and declares a maturity only while it is still to come
 

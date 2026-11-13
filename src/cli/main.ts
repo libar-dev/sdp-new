@@ -356,7 +356,7 @@ const newCommand = Command.make(
   {
     kind: Argument.String("kind").pipe(
       Argument.withDescription(
-        `What to create. With a template of its own: ${templateKinds.join(", ")} (idea: a feature at maturity idea; element and pattern: no file, for their code declares them). Any other kind gets the generic template`
+        `What to create. With a template of its own: ${templateKinds.join(", ")} (element and pattern: no file, for their code declares them). Any other kind gets the generic template`
       )
     ),
     title: Argument.String("title").pipe(Argument.withDescription("Title; the id is made from it")),
@@ -391,7 +391,6 @@ const newCommand = Command.make(
   ),
   Command.withExamples([
     { command: "sdp new feature 'Saved carts' --maturity draft", description: "A feature still to build, with who needs it and why to write" },
-    { command: "sdp new idea 'Gift wrapping'", description: "A one-line idea: a feature at maturity idea" },
     { command: "sdp new decision 'Use Postgres for orders'", description: "A decision: a title and a sentence" },
     { command: "sdp new phase 'Elaboration'", description: "A phase of the plan; each iteration and milestone is a file of its own too" }
   ])
@@ -408,7 +407,7 @@ const initCommand = Command.make(
     }
     yield* Console.log(
       Text.c.dim(
-        "next: sdp new idea \"My first idea\"  ·  a plan: sdp new phase \"Elaboration\", then sdp new iteration \"<title>\" and sdp new milestone \"<title>\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill"
+        "next: sdp new feature \"My first feature\"  ·  a plan: sdp new phase \"Elaboration\", then sdp new iteration \"<title>\" and sdp new milestone \"<title>\"  ·  for an agent that reads no skills, point its AGENTS.md at the skill"
       )
     )
   })

@@ -44,12 +44,12 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind  | title         | options | file                                 | tags                                       | next                                                                |
-        | gizmo | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo                   | say under the title what it is                                      |
-        | idea  | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea           | say under the title who needs what, and why, before any solution    |
-        | risk  | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk                      | say under the title what it is                                      |
-        | phase | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                           | say under the title what this phase takes on, and why in this order |
-        | story | Saved carts   |         | specs/story/saved-carts.feature      | @id=saved-carts @kind=story @maturity=idea | write the idea in a sentence under the title                        |
+        | kind    | title         | options | file                                 | tags                                       | next                                                                |
+        | gizmo   | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo                   | say under the title what it is                                      |
+        | feature | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea           | say under the title who needs what, and why, before any solution    |
+        | risk    | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk                      | say under the title what it is                                      |
+        | phase   | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                           | say under the title what this phase takes on, and why in this order |
+        | story   | Saved carts   |         | specs/story/saved-carts.feature      | @id=saved-carts @kind=story @maturity=idea | write the idea in a sentence under the title                        |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -134,7 +134,9 @@ Feature: Start a spec
         next: write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples
         next: a quality requirement is a rule of the feature it constrains, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
+        next: plan it: `@iteration:IT-…` says when it is written
         """
+      And the output does not contain "@activity"
       And the output contains "next: it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"
 
     Scenario Outline: A <kind>, under <directory>
@@ -170,7 +172,7 @@ Feature: Start a spec
 
     Scenario: A kind without a template
       When I run "sdp new --help"
-      Then the output contains "feature, idea, decision, element, pattern, milestone, phase, iteration"
+      Then the output contains "feature, decision, element, pattern, milestone, phase, iteration"
       And the output contains "idea (default), draft, specified or ready, or any word of the team's own"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
@@ -193,7 +195,7 @@ Feature: Start a spec
         | arguments                                               | id                 | file                                    |
         | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/plan/MS-kasse-fur-gaste.feature   |
         | milestone 'Корзина'                                     | MS-корзина         | specs/plan/MS-корзина.feature           |
-        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature    |
+        | feature 'Gift wrapping'                                 | gift-wrapping      | specs/features/gift-wrapping.feature    |
         | feature 'Корзина'                                       | корзина            | specs/features/корзина.feature          |
         | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature   |
         | decision 'Die Größe zählt'                              | die-große-zahlt    | specs/decisions/die-große-zahlt.feature |
@@ -249,7 +251,7 @@ Feature: Start a spec
       Given specs created from the sdp new templates:
         | kind      | title         | maturity  |
         | gizmo     | Sprocket      |           |
-        | idea      | Gift wrapping |           |
+        | feature   | Gift wrapping |           |
         | milestone | Launch        |           |
         | phase     | Construction  |           |
         | milestone | Go-live       |           |

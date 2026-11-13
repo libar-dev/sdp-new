@@ -67,17 +67,16 @@ Feature: Guest checkout
   Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
   it, each with a maturity of its own, with `@replaces:<feature>#<rule>` on one that replaces a live
   rule; nothing moves when it is built.
-- **Nothing live goes back.** `sdp check` compares the specs with the git base: where HEAD meets
-  the default branch, or the revision `--base` or `base:` in the configuration names, read with the
-  configuration it had there. Without a base, or with a spec there that sdp cannot read, its answer
-  is incomplete; `--base none` waives the comparison. A maturity or `@open` on what was live at the
-  base is an error, whatever replaces it; so is a live example of the base that is gone, or that
-  here fails no run, as a gate or as work still to come, unless what replaces its rule or its
-  feature is live with a live example of its own whose steps no live example had there. Examples
-  are compared one for one, each row of an outline on its own: a new name or place for one is no
-  removal, one edited under its name is the same example, and one renamed with its steps edited,
-  or merged into another, is named where it went, `@replaces:<feature>#<example>` on that Scenario
-  in that change.
+- **Nothing live goes back.** `sdp check` fails when an example live at the git base — where HEAD
+  meets the default branch — is gone or has become a gate or work still to come, and when what was
+  live there declares a maturity or `@open`. So, in a change:
+  - keep either a live example's name or its steps: it is then the same example;
+  - if you change both, or merge it into another, tag the Scenario it went to
+    `@replaces:<feature>#<example>`;
+  - to remove a live rule or feature, write what replaces it, tagged `@replaces:<feature>#<rule>`
+    or `@replaces:<feature>`, and make it live with a new live example of its own;
+  - once that is merged, delete a `@replaces:` when check warns that it replaces nothing: on the
+    default branch it does after every replacement.
 - **An open question is a Rule tagged `@open`**, its name the question. Answering it means renaming
   it into the rule that was chosen and deleting the tag. A question is still to come, and has no
   examples; a Scenario is an example, tagged `@open` or not. In a live feature, a question that

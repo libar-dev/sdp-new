@@ -1070,15 +1070,15 @@ Feature: Check specs
   Rule: The base is where HEAD meets the default branch, or the revision --base or the configuration names; without one, check's answer is incomplete
 
     A change is judged against what it started from, not against whatever the default branch has
-    become since. The default branch is origin's HEAD, else main, else master. Outside git, in a
-    clone without the history, or without a default branch there is nothing to compare: a check that
-    compared nothing may have missed a test turned off, so it exits with 2, as every answer that may
-    miss something does, unless the comparison is waived with `--base none` or `base: none`. A base
-    that is named and cannot be read stops the check. The base a change names in its own
-    configuration is believed: the comparison guards against a live test turned off as a side
-    effect, while a change to `base:`, like one to the build script, is a decision in the diff its
-    reviewer reads; CI that must hold every change names the base with `--base`, which wins over the
-    configuration.
+    become since. The default branch is origin's HEAD, else main, else master. Outside git, before
+    the first commit, in a clone without the history, or without a default branch there is nothing
+    to compare: a check that compared nothing may have missed a test turned off, so it exits with 2,
+    as every answer that may miss something does, unless the comparison is waived with `--base none`
+    or `base: none`. A base that is named and cannot be read stops the check. The base a change
+    names in its own configuration is believed: the comparison guards against a live test turned off
+    as a side effect, while a change to `base:`, like one to the build script, is a decision in the
+    diff its reviewer reads; CI that must hold every change names the base with `--base`, which wins
+    over the configuration.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -1141,9 +1141,10 @@ Feature: Check specs
       And the output contains "cannot compare live tests with the base main: <named>"
 
       Examples:
-        | case                     | where                               | reason                                                   | named                                    |
-        | outside git              | in no git repository                | this workspace is in no git repository                   | this workspace is in no git repository   |
-        | a branch of another name | committed on the branch "trunk"     | the repository has no origin/HEAD, main or master branch | git merge-base HEAD main found no commit |
+        | case                     | where                                  | reason                                                                     | named                                    |
+        | outside git              | in no git repository                   | this workspace is in no git repository                                     | this workspace is in no git repository   |
+        | a branch of another name | committed on the branch "trunk"        | the repository has no origin/HEAD, main or master branch                   | git merge-base HEAD main found no commit |
+        | nothing committed yet    | not yet committed on the branch "main" | nothing is committed yet; commit, or waive the comparison with --base none | nothing is committed yet                 |
 
     Scenario Outline: The comparison waived <how>
       Given a file "sdp.config.yaml" containing:
