@@ -22,7 +22,7 @@
  * @sdp applies PAT-static-reading
  */
 import { idForm, idSyntax, isId } from "../model/Vocabulary.ts"
-import { children, type Exports, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"
+import { type Exports, type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
 import { shapes } from "./Shape.ts"
 import { tagValue } from "../model/TagValue.ts"
 export interface Annotation {
@@ -74,7 +74,7 @@ const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], import
  * @sdp is ARCH-code-annotations
  */
 export const scanCode = (file: string, content: string, anchor: string): CodeScan => {
-  if (!content.includes("@sdp") && !content.includes(retiredModule)) return nothing
+  if (!content.includes("@sdp")) return nothing
   const script = parseScript(file, content)
   if (script === undefined) return { ...scanLines(file, content), imports: [] }
   if (script.error) {
@@ -92,97 +92,8 @@ export const scanCode = (file: string, content: string, anchor: string): CodeSca
   // Only a module anchored to a node depends on another through what it imports.
   const anchored = annotations.some((annotation) => annotation.rel === anchor)
   const [imports, exports] = anchored ? [script.imports(), script.exports()] : [[], undefined]
-  return { annotations, unreadable: [...unreadable, ...retiredImports(script)], ignored, imports, exports }
+  return { annotations, unreadable, ignored, imports, exports }
 }
-
-/** The module of `annotate()`, the form of annotation that tags replaced. */
-const retiredModule = "sdp/annotations"
-
-/**
- * Each place the file names the retired module — an import or a re-export of it, types alone
- * included, `import()`, `require()` or `import … = require()`: nothing reads what its `annotate()`
- * says any more. The hint translates into tags each call that plainly uses an import of it, the
- * function imported by name or `annotate` of the module imported whole, without asking what a name
- * means where the call is: the import is reported whatever its calls are.
- */
-const retiredImports = (script: Script): ReadonlyArray<Unread> => {
-  const imports = namesOf(script.program)
-  if (imports.length === 0) return []
-  const specifiers = script.program.body.flatMap((statement) =>
-    statement.type === "ImportDeclaration" && literalName(statement.source as Node) === retiredModule
-      ? statement.specifiers as ReadonlyArray<Node>
-      : []
-  )
-  const local = (specifier: Node) => (specifier.local as Node).name as string
-  const imported = (specifier: Node) => {
-    const name = specifier.imported as Node
-    return name.name ?? name.value
-  }
-  const functions = new Set(specifiers.filter((specifier) =>
-    specifier.type === "ImportDefaultSpecifier" || (specifier.type === "ImportSpecifier" && imported(specifier) === "annotate")
-  ).map(local))
-  const modules = new Set(specifiers.filter((specifier) => specifier.type !== "ImportSpecifier").map(local))
-  const plain = (callee: unknown): boolean => {
-    if (!isNode(callee)) return false
-    if (callee.type === "Identifier") return functions.has(callee.name as string)
-    if (callee.type !== "MemberExpression" || !isNode(callee.object) || callee.object.type !== "Identifier") return false
-    const property = callee.property as Node
-    return modules.has(callee.object.name as string) && (callee.computed ? property.value : property.name) === "annotate"
-  }
-  const calls = (node: Node): ReadonlyArray<Node> => [
-    ...(node.type === "CallExpression" && plain(node.callee) ? [node] : []),
-    ...children(node).flatMap(calls)
-  ]
-  const said = calls(script.program).flatMap((call) => {
-    const [subject, links] = call.arguments as ReadonlyArray<Node | undefined>
-    const tags = isNode(links) && links.type === "ObjectExpression" ? retiredTags(links) : []
-    const of = subject?.type === "Identifier" ? subject.name as string : "the declaration it annotates"
-    return tags.length > 0 ? [`in the doc comment of ${of}, ${tags.join(" and ")} (the call at line ${script.lineOf(call.start)})`] : []
-  })
-  const hint = `delete the import and its calls, and write what they say as tags${
-    said.length > 0 ? `: ${said.join("; ")}` : " in the doc comment of each declaration: `@sdp <relation> <ID>`"
-  }`
-  return imports.map((name) => ({
-    line: script.lineOf(name.start),
-    message: `${retiredModule} is retired, so no annotate() of it is read`,
-    hint
-  }))
-}
-
-/** Where `node` names the retired module as one to import from. */
-const namesOf = (node: Node): ReadonlyArray<Node> => {
-  const source = moduleNamed(node)
-  return [...(source !== undefined && literalName(source) === retiredModule ? [source] : []), ...children(node).flatMap(namesOf)]
-}
-
-/** The name of the module a node imports or re-exports from, loads, or requires. */
-const moduleNamed = (node: Node): Node | undefined => {
-  switch (node.type) {
-    case "ImportDeclaration":
-    case "ExportNamedDeclaration":
-    case "ExportAllDeclaration":
-    case "ImportExpression":
-      return isNode(node.source) ? node.source : undefined
-    case "TSExternalModuleReference":
-      return node.expression as Node
-    case "CallExpression": {
-      const callee = node.callee as Node
-      const [name] = node.arguments as ReadonlyArray<Node | undefined>
-      return callee.type === "Identifier" && callee.name === "require" ? name : undefined
-    }
-    default:
-      return undefined
-  }
-}
-
-/** The tags an `annotate()` object says, one per key whose value is an id or a list of ids, as written. */
-const retiredTags = (links: Node): ReadonlyArray<string> =>
-  (links.properties as ReadonlyArray<Node>).flatMap((property) => {
-    const key = isNode(property.key) ? (property.key.name ?? property.key.value) : undefined
-    const value = property.value as Node | undefined
-    const ids = value?.type === "Literal" ? [value.value] : value?.type === "ArrayExpression" ? (value.elements as ReadonlyArray<Node>).map((element) => element?.value) : []
-    return typeof key === "string" && ids.length > 0 && ids.every((id) => typeof id === "string") ? [`@sdp ${key} ${ids.join(", ")}`] : []
-  })
 
 /** A comment's line, after the comment's own `/`, `*` and `!`, that opens with the tag. */
 const commentMarker = /^[\s/*!]*@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
