@@ -6,8 +6,10 @@
  */
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
+import { defaults } from "../model/Config.ts"
 import { formatSource } from "../model/Graph.ts"
 import { idForm, isId, isValueWord, made } from "../model/Vocabulary.ts"
+import { Revisions } from "../workspace/Revisions.ts"
 import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
@@ -30,17 +32,41 @@ const createFile = Effect.fnUntraced(function*(file: string, content: string) {
   )
 })
 
-/** `sdp init`: a configuration and the skill; files that exist are left alone. */
+/**
+ * Whether a .gitignore has a line that names a directory, as `.sdp`, `/.sdp/` or `.sdp/**`: what
+ * is known of it where git cannot say whether it ignores one.
+ */
+const namesDirectory = (gitignore: string, directory: string) =>
+  gitignore.split("\n").some((line) => line.trim().replace(/^\//, "").replace(/\/(\*\*?)?$/, "") === directory)
+
+/**
+ * `sdp init`: a configuration and the skill, and a .gitignore of the directory `sdp run` records in
+ * where git does not ignore it already, for a result holds only in the checkout where it ran. Files
+ * that exist are left alone, and `next` says what to add to a .gitignore that does not ignore it.
+ */
 export const init = Effect.fn("init")(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   const skill = yield* ownSkill
   const files = [["sdp.config.yaml", configTemplate], [skillFile, skill]] as const
-  const written: Array<{ readonly file: string; readonly created: boolean }> = []
+  const written: Array<{ readonly file: string; readonly created: boolean; readonly next?: string }> = []
   for (const [file, content] of files) {
     const target = path.join(root, file)
     yield* fs.makeDirectory(path.dirname(target), { recursive: true })
     written.push({ file, created: yield* createFile(target, content) })
+  }
+  const records = path.dirname(defaults.results)
+  const ignored = yield* (yield* Revisions).ignores(root, defaults.results)
+  if (ignored !== true) {
+    const file = ".gitignore"
+    const target = path.join(root, file)
+    const created = yield* createFile(target, `${records}/\n`)
+    const named = ignored === undefined && !created && namesDirectory(yield* fs.readFileString(target), records)
+    written.push({
+      file,
+      created,
+      ...(created || named ? {} : { next: `add ${records}/ to ${file}: what sdp run records holds only in the checkout where it ran` })
+    })
   }
   return written
 })

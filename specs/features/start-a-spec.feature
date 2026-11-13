@@ -29,6 +29,66 @@ Feature: Start a spec
       When I run "sdp check --base none" in "shop"
       Then the exit code is 0
 
+  Rule: init keeps what sdp run records out of git: it writes a .gitignore of .sdp/ where git does not ignore it, or says to add .sdp/ to the one there
+
+    A result holds only in the checkout where it ran: committed, it would tell a clone that work is
+    verified that never ran there. A .gitignore that exists is the team's, so init writes nothing in it.
+
+    Scenario: A workspace started, run, committed and cloned
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: The workspace has no error
+
+            Scenario: No error
+              Then there are no error diagnostics
+        """
+      When I run "sdp init"
+      Then the output contains "created .gitignore"
+      And the file ".gitignore" is:
+        """
+        .sdp/
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run "git clone -q . clone"
+      Then the exit code is 0
+      When I run "sdp q 'feature[stage=verified]' --ids" in "clone"
+      Then the exit code is 0
+      And the output lines are ""
+
+    Scenario: A .gitignore that does not ignore .sdp/, left as it is
+      Given a file ".gitignore" containing:
+        """
+        node_modules/
+        """
+      When I run "sdp init"
+      Then the output contains "exists  .gitignore"
+      And the output contains "next: add .sdp/ to .gitignore: what sdp run records holds only in the checkout where it ran"
+      And the file ".gitignore" is:
+        """
+        node_modules/
+        """
+
+    Scenario Outline: A workspace in a repository whose .gitignore above it ignores .sdp/ <how>
+      Given a file ".gitignore" containing:
+        """
+        <pattern>
+        """
+      And the files are committed on the branch "main"
+      When I run "sdp init" in "shop"
+      Then the exit code is 0
+      And the output does not contain ".gitignore"
+      And the file "shop/.gitignore" does not exist
+
+      Examples:
+        | how               | pattern |
+        | by name           | .sdp/   |
+        | by a pattern      | .*      |
+
   Rule: A new spec holds only what stays in it, and the answer says what to write next
 
     Advice written into the file would outlive its use as prose nobody wrote. Only work, a kind a

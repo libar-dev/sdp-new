@@ -7,7 +7,8 @@
  * The base is named by `--base` or `base:` in the configuration, and is otherwise the repository's
  * default branch: origin's HEAD, else main, else master. A base that is named and cannot be read
  * stops the check; one that is not named and cannot be found leaves it with nothing to compare, an
- * answer that may miss a test turned off; `none` waives the comparison.
+ * answer that may miss a test turned off; `none` waives the comparison. git also says whether it
+ * ignores a path, by any of its rules, so that `sdp init` keeps what `sdp run` records out of a commit.
  *
  * @sdp is ARCH-workspace
  */
@@ -44,6 +45,8 @@ export type BaseRead =
 export interface RevisionsReader {
   /** The specs where HEAD meets `named`, or else the default branch, with the configuration they were read with. */
   readonly base: (root: string, named: string | undefined) => Effect.Effect<BaseRead, BaseNotFound>
+  /** Whether git ignores a path of the workspace, by any of its rules, or undefined when git cannot say: outside a repository. */
+  readonly ignores: (root: string, path: string) => Effect.Effect<boolean | undefined>
 }
 
 const noGit = "sdp was given no git to read it from"
@@ -51,7 +54,8 @@ const noGit = "sdp was given no git to read it from"
 /** No revisions at all, as for a workspace in memory: a check says it compared nothing. */
 export const noRevisions: RevisionsReader = {
   base: (_root, named) =>
-    named === undefined ? Effect.succeed({ none: noGit }) : Effect.fail(new BaseNotFound({ base: named, reason: noGit }))
+    named === undefined ? Effect.succeed({ none: noGit }) : Effect.fail(new BaseNotFound({ base: named, reason: noGit })),
+  ignores: () => Effect.succeed(undefined)
 }
 
 /** Where `sdp check` reads its base from; by default nowhere. */
@@ -108,10 +112,20 @@ export const gitRevisions = Layer.effect(
     const pathOf = (result: { readonly code: number; readonly out: Buffer } | undefined) =>
       result?.code === 0 ? result.out.toString("utf8").replace(/\n$/, "") : undefined
 
+    /** git's environment without the variables that would name another repository than the workspace's. */
+    const envOf = (root: string) =>
+      Effect.map(git(root, ["rev-parse", "--local-env-vars"]), (listed) => withoutRepositoryVariables(process.env, text(listed)))
+
+    const ignores = Effect.fn("Revisions.ignores")(function*(root: string, path: string) {
+      // 0 when a rule ignores it, 1 when none does, and 128 outside a repository.
+      const checked = yield* git(root, ["check-ignore", "--quiet", "--", path], undefined, yield* envOf(root))
+      return checked?.code === 0 ? true : checked?.code === 1 ? false : undefined
+    })
+
     const base = Effect.fn("Revisions.base")(function*(root: string, named: string | undefined) {
       const missing = (reason: string, remedy?: string): Effect.Effect<BaseRead, BaseNotFound> =>
         named === undefined ? Effect.succeed({ none: reason, remedy }) : Effect.fail(new BaseNotFound({ base: named, reason }))
-      const env = withoutRepositoryVariables(process.env, text(yield* git(root, ["rev-parse", "--local-env-vars"])))
+      const env = yield* envOf(root)
       const inWorkspace = (args: ReadonlyArray<string>, input?: string) => git(root, args, input, env)
       const inside = yield* inWorkspace(["rev-parse", "--is-inside-work-tree"])
       if (inside === undefined) return yield* missing("git did not run in this workspace")
@@ -190,7 +204,7 @@ export const gitRevisions = Layer.effect(
         return { found: { commit: at, command, files, config, missing: unread } } satisfies BaseRead
       }).pipe(Effect.catchTag("PlatformError", (error) => missing(`the files of ${at} could not be listed: ${error.message}`)))
     })
-    return { base }
+    return { base, ignores }
   })
 )
 

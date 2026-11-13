@@ -402,8 +402,9 @@ const initCommand = Command.make(
   Effect.fn(function*() {
     // A new workspace starts here (or at -C), never in a workspace further up.
     const path = yield* Path.Path
-    for (const { created, file } of yield* Authoring.init((yield* givenRoot) ?? path.resolve("."))) {
+    for (const { created, file, next } of yield* Authoring.init((yield* givenRoot) ?? path.resolve("."))) {
       yield* Console.log(created ? `created ${file}` : Text.c.dim(`exists  ${file}`))
+      if (next !== undefined) yield* Console.log(`next: ${next}`)
     }
     yield* Console.log(
       Text.c.dim(
@@ -411,7 +412,7 @@ const initCommand = Command.make(
       )
     )
   })
-).pipe(Command.withDescription("Create sdp.config.yaml and the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) in the workspace"))
+).pipe(Command.withDescription("Create sdp.config.yaml, the skill that teaches agents to work with sdp (.claude/skills/sdp/SKILL.md) and, where git does not ignore .sdp/, a .gitignore of it in the workspace"))
 
 const mcpCommand = Command.make(
   "mcp",
