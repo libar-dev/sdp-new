@@ -134,7 +134,8 @@ const diagnosticRecord = (diagnostic: Diagnostic): DiagnosticRecord => ({
 
 /**
  * What a comparison with the base found, and a note on what it compared with. Without a base it
- * compared nothing, and may have missed a test turned off: the answer is incomplete.
+ * compared nothing, and with a file of the base it could not read it compared less: either may
+ * have missed a test turned off, so the answer is incomplete.
  */
 const comparedWith = (project: Project, read: BaseRead) => {
   if ("none" in read) {
@@ -144,8 +145,12 @@ const comparedWith = (project: Project, read: BaseRead) => {
       notes: []
     }
   }
-  const { diagnostics, notes } = compareWithBase(project, read.found)
-  return { diagnostics, missing: [], notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`, ...notes] }
+  const { diagnostics, missing } = compareWithBase(project, read.found)
+  return {
+    diagnostics,
+    missing: [...read.found.missing, ...missing],
+    notes: [`live tests compared with the base ${read.found.commit} (${read.found.command})`]
+  }
 }
 
 /**

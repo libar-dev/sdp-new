@@ -64,6 +64,8 @@ const unusable = (input: CreateInput): string | undefined =>
     ? `a ${input.kind} needs a title: sdp new ${input.kind} "<title>"`
     : input.id !== undefined && /[\\/]/.test(input.id)
     ? `the id ${JSON.stringify(input.id)} cannot name a file: write it without a slash, and choose the directory with --dir`
+    : input.id?.includes("#")
+    ? `the id ${JSON.stringify(input.id)} holds #, which names a rule or an example of a spec: write a rule as a \`Rule:\` in its spec's file, and an id without #`
     : input.dir !== undefined && input.dir.trim() === ""
     ? "--dir needs a directory, relative to the workspace root or absolute"
     : input.maturity !== undefined && !isValueWord(input.maturity)

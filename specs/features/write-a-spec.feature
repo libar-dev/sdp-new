@@ -249,7 +249,9 @@ Feature: Write a spec
     What it replaces stays live until the change that builds the replacement deletes it, so no two
     replace each other; a link to a feature, or from one, stands for all of its rules. Built, the
     replacement may keep the link in that change, where it names what the base had: sdp check holds
-    the change to its base. Removing behaviour is written as what happens instead.
+    the change to its base. Merged, the link names nothing — the default branch is its own base — so
+    check warns until it is deleted, and does not fail. Removing behaviour is written as what
+    happens instead.
 
     Scenario Outline: A rule that replaces <case>
       Given a file "specs/cart.feature" containing:
@@ -288,10 +290,37 @@ Feature: Write a spec
         | a rule, once it is built  |                                            | @replaces:cart#a-cart-holds-what-was-added                 | replacement, untested-rule |
         | the rule that replaces it | @replaces:cart#a-cart-holds-each-item-once | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | replacement                |
 
+    Scenario: A feature that names a rule of its own, and the rule it should be on
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @replaces:cart#a-cart-holds-what-was-added
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule        | line | hint                                                                                              |
+        | replacement | 1    | put `@replaces:cart#a-cart-holds-what-was-added` on the rule that replaces it, above its `Rule:` |
+
     Scenario Outline: A feature still to come that replaces <case>
-      Given these specs:
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And these specs:
         | tags                              | Feature |
-        | @id=cart                          | Cart    |
         | @id=basket @maturity=draft <link> | Basket  |
       When the workspace is checked
       Then sdp reports "<reported>"
@@ -300,6 +329,39 @@ Feature: Write a spec
         | case           | link             | reported    |
         | a live feature | @replaces:cart   | nothing     |
         | itself         | @replaces:basket | replacement |
+
+  Rule: An example renamed with its steps edited, or merged into another, is named where it went in the change that does it
+
+    `@replaces:<feature>#<example>` on its Scenario, once for each example it takes over: by neither
+    its name nor its steps would sdp check know it for the one the base had. The link names what is
+    gone, so it lasts the change: merged, it names nothing, and check warns until it is deleted. An
+    example that is still here is its own test, and naming it is an error.
+
+    Scenario Outline: An example that names <case>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+            <tags>
+            Scenario: Add a lamp and a desk
+              Then the cart holds a lamp and a desk
+        """
+      When the workspace is checked
+      Then sdp reports "<reported>"
+
+      Examples:
+        | case                   | tags                                                | reported    |
+        | two examples now gone  | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | nothing     |
+        | an example still here  | @replaces:cart#add-an-item                          | replacement |
+        | the rule it is under   | @replaces:cart#a-cart-holds-what-was-added          | replacement |
 
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag
@@ -733,6 +795,7 @@ Feature: Write a spec
         | feature                     | rule        | scenario    | examples         | line | message                                     |
         | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link              |
         | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                |
+        | @id=pay#card                |             |             |                  | 1    | @id=pay#card: a spec's id holds no #        |
         | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =    |
         | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map    |
         | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing   |

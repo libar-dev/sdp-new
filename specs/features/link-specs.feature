@@ -258,6 +258,20 @@ Feature: Link specs into one graph
         | ARCH-worker           | missing |                        |
         | sink                  | missing |                        |
 
+    Scenario Outline: What to write for an id nothing declares: <id>
+      Given these specs:
+        | tags                         | Feature |
+        | @id=reports @depends-on:<id> | Reports |
+      When the workspace is loaded
+      Then sdp reports:
+        | rule          | at                      | hint   |
+        | dangling-link | specs/reports.feature:1 | <hint> |
+
+      Examples:
+        | id              | hint                                                                                                     |
+        | billing         | write the spec `@id=billing` (`sdp new <kind> "<title>" --id billing`), or fix the reference             |
+        | billing#invoice | write the `Rule:` or the `Scenario:` named invoice in the file of the spec billing, or fix the reference |
+
   Rule: What sdp derives cannot be written, wherever a node is declared
 
     A stage is read from what ran, and a kind such as `missing` or `code` or a link such as

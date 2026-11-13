@@ -178,6 +178,7 @@ Feature: Use the command line
         | new a/b Carts                         | is not a kind: a kind is one word                                            | specs/a/b/carts.feature             |
         | new ../x Carts                        | is not a kind: a kind is one word                                            | x/carts.feature                     |
         | new feature Carts --id a/b            | cannot name a file: write it without a slash                                 | specs/features/a/b.feature          |
+        | new feature Carts --id 'cart#x'       | holds #, which names a rule or an example of a spec                          | specs/features/cart#x.feature       |
         | new feature Carts --dir ''            | --dir needs a directory                                                      | carts.feature                       |
         | new feature Carts --maturity 'not yet' | a maturity is one word: write it without a space, @, = or :                 | specs/features/carts.feature        |
         | new element Bad --id 'ARCH-bad other' | would not read back from a tag                                               | .sdp/results.json                   |
