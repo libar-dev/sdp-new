@@ -1,8 +1,8 @@
 # Example — a shop
 
-A small product specified with sdp the way a team would: domain code in `src/`, its features at
-every maturity and a decision in `specs/`, the one architecture element declared by its code, and
-step definitions that drive the domain code.
+A small product specified with sdp the way a team would: domain code in `src/`, its features —
+one live, two still to come — and a decision in `specs/`, the one architecture element declared by
+its code, and step definitions that drive the domain code.
 
 | File | Shows |
 | --- | --- |
