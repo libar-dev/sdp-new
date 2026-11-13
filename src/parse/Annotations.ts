@@ -224,6 +224,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
     else groups.push([comment])
   }
   const firstCode = program.body[0] === undefined ? content.length : leadingStart(program.body[0])
+  const opening = script.comments.find((comment) => comment.start < firstCode)
   const shaped = shapes(content, script)
   for (const group of groups) {
     let example = false
@@ -270,7 +271,7 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
           hint: "write it in the doc comment directly above a module-level declaration, or in the comment that opens the file"
         })
       } else {
-        annotations.push({ file, line, rel, targets, attrs, ...target, doc: carrying(group, at) })
+        annotations.push({ file, line, rel, targets, attrs, ...target, doc: carrying(group, at, opening) })
       }
     }
   }
@@ -280,9 +281,14 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
 /**
  * What the comment that carries a tag says: its block, or the run of line comments that holds it —
  * or, when that says nothing but tags, the comment directly above it, a block or a run of line
- * comments. A comment further up, a licence or a copyright, describes no code.
+ * comments, unless that one opens the file. A comment further up, or the one that opens the file, a
+ * licence or a copyright, describes no code below it.
  */
-const carrying = (group: ReadonlyArray<Script["comments"][number]>, at: number): string | undefined => {
+const carrying = (
+  group: ReadonlyArray<Script["comments"][number]>,
+  at: number,
+  opening: Script["comments"][number] | undefined
+): string | undefined => {
   const run = (index: number) => {
     let first = index
     let last = index
@@ -293,7 +299,9 @@ const carrying = (group: ReadonlyArray<Script["comments"][number]>, at: number):
     return { first, said: description(group.slice(first, last + 1).map((comment) => comment.value)) }
   }
   const { first, said } = run(at)
-  return said ?? (first > 0 ? run(first - 1).said : undefined)
+  if (said !== undefined || first === 0) return said
+  const above = run(first - 1)
+  return group[above.first] === opening ? undefined : above.said
 }
 
 /** A tag that a comment's line has after words, which is not read: well formed, it was meant as one. */
@@ -370,11 +378,29 @@ const description = (comments: ReadonlyArray<string>): string | undefined => {
 }
 
 /**
- * A comment's line that directs a tool, not the reader: a linter, a type checker, a formatter or a
- * coverage tool, in any language.
+ * A comment's line that directs a tool, not the reader: a linter, a type checker, a formatter, a
+ * coverage tool, a licence scanner or an editor, or the encoding an interpreter reads, in any language.
  */
-const directive =
-  /^\s*(?:eslint-(?:disable|enable|env)\b|eslint [\w@/-]+:|@ts-[a-z-]+|prettier-ignore|biome-ignore|oxlint-[a-z-]+|deno-(?:lint|fmt)-ignore|tslint:|jshint\b|istanbul ignore|[cv]8 ignore|<reference\b|noqa\b|type: ?ignore|pylint: ?[a-z-]+|pyright: ?\w+|mypy: ?\w+|fmt: ?(?:off|on|skip)|isort: ?\w+|pragma: ?no cover|nolint\b|NOLINT|go:[a-z]+|\+build\b|clang-format (?:off|on)|#(?:end)?region\b)/
+const directive = new RegExp(`^\\s*(?:${
+  [
+    // JavaScript and TypeScript
+    String.raw`eslint-(?:disable|enable|env)\b|eslint [\w@/-]+:|@ts-[a-z-]+|prettier-ignore|biome-ignore|oxlint-[a-z-]+`,
+    String.raw`deno-(?:lint|fmt)-ignore|dprint-ignore|tslint:|jshint\b|istanbul ignore|[cv]8 ignore|<reference\b`,
+    // Python
+    String.raw`noqa\b|type: ?ignore|(?:pylint|pyright|mypy|ruff|flake8|pytype|isort|yapf|autopep8): ?[\w-]+|pyre-[a-z-]+`,
+    String.raw`fmt: ?(?:off|on|skip)|pragma: ?no (?:cover|branch)|nosec\b`,
+    // Ruby
+    String.raw`frozen_string_literal:|(?:warn_indent|shareable_constant_value|typed):|rubocop:[a-z]+|standard:(?:disable|enable)|:no(?:doc|cov):`,
+    // An interpreter's encoding, an editor's settings
+    String.raw`(?:en)?coding[:=] ?[\w.-]+\s*$|-\*-.*-\*-|vim?: ?(?:set )?\w+[=:]|#(?:end)?region\b`,
+    // Shell, Swift, PHP, Kotlin and Java, Go, C and C++
+    String.raw`shellcheck\b|swiftlint:|swiftformat:|phpcs:|@phpstan-[a-z-]+|@psalm-[a-z-]+`,
+    String.raw`ktlint-(?:disable|enable)|CHECKSTYLE[:.]|NOPMD\b|NOSONAR\b|noinspection\b|@formatter:(?:off|on)`,
+    String.raw`nolint\b|lint:(?:ignore|file-ignore)\b|go:[a-z]+|\+build\b|NOLINT|clang-format (?:off|on)`,
+    // A licence's identifier, a spelling checker
+    String.raw`SPDX-[\w.-]+:|cspell:|spell-?checker:|codespell:`
+  ].join("|")
+})`)
 
 const lineMarker = /^\s*(?:(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s*)?@sdp\s+([A-Za-z][\w.:-]*)\s+(.+)$/
 /**
@@ -387,8 +413,11 @@ const placeholder = /^<[^<>\s]+>$/
 const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
-/** A line that opens with `#` as a comment does, and is code: an attribute (`#[derive(Debug)]`), or a directive of the preprocessor. */
-const hashCode = /^\s*#(?:!?\[|(?:if|ifdef|ifndef|elif|else|endif|define|undef|include|pragma|region|endregion|nullable)\b)/
+/**
+ * A line that opens with `#` as a comment does, and is code: an interpreter line, an attribute
+ * (`#[derive(Debug)]`), or a directive of the preprocessor.
+ */
+const hashCode = /^\s*#(?:!|\[|(?:if|ifdef|ifndef|elif|else|endif|define|undef|include|pragma|region|endregion|nullable)\b)/
 /** A comment's line, with nothing else on it. */
 const commentLine = (line: string): boolean => commentOnly.test(line) && !hashCode.test(line)
 
@@ -515,15 +544,37 @@ const tripleQuoted = (content: string): ReadonlyArray<{ readonly start: number; 
 const commentText = (line: string): string =>
   line.replace(/^\s*(?:\/\/+|\/\*+|\*+|#+|--+|<!--|;+|%+|"""|''')!?\s?/, "").replace(/\s*(?:\*\/|-->|"""|''')\s*$/, "")
 
-/** What the comment lines around a tag say, as one comment: those on lines of their own, up to a blank line or code. */
+/**
+ * What the comment that carries a tag says, as in a parsed file: its block, or the run of line
+ * comments that holds it — or, when that says nothing but tags, the comment directly above it, unless
+ * that one opens the file. A comment is on lines of its own, up to a blank line or code; a block ends
+ * where it closes, and a run of line comments where their marker changes, from `//` to `///`.
+ */
 const lineCommentDoc = (lines: ReadonlyArray<string>, at: number): string | undefined => {
   const comment = (index: number) => index >= 0 && index < lines.length && commentLine(lines[index]!)
-  let first = at
-  let last = at
-  while (comment(first - 1)) first--
-  while (comment(last + 1)) last++
-  return description([lines.slice(first, last + 1).map(commentText).join("\n")])
+  const marker = (index: number) => lineCommentMarker.exec(lines[index]!)?.[1]
+  // Whether the line at `index` goes on with the comment of the line above it.
+  const goesOn = (index: number) =>
+    comment(index - 1) && comment(index) && (marker(index - 1) === undefined || marker(index) === undefined
+      ? !blockEnd.test(lines[index - 1]!) && !blockStart.test(lines[index]!)
+      : marker(index - 1) === marker(index))
+  const around = (index: number) => {
+    let first = index
+    let last = index
+    while (goesOn(first)) first--
+    while (goesOn(last + 1)) last++
+    return { first, said: description([lines.slice(first, last + 1).map(commentText).join("\n")]) }
+  }
+  const { first, said } = around(at)
+  if (said !== undefined || !comment(first - 1)) return said
+  const above = around(first - 1)
+  return lines.slice(0, above.first).every((line) => line.trim() === "" || preamble.test(line)) ? undefined : above.said
 }
+
+/** The marker that opens a line comment: `//`, `///`, `//!`, `#`, `--`, `;` or `%`. */
+const lineCommentMarker = /^\s*(\/\/+!?|#+|--+|;+|%+)/
+/** A line that only opens the file: an interpreter line, or PHP's opening tag. */
+const preamble = /^\s*(?:#!|<\?php\s*$)/
 
 const trailing =
   /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*(?:,[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*)*)(?=\s|$|\*\/|-->)/u
