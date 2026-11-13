@@ -379,7 +379,6 @@ Feature: Configure a workspace
         | data.vocabulary.kinds.driver                | decision                                                                                             |
         | data.vocabulary.qualities                   | quality                                                                                              |
         | data.vocabulary.disciplines.requirements    | requirement, feature, story, use-case, epic                                                          |
-        | data.vocabulary.kinds.architecture          | architecture                                                                                         |
         | data.vocabulary.disciplines.analysis-design | element, pattern, architecture                                                                       |
         | data.made.kinds                             | scenario, rule, code, missing                                                                        |
         | data.made.relations                         | rule-of, imports                                                                                     |
@@ -428,6 +427,7 @@ Feature: Configure a workspace
         | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                               | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                         | at ["vocabulary"]["maturity"]               |
         | vocabulary: { implemented: done }                | excess property                                      | at ["vocabulary"]["implemented"]            |
+        | vocabulary: { kinds: { architecture: [rules] } } | excess property                                      | at ["vocabulary"]["kinds"]["architecture"]  |
         | vocabulary: { maturity: [idea, Verified] }       | Verified is a stage sdp derives                      | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [sketch, in-progress] }  | in-progress is a stage sdp derives                   | at ["vocabulary"]["maturity"]               |
         | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                               | at ["vocabulary"]["relations"]["anchor"]    |

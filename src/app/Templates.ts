@@ -10,7 +10,7 @@ import { Duration, Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, idForm, isStage, isWork, offLadder, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, holdsCodeRules, idForm, isStage, isWork, offLadder, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -29,11 +29,12 @@ const directoryFor: Record<string, string> = {
  */
 export const templateKinds = ["feature", "decision", "element", "pattern", "milestone", "phase", "iteration"] as const
 
-type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "phase" | "iteration" | "generic"
+type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "phase" | "iteration" | "rules" | "generic"
 
 /**
  * The template for a kind: the one of the role it plays in the workspace's vocabulary, so a team
- * that calls its decisions `adr` gets the decision template for `sdp new adr`.
+ * that calls its decisions `adr` gets the decision template for `sdp new adr`, or that of a spec of
+ * the rules the code keeps.
  */
 const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
   hasKind(vocabulary, "feature", kind)
@@ -50,6 +51,8 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
     ? "pattern"
     : hasKind(vocabulary, "architectural", kind)
     ? "element"
+    : holdsCodeRules(vocabulary, kind)
+    ? "rules"
     : "generic"
 
 /**
@@ -293,6 +296,14 @@ const guidance = (options: {
         `no file is written: a pattern is declared where the code its instances share is, by the tag \`@sdp ${anchor} ${id}\` in the doc comment of a module-level declaration, or of the file in the comment that opens it`,
         "the rest of that comment is its description: say there which problem it solves, and how",
         `code that applies it says so in its doc comment with \`@sdp plays ${id}\`: sdp arch shows the pattern with the code that plays it and the elements that code is`
+      ]
+    case "rules":
+      return [
+        "say under the title what part of the code its rules hold",
+        "write a `Rule:` the code keeps, with an example, such as which element may import which: its scenario fails when the code breaks the rule",
+        "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
+        `plan it: ${plan}`,
+        "it stays in this file: once it is built, delete its maturity, and it is live"
       ]
     case "generic":
       return isWork(vocabulary, kind)

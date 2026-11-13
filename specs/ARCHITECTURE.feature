@@ -2,7 +2,7 @@
 Feature: Architecture
 
   The rules this repository's code keeps, over the elements its annotations declare and what each
-  imports; `sdp arch` shows them.
+  imports: `sdp arch` shows the elements and their imports, and `sdp context ARCHITECTURE` the rules.
 
   Rule: No element depends on itself through others
 

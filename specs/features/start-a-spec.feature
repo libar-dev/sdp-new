@@ -44,12 +44,13 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind    | title         | options | file                                 | tags                                       | next                                                                |
-        | gizmo   | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo                   | say under the title what it is                                      |
-        | feature | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea           | say under the title who needs what, and why, before any solution    |
-        | risk    | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk                      | say under the title what it is                                      |
-        | phase   | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                           | say under the title what this phase takes on, and why in this order |
-        | story   | Saved carts   |         | specs/story/saved-carts.feature      | @id=saved-carts @kind=story @maturity=idea | write the idea in a sentence under the title                        |
+        | kind         | title             | options | file                                         | tags                                                    | next                                                                |
+        | gizmo        | Sprocket          |         | specs/gizmo/sprocket.feature                 | @id=sprocket @kind=gizmo                                | say under the title what it is                                      |
+        | feature      | Gift wrapping     |         | specs/features/gift-wrapping.feature         | @id=gift-wrapping @maturity=idea                        | say under the title who needs what, and why, before any solution    |
+        | risk         | Outage            |         | specs/risk/outage.feature                    | @id=outage @kind=risk                                   | say under the title what it is                                      |
+        | phase        | Hardening         |         | specs/plan/PH-hardening.feature              | @id=PH-hardening                                        | say under the title what this phase takes on, and why in this order |
+        | story        | Saved carts       |         | specs/story/saved-carts.feature              | @id=saved-carts @kind=story @maturity=idea              | write the idea in a sentence under the title                        |
+        | architecture | Rules of the shop |         | specs/architecture/rules-of-the-shop.feature | @id=rules-of-the-shop @kind=architecture @maturity=idea | write a `Rule:` the code keeps, with an example                     |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"

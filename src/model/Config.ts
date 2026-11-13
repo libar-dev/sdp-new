@@ -16,7 +16,6 @@ const VocabularyFile = Schema.Struct({
     iteration: Schema.optional(Words),
     pattern: Schema.optional(Words),
     architectural: Schema.optional(Words),
-    architecture: Schema.optional(Words),
     driver: Schema.optional(Words),
     anchored: Schema.optional(Word)
   })),
