@@ -13,6 +13,7 @@
  * @sdp is ARCH-workspace
  */
 import { ByteSize, Context, Effect, FileSystem, Layer, Option, Path, Result, Schema, Stream } from "effect"
+import * as CliError from "effect/cli/CliError"
 import { type PlatformError, systemError } from "effect/PlatformError"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import type { SourceFile } from "../graph/Build.ts"
@@ -33,6 +34,9 @@ export class BaseNotFound extends Schema.TaggedError<BaseNotFound>()("BaseNotFou
 }) {
   override get message() {
     return `cannot compare live tests with the base ${this.base}: ${this.reason}`
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 

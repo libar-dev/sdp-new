@@ -24,6 +24,7 @@
  * @sdp is ARCH-query-engine
  */
 import { Predicate, Result, Schema } from "effect"
+import * as CliError from "effect/cli/CliError"
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
 import { activityRelation, made, type Vocabulary, vocabularyWords } from "../model/Vocabulary.ts"
 import type { Project } from "./Build.ts"
@@ -52,7 +53,11 @@ examples
 export class QueryError extends Schema.TaggedError<QueryError>()("QueryError", {
   message: Schema.String,
   query: Schema.String
-}) {}
+}) {
+  override get [CliError.userMessage]() {
+    return `query error: ${this.message}`
+  }
+}
 
 type Op = "=" | "!=" | "~" | "!~" | "<" | ">" | "<=" | ">="
 

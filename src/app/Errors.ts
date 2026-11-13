@@ -2,8 +2,9 @@
  * What a use case fails with when the user's input or files are at fault. Each
  * error is a value the caller can inspect, and `describe` words any of them as
  * one line that names the input or the file — a user's mistake is never a
- * stack trace. Each error declared here also carries that line as its CLI user
- * message, which the command line prints on stderr before it exits with 1.
+ * stack trace. Each of sdp's errors, here or in the module that fails with it,
+ * carries that line as its CLI user message, which the command line prints on
+ * stderr before it exits with 1.
  *
  * @sdp is ARCH-application
  */
@@ -125,16 +126,8 @@ const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
 export const isAppError = (error: unknown): error is AppError =>
   Predicate.hasProperty(error, "_tag") && Predicate.isString(error._tag) && Object.hasOwn(appErrorTags, error._tag)
 
-/** Any of them as one line for the person or agent who caused it; a configuration, one line for each of its problems. */
-export const describe = (error: AppError): string => {
-  switch (error._tag) {
-    case "ConfigError":
-      return error.problems.map((problem) => `${error.file}: invalid configuration: ${problem}`).join("\n")
-    case "StepLoadError":
-      return `${error.file}: could not load step definitions: ${error.message}`
-    case "QueryError":
-      return `query error: ${error.message}`
-    default:
-      return error.message
-  }
-}
+/**
+ * Any of them as one line for the person or agent who caused it — a configuration, one line for each
+ * of its problems: the CLI user message it carries, or the message of an Effect platform error, which carries none.
+ */
+export const describe = (error: AppError): string => CliError.getUserMessage(error) ?? error.message

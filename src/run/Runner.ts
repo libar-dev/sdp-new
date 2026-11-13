@@ -5,6 +5,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks"
 import { Cause, Clock, DateTime, Deferred, Duration, Effect, Exit, Fiber, Option, Predicate, Schema, type Scope } from "effect"
+import * as CliError from "effect/cli/CliError"
 import type { Project } from "../graph/Build.ts"
 import { type ExampleResult, type ScenarioResult, type StepResult, type StepStatus, worstStatus } from "../model/Results.ts"
 import { made } from "../model/Vocabulary.ts"
@@ -22,6 +23,9 @@ export class InvalidStepExpressions extends Schema.TaggedError<InvalidStepExpres
   override get message() {
     return this.problems.join("\n")
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 /** Work a step left unawaited that failed once no step that started it still ran: the run reports it once it has recorded what it ran. */
@@ -31,6 +35,9 @@ export class UnawaitedFailures extends Schema.TaggedError<UnawaitedFailures>()("
 }) {
   override get message() {
     return `work nobody awaited failed outside the step that started it: ${this.problems.join("; ")}`
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 
