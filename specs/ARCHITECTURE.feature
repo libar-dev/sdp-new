@@ -130,6 +130,12 @@ Feature: Architecture
       Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 decision, src/report.ts:9 milestone, src/report.ts:12 closes"
 
   @maturity=idea
+  Rule: No code compares with a tag sdp interprets, such as `@open`, as a literal either
+
+    The search for interpreted words covers kinds, relations, disciplines and attributes; a tag
+    written out in code escapes it.
+
+  @maturity=idea
   Rule: The typecheck fails on an effect that is built and never run, and on an optional property set to undefined
 
     Plain TypeScript accepts both. Effect's diagnostics catch the first, and Schema decodes an absent

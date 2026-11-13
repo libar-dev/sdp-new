@@ -33,4 +33,5 @@ How the work is done here, on whichever machine and with whichever agent:
 - What is in the architecture, what code is anchored to it and how an element is described are the
   architect's: propose them, do not write them. Recording a milestone as met is the owner's act.
 - The reviews, advisory reports and design brief behind the redesign of November 2026 are on the
-  branch `archive/redesign-2026-11`. sdp reads nothing there.
+  branch `archive/redesign-2026-11`, and the research and prototypes behind the organization of the
+  specs and the choice of runner on `archive/organize-specs-2026-11`. sdp reads nothing there.

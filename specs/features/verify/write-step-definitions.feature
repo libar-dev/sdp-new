@@ -842,5 +842,9 @@ Feature: Write step definitions
   @maturity=idea
   Rule: A step module defines parameter types of its own, such as an id, and steps lists them
 
-  @maturity=idea
+  @maturity=draft @decided-by:a-host-runner-runs-application-suites
   Rule: A step module says what runs after each scenario, passed or failed, to clean up what its steps made
+
+    The temporary directories, rows and tenants a scenario made are its own to remove, under sdp's
+    runner and under a host's, and also when it was stopped: a runner that isolates files gives the
+    scenarios of one file no fresh state, and none of them removes what a scenario made outside it.

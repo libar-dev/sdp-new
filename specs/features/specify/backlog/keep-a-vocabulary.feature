@@ -32,6 +32,8 @@ Feature: Keep a vocabulary
 
     In the configuration, they sit beside the roles and words it names there today, read before any
     spec. In a spec, they are reviewed beside the specs that use them, and the listing is a test.
+    The configuration already holds `vocabulary.words`, a workspace's own kinds, relations and
+    attributes with no meanings, which either answer has to account for.
 
   @decided-by:free-vocabulary
   Rule: In a workspace that asks for it, sdp check reports a word used and not listed, with the closest listed word, and a word of its own listed and used nowhere

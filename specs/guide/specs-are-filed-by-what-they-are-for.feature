@@ -11,7 +11,7 @@ Feature: Each spec of this repository is in the folder of what it is for
 
     @replaces:GUIDE#where-each-spec-of-this-repository-is
     Scenario: Where each spec of this repository is
-      When I run "ls specs" in the repository
+      When I run "sh -c 'git ls-files specs | cut -d/ -f2 | sort -u'" in the repository
       Then the output lines are "ARCHITECTURE.feature, VISION.feature, decisions, features, guide, plan, steps"
       And the query "feature[file!~^specs/features/]" returns no results
 

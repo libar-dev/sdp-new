@@ -1146,7 +1146,7 @@ Feature: Plan delivery
   @maturity=draft
   Rule: An iteration whose planned work saw no change stands out
 
-  @maturity=ready
+  @maturity=ready @iteration:IT-agent-plugin
   Rule: lifecycle --brief prints the milestone, the work planned now and its open questions within 2,000 characters, and says what it left out
 
     It is what an agent is told at the start of a session, so it is bounded by what a hook may add.
@@ -1214,3 +1214,8 @@ Feature: Plan delivery
   Rule: An epic whose every item is live is pointed out, to be deleted
 
     What it grouped is built, and its scenarios are the record; how it was grouped is git's.
+
+  @maturity=idea
+  Rule: lifecycle lists the work planned into no iteration under its area and its spec, each with its maturity, not as one line of ids
+
+    The backlog is read by whoever chooses what is next, and one line of forty ids is not read.

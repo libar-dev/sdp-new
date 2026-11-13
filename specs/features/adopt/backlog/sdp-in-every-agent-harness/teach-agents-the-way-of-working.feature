@@ -1,4 +1,5 @@
 @id=teach-agents-the-way-of-working @maturity=ready
+@iteration:IT-agent-plugin
 Feature: Teach agents the way of working
 
   An agent in a repository specified with sdp asks the graph before it greps, writes the rule and its
@@ -10,6 +11,11 @@ Feature: Teach agents the way of working
   skill and `sdp check` differ, check is right and the skill is wrong.
 
   Rule: The plugin has one skill, and it teaches the whole way of working: orient, find the spec that owns a behaviour, change the rule and its example, write the steps, check and run, plan
+
+    What it is to hold, in this order, detailed before the skill is written: what sdp is; orient;
+    find what owns a behaviour; a spec, by one annotated example; change behaviour; architecture and
+    decisions; plan; never. About 9,000 characters, with the sharp edges of the format, the corners
+    of tag syntax, replacing what is live and gates in the reference, about 5,000.
 
     Scenario: The skills the plugin ships
       When I run "ls skills" in the repository

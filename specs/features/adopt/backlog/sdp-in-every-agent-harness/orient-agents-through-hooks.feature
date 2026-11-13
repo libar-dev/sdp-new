@@ -1,4 +1,5 @@
 @id=orient-agents-through-hooks @maturity=ready
+@iteration:IT-agent-plugin
 Feature: Orient agents through hooks
 
   An agent that starts a session does not know where the project stands, and does not think to ask.
@@ -82,7 +83,8 @@ Feature: Orient agents through hooks
   Rule: Run on an event that recurs — a prompt, a tool call — the hook shows the orientation once per session, the first time
 
     That is how Kimi Code and Grok Build are wired, and a second copy of the orientation costs every
-    later turn its context.
+    later turn its context. Two runs that overlap are no exception: the first to claim the session
+    shows it.
 
     Scenario: Two tool calls of one session, then a new session
       When the plugin's hook runs on "PreToolUse" for session "a" in "shop"

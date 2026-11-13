@@ -1,4 +1,5 @@
 @id=install-the-agent-plugin @maturity=ready
+@iteration:IT-agent-plugin
 Feature: Install the agent plugin
 
   Teams run their agents in several harnesses — Claude Code, Codex, Kimi Code, Grok Build, ZCode
@@ -41,9 +42,8 @@ Feature: Install the agent plugin
 
   Rule: Each supported harness finds one wiring of the hook in the plugin, or in the one setting sdp names, and run as that harness runs it, it orients the session
 
-    Every fault of the earlier implementation's hook came from wiring it twice, by the plugin and by
-    the repository's own settings: telling the second run from the next event took a lock, a claim
-    and a clock. Kimi Code and Grok Build show a session-start hook's output to the person only, so
+    The earlier implementation's hook was wired twice, by the plugin and by the repository's own
+    settings, and telling the second run from the next event took a lock, a claim and a clock. Kimi Code and Grok Build show a session-start hook's output to the person only, so
     theirs runs on the first prompt and on the first tool call. OpenCode runs no command hooks, so a
     plugin module of the package runs the one script and adds its text to the session's context.
 

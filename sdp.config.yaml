@@ -2,6 +2,8 @@
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
+# The guide runs the shop example and the vocabulary pin reads it: a change to it is a change to what they ran against.
+evidence: { inputs: ["examples/shop/specs/**", "examples/shop/src/**", "examples/shop/sdp.config.yaml", "examples/shop/tsconfig.json"] }
 vocabulary:
   disciplines:
     # The guide's rules are tests of this repository, so one still to come is test work, planned as any other.

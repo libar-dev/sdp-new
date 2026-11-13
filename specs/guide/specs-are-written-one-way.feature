@@ -4,6 +4,15 @@ Feature: A spec of this repository is written one way
   What every spec here keeps to, whatever it is about, so that a reader and grep find one thing in
   one form.
 
+  Rule: AGENTS.md holds only what no scenario can check, in at most 40 lines
+
+    It is the easiest place to write, so it grows. What a scenario can check is a rule of a guide
+    spec, and how to work in any repository that uses sdp is the skill.
+
+    Scenario: The length of AGENTS.md
+      When I run "sh -c 'test $(wc -l < AGENTS.md) -le 40'" in the repository
+      Then the exit code is 0
+
   Rule: In this repository a word means one thing, and so does an id's prefix
 
     So grep finds a thing under one name, and an id says what kind of thing it is.
