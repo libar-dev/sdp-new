@@ -504,6 +504,27 @@ Feature: Ask the graph
       And the output contains '["ARCH-orders<br/><small>Order service, v2</small>"]'
       And the output contains "-->|realized-by|"
 
+  @maturity=draft @decided-by:files-are-the-source-of-truth
+  Rule: Whatever an answer of sdp's says, a program can compute from the graph as data
+
+    Views of one delivery state — the architecture around a set of specs, a diagram, an explorer,
+    an editor, sdp's own answers — agree only when each is computed from the graph alone, when it is
+    asked for: none is kept.
+
+  @maturity=draft
+  Rule: The graph holds each spec as written: its descriptions whole, its Backgrounds, and each step with its table or doc string
+
+  @maturity=draft
+  Rule: The graph holds each step a run recorded, with its outcome and error
+
+  @maturity=draft
+  Rule: The graph says which files it could not read, and why
+
+  @maturity=draft
+  Rule: Each record of the exported graph names the version of its format
+
+    Programs outside sdp will read it, and a format that changes without a word breaks them.
+
   Rule: Questions stay interactive on workspaces far larger than a typical repository's
 
     Agents ask many small questions while they work, and every command rebuilds the graph.

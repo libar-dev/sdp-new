@@ -1293,6 +1293,11 @@ Feature: Check specs
         | src/cart.ts | annotation-ignored | // after code, as in total() // @sdp implements cart is not read |
         | src/cart.ts | annotation-ignored | // @sdp implements cart\nexport const total = 0                  |
 
+  @maturity=draft
+  Rule: What check reports is computed from the graph, never kept in it
+
+    A problem is what one view says of what was written, not something anyone wrote.
+
   @open @maturity=draft
   Rule: Does Markdown where specs live make every answer incomplete, or is check's warning enough?
 
