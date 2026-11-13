@@ -153,6 +153,9 @@ Feature: See the architecture
         | language   | file       | marker | command                              | noted   |
         | Python     | src/pay.py | #      | sdp arch                             | 1 time  |
         | Python     | src/pay.py | #      | sdp q '#ARCH-pay -imports-> *' --ids | 1 time  |
+        | Python     | src/pay.py | #      | sdp q '#ARCH-pay -*-> *' --ids       | 1 time  |
+        | Python     | src/pay.py | #      | sdp show ARCH-pay                    | 1 time  |
+        | Python     | src/pay.py | #      | sdp context ARCH-pay                 | 1 time  |
         | TypeScript | src/pay.ts | //     | sdp arch                             | 0 times |
 
   Rule: An import means the file its name resolves to, as TypeScript or Deno resolve it, by the repository's files whether or not its packages are installed

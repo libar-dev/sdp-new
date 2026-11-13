@@ -801,10 +801,19 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   const empty: Array<string> = []
   for (const file of files) {
     loading = file
-    const failed = (problem: string) => unawaited ??= new StepLoadError({ file, message: problem })
+    // One heard of while the file still loads fails loading then: the module may never finish.
     const exports = yield* Effect.tryPromise({
-      try: () => startedBy({ watch, name: file, fail: (problem) => (failed(problem), true) }, () => import(urlOf(file))) as Promise<Record<string, unknown>>,
-      catch: (e) => new StepLoadError({ file, message: loadMessage(e) })
+      try: () =>
+        new Promise<Record<string, unknown>>((loaded, failed) => {
+          const fail = (problem: string) => {
+            unawaited ??= new StepLoadError({ file, message: problem })
+            failed(unawaited)
+            return true
+          }
+          const started = startedBy({ watch, name: file, fail }, () => import(urlOf(file))) as Promise<Record<string, unknown>>
+          started.then(loaded, failed)
+        }),
+      catch: (e) => e instanceof StepLoadError ? e : new StepLoadError({ file, message: loadMessage(e) })
     })
     // What it left as it returned is told of after a turn.
     yield* aTurn

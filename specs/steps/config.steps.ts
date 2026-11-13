@@ -5,7 +5,6 @@
  */
 import { Effect } from "effect"
 import { strict as assert } from "node:assert"
-import { execFile } from "node:child_process"
 import { copyFile, cp, mkdtemp, symlink } from "node:fs/promises"
 import { rmSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -15,7 +14,7 @@ import { defineSteps } from "sdp/steps"
 import { ConfigFile, resolveConfig } from "../../src/model/Config.ts"
 import { parseConfig } from "../../src/workspace/Workspace.ts"
 import { assertRows, newWorld, output, type Row } from "./world.ts"
-import { env, existingFile, record, repository, workspace } from "./process.ts"
+import { execProgram, existingFile, record, repository, workspace } from "./process.ts"
 
 /** A key of the configuration commented out, as `# key: value`, its depth in the spaces after `#`. */
 const keyLine = /^#( +)([A-Za-z][\w-]*):(.*)$/
@@ -57,18 +56,11 @@ const installedWithoutSkill = () =>
 const words = (command: string) => [...command.matchAll(/'([^']*)'|"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!)
 
 export default defineSteps(newWorld, ({ Then, When }) => {
-  When("I run {string} with an sdp installed without its skill", async ({ args: [command], world }) => {
+  When("I run {string} with an sdp installed without its skill", async ({ args: [command], signal, world }) => {
     const [bin, ...args] = words(command)
     assert.equal(bin, "sdp", `${command} runs no sdp`)
     const cli = join(await installedWithoutSkill(), "src/cli/main.ts")
-    const cwd = await workspace(world)
-    const result = await new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-      execFile(process.execPath, [cli, ...args], { cwd, env }, (error, stdout, stderr) => {
-        if (error && typeof error.code !== "number") reject(error)
-        else done({ code: error ? Number(error.code) : 0, stdout, stderr })
-      })
-    })
-    record(world, command, result)
+    record(world, command, await execProgram(process.execPath, [cli, ...args], await workspace(world), signal))
   })
 
   // Every line the last command printed refuses a configuration, one problem each: a row of the table

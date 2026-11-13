@@ -56,10 +56,10 @@ Feature: Run specs as tests
         | shelf              | specs     | sort#sort-by-name, sort#sort-by-price |
         | --tags @smoke      | .         | sort#sort-by-price                    |
 
-  Rule: A run whose targets or --tags select no scenario is refused, in one line that names what selected nothing
+  Rule: A run that selects no scenario, by its targets, its --tags or the features globs, is refused in one line that names what selected nothing
 
-    A misspelt target or tag would otherwise run nothing and pass: a CI job that runs --tags @smok
-    would stay green without running a single example.
+    A misspelt target, tag or glob would otherwise run nothing and pass: a CI job that runs
+    --tags @smok, or reads specs from a folder that moved, would stay green without running an example.
 
     Scenario Outline: Run <arguments>, <case>
       Given these specs:
@@ -74,6 +74,15 @@ Feature: Run specs as tests
         | serach       | a misspelt target      |
         | wishlist     | a spec with no example |
         | --tags @smok | a tag no example has   |
+
+    Scenario: Run everything, the features globs matching no spec
+      Given a file "sdp.config.yaml" containing:
+        """
+        features: ["specs/shop/**/*.feature"]
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "nothing matches the features globs specs/shop/**/*.feature"
 
   Rule: A run fails when a live example it ran does not pass; an example of work still to come runs and fails no run
 
@@ -186,11 +195,11 @@ Feature: Run specs as tests
       When I run "sdp run search --verbose"
       Then the output contains "Given a catalogue with a desk lamp"
 
-  Rule: A run refuses a workspace on which a result would mean nothing: a file it could not read as written, a scenario outside a rule, an example of an open question, or a maturity off the ladder
+  Rule: A run refuses a workspace on which a result would mean nothing — a spec it could not read as written, a path its globs match that is no file, a scenario outside a rule, an example of an open question, or a maturity off the ladder — and answers incomplete where it could not read code
 
-    A spec, step or code file sdp could not read as written may hold what a result rests on; an example
-    outside a rule verifies no rule; one of an open question or a maturity off the ladder fails no run.
-    What else sdp check rejects leaves results true: check gates it, and npm run verify runs both.
+    An unread spec, or a path that is no file, may hold examples a result rests on; an example outside
+    a rule verifies none, and one of a question or off the ladder fails no run. Unread code costs the
+    graph annotations and imports, not examples. What else check rejects leaves results true: check gates it.
 
     Scenario: Every problem a run refuses, in one workspace
       Given a file "specs/broken.feature" containing:
@@ -237,11 +246,16 @@ Feature: Run specs as tests
       And the output contains "specs/reports.feature:10 [question-example]"
       And the output contains "specs/export.feature:1 [maturity-off-ladder]"
 
-    Scenario: A run beside a link to no spec and an import sdp cannot follow
+    Scenario: A run beside a link to no spec, code that does not parse and an import sdp cannot follow
       Given a file "specs/reports.feature" containing:
         """
         @id=reports @maturity=idea @depends-on:mailer
         Feature: Reports
+        """
+      And a file "src/cart.ts" containing:
+        """
+        /** @sdp is ARCH-cart */
+        export const = 1
         """
       And a file "src/search.ts" containing:
         """
@@ -254,6 +268,8 @@ Feature: Run specs as tests
       And the JSON output has:
         | complete       | false                         |
         | data.scenarios | search#find-a-product-by-name |
+      And the output contains "not read: src/cart.ts:2 [annotation-unreadable]"
+      And the output contains "not read: src/search.ts:2 [import-unresolved]"
 
   @maturity=idea
   Rule: A run can write Cucumber Messages, so the reporters and dashboards that read Cucumber's runs read sdp's

@@ -81,7 +81,8 @@ const runHook = Effect.fn("runHook")(function*(world: World, plugin: string, at:
       cwd,
       env: { ...env, TMPDIR: temporary, TMP: temporary, TEMP: temporary },
       extendEnv: false,
-      stdin: Stream.make(new TextEncoder().encode(JSON.stringify(hookInput(event, session, cwd))))
+      stdin: Stream.make(new TextEncoder().encode(JSON.stringify(hookInput(event, session, cwd)))),
+      forceKillAfter: "1 second"
     }))
     const [out, err, code] = yield* Effect.all([text(handle.stdout), text(handle.stderr), handle.exitCode], { concurrency: 3 })
     return { code: Number(code), stdout: out, stderr: err }

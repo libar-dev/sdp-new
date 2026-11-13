@@ -4,7 +4,6 @@
  * Node, and packages a workspace has installed. The files a scenario is given are written before
  * the first process starts (process.ts).
  */
-import { execFile, spawn } from "node:child_process"
 import { existsSync } from "node:fs"
 import { mkdir, symlink } from "node:fs/promises"
 import { constants } from "node:os"
@@ -12,7 +11,7 @@ import { dirname, join } from "node:path"
 import { pathToFileURL } from "node:url"
 import { strict as assert } from "node:assert"
 import { defineSteps } from "sdp/steps"
-import { cli, directoryOf, env, existingFile, record, repository, workspace } from "./process.ts"
+import { cli, directoryOf, execProgram, existingFile, record, repository, spawnInGroup, workspace } from "./process.ts"
 import { newWorld, type World } from "./world.ts"
 
 /** The results file of a workspace that does not configure one, and the lock a run takes on it. */
@@ -47,13 +46,7 @@ const runSdp = async (world: World, command: string, options: ReadonlyArray<stri
   const cwd = await workspace(world)
   const [bin, ...args] = words(command)
   assert.equal(bin, "sdp", "only sdp is run this way")
-  const result = await new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-    execFile(process.execPath, [...options, cli, ...args], { cwd, env, signal }, (error, stdout, stderr) => {
-      if (error && typeof error.code !== "number") reject(error)
-      else done({ code: error ? Number(error.code) : 0, stdout, stderr })
-    })
-  })
-  record(world, command, result)
+  record(world, command, await execProgram(process.execPath, [...options, cli, ...args], cwd, signal))
 }
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
@@ -69,13 +62,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   When("a program runs:", async ({ doc, signal, world }) => {
     const cwd = await workspace(world)
     const source = (doc ?? "").replaceAll("$SDP", pathToFileURL(join(repository, "src/index.ts")).href)
-    const result = await new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-      execFile(process.execPath, ["--input-type=module", "-e", source], { cwd, env, signal }, (error, stdout, stderr) => {
-        if (error && typeof error.code !== "number") reject(error)
-        else done({ code: error ? Number(error.code) : 0, stdout, stderr })
-      })
-    })
-    record(world, "the program", result)
+    record(world, "the program", await execProgram(process.execPath, ["--input-type=module", "-e", source], cwd, signal))
   })
 
   // What another version of sdp, or of Node, would do: the version it reads is that one's.
@@ -87,7 +74,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     const cwd = await workspace(world)
     const [bin, ...args] = words(command)
     assert.equal(bin, "sdp", "only sdp is run and interrupted")
-    const child = spawn(process.execPath, [cli, ...args], { cwd, env, signal })
+    const child = spawnInGroup(process.execPath, [cli, ...args], cwd, signal)
     let stdout = ""
     let stderr = ""
     child.stdout.on("data", (chunk) => stdout += String(chunk))
@@ -105,21 +92,32 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     record(world, `${command}, interrupted`, { code: code ?? 128 + (killedBy ? constants.signals[killedBy] : 0), stdout, stderr })
   })
 
-  // The lock file as another run's commit leaves it while it records, removed once the time is up.
+  // The lock file as another run's commit leaves it while it records, removed once the time is up:
+  // that time starts when a run first looks for the lock to take it, so however long the run takes
+  // to get there, it finds the lock held.
   Given("another run holds the lock on the results for {int} ms", ({ args: [ms], world }) => {
-    const holding = { released: false, writtenWhileHeld: false }
+    const holding = { tried: false, released: false, writtenWhileHeld: false }
     world.resultsLock = holding
-    world.files.set(lock, "")
-    setTimeout(() => {
-      holding.writtenWhileHeld = world.files.has(results)
-      world.files.delete(lock)
-      holding.released = true
-    }, ms)
+    const { files } = world
+    files.set(lock, "")
+    const has = files.has.bind(files)
+    files.has = (file: string) => {
+      if (file === lock && !holding.tried) {
+        holding.tried = true
+        setTimeout(() => {
+          holding.writtenWhileHeld = has(results)
+          files.delete(lock)
+          holding.released = true
+        }, ms)
+      }
+      return has(file)
+    }
   })
 
   Then("the results were recorded only after the lock was released", ({ world }) => {
     const holding = world.resultsLock
     assert.ok(holding, "no other run held the lock")
+    assert.ok(holding.tried, "no run tried to take the lock")
     assert.ok(holding.released, "the other run still holds the lock")
     assert.ok(!holding.writtenWhileHeld, `${results} was written while another run held the lock`)
     assert.ok(world.files.has(results), `${results} was not written`)

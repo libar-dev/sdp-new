@@ -11,7 +11,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import { strict as assert } from "node:assert"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { delimiter, dirname, join, resolve } from "node:path"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -117,6 +117,33 @@ export const execute = (command: string, cwd: string, input = "") => {
 /** The same for a step written with async/await, which passes its signal on so that stopping it ends the process. */
 export const exec = (command: string, cwd: string, input = "", signal?: AbortSignal): Promise<Ran> =>
   Effect.runPromise(execute(command, cwd, input), { signal })
+
+/** A program and its arguments as one group, for a step written with async/await: stopping the step ends the group. */
+export const execProgram = (file: string, args: ReadonlyArray<string>, cwd: string, signal: AbortSignal): Promise<Ran> =>
+  Effect.runPromise(spawned(file, args, { cwd }), { signal })
+
+/**
+ * A process a step talks to while it runs, started by Node's `spawn` in a group of its own: when the
+ * step is stopped, the group gets SIGTERM, and SIGKILL a second later, as `spawned` does it.
+ */
+export const spawnInGroup = (file: string, args: ReadonlyArray<string>, cwd: string, signal: AbortSignal) => {
+  const child = spawn(file, [...args], { cwd, env, detached: true })
+  const group = (sent: NodeJS.Signals) => {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid, sent)
+    } catch {
+      // The group has ended.
+    }
+  }
+  const stop = () => {
+    group("SIGTERM")
+    setTimeout(() => group("SIGKILL"), 1000)
+  }
+  if (signal.aborted) stop()
+  else signal.addEventListener("abort", stop, { once: true })
+  child.on("close", () => signal.removeEventListener("abort", stop))
+  return child
+}
 
 /**
  * A file of the scenario's workspace: on disk once a command has run there, else in memory. A

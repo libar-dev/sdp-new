@@ -65,8 +65,8 @@ export interface World {
   randomGraphSize?: { readonly nodes: number; readonly edges: number }
   /** The plugin hook's session ids, the scenario's own, and what its last run showed the agent and how long it took. */
   pluginHook?: { readonly sessions: string; shown: string | undefined; elapsedMs: number | undefined }
-  /** The lock another run holds on the results, whether it let go, and whether the results were written while it held it. */
-  resultsLock?: { released: boolean; writtenWhileHeld: boolean }
+  /** The lock another run holds on the results, whether a run tried to take it, whether it let go, and whether the results were written while it held it. */
+  resultsLock?: { tried: boolean; released: boolean; writtenWhileHeld: boolean }
 }
 
 export const newWorld = (): World => ({

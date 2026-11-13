@@ -79,13 +79,19 @@ const matched = (world: World): Matched => {
 }
 
 /**
- * A command that runs until it is stopped, and a module whose import keeps its process running:
- * each ignores SIGTERM and starts a process that ignores it too, and the marker names all of them.
+ * A command that runs until it is stopped, and a program, or a module whose import, keeps its
+ * process running: each ignores SIGTERM and starts a process that ignores it too, and the marker,
+ * which `<marker>` stands for, names all of them.
  */
-const running = (marker: string) => ({
-  "<command>": `node -e 'process.on(\`SIGTERM\`,()=>{});if(!process.argv[2])require(\`child_process\`).spawn(process.execPath,[...process.execArgv,process.argv[1],\`child\`],{stdio:\`ignore\`});setInterval(()=>{},1000)' ${marker}`,
-  "<module>": `data:text/javascript,process.on('SIGTERM',()=>{});import('node:child_process').then((c)=>c.spawn(process.execPath,['-e','process.on(\`SIGTERM\`,()=>{});setInterval(()=>{},1000)','${marker}'],{stdio:'ignore'}));setInterval(()=>{},1000)`
-})
+const running = (marker: string) => {
+  const program = `process.on('SIGTERM',()=>{});import('node:child_process').then((c)=>c.spawn(process.execPath,['-e','process.on(\`SIGTERM\`,()=>{});setInterval(()=>{},1000)','${marker}'],{stdio:'ignore'}));setInterval(()=>{},1000)`
+  return {
+    "<command>": `node -e 'process.on(\`SIGTERM\`,()=>{});if(!process.argv[2])require(\`child_process\`).spawn(process.execPath,[...process.execArgv,process.argv[1],\`child\`],{stdio:\`ignore\`});setInterval(()=>{},1000)' ${marker}`,
+    "<program>": program,
+    "<module>": `data:text/javascript,${program}`,
+    "<marker>": marker
+  }
+}
 
 const fill = (text: string, marker: string) =>
   Object.entries(running(marker)).reduce((filled, [placeholder, value]) => filled.replaceAll(placeholder, value), text)
@@ -129,9 +135,9 @@ export default defineSteps(newWorld, ({ Then, When }) => {
     assertRows("steps that no definition matches", matched(world).unmatched, table, "exactly"))
 
   // One scenario per row, run with this repository's step definitions and a timeout of 500 ms. In a
-  // step, `<command>` is a command that runs until it is stopped and `<module>` a module whose import
-  // keeps its process running; each ignores SIGTERM, starts a process that ignores it too, and names
-  // a word of its own so that its processes can be found.
+  // step, `<command>` is a command that runs until it is stopped, `<program>` a program and `<module>`
+  // a module whose import keeps its process running; each ignores SIGTERM, starts a process that
+  // ignores it too, and names a word of its own, `<marker>`, so that its processes can be found.
   When("each of these steps of this repository times out while the process it started runs:", ({ project, table, world }) =>
     Effect.gen(function*() {
       const [header = [], ...rows] = table ?? []

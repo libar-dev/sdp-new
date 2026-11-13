@@ -114,6 +114,7 @@ Feature: Write step definitions
         import { defineSteps } from "sdp/steps"
 
         void Promise.reject(new Error("the fixtures are missing"))
+        await new Promise(() => {})
 
         export default defineSteps(() => ({}), ({ Step }) => {
           Step("an empty cart", () => {})

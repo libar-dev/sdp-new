@@ -109,6 +109,13 @@ Feature: Every step of this repository can fail
         | example                            | step                     |
         | cart#in-a-workspace-without-a-cart | I run "sdp context cart" |
 
+  @open
+  Rule: Does an example fail when no step after the last command it ran looked at what that command did?
+
+    Ending on a Then is checked by keyword: `Then the query "feature" returns at least 1 result` after
+    `When I run …` passes whatever the command did. A check when an example ends needs a hook the
+    step API does not offer, or a reading of which definitions look at a command.
+
   Rule: A step that looks into a section of the output fails when the output has no such section
 
     A heading renamed, or never printed, would otherwise pass every step that says what is not in
@@ -249,4 +256,8 @@ Feature: Every step of this repository can fail
         | an MCP client of "<command>" calls "sdp_query" with:                                              | {}                 |
         | a program decodes every record of "<command>" in the repository with the package's record schema |                    |
         | a fresh Node process imports "<module>"                                                           |                    |
+        | a program runs:                                                                                   | <program>          |
+        | "<command>" runs 1 times after a run that warms it up                                             |                    |
+        | the answer is what "<command>" prints                                                             |                    |
+        | I run "sdp mcp -C <marker>" and interrupt it once "started.txt" exists                            |                    |
       Then each timed out and left no process running

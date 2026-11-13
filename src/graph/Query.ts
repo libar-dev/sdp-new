@@ -411,6 +411,10 @@ interface Context {
 /** In an edge step, every relation. */
 const anyRelation = "*"
 
+/** Whether a query walks the links of a relation: by its name, or as any relation. */
+export const walks = (query: Query, rel: string): boolean =>
+  query.steps.some(({ edge }) => edge.rels.includes(rel) || edge.rels.includes(anyRelation))
+
 const startNodes = (context: Context, selector: NodeSelector) => {
   const { graph } = context
   const candidates = selector.ids

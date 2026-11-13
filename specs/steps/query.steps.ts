@@ -150,14 +150,14 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   // A command run once for the file system's and Node's caches, then timed: its median is the
   // scenario's time, and the last run is the command to assert on.
-  When("{string} runs {int} times after a run that warms it up", async ({ args: [command, runs], world }) => {
+  When("{string} runs {int} times after a run that warms it up", async ({ args: [command, runs], signal, world }) => {
     const directory = await workspace(world)
-    await exec(command, directory)
+    await exec(command, directory, "", signal)
     const samples: Array<number> = []
     let last: Awaited<ReturnType<typeof exec>> | undefined
     for (let i = 0; i < runs; i++) {
       const started = performance.now()
-      last = await exec(command, directory)
+      last = await exec(command, directory, "", signal)
       samples.push(performance.now() - started)
     }
     assert.ok(last, "run it at least once")

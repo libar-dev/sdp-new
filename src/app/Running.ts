@@ -5,9 +5,10 @@
  * ordinary ones against the graph without results, commits their results,
  * then runs the gates (milestones and `@gate` examples) against a graph that
  * shows the ordinary results and no gate results. The gate of a milestone
- * that is met does not run again, and a workspace that cannot all be read as
- * written, has a scenario outside a rule or under a question, or a maturity off the ladder,
- * does not run at all. Works on any `FileSystem`, so executable specs run it in memory.
+ * that is met does not run again, and a workspace whose specs cannot all be read
+ * as written, whose globs match a path that is no file, or that has a scenario outside a rule or
+ * under a question, or a maturity off the ladder, does not run at all; code sdp could not read
+ * leaves the answer incomplete. Works on any `FileSystem`, so executable specs run it in memory.
  *
  * @sdp is ARCH-application
  * @sdp applies PAT-answer
@@ -47,7 +48,7 @@ import {
 import { type Answer, answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
-/** A selection with targets or tags that selects no scenario is refused. */
+/** A selection that selects no scenario, by its targets, its tags or the workspace's features globs, is refused. */
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */
   readonly targets?: ReadonlyArray<string> | undefined
@@ -80,8 +81,9 @@ const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "quest
 
 /**
  * Fails before anything runs on a workspace on which a result would mean nothing (run-specs says
- * why): part of it was not read as written, a scenario is outside a rule, an open question has
- * examples, or a maturity is no rung of the ladder.
+ * why): a spec was not read as written or a path the globs match is no file — what of the unread
+ * is an error — a scenario is outside a rule, an open question has examples, or a maturity is no
+ * rung of the ladder. Code that was not read, a warning, leaves the run's answer incomplete instead.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
@@ -189,12 +191,14 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
     return yield* new Refused({ reason: `nothing matches ${shown(empty)}: ${empty.length === 1 ? "it holds" : "they hold"} no scenario` })
   }
   const tags = options.selection?.tags
-  if (tags !== undefined && !before.project.specs.some((spec) => spec.scenarios.some((scenario) => selected(scenario, spec) !== undefined))) {
+  const { config } = before.project
+  if (!before.project.specs.some((spec) => spec.scenarios.some((scenario) => selected(scenario, spec) !== undefined))) {
     return yield* new Refused({
-      reason: `nothing matches --tags ${shown([tags])}${targets.length > 0 ? ` in ${shown(targets)}` : ""}: no example's tags match it`
+      reason: tags !== undefined
+        ? `nothing matches --tags ${shown([tags])}${targets.length > 0 ? ` in ${shown(targets)}` : ""}: no example's tags match it`
+        : `nothing matches the features globs ${shown(config.features)}: no spec they match holds a scenario`
     })
   }
-  const { config } = before.project
   // Whether an example is a gate is decided by its own tags and spec, and it runs as one only if it
   // is: an outline that is partly gates runs its other selected rows with the ordinary scenarios.
   const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {

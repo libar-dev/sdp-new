@@ -12,14 +12,14 @@ import { DateTime, Effect, Result } from "effect"
 import { architectureView, workOn } from "../arch/Architecture.ts"
 import { check as checkProject, compareWithBase } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { contextBundle } from "../graph/Context.ts"
+import { contextBundle, neighbourhood } from "../graph/Context.ts"
 import { type EdgeRecord, edgeRecord, type GraphRecord, mermaid, type NodeRecord, nodeRecord, stateRecords } from "../graph/Export.ts"
-import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords } from "../graph/Query.ts"
+import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords, walks } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
 import { type LifecycleReport, lifecycle as lifecycleReport, renderBrief, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast, type Diagnostic, problemLine, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
-import { Graph } from "../model/Graph.ts"
-import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
+import { Graph, type GraphNode } from "../model/Graph.ts"
+import { hasKind, isEnd, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
 import { baseOption, type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
@@ -60,12 +60,15 @@ const importsNotRead = (project: Project): ReadonlyArray<string> => {
   )
 }
 
-/** A query's result, and what to say about it: the limits that cut it short, the words the workspace does not know and, when it follows `imports`, the code whose imports sdp does not read. */
+/** Whether a node is an element: what it imports, and what imports it, is among its links. */
+const isElement = (project: Project, node: GraphNode) => isEnd(project.config.vocabulary, "element", node.kind)
+
+/** A query's result, and what to say about it: the limits that cut it short, the words the workspace does not know and, when it follows `imports`, by name or as any relation, the code whose imports sdp does not read. */
 const evaluate = Effect.fnUntraced(function*(project: Project, expression: string) {
   const parsed = parseQuery(expression)
   if (Result.isFailure(parsed)) return yield* parsed.failure
   const result = runQuery(project.graph, parsed.success, projectQueryOptions(project))
-  const followsImports = parsed.success.steps.some(({ edge }) => edge.rels.includes(made.relations.imports))
+  const followsImports = walks(parsed.success, made.relations.imports)
   return {
     result,
     about: {
@@ -104,7 +107,7 @@ export const show = Effect.fn("show")(function*(root: string, input: { readonly 
     in: graph.in(node.id).map(edgeRecord),
     neighbours: graph.nodes().filter((other) => others.has(other.id)).map(nodeRecord)
   }
-  return answer(project, data)
+  return answer(project, data, { notes: isElement(project, node) ? importsNotRead(project) : [] })
 })
 
 /** A step listing or matching is complete only when every registration in the step files was read. */
@@ -124,7 +127,12 @@ export const context = Effect.fn("context")(function*(root: string, input: { rea
   // The bundle matches the steps of the node's scenarios: a registration that was not read may define one of them.
   const matched = (project.specById.get(node.id)?.scenarios.length ?? 0) > 0
   const missing = matched ? stepsMissing(project) : []
-  return answer(project, contextBundle(project, node, depth, readSteps(project, builtinSteps.definitions)), { missing })
+  // An element in the bundle is shown with what it imports, or is in reach through it.
+  const showsImports = isElement(project, node) || neighbourhood(project, node.id, depth).some((other) => isElement(project, other))
+  return answer(project, contextBundle(project, node, depth, readSteps(project, builtinSteps.definitions)), {
+    missing,
+    notes: showsImports ? importsNotRead(project) : []
+  })
 })
 
 export interface DiagnosticRecord {

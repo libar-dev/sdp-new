@@ -21,8 +21,8 @@ const parsed = (text: string, what: string): unknown => {
  * What a command prints on stdout when it did what it was asked. A tool has no exit code to set
  * beside the command's, so a command that exits with anything but 0 is no answer to compare with.
  */
-const printed = async (command: string, directory: string) => {
-  const result = await exec(command, directory)
+const printed = async (command: string, directory: string, signal: AbortSignal) => {
+  const result = await exec(command, directory, "", signal)
   assert.equal(result.code, 0, `${command} exited with ${result.code}:\n${result.stdout}${result.stderr}`)
   return result.stdout
 }
@@ -34,9 +34,9 @@ const at = (json: unknown, path: string): unknown =>
 export default defineSteps(newWorld, ({ Then }) => {
   // The last answer — a tool's, in memory — against the command run on the same files on disk: with
   // --json the same envelope, field for field; else the same text as the command's stdout.
-  Then("the answer is what {string} prints", async ({ args: [command], world }) => {
+  Then("the answer is what {string} prints", async ({ args: [command], signal, world }) => {
+    const text = await printed(command, await workspace(world), signal)
     const answer = output(world)
-    const text = await printed(command, await workspace(world))
     if (/(^|\s)--json(\s|$)/.test(command)) {
       assert.deepEqual(parsed(answer, "the answer"), parsed(text, `what ${command} prints`))
     } else {
@@ -45,9 +45,9 @@ export default defineSteps(newWorld, ({ Then }) => {
   })
 
   // The last answer holds, whole, the text at one field of the JSON a command prints.
-  Then("the answer contains the {string} of what {string} prints", async ({ args: [path, command], world }) => {
+  Then("the answer contains the {string} of what {string} prints", async ({ args: [path, command], signal, world }) => {
+    const value = at(parsed(await printed(command, await workspace(world), signal), `what ${command} prints`), path)
     const answer = output(world)
-    const value = at(parsed(await printed(command, await workspace(world)), `what ${command} prints`), path)
     assert.ok(typeof value === "string" && value.trim() !== "", `${command} prints no text at ${path}`)
     assert.ok(answer.includes(value.trimEnd()), `the answer does not contain the ${path} of ${command}:\n${value}\n\nanswer:\n${answer}`)
   })
