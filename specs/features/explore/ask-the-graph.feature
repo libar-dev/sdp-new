@@ -11,9 +11,9 @@ Feature: Ask the graph
 
   Background:
     Given these specs:
-      | tags                                                  | Feature  |
-      | @id=checkout @maturity=ready @realized-by:ARCH-orders | Checkout |
-      | @id=refunds @maturity=idea @realized-by:ARCH-billing  | Refunds  |
+      | tags                                                             | Feature  |
+      | @id=checkout @maturity=ready @realized-by:ARCH-orders @points=13 | Checkout |
+      | @id=refunds @maturity=idea @realized-by:ARCH-billing @points=8   | Refunds  |
     And a file "src/orders.ts" containing:
       """
       import { bill } from "./billing.ts"
@@ -38,6 +38,8 @@ Feature: Ask the graph
 
   Rule: A question is one line: the nodes to start from, by kind, id or what they hold, then the links to follow, or to filter by
 
+    One line fits a shell argument and a scenario step, which is how gates and guards are written.
+
     Scenario Outline: A kind, an id, what a node holds, links followed, and links that filter
       When I query "<query>"
       Then the result is "<result>"
@@ -47,13 +49,22 @@ Feature: Ask the graph
         | feature\|element                                | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
         | #ARCH-orders\|refunds                           | ARCH-orders, refunds                                      |
         | feature[maturity>idea, realized-by=ARCH-orders] | checkout                                                  |
+        | feature[maturity<=ready]                        | checkout, refunds                                         |
+        | feature[maturity>=idea]                         | checkout, refunds                                         |
+        | feature[maturity<READY]                         | refunds                                                   |
+        | feature[points>8]                               | checkout                                                  |
+        | element[title='Ledger [legacy]']                | ARCH-ledger                                               |
         | #ARCH-billing -imports-> *                      | ARCH-ledger                                               |
         | #ARCH-billing <-imports\|realized-by- *         | ARCH-orders, refunds                                      |
+        | #ARCH-billing -imports- *                       | ARCH-ledger, ARCH-orders                                  |
         | #ARCH-orders -imports+-> *                      | ARCH-billing, ARCH-ledger, ARCH-orders                    |
         | element ?<-realized-by- feature[maturity=ready] | ARCH-orders                                               |
         | element !<-realized-by- *                       | ARCH-ledger                                               |
 
-  Rule: The answer is the nodes the question ends on, each with its kind, its state and the file and line it is written at, or every route to them
+  Rule: The answer is the nodes the question ends on, each with its kind, its state and the file and line it is written at, or the routes to them, a shortest one to each node reached as far as links lead
+
+    Every route around a cycle would never end, so a node reached as far as links lead is given one
+    route, a shortest one.
 
     Scenario: Two routes to billing, and a feature where it is written
       When I query "* -realized-by|imports-> #ARCH-billing"
@@ -66,6 +77,20 @@ Feature: Ask the graph
       And the output line with "checkout" contains "ready"
       And the output line with "checkout" contains "specs/checkout.feature:1"
 
+    Scenario: One shortest route to each node reached as far as links lead
+      Given these specs:
+        | tags                             | Feature |
+        | @id=A @kind=stop @next:B @next:C | A       |
+        | @id=B @kind=stop @next:D         | B       |
+        | @id=C @kind=stop @next:D         | C       |
+        | @id=D @kind=stop @next:A         | D       |
+      When I query "#A -next+-> *"
+      Then the paths are:
+        | A -next-> B                     |
+        | A -next-> C                     |
+        | A -next-> B -next-> D           |
+        | A -next-> B -next-> D -next-> A |
+
   Rule: One node can be looked up with every link it has, and the title at the other end
 
     Scenario: Billing, its links and its neighbours
@@ -76,13 +101,87 @@ Feature: Ask the graph
         | data.in.from          | ARCH-orders, code:src/billing.ts#bill, refunds |
         | data.neighbours.title | Ledger [legacy], Order service, Refunds, bill  |
 
+  @decided-by:free-vocabulary
+  Rule: A word the workspace does not know is pointed out with the closest one it knows: the question is still answered, and a step that asserts on it fails
+
+    A misspelt word matches nothing, and nothing found reads like an answer: a gate that asks for no
+    feature below a misspelt rung would pass whatever the features are.
+
+    Scenario Outline: Asked with <case>
+      When I run "sdp q '<query>'"
+      Then the exit code is 0
+      And the output contains "note: <note>"
+
+      Examples:
+        | case                 | query                    | note                                                |
+        | a misspelt kind      | featur                   | no kind featur; closest: feature                    |
+        | a misspelt id        | #ARCH-ordrs              | no node has the id ARCH-ordrs; closest: ARCH-orders |
+        | a misspelt relation  | feature -realised-by-> * | no relation realised-by; closest: realized-by       |
+        | a misspelt attribute | element[titel]           | element has no attribute titel; closest: title      |
+        | a misspelt rung      | feature[maturity<redy]   | no maturity redy; closest: ready                    |
+        | a misspelt stage     | feature[stage=verifed]   | no stage verifed; closest: verified                 |
+        | a tag without its @  | feature[tags=web]        | no tag web; a tag is written with its @, as @web    |
+
+    Scenario: A step that asks for nothing below a misspelt rung fails
+      Given a file "specs/gate.feature" containing:
+        """
+        Feature: Gate
+          Rule: Nothing is left below ready
+            Scenario: Nothing below ready
+              Then the query "feature[maturity<redy]" returns no results
+        """
+      When the workspace is run
+      Then the step 'the query "feature[maturity<redy]" returns no results' has status "failed"
+      And the step 'the query "feature[maturity<redy]" returns no results' reports 'no maturity redy; closest: ready'
+
+  Rule: Whatever sdp could not read as written makes every answer incomplete, noted at its file and line
+
+    What it left out is missing from the graph, so an answer could say that something is absent when
+    it is only unread.
+
+    Scenario Outline: An answer beside <problem>
+      Given a file "<file>" containing:
+        """
+        <content>
+        """
+      When I run "sdp q feature --ids"
+      Then the exit code is 2
+      And the output contains "not read: <at> [<rule>]"
+
+      Examples:
+        | problem                               | file                    | content                                                                | at                        | rule                  |
+        | a spec that does not parse            | specs/broken.feature    | @id=broken\nScenario: Without a feature                                | specs/broken.feature:2    | gherkin-syntax        |
+        | a spec of what code declares          | specs/ARCH-cart.feature | @id=ARCH-cart\nFeature: Cart                                           | specs/ARCH-cart.feature:1 | declared-in-spec      |
+        | an id declared twice                  | specs/twin.feature      | @id=checkout\nFeature: Checkout again                                  | specs/twin.feature:1      | duplicate-id          |
+        | a tag whose key is no word            | specs/odd.feature       | @id=odd @1st=x\nFeature: Odd                                           | specs/odd.feature:1       | tag-syntax            |
+        | a link named as a fact                | specs/odd.feature       | @id=odd @maturity:ready\nFeature: Odd                                  | specs/odd.feature:1       | link-syntax           |
+        | code that does not parse              | src/cart.ts             | /** @sdp is ARCH-cart */\nexport const = 1                             | src/cart.ts:2             | annotation-unreadable |
+        | an annotation on no declaration       | src/cart.ts             | export const cart = 1\n/** @sdp is ARCH-cart */                        | src/cart.ts:2             | annotation-ignored    |
+        | an import sdp cannot follow           | src/cart.ts             | /** @sdp is ARCH-cart */\nimport "./missing.ts"\nexport const cart = 1 | src/cart.ts:2             | import-unresolved     |
+        | a value another declaration overrides | src/cart.ts             | /** @sdp is ARCH-orders title=Orders */\nexport const cart = 1         | src/orders.ts:3           | declaration-conflict  |
+
+    Scenario: A path the globs match that leads to no file
+      Given the file "specs/gone.feature" is a symbolic link to "nowhere.feature"
+      When I run "sdp q feature --ids"
+      Then the exit code is 2
+      And the output contains "not read: specs/gone.feature:1 [not-a-file]"
+
   Rule: A question that reaches too far is cut short, and its answer says so and exits with 2
+
+    A bound keeps every question interactive: 12 links followed as far as they lead, and 10,000
+    routes at one step.
 
     Scenario: Links followed further than 12 hops
       Given a chain of 14 nodes linked by "next"
       When I run "sdp q '#N1 -next+-> node14'"
       Then the exit code is 2
       And the output contains "cut short: a + edge reaches further than 12 hops"
+
+    Scenario: More than 10,000 routes at one step
+      Given 101 specs, each linked to every other by "next"
+      When I run "sdp q '* -next-> *' --ids"
+      Then the exit code is 2
+      And the output contains "cut short: a step has more than 10000 paths"
 
   Rule: The same question gets the same answer on the command line, over MCP and from a program
 
@@ -136,17 +235,19 @@ Feature: Ask the graph
               Then alpha comes first
         """
       When the graph is exported
-      Then the output has one line per node and edge
-      And the output contains '<record>'
+      Then the output contains:
+        """
+        <record>
+        """
 
       Examples:
-        | record                                                                                                                                                                                                         |
-        | {"type":"node","id":"gone","kind":"missing","title":"gone","file":null,"line":null,"attrs":{}}                                                                                                                 |
-        | {"type":"edge","from":"alpha","rel":"realized-by","to":"ARCH-ledger","declared":[{"file":"specs/alpha.feature","line":1},{"file":"specs/alpha.feature","line":2}]}                                  |
-        | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"stage":"idea","toCome":true}}                                 |
-        | {"type":"node","id":"alpha","kind":"feature","title":"Alpha                                                                                                                                   |
-        | {"type":"node","id":"alpha#first","kind":"scenario","title":"First","file":"specs/alpha.feature","line":10,"attrs":{"rule":"alpha#alpha-comes-first","status":"unrun"}}                            |
-        | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"src/ledger.ts","line":3,"attrs":{}}                                                                         |
+        | record                                                                                                                                                                                            |
+        | {"type":"node","id":"gone","kind":"missing","title":"gone","file":null,"line":null,"attrs":{}}                                                                                                    |
+        | {"type":"edge","from":"alpha","rel":"realized-by","to":"ARCH-ledger","declared":[{"file":"specs/alpha.feature","line":1},{"file":"specs/alpha.feature","line":2}]}                                |
+        | {"type":"node","id":"alpha#alpha-comes-first","kind":"rule","title":"Alpha comes first","file":"specs/alpha.feature","line":5,"attrs":{"stage":"idea","toCome":true}}                             |
+        | {"type":"node","id":"alpha","kind":"feature","title":"Alpha \"with quotes\" and a \\\\ backslash","file":"specs/alpha.feature","line":1,"attrs":{"maturity":"idea","toCome":true,"stage":"idea"}} |
+        | {"type":"node","id":"alpha#first","kind":"scenario","title":"First","file":"specs/alpha.feature","line":10,"attrs":{"rule":"alpha#alpha-comes-first","status":"unrun"}}                           |
+        | {"type":"node","id":"ARCH-ledger","kind":"element","title":"Ledger [legacy]","file":"src/ledger.ts","line":3,"attrs":{}}                                                                          |
 
     Scenario: What is under a line is read where it is written, and where a node is written is its record's
       Given a file "specs/cart.feature" containing:
@@ -234,14 +335,49 @@ Feature: Ask the graph
 
   Rule: Questions stay interactive on workspaces far larger than a typical repository's
 
+    Agents ask many small questions while they work.
+
     @serial
-    Scenario: A question over 20,000 nodes answers within 250 ms
-      Given a generated graph of 20000 nodes and 60000 edges
-      When the query "feature[maturity=ready] -realized-by-> element -decided-by-> decision" runs on it
+    Scenario Outline: A question over 20,000 nodes answers within 250 ms
+      Given a random graph of 20000 nodes and 60000 edges
+      When the query "<query>" runs on it, for at most 10 seconds
+      Then the median run completes within 250 ms
+
+      Examples:
+        | query                                                                 |
+        | feature[maturity=ready] -realized-by-> element -decided-by-> decision |
+        | element ?-*+-> decision                                               |
+        | element !-*+-> decision                                               |
+        | * -*+-> *                                                             |
+
+  @maturity=specified @iteration:IT-scale
+  Rule: A question whose filter accepts no node answers as quickly as one whose filter finds one
+
+    A misspelt kind is enough to ask one, and learning that nothing is there should cost no more than
+    finding what is.
+
+    @serial
+    Scenario: The elements that lead to no milestone, over 20,000 nodes
+      Given a random graph of 20000 nodes and 60000 edges
+      When the query "element !-*+-> milestone" runs on it, for at most 2 seconds
       Then the median run completes within 250 ms
 
   @maturity=draft @iteration:IT-scale
   Rule: A question on 5,000 specs and 20,000 source files on disk answers within a second, the median of warm runs
+
+    @serial
+    Scenario: The code behind the features still to come, from a fresh process
+      Given a generated workspace of 5000 specs and 20000 source files on disk
+      When "sdp q 'feature[maturity=ready] -realized-by-> element <-is- code' --ids" runs 3 times after a run that warms it up
+      Then the exit code is 0
+      And the median run completes within 1000 ms
+
+  @open
+  Rule: Does every JSON answer — q and sdp_query, show, arch, lifecycle and check — give its nodes and edges as the records sdp graph prints?
+
+    Only graph gives what an author wrote and the facts the state keeps: q, show, arch and lifecycle
+    add derived attributes, arch and lifecycle fields beside a node's own, a route's edges are {from,
+    rel, to} alone, show adds the rule-of and verifies edges, and check names a node by its id.
 
   @maturity=idea
   Rule: An answer names the commit it was read at, says when the files differ from it, and which files it could not read

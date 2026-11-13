@@ -6,7 +6,9 @@
  * @sdp is PAT-static-reading
  */
 import { Predicate } from "effect"
-import { parseSync } from "oxc-parser"
+import { parseSync, type ParserOptions, rawTransferSupported } from "oxc-parser"
+
+const rawTransfer = rawTransferSupported()
 
 export interface Comment {
   readonly type: "Line" | "Block"
@@ -91,7 +93,13 @@ export const parseScript = (file: string, content: string): Script | undefined =
     return lo + 1
   }
 
-  const parsed = parseSync(file, content, { lang, sourceType: "module" })
+  // oxc honours this option at runtime, though 0.158 does not yet declare it in ParserOptions.
+  const options: ParserOptions & { readonly experimentalRawTransfer?: boolean } = {
+    lang,
+    sourceType: "module",
+    ...(rawTransfer ? { experimentalRawTransfer: true } : {})
+  }
+  const parsed = parseSync(file, content, options)
   const program = parsed.program as unknown as Script["program"]
   const error = parsed.errors[0]
   return {
