@@ -117,6 +117,12 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return indexOf(path, lookup)
   }
   const indexOf = (directory: string, lookup: Lookup) => suffixed(at.join(directory, "index"), addedExtensions, lookup).find((candidate) => contents.has(candidate))
+  /** Whether a declaration file the workspace's code holds is what a path names, as TypeScript completes it: a module of types alone, which holds no code. */
+  const declares = (path: string, how: "file" | "directory", lookup: Lookup) => {
+    const stem = path.replace(/\.([cm]?)[jt]sx?$/, "")
+    const files = how === "file" ? [".d.ts", ".d.mts", ".d.cts"].flatMap((extension) => suffixed(stem, [extension], lookup)) : []
+    return [...files, ...suffixed(at.join(path, "index"), [".d.ts"], lookup)].some((candidate) => contents.has(candidate))
+  }
 
   /** The conditions `imported` is resolved under in `file`, read with `options`, besides `default`. */
   const conditionsOf = (file: string, imported: Import, options: Settings, resolution: Resolution): ReadonlySet<string> => {
@@ -297,7 +303,16 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const take = (target: string): Walk => {
       if (/^\.\.?\//.test(target)) return entry(directoryOf(scope), target, "exactly", lookup)
       const walk = packageOf(file, target, lookup)
-      return walk.found === undefined ? { ...walk, found: {} } : walk
+      if (walk.found !== undefined) return walk
+      return {
+        ...walk,
+        found: {
+          unresolved: {
+            message: `"${specifier}" is mapped by the imports of ${scope} to ${target}, which is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved`,
+            hint: `declare ${packageName(target).name} in the dependencies of package.json, or map ${specifier} to a code file in the imports of ${scope}`
+          }
+        }
+      }
     }
     const walk = pick(imports[key.key]!, key.star, lookup.conditions, take)
     if (walk.found !== undefined) return walk
@@ -391,8 +406,15 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
     if (/^\.\.?(\/|$)/.test(specifier)) {
       const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options), exports: false, imports: false }
+      const path = at.join(directoryOf(file), specifier)
+      const how = /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file"
+      const module = fileAt(path, how, lookup)
+      // A name that leads where the workspace's code is names what would be read as code, if it were there.
+      const missing = module === undefined && !namesNoCode(path) && !declares(path, how, lookup) && !path.startsWith("..") &&
+        hasCode(how === "directory" ? path : directoryOf(path))
       return {
-        module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup),
+        module,
+        unresolved: missing ? { message: `"${specifier}" names no code file of the workspace, so it is not resolved`, hint: "correct the name" } : undefined,
         unread: options.unread.filter((each) => each.setting !== undefined && completing.has(each.setting)),
         outside: options.outside
       }
