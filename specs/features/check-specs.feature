@@ -382,10 +382,11 @@ Feature: Check specs
       Then sdp reports nothing
 
       Examples:
-        | kind   | case                                    | config                                     |
-        | done   | a word for built work                   | # every key at its default                 |
-        | idea   | no rung of a ladder of the team's own   | vocabulary: { maturity: [sketch, agreed] } |
-        | change | in a workspace with a kind of that name | vocabulary: { words: { kinds: [change] } } |
+        | kind   | case                                          | config                                     |
+        | done   | a word for built work                         | # every key at its default                 |
+        | idea   | no rung of a ladder of the team's own         | vocabulary: { maturity: [sketch, agreed] } |
+        | change | in a workspace with a kind of that name       | vocabulary: { words: { kinds: [change] } } |
+        | change | in a workspace that gives its ids a prefix    | ids: { change: CHG }                       |
 
   Rule: Nothing live stops being live without an error
 

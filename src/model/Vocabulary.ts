@@ -218,15 +218,16 @@ export const retired = { kinds: ["change"] } as const
 /**
  * Why a word cannot be a kind, or `undefined` for one that can: a rung of the ladder or a stage says
  * how far work has come, and a kind sdp retired is read no more — each unless the workspace names a
- * kind of that name. `is` says which, for what to write instead. Any other word is the authors' (the
- * decision free-vocabulary); `sdp check` reports what this names where it is written, and `sdp new`
- * refuses it.
+ * kind of that name, in its vocabulary or among the kinds its `ids` give a prefix (`named`). `is` says
+ * which, for what to write instead. Any other word is the authors' (the decision free-vocabulary);
+ * `sdp check` reports what this names where it is written, and `sdp new` refuses it.
  */
 export const notAKind = (
   vocabulary: Vocabulary,
-  kind: string
+  kind: string,
+  named: ReadonlyArray<string> = []
 ): { readonly is: "rung" | "stage" | "retired"; readonly reason: string } | undefined =>
-  vocabularyWords(vocabulary).kinds.includes(kind)
+  vocabularyWords(vocabulary).kinds.includes(kind) || named.includes(kind)
     ? undefined
     : vocabulary.maturity.includes(kind)
     ? { is: "rung", reason: `${kind} is a maturity, not a kind` }

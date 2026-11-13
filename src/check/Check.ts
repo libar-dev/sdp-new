@@ -203,7 +203,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const feature = wordFor(vocabulary.kinds.feature)
   for (const spec of project.specs) {
     const line = spec.attrLines.kind
-    const notKind = line === undefined ? undefined : notAKind(vocabulary, spec.kind)
+    const notKind = line === undefined ? undefined : notAKind(vocabulary, spec.kind, Object.keys(project.config.ids))
     if (notKind === undefined) continue
     out.push(diagnostic("not-a-kind", {
       message: `${spec.id} declares @kind=${spec.kind}: ${notKind.reason}`,

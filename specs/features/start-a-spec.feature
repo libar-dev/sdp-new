@@ -249,6 +249,7 @@ Feature: Start a spec
         | idea     | no rung of a ladder of the team's own        | vocabulary: { maturity: [sketch, agreed] } | 0         | specs/idea/gift-wrapping.feature                                                                                   |
         | verified | a stage                                      | # every key at its default                 | 1         | verified is a stage sdp derives from the run, not a kind: sdp new feature "Gift wrapping" writes a feature at idea |
         | idea     | in a workspace with a kind of that name      | vocabulary: { words: { kinds: [idea] } }   | 0         | specs/idea/gift-wrapping.feature                                                                                   |
+        | idea     | in a workspace that gives its ids a prefix   | ids: { idea: IDEA }                        | 0         | IDEA-gift-wrapping                                                                                                 |
 
   Rule: Any one-word kind can be created, and new --help names those with a template of their own
 

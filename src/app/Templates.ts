@@ -108,7 +108,7 @@ export const newSpec = (options: {
   const id = options.id ?? newId(kind, title, config, graph.nodes().map((node) => node.id))
   const template = templateOf(kind, vocabulary)
   // How far work has come is its maturity, and a change is rules of a feature: neither is a kind, as check reports.
-  const notKind = notAKind(vocabulary, kind)
+  const notKind = notAKind(vocabulary, kind, Object.keys(config.ids))
   if (notKind !== undefined) {
     const first = vocabulary.maturity[0]!
     const start = `sdp new ${feature} ${JSON.stringify(title)}`
