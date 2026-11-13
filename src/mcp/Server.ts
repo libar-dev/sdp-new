@@ -71,7 +71,7 @@ const SdpContext = readOnly(Tool.make("sdp_context", {
     "Everything needed to work on one node, as Markdown: its rules with their state and reason, its scenarios with their status and the step definitions still to write (no run needed), the rest of the spec as written, relationships, architecture, quality requirements with their measures and decisions in reach, linked code.",
   parameters: Schema.Struct({
     id: Schema.String,
-    depth: Schema.optional(Schema.Int).annotate({ description: "Hops to search for architecture and decisions, 1 to 6 (default 2)" })
+    depth: Schema.optional(Schema.Int).annotate({ description: "Hops to search for architecture, quality requirements and decisions, 1 to 6 (default 2)" })
   }),
   ...text
 }))
@@ -174,9 +174,11 @@ const handlers = (root: string) =>
 export const registrations = (root: string) => McpServer.toolkit(SdpToolkit).pipe(Layer.provide(handlers(root)))
 
 export const instructions = [
-  "sdp exposes a software delivery graph: features (each with its requirements, quality ones included, as rules with examples) still to come at a maturity, or live once built, when they declare none and their examples must pass, decisions, curated architecture (the elements and patterns architects declared), lifecycle (milestones, iterations, phases), scenarios with execution status, and the code anchored to the architecture.",
+  "sdp exposes a software delivery graph: features, decisions, the curated architecture, the delivery plan, the scenarios with what they did when they last ran, and the code anchored to the architecture.",
+  "A feature's requirements, quality ones included, are its rules, and its scenarios are their examples. A feature or a rule declares a maturity while it is still to come; once it is built it declares none and is live, and its examples must pass.",
+  "The architecture is the elements and patterns architects declared; the plan is milestones, phases and iterations.",
   "Start with sdp_status, then sdp_query; use sdp_context before working on a spec, sdp_snippets to automate its scenarios and sdp_steps to find a step definition to extend.",
-  "An answer that starts with \"incomplete:\" was given from a workspace sdp could not fully read: its notes say what is missing, so do not conclude that something is absent.",
+  "An answer that starts with \"incomplete:\" may miss something — a file sdp could not read, an import it could not follow, a question cut short: its notes say what, so do not conclude that something is absent.",
   "Code links to the architecture, not to features. A tag in the doc comment of a declaration, `@sdp is ARCH-orders`, says which code an element is, in every language; in the comment that opens a file, it says the file is, and the rest of the comment describes it. A feature names its element with `realized-by`, so the way from a feature to its code is `feature -realized-by-> element <-is- code`.",
   "What belongs in the architecture is the architects' call: propose an element, a pattern or an `is` annotation, do not add or remove one yourself.",
   `Relations are free-form; sdp's templates use ${relationVocabulary}.`,

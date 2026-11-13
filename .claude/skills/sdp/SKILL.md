@@ -55,26 +55,28 @@ Feature: Guest checkout
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
   scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
-  named by its path and run as it is. A live rule without an example is an error; one still to
-  come is a to-do.
-- **A Feature or a Rule still to come declares a `@maturity=`; one that is built declares none, and
-  is live.** The maturity — idea, draft, specified, ready, or a word of the team's own — is the
-  team's judgement, and sdp checks nothing about it but the retired rung `implemented`, an error to
-  delete: whatever it says, the work is still to come, and its examples run and fail no run, so
-  they are written before the code. A live Feature or Rule is a test: its examples must pass, and
-  live work — a kind a discipline names — without a live rule is an error. A
-  Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
-  it, each with a maturity of its own, with
+  named by its path and run as it is.
+- **What is still to come declares a `@maturity=`; what is built declares none, and is live.** The
+  maturity of a Feature or a Rule — idea, draft, specified, ready, or a word of the team's own — is
+  how far it has come in the team's judgement, and sdp reads no meaning into its value, but for the
+  retired rung `implemented`, an error to delete: whatever it says, the work is still to come, and
+  its examples run and fail no run, so they are written before the code; a rule still to come
+  without an example is a to-do. A live Feature or Rule is a test: its examples must pass, a live
+  rule without an example is an error, and so is live work — a feature, or any kind a discipline
+  names — without a live rule. A Rule without a maturity of its own has its Feature's, so a change
+  to a built feature is rules of it, each with a maturity of its own, with
   `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
-  Nothing live goes back: `sdp check` compares the specs with the git base (where HEAD meets the
-  default branch, or `--base`; without one its answer is incomplete, and `--base none` waives it).
-  A maturity or `@open` on what was live there is an error, whatever replaces it; so is a live
-  example of the base that is gone, a gate or still to come, unless what replaces its rule or its
-  feature is live with a live example of its own whose steps no live example had there.
-  Examples are compared one for one, each row of an outline on its own: a new name or place for one
-  is no removal, one edited under its name is the same example, and one renamed with its steps
-  edited, or merged into another, is named where it went, `@replaces:<feature>#<example>` on that
-  Scenario in that change.
+- **Nothing live goes back.** `sdp check` compares the specs with the git base: where HEAD meets
+  the default branch, or the revision `--base` or `base:` in the configuration names, read with the
+  configuration it had there. Without a base, or with a spec there that sdp cannot read, its answer
+  is incomplete; `--base none` waives the comparison. A maturity or `@open` on what was live at the
+  base is an error, whatever replaces it; so is a live example of the base that is gone, or that
+  here fails no run, as a gate or as work still to come, unless what replaces its rule or its
+  feature is live with a live example of its own whose steps no live example had there. Examples
+  are compared one for one, each row of an outline on its own: a new name or place for one is no
+  removal, one edited under its name is the same example, and one renamed with its steps edited,
+  or merged into another, is named where it went, `@replaces:<feature>#<example>` on that Scenario
+  in that change.
 - **An open question is a Rule tagged `@open`**, its name the question. Answering it means
   renaming it into the rule that was chosen and deleting the tag. A question is still to come, and
   has no examples; a Scenario is an example, tagged `@open` or not. What is undecided or waits on
@@ -119,15 +121,18 @@ The sharp edges of the format, each what the official parser does:
   generates from the code (`sdp arch`): the tag `@sdp is ARCH-x` in the doc comment of a
   module-level declaration, or in the comment that opens a file, declares an element where its code
   is, the rest of that comment says what it is for, and sdp derives which element `imports` which
-  from the TypeScript and JavaScript anchored to them, so nobody writes it. An element is in the graph because someone
-  decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
+  from the TypeScript and JavaScript anchored to them, so nobody writes it. `@sdp is PAT-y` declares
+  a pattern in the code its instances share, and code that applies it says so with
+  `@sdp plays PAT-y`, so that the element it is plays it too. An element is in the graph because
+  someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
   features, and a feature names its element with `@realized-by:`.
 - **Specs instead of prose.** A claim that can be structured or checked is a link or a rule with
   examples, not a paragraph. When you would write "X depends on Y" or "this must never happen",
-  write the link or the rule (between elements, the code's imports already say it). A description says what the examples cannot — never a "verified by"
-  list, a status, or a restatement of the rules below it. When a sentence becomes a rule, delete
+  write the link or the rule (between elements, the code's imports already say it). A description
+  says what the examples cannot — never a "verified by" list, a status, or a restatement of the
+  rules below it. When a sentence becomes a rule, delete
   the sentence: move it, do not copy it.
 - **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
   context and a real trade-off, and that spans features, is recorded: a Feature whose name is the
@@ -141,15 +146,18 @@ The sharp edges of the format, each what the official parser does:
   its example is measured: the environment, the stimulus, the response and its measure. A feature
   is not split into requirement, quality requirement and element files; it names a technology only
   where its users see one.
-- **Evidence, not status.** Scenarios are the tests. The stage `verified` is derived from a run
-  and goes stale when what it ran against changes; `@stage=` written by hand is an error.
+- **Evidence, not status.** Scenarios are the tests. A scenario's status is what it did when it
+  last ran — passed, failed, undefined and the like — and from its examples' statuses sdp derives a
+  rule's or a spec's verification, from none to passing, and its stage: the maturity of work still
+  to come, and unrun, failing, in-progress or verified for live work. A result goes stale when what
+  it ran against changes, and none of these is written by hand: `@stage=` is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
   few words sdp itself interprets in this workspace.
 
 ## Go through the graph first
 
-The graph already knows which feature an element realises, which decision constrains it and
-which file implements it, each with its `file:line`. Asking it gets you to the right three files
+The graph already knows which feature an element realizes, which decision constrains it and
+which code is it, each with its `file:line`. Asking it gets you to the right three files
 faster than grepping for a guess.
 
 - **One node, everything around it:** `sdp context <id>` — its rules with their state and reason,
@@ -184,8 +192,10 @@ Plain grep is still right for what tags make literal: `grep -rn '@id=use-postgre
 declaration, `grep -rn ':use-postgres\b'` every link to it, `grep -rn -A1 '@open'` every open question.
 
 **An answer says when it is incomplete.** If sdp could not read a file, dropped a tag it could not
-read as written, or cut a traversal short, it prints `incomplete:` and `note:` lines on stderr and exits with code 2; with `--json` the
-answer is `{ complete, notes, data }` and `complete` is `false`. Do not conclude that something is
+read as written, could not follow an import that may name the workspace's code, cut a traversal
+short or, in `sdp check`, compared nothing with a base, it prints `incomplete:` and `note:` lines on
+stderr and exits with code 2; with `--json` the answer is `{ complete, notes, data }` and
+`complete` is `false`. Do not conclude that something is
 absent from an incomplete answer — fix what the note names (`sdp check` lists it) and ask again. A
 `note:` on a complete answer is worth reading too: it is how sdp tells you a kind or relation you
 typed does not exist and which one is closest.
@@ -193,7 +203,7 @@ typed does not exist and which one is closest.
 ## Changing behaviour
 
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"`
-   writes it where it stays, with what to write in it next. A change to a built feature is rules
+   writes it where it stays, and says what to write in it next. A change to a built feature is rules
    of it, each with a maturity of its own until it is built. What a user sees belongs to a
    feature; a rule only the code observes, to the rules of the architecture.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
