@@ -715,8 +715,8 @@ Feature: Plan delivery
 
   Rule: A gate passes only when every one of its scenarios passed, run against the current graph
 
-    A gate scenario nobody has automated has not passed, and a result from before the graph changed
-    says nothing of the graph as it is now.
+    A gate scenario nobody has automated has not passed, and a result from before the graph changed,
+    one that went stale while the gate ran included, says nothing of the graph as it is now.
 
     Scenario: A step not automated yet
       Given a file "specs/MS-release.feature" containing:
@@ -732,6 +732,37 @@ Feature: Plan delivery
       When I run "sdp gate MS-release"
       Then the exit code is 1
       And the output contains "1 undefined"
+
+    Scenario: A gate scenario edited while it runs
+      Given a file "specs/MS-release.feature" containing:
+        """
+        @id=MS-release
+        Feature: Release
+
+          Rule: The package is published
+
+            Scenario: Published
+              Given the gate is edited while it runs
+        """
+      And a file "specs/steps/edit.steps.ts" containing:
+        """
+        import { readFileSync, writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("the gate is edited while it runs", () => {
+            const file = "specs/MS-release.feature"
+            writeFileSync(file, readFileSync(file, "utf8").replace("the gate is edited while it runs", "a step nobody wrote"))
+          })
+        })
+        """
+      When I run "sdp gate MS-release --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.passed                     | false |
+        | data.gates.passed               | 1     |
+        | data.wentStale.scenario-changed | 1     |
+      And the output contains "MS-release#published passed, and went stale while the gate ran (scenario-changed): a gate passes only on results that still count"
 
   Rule: Nothing enforces a gate unasked: a run reports it apart from the work, and only sdp gate fails on it
 
