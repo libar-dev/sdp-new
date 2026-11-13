@@ -20,7 +20,7 @@ Read by the official Gherkin parser as it is; sdp adds no syntax of its own. Mar
 nothing.
 
 ```gherkin
-@id=guest-checkout @maturity=specified @checkout       # what it is: = is a value; a bare tag is a tag
+@id=guest-checkout @maturity=specified @checkout       # what it is: = is a fact; a bare tag is a Cucumber tag
 @depends-on:cart-totals @realized-by:ARCH-orders       # what it links to: one tag, one link
 @iteration:IT-payments                                 # the iteration it is planned into
 Feature: Guest checkout
@@ -42,15 +42,15 @@ Feature: Guest checkout
   Rule: Can a guest save the cart for later?
 ```
 
-- **`@key=value` describes, `@rel:ID` links**, and the first `=` or `:` decides; a tag with
-  neither is a Cucumber tag, and one whose key is not a word (`@1st=x`) is an error. Above
-  `Feature:` they are about the spec, above `Rule:` about the rule, above `Scenario:` about the
-  scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the id's prefix when it is
-  not written, and an id with no prefix sdp knows is a feature's. A key written twice is a list,
-  `@owner.team=core` nests, and a value that reads back as a number is one. Annotations are not
-  tags: they are not inherited, not matched by `--tags` and not part of a scenario's hash, so
-  re-planning a spec leaves the results of its scenarios valid — except those of scenarios that
-  read the graph, which any change to a spec makes stale.
+- **Everything written with `@` is a tag: `@key=value` is a fact, `@rel:ID` a link**, the first `=`
+  or `:` decides, and a tag with neither is a Cucumber tag; one whose key is not a word (`@1st=x`)
+  is an error. Above `Feature:` they are about the spec, above `Rule:` about the rule, above
+  `Scenario:` about the scenario. Only a Feature has `@id=` and `@kind=`; the kind comes from the
+  id's prefix when it is not written, and an id with no prefix sdp knows is a feature's. A key
+  written twice is a list, `@owner.team=core` nests, and a value that reads back as a number is one.
+  Facts and links are not Cucumber tags: they are not inherited, not matched by `--tags` and not
+  part of a scenario's hash, so re-planning a spec leaves the results of its scenarios valid —
+  except those of scenarios that read the graph, which any change to a spec makes stale.
 - **The Feature is the node**: its name is the title, its first paragraph the summary.
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
@@ -103,7 +103,7 @@ The sharp edges of the format, each what the official parser does:
 
 - A tag holds no whitespace, so a value with a space has no tag form (`@title=Two words` is a
   parse error): it is a sentence, and belongs in a description.
-- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a bare tag `@b.c`.
+- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a Cucumber tag `@b.c`.
 - Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
   kept, so `@verifies:guest-checkout#slug` links to a rule.
 - A Background cannot be tagged. After the first Rule every scenario belongs to the rule above

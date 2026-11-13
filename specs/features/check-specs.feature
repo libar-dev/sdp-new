@@ -58,10 +58,10 @@ Feature: Check specs
         | duplicate-id          | error    | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n  Rule: R                                                                                                                           |
         | dangling-link         | error    | specs/reports.feature          | 1    | @id=reports @depends-on:gone\nFeature: Reports                                                                                                                                |
         | link-syntax           | error    | specs/reports.feature          | 1    | @id=reports @maturity:ready\nFeature: Reports                                                                                                                                 |
+        | tag-syntax            | error    | specs/reports.feature          | 1    | @id=reports @uses:A,B\nFeature: Reports                                                                                                                                       |
         | declaration-conflict  | warning  | src/billing.py                 | 2    | # @sdp is ARCH-billing owner=payments\n# @sdp is ARCH-billing owner=finance\nclass Billing: pass                                                                          |
         | derived-attribute     | error    | specs/reports.feature          | 1    | @id=reports @stage=verified\nFeature: Reports                                                                                                                                 |
         | gherkin-syntax        | error    | specs/reports.feature          | 7    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Rows\n      Given the rows:\n        \| a \| b \|\n        \| c \|                                                    |
-        | annotation            | error    | specs/reports.feature          | 1    | @id=reports @uses:A,B\nFeature: Reports                                                                                                                                       |
         | description-comment   | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Why:\n  # not read\n  because.                                                                                                               |
         | scenario-empty        | warning  | specs/reports.feature          | 4    | @id=reports\nFeature: Reports\n  Rule: R\n    Scenario: Nothing yet                                                                                                           |
         | scenario-outside-rule | error    | specs/reports.feature          | 3    | @id=reports\nFeature: Reports\n  Scenario: S\n    Then it works                                                                                                               |
@@ -1240,7 +1240,7 @@ Feature: Check specs
         | @iteration=IT-beta     | link-syntax    | iteration is a link, so a value written with = links nothing       | write @iteration:IT-beta                                |
         | @activity.test=IT-beta | link-syntax    | activity.test is a link, so a value written with = links nothing   | write @activity.test:IT-beta                            |
         | @activity:IT-beta      | plan-reference | activity names no discipline, so its link to IT-beta plans nothing | name the discipline, `@activity.implementation:IT-beta` |
-        | @owner=                | annotation     | owner has no value                                                 | write @owner=<value>, or @owner alone                   |
+        | @owner=                | tag-syntax     | owner has no value                                                 | write @owner=<value>, or @owner alone                   |
 
   @decided-by:specs-are-gherkin-files
   Rule: A Markdown file where specs live is reported with what to write instead, because sdp reads none of it

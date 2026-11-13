@@ -22,7 +22,7 @@ export interface LinkDecl {
 }
 
 /** What the tags above a Feature, a Rule or a Scenario say about it. */
-export interface Annotations {
+export interface Tagged {
   /** Cucumber tags, as written (`@slow`): inherited, matched by `--tags`, seen by a step handler. */
   readonly tags: ReadonlyArray<string>
   /** `@key=value`: facts about the node. A key written again holds a list; `@owner.team=core` nests. */
@@ -52,7 +52,7 @@ export interface PickleStep {
 /** One executable instance of a scenario (an outline yields one per example row). */
 export interface Pickle {
   readonly name: string
-  /** The Cucumber tags it inherits and its own; annotations are facts about a node, not tags. */
+  /** The Cucumber tags it inherits and its own; its facts and links are about a node, and no Cucumber tags. */
   readonly tags: ReadonlyArray<string>
   readonly steps: ReadonlyArray<PickleStep>
   /** Line of the example row this pickle came from, for outlines. */
@@ -60,14 +60,14 @@ export interface Pickle {
 }
 
 /** A `Rule:`: what must hold, why (its description), and the scenarios after it are its examples. */
-export interface Rule extends Annotations {
+export interface Rule extends Tagged {
   readonly id: string
   readonly name: string
   readonly description?: string | undefined
   readonly line: number
 }
 
-export interface Scenario extends Annotations {
+export interface Scenario extends Tagged {
   readonly id: string
   readonly specId: string
   readonly name: string
@@ -90,7 +90,7 @@ export interface Paragraph {
 }
 
 /** What a Feature says about itself: its name, its tags and the paragraphs under it. */
-export interface FeatureHead extends Annotations {
+export interface FeatureHead extends Tagged {
   readonly name: string
   readonly description: ReadonlyArray<Paragraph>
   /** The dialect its keywords are written in: `en`, unless the file's `# language:` names another. */
@@ -102,9 +102,9 @@ export interface GherkinError {
   readonly line: number
 }
 
-/** Something the parser accepts that sdp cannot read as written: an annotation where it says nothing, a line Gherkin drops. */
+/** Something the parser accepts that sdp cannot read as written: a tag that says nothing where it is, a line Gherkin drops. */
 export interface GherkinProblem {
-  readonly rule: Extract<RuleId, "annotation" | "description-comment" | "gherkin-syntax" | "link-syntax">
+  readonly rule: Extract<RuleId, "tag-syntax" | "description-comment" | "gherkin-syntax" | "link-syntax">
   readonly message: string
   readonly line: number
   readonly hint: string
@@ -171,7 +171,7 @@ const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<
   }
 }
 
-/** Where a tag sits: what an annotation there is about, and which ones it may hold. */
+/** Where a tag sits: what a fact or a link there is about, and which ones it may hold. */
 type Level = "Feature" | "Rule" | "Scenario" | "Examples"
 
 /** A value that reads back as the number it is written as is a number; `true` and `false` are booleans; the rest is text. */
@@ -183,15 +183,15 @@ const tagValue = (text: string): unknown => {
 
 /**
  * What the tags of one element say. `=` makes a fact, `:` a link, and the first of them decides;
- * a tag with neither is a Cucumber tag. An annotation that cannot mean what it says is a problem,
- * and neither a fact nor a tag. What a spec is — its `id` and `kind` — is the text written.
+ * a tag with neither is a Cucumber tag. A tag that cannot mean what it says is a problem, and
+ * neither a fact, a link nor a Cucumber tag. What a spec is — its `id` and `kind` — is the text written.
  */
-const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: LinkKeys, problems: Array<GherkinProblem> = []): Annotations => {
+const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: LinkKeys, problems: Array<GherkinProblem> = []): Tagged => {
   const plain: Array<string> = []
   const values = new Map<string, Array<unknown>>()
   const attrLines = new Map<string, number>()
   const links: Array<LinkDecl> = []
-  const problem = (tag: Messages.Tag, message: string, hint: string, rule: GherkinProblem["rule"] = "annotation") =>
+  const problem = (tag: Messages.Tag, message: string, hint: string, rule: GherkinProblem["rule"] = "tag-syntax") =>
     problems.push({ rule, message: `${tag.name}: ${message}`, line: tag.location.line, hint })
   for (const tag of tags) {
     const at = tag.name.search(/[=:]/)
@@ -214,9 +214,9 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
         "declare it on the Rule the example is under, or on its Feature; a rule without one has its Feature's"
       )
     } else if (level === "Examples") {
-      problem(tag, "an annotation on Examples is about no node", "put it on the Scenario or the Rule above; a plain tag such as @slow selects the table's rows")
+      problem(tag, "a fact or a link on Examples is about no node", "put it on the Scenario or the Rule above; a Cucumber tag such as @slow selects the table's rows")
     } else if (value === "") {
-      problem(tag, `${key} has no value`, `write @${key}${separator}${separator === ":" ? "<ID>" : "<value>"}, or @${key} alone for a plain tag`)
+      problem(tag, `${key} has no value`, `write @${key}${separator}${separator === ":" ? "<ID>" : "<value>"}, or @${key} alone for a Cucumber tag`)
     } else if (separator === "=" && linkKeys(key)) {
       problem(tag, `${key} is a link, so a value written with = links nothing`, `write @${key}:${value}`, "link-syntax")
     } else if (level !== "Feature" && (key === "id" || key === "kind")) {
@@ -259,7 +259,7 @@ const nested = (values: ReadonlyMap<string, ReadonlyArray<unknown>>, tags: Reado
     if (!at || at.get(leaf) instanceof Map) {
       const tag = tags.find((candidate) => candidate.name.startsWith(`@${key}=`))!
       problems.push({
-        rule: "annotation",
+        rule: "tag-syntax",
         message: `${tag.name}: ${path[0] ?? leaf} is written as a value and as a map`,
         line: tag.location.line,
         hint: `write either @${path[0] ?? leaf}=… or @${path[0] ?? leaf}.<key>=…`
@@ -272,8 +272,8 @@ const nested = (values: ReadonlyMap<string, ReadonlyArray<unknown>>, tags: Reado
   return record(root)
 }
 
-/** Whether a tag is an annotation — a fact or a link about the node it sits on, or meant as one — rather than a Cucumber tag. */
-const isAnnotation = (tag: string): boolean => /[=:]/.test(tag)
+/** Whether a tag is a fact or a link about the node it sits on, or meant as one, rather than a Cucumber tag. */
+const isFactOrLink = (tag: string): boolean => /[=:]/.test(tag)
 
 /** The text under a keyword line, without the indentation it was written with. */
 const describe = (description: string): string | undefined => {
@@ -409,7 +409,7 @@ const readFeature = (
   const scenarios = scenarioDefs.map(({ rule, scenario }, index): Scenario => {
     const compiled = (picklesByScenario.get(scenario.id) ?? []).map((pickle): Pickle => ({
       name: pickle.name,
-      tags: pickle.tags.map((tag) => tag.name).filter((tag) => !isAnnotation(tag)),
+      tags: pickle.tags.map((tag) => tag.name).filter((tag) => !isFactOrLink(tag)),
       exampleLine: pickle.astNodeIds[1] ? astLines.get(pickle.astNodeIds[1]) : undefined,
       steps: pickle.steps.map((step): PickleStep => {
         const ast = astSteps.get(step.astNodeIds[0]!)

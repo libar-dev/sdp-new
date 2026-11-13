@@ -45,7 +45,7 @@ export interface Vocabulary {
     readonly closes: Words
     /** The edge sdp makes from a scenario to its spec. */
     readonly scenario: string
-    /** The relation of the code tag that anchors a node in code and declares it. */
+    /** The relation of the code annotation that anchors a node in code and declares it. */
     readonly anchor: string
     /** From a rule still to come to the live rule it replaces, which stays live until then. */
     readonly replaces: Words
