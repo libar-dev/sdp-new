@@ -76,16 +76,19 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     (!directory.startsWith("..") && codePaths.some((file) => file.startsWith(`${directory}/`)))
   )
 
-  /** The code file a path names, as TypeScript completes a name: the file, or else the directory's index. */
-  const fileAt = (path: string, directory: boolean): string | undefined => {
+  /**
+   * The code file a path names, as TypeScript completes a name: the file, or else the directory's
+   * index; or, `exactly` as a target of `exports` or `imports` names it, the file whose extension
+   * TypeScript puts in place of the one written, and nothing it would have to complete.
+   */
+  const fileAt = (path: string, how: "file" | "directory" | "exactly"): string | undefined => {
     const indexes = addedExtensions.map((extension) => at.join(path, `index${extension}`))
-    if (directory) return indexes.find((candidate) => contents.has(candidate))
+    if (how === "directory") return indexes.find((candidate) => contents.has(candidate))
     const written = /\.[^./]*$/.exec(path)?.[0]
     const stem = path.slice(0, path.length - (written?.length ?? 0))
     const candidates = [
       ...written === undefined ? [] : swappedExtensions.get(written)?.map((extension) => `${stem}${extension}`) ?? [path],
-      ...addedExtensions.map((extension) => `${path}${extension}`),
-      ...indexes
+      ...how === "exactly" ? [] : [...addedExtensions.map((extension) => `${path}${extension}`), ...indexes]
     ]
     return candidates.find((candidate) => contents.has(candidate))
   }
@@ -106,19 +109,19 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 
   /** The source a package's build writes `path` from, by the `rootDir` and `outDir` of the tsconfig.json nearest the package. */
-  const sourceOf = (directory: string, path: string): string | undefined => {
+  const sourceOf = (directory: string, path: string, how: "file" | "exactly"): string | undefined => {
     const config = at.upFrom(directory).map((above) => at.join(above, tsconfigFile)).find((candidate) => read.has(candidate))
     if (config === undefined) return undefined
     const { outDir, rootDir } = settings(config)
     if (outDir === undefined || !path.startsWith(`${outDir}/`)) return undefined
     const written = path.slice(outDir.length + 1).replace(/\.d\.([cm]?)ts$/, ".$1js")
-    return fileAt(at.join(rootDir ?? directoryOf(config), written), false)
+    return fileAt(at.join(rootDir ?? directoryOf(config), written), how)
   }
 
-  /** What a target of a package's map of names, or one of its entries, means; the path it names when that is no file. */
-  const entry = (directory: string, target: string): Walk => {
+  /** What a target of a package's map of names (`exactly`), or one of its entries, means; the path it names when that is no file. */
+  const entry = (directory: string, target: string, how: "file" | "exactly"): Walk => {
     const path = at.join(directory, target)
-    const found = fileAt(path, false) ?? sourceOf(directory, path)
+    const found = fileAt(path, how) ?? sourceOf(directory, path, how)
     if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
     if (namesNoCode(path)) return { found: {}, passed: [], decided: false }
     return { passed: [], missing: path, decided: false }
@@ -130,14 +133,14 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     // Nothing a package without code means is the workspace's code.
     if (!hasCode(directory)) return { found: {}, passed: [], decided: false }
     const { exports, main, types, typings } = manifest(path) ?? {}
-    const take = (target: string) => entry(directory, target)
+    const take = (target: string) => entry(directory, target, "file")
     const missed = (walk: Walk): Walk => ({
       ...walk,
       found: {
         unresolved: walk.missing !== undefined
           ? {
             message: `"${specifier}" means ${walk.missing}, which is no code file, nor built from one by the rootDir and outDir of a tsconfig.json, so it is not resolved`,
-            hint: `name the source in ${path}, or set rootDir and outDir in the tsconfig.json of ${directory || "the workspace"} to build it from its source`
+            hint: `name a code file, with its extension, in ${path}, or set rootDir and outDir in the tsconfig.json of ${directory || "the workspace"} to build it from its source`
           }
           : walk.passed.length > 0
           ? {
@@ -153,7 +156,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
         ? exports
         : { ".": exports }
       const key = matchKey(Object.keys(map), subpath === "" ? "." : `./${subpath}`)
-      return found(key === undefined ? nothing : pick(map[key.key]!, key.star, conditions, take))
+      return found(key === undefined ? nothing : pick(map[key.key]!, key.star, conditions, (target) => entry(directory, target, "exactly")))
     }
     if (subpath !== "") return found(take(subpath))
     let walked = nothing
@@ -162,7 +165,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       walked = after(walked, take(named))
       if (walked.found !== undefined) return walked
     }
-    const index = fileAt(directory, true)
+    const index = fileAt(directory, "directory")
     return index !== undefined ? { ...walked, found: { module: index } } : missed(walked)
   }
 
@@ -219,7 +222,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       }
     }
     const take = (target: string): Walk => {
-      if (/^\.\.?\//.test(target)) return entry(directoryOf(scope), target)
+      if (/^\.\.?\//.test(target)) return entry(directoryOf(scope), target, "exactly")
       const walk = packageOf(file, target, conditions)
       return walk.found === undefined ? { ...walk, found: {} } : walk
     }
@@ -229,7 +232,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       ...walk,
       found: {
         unresolved: walk.missing !== undefined
-          ? { message: `"${specifier}" means ${walk.missing}, which is no code file, so it is not resolved`, hint: `map it to a code file in the imports of ${scope}` }
+          ? { message: `"${specifier}" means ${walk.missing}, which is no code file, so it is not resolved`, hint: `map it to a code file, with its extension, in the imports of ${scope}` }
           : {
             message: `"${specifier}" is mapped by ${scope} only under the conditions ${[...new Set(walk.passed)].join(", ")}, which do not hold for it, so it is not resolved`,
             hint: `add a "default" condition to ${scope}, or name the condition in the customConditions of the tsconfig.json`
@@ -248,12 +251,12 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       const path = target.startsWith(configDirectory)
         ? at.join(options.configDir!, target.slice(configDirectory.length).replace("*", key!.star))
         : at.join(options.baseUrl ?? options.paths!.from, target.replace("*", key!.star))
-      const found = fileAt(path, false)
+      const found = fileAt(path, "file")
       if (found !== undefined) return { found: { module: found }, passed: [], decided: false }
       if (namesNoCode(path)) return { found: {}, passed: [], decided: false }
       mappedTo ??= path
     }
-    const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), false)
+    const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), "file")
     if (under !== undefined) return { found: { module: under }, passed: [], decided: false }
     if (specifier.startsWith("#")) return packageImport(file, specifier, conditions)
     const walk = packageOf(file, specifier, conditions)
@@ -278,7 +281,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
 
   const resolve = (file: string, imported: Import): Resolved => {
     const { specifier } = imported
-    if (/^\.\.?(\/|$)/.test(specifier)) return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier)) }
+    if (/^\.\.?(\/|$)/.test(specifier)) return { module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file") }
     const project = projectOf(file)
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
     const walk = meaningOf(file, imported, options, project)
