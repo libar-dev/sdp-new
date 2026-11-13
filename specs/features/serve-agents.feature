@@ -235,10 +235,20 @@ Feature: Serve AI agents
   Rule: What is in reach comes with its own words, so none of it needs opening
 
     Scenario: An element by the code anchored to it, a quality requirement by its measure, a decision whole
-      Given a file "specs/cart-latency.feature" containing:
+      Given a file "specs/cart.feature" containing:
         """
-        @id=cart-latency @constrains:cart
-        Feature: Cart latency
+        @id=cart @maturity=draft @realized-by:ARCH-orders
+        Feature: Cart
+
+          Shoppers collect items before paying.
+
+          @decided-by:one-line-per-item
+          Rule: A cart holds each item once
+
+            Scenario: Adding an item twice raises its quantity
+              Given an empty cart
+              When I add "a lamp" twice
+              Then the cart holds 1 item
 
           @type=quality
           Rule: The cart keeps up with load
@@ -255,7 +265,7 @@ Feature: Serve AI agents
         - ARCH-orders (element)
         Owns the order aggregate and its transaction boundary.
         """
-      And the output section "Quality requirements" contains "The cart keeps up with load (rule, stage: unrun)"
+      And the output section "Quality requirements" contains "The cart keeps up with load (rule, stage: draft)"
       And the output section "Quality requirements" contains "measure: the cart shows it within 300 ms at p95; no item is lost"
       And the output section "Decisions" contains "Not a line per addition, although it is simpler"
       And the output section "Decisions" contains "a dispute nobody wins."

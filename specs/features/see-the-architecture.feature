@@ -15,13 +15,12 @@ Feature: See the architecture
       | tags                                                                     | Feature                                 |
       | @id=publish-through-an-outbox @kind=decision                             | Orders publish events through an outbox |
       | @id=json-logs @kind=decision                                             | Logs are JSON                           |
-      | @id=order-latency @maturity=idea @type=quality                           | Order latency                           |
       | @id=numbered-receipts @kind=decision                                     | Receipts are numbered without gaps      |
       | @id=refunds @maturity=idea @depends-on:receipts @decided-by:credit-notes | Refunds                                 |
       | @id=credit-notes @kind=decision                                          | A refund is a credit note               |
     And a file "specs/receipts.feature" containing:
       """
-      @id=receipts @maturity=idea @realized-by:ARCH-orders @constrained-by:order-latency
+      @id=receipts @maturity=idea @realized-by:ARCH-orders
       Feature: Receipts
 
         @decided-by:numbered-receipts
@@ -88,8 +87,8 @@ Feature: See the architecture
       Then the exit code is 0
       And the JSON output has:
         | data.architecture          | ARCH-billing, ARCH-mailer, ARCH-orders, PAT-outbox                                                                                       |
-        | data.drivers               | order-latency, receipts#a-receipt-is-sent-within-a-minute, numbered-receipts, publish-through-an-outbox                                  |
-        | data.drivers.through.nodes | ARCH-orders, receipts, order-latency, ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts, ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, publish-through-an-outbox |
+        | data.drivers               | receipts#a-receipt-is-sent-within-a-minute, numbered-receipts, publish-through-an-outbox                                                 |
+        | data.drivers.through.nodes | ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts, ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, publish-through-an-outbox |
         | data.anchors               | code:src/billing.ts#Billing, code:src/mailer.ts#Mailer, code:src/orders.ts#place, code:src/outbox.ts#outbox                              |
         | data.edges.rel             | decided-by, imports, is, is, is, is, plays, plays                                                                                        |
 
@@ -121,7 +120,6 @@ Feature: See the architecture
         ARCH-orders -plays-> PAT-outbox  Transactional outbox
         ARCH-orders <-is- code:src/orders.ts#place  place
         function place(): Mailer
-        order-latency, through receipts  Order latency
         receipts#a-receipt-is-sent-within-a-minute, through receipts  A receipt is sent within a minute
         numbered-receipts, through receipts  Receipts are numbered without gaps
         publish-through-an-outbox, through receipts  Orders publish events through an outbox
@@ -696,30 +694,44 @@ Feature: See the architecture
       And the output contains "-->|imports|"
       And the output contains '["ARCH-mailer"]'
 
-  Rule: A quality requirement is a rule or a spec whose type is quality, and is shown beside what it constrains
+  Rule: `@type=quality` marks a rule as a quality requirement, shown beside the elements that realize its feature, and a team that keeps quality requirements as specs names their kind a driver
 
-    A quality requirement is most often a rule of the feature it constrains, with a measurable
-    example; `@type=quality` on that rule shows it beside the elements that realize the feature, as
-    the receipts' delivery time is in the view above. A team that keeps them as specs of a kind of
-    its own names that kind a driver, under `vocabulary.kinds.driver` in its configuration.
+    A quality requirement is tested with the rest of what it constrains, as the receipts' delivery
+    time is in the view above.
 
-    Scenario Outline: Marked by its kind or by its type
+    @replaces:see-the-architecture#marked-by-its-kind-or-by-its-type
+    Scenario Outline: A rule marked by <value>
       Given a file "sdp.config.yaml" containing:
         """
         <configuration>
         """
+      And a file "specs/search.feature" containing:
+        """
+        @id=search @maturity=idea @realized-by:ARCH-search
+        Feature: Search
+
+          @type=<value>
+          Rule: Results come within 200 ms
+        """
+      When I ask for the architecture view
+      Then the output contains "search#results-come-within-200-ms, through search"
+
+      Examples:
+        | value       | configuration                                     |
+        | quality     |                                                   |
+        | performance | vocabulary: { qualities: [quality, performance] } |
+
+    Scenario: A spec of a driver kind of the team's own
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { kinds: { driver: [decision, nfr] } }
+        """
       And these specs:
         | tags                                                                              | Feature               |
         | @id=search @maturity=idea @realized-by:ARCH-search @constrained-by:search-latency | Search                |
-        | @id=search-latency <marker>                                                       | Results within 200 ms |
+        | @id=search-latency @kind=nfr                                                      | Results within 200 ms |
       When I ask for the architecture view
       Then the output contains "search-latency, through search"
-
-      Examples:
-        | marker                          | configuration                                      |
-        | @kind=nfr                       | vocabulary: { kinds: { driver: [decision, nfr] } } |
-        | @kind=requirement @type=quality |                                                    |
-        | @type=quality                   |                                                    |
 
   Rule: What belongs in the architecture is never checked
 

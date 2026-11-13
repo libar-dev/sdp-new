@@ -232,7 +232,7 @@ Feature: Know what is verified
         """
       And a file "specs/fast-exports.feature" containing:
         """
-        @id=fast-exports @type=quality @iteration:IT-beta
+        @id=fast-exports @iteration:IT-beta
         Feature: Exports are fast
 
           Rule: A report exports within a second
