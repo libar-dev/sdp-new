@@ -9,7 +9,6 @@ Feature: Install sdp from npm
 
   Rule: Programs import the package and its `effect` entry, and step modules its `steps` entry, from where it is installed, typed
 
-  @constrained-by:GUIDE#the-sources-run-as-they-are-with-no-build-step
   Rule: The package is JavaScript and declarations, built only when packing; the repository runs from its sources
 
     Node.js strips no types from files under `node_modules`, so an installed copy cannot run from

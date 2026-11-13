@@ -51,7 +51,7 @@ const literalsOf = (node: unknown): ReadonlyArray<Node & { value: string }> => {
  */
 const interpretedWords = (file: string, content: string): ReadonlyArray<string> => {
   const words = vocabularyWords(defaultVocabulary)
-  const values = new Set([...words.kinds, ...words.relations, ...words.values, ...words.disciplines])
+  const values = new Set([...words.kinds, ...words.relations, ...words.disciplines])
   const attributes = new Set(words.attributes)
   const { program } = parseSync(file, content, { lang: "ts", sourceType: "module" })
   const lineOf = (offset: number) => content.slice(0, offset).split("\n").length

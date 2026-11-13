@@ -10,7 +10,7 @@ Feature: Link code to specs
   Not a discovery of the architecture: an element is what an annotation states, never inferred
   from names, imports or the layout of files. Nor a way to link code to features or to write its
   dependencies by hand: code says which element or pattern it is, `@sdp is ARCH-x`, and which
-  pattern it plays, `@sdp plays PAT-y`; a feature names its elements with `@realized-by:`, and sdp
+  pattern it applies, `@sdp applies PAT-y`; a feature names its elements with `@realized-by:`, and sdp
   derives which element imports which (see-the-architecture). Any other relation a team writes in
   code, such as `implements`, is read in the team's words, as a link in a spec is.
 

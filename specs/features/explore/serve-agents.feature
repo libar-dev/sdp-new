@@ -219,7 +219,7 @@ Feature: Serve AI agents
 
         /**
          * @sdp is ARCH-payments
-         * @sdp plays PAT-saga
+         * @sdp applies PAT-saga
          */
         export const charge = (): void => book()
         """
@@ -250,7 +250,7 @@ Feature: Serve AI agents
               When I add "a lamp" twice
               Then the cart holds 1 item
 
-          @type=quality
+          @quality
           Rule: The cart keeps up with load
 
             Scenario: Adding under load

@@ -1,6 +1,4 @@
 @id=VISION @kind=vision
-@principle:specs-are-gherkin-files @principle:free-vocabulary @principle:files-are-the-source-of-truth
-@principle:declared-maturity-derived-stage
 Feature: Vision
 
   sdp manages software delivery end to end. Features — with their requirements, quality ones

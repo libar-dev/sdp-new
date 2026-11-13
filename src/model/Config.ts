@@ -31,10 +31,8 @@ const VocabularyFile = Schema.Struct({
     activity: Schema.optional(Word),
     start: Schema.optional(Word),
     end: Schema.optional(Word),
-    met: Schema.optional(Word),
-    quality: Schema.optional(Word)
+    met: Schema.optional(Word)
   })),
-  qualities: Schema.optional(Words),
   maturity: Schema.optional(Words),
   disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
   words: Schema.optional(Schema.Struct({
@@ -134,7 +132,6 @@ const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
     kinds,
     relations: { ...d.relations, ...file.relations },
     attributes: { ...d.attributes, ...file.attributes },
-    qualities: file.qualities ?? d.qualities,
     maturity: file.maturity ?? d.maturity,
     disciplines: new Map([...defaultDisciplines(kinds), ...Object.entries(file.disciplines ?? {})]),
     words: { ...d.words, ...file.words }

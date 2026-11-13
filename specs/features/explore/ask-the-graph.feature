@@ -547,7 +547,7 @@ Feature: Ask the graph
 
     Agents ask many small questions while they work, and every command rebuilds the graph.
 
-    @slow @serial
+    @serial
     Scenario Outline: A question over 20,000 nodes answers within 250 ms
       Given a generated graph of 20000 nodes and 60000 edges
       When the query "<query>" runs on it
@@ -558,7 +558,7 @@ Feature: Ask the graph
         | feature[maturity=ready] -realized-by-> element -decided-by-> decision    |
         | element !-*- decision                                                    |
 
-    @slow @serial
+    @serial
     Scenario: The graph of 5,000 specs builds within a second
       Given a generated workspace of 5000 specs
       When the graph is built from it

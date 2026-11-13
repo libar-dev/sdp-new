@@ -3,7 +3,7 @@
  *
  *     @sdp <relation> <ID>[,<ID>...] [key=value ...]
  *
- * links code to graph nodes. The relation is free text (`implements`, `is`, `plays`, ...); `is`
+ * links code to graph nodes. The relation is free text (`implements`, `is`, `applies`, ...); `is`
  * anchors a node in code and declares it if no spec does. `grep -rn "@sdp" src/` lists every one.
  *
  * In TypeScript and JavaScript the file is parsed, never run: a tag annotates the module-level
@@ -19,7 +19,7 @@
  * function the docstring opens, and the docstring describes it.
  *
  * @sdp is ARCH-code-annotations
- * @sdp plays PAT-static-reading
+ * @sdp applies PAT-static-reading
  */
 import { idForm, idSyntax, isId } from "../model/Vocabulary.ts"
 import { children, type Exports, type Import, isNode, literalName, type Node, parseScript, type Script } from "./Script.ts"

@@ -10,7 +10,7 @@
  * `FileSystem`, so executable specs run it in memory.
  *
  * @sdp is ARCH-application
- * @sdp plays PAT-answer
+ * @sdp applies PAT-answer
  */
 import parseTagExpression from "@cucumber/tag-expressions"
 import { posix } from "node:path"

@@ -26,7 +26,7 @@ Feature: See the architecture
         @decided-by:numbered-receipts
         Rule: Every receipt is numbered
 
-        @type=quality @decided-by:publish-through-an-outbox
+        @quality @decided-by:publish-through-an-outbox
         Rule: A receipt is sent within a minute
       """
     And a file "src/billing.ts" containing:
@@ -67,7 +67,7 @@ Feature: See the architecture
 
       /**
        * @sdp is ARCH-orders
-       * @sdp plays PAT-outbox
+       * @sdp applies PAT-outbox
        */
       export const place = (): Mailer => new Mailer()
       """
@@ -89,7 +89,7 @@ Feature: See the architecture
         | data.drivers               | receipts#a-receipt-is-sent-within-a-minute, numbered-receipts, publish-through-an-outbox                                                 |
         | data.drivers.through.nodes | ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, ARCH-orders, receipts, receipts#every-receipt-is-numbered, numbered-receipts, ARCH-orders, receipts, receipts#a-receipt-is-sent-within-a-minute, publish-through-an-outbox |
         | data.anchors               | code:src/billing.ts#Billing, code:src/mailer.ts#Mailer, code:src/orders.ts#place, code:src/outbox.ts#outbox                              |
-        | data.edges.rel             | decided-by, imports, is, is, is, is, plays, plays                                                                                        |
+        | data.edges.rel             | applies, applies, decided-by, imports, is, is, is, is                                                                                    |
 
   Rule: Each element is shown with what it is for, from the doc comment of its code, and with its links
 
@@ -115,7 +115,7 @@ Feature: See the architecture
 
         ARCH-orders (element)
         ARCH-orders -imports-> ARCH-mailer
-        ARCH-orders -plays-> PAT-outbox  Transactional outbox
+        ARCH-orders -applies-> PAT-outbox  Transactional outbox
         ARCH-orders <-is- code:src/orders.ts#place  place
         function place(): Mailer
         receipts#a-receipt-is-sent-within-a-minute, through receipts  A receipt is sent within a minute
@@ -125,7 +125,7 @@ Feature: See the architecture
 
         PAT-outbox — Transactional outbox (pattern)
         Keeps each event with the change that raised it, until it is published.
-        PAT-outbox <-plays- ARCH-orders
+        PAT-outbox <-applies- ARCH-orders
         """
       And the output does not contain "ARCH-mailer — ARCH-mailer"
       And the output does not contain "ARCH-mailer  ARCH-mailer"
@@ -692,31 +692,49 @@ Feature: See the architecture
       And the output contains "-->|imports|"
       And the output contains '["ARCH-mailer"]'
 
-  Rule: `@type=quality` marks a rule as a quality requirement, shown beside the elements that realize its feature, and a team that keeps quality requirements as specs names their kind a driver
+  @replaces:see-the-architecture#type-quality-marks-a-rule-as-a-quality-requirement-shown-beside
+  Rule: `@quality` marks a rule as a quality requirement, shown beside the elements that realize its feature, and a team that keeps quality requirements as specs names their kind a driver
 
     A quality requirement is tested with the rest of what it constrains, as the receipts' delivery
-    time is in the view above.
+    time is in the view above. `@quality` is a Cucumber tag, which no configuration renames: the
+    examples of a rule inherit it, so `sdp run --tags @quality` runs the quality requirements alone.
 
     Scenario Outline: A rule marked by <value>
-      Given a file "sdp.config.yaml" containing:
-        """
-        <configuration>
-        """
-      And a file "specs/search.feature" containing:
+      Given a file "specs/search.feature" containing:
         """
         @id=search @maturity=idea @realized-by:ARCH-search
         Feature: Search
 
-          @type=<value>
+          <value>
           Rule: Results come within 200 ms
         """
       When I ask for the architecture view
       Then the output contains "search#results-come-within-200-ms, through search"
 
       Examples:
-        | value       | configuration                                     |
-        | quality     |                                                   |
-        | performance | vocabulary: { qualities: [quality, performance] } |
+        | value    |
+        | @quality |
+
+    Scenario: The examples of a quality requirement inherit its tag, so --tags selects them
+      Given a file "specs/search.feature" containing:
+        """
+        @id=search
+        Feature: Search
+
+          @quality
+          Rule: Results come within 200 ms
+            Scenario: A search under load
+              Given a search under load
+
+          Rule: Results are ranked by relevance
+            Scenario: A search for a word
+              Given a search for a word
+        """
+      And a step definition "a search under load" that passes
+      And a step definition "a search for a word" that passes
+      When the workspace is run with "--tags '@quality'"
+      Then the step "a search under load" has status "passed"
+      And the step "a search for a word" did not run
 
     Scenario: A spec of a driver kind of the team's own
       Given a file "sdp.config.yaml" containing:
@@ -905,7 +923,7 @@ Feature: See the architecture
     Scenario: Billing's spec writes the retry pattern, which its code plays, and the outbox, which it does not yet
       Given a file "specs/ARCH-billing.feature" containing:
         """
-        @id=ARCH-billing @plays:PAT-retry @plays:PAT-outbox
+        @id=ARCH-billing @applies:PAT-retry @applies:PAT-outbox
         Feature: Billing
         """
       And a file "src/retry.ts" containing:
@@ -918,7 +936,7 @@ Feature: See the architecture
         /** @sdp is ARCH-billing */
         import { retry } from "./retry.ts"
 
-        /** @sdp plays PAT-retry */
+        /** @sdp applies PAT-retry */
         export const charge = (): Promise<number> => retry(async () => 0)
         """
       When the workspace is loaded
@@ -926,15 +944,15 @@ Feature: See the architecture
         | rule             | severity | at                           |
         | declared-in-spec | error    | specs/ARCH-billing.feature:1 |
       And the workspace graph has edges:
-        | from         | rel   | to        | sources          |
-        | ARCH-billing | plays | PAT-retry | src/billing.ts:4 |
-      And the edges from "ARCH-billing" are "ARCH-billing -plays-> PAT-retry"
+        | from         | rel     | to        | sources          |
+        | ARCH-billing | applies | PAT-retry | src/billing.ts:4 |
+      And the edges from "ARCH-billing" are "ARCH-billing -applies-> PAT-retry"
 
   @decided-by:architecture-is-declared-in-doc-comments
-  Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp plays`
+  Rule: A pattern is declared in the doc comment of the code its instances share, and code that applies it says so with `@sdp applies`
 
     The code every instance goes through is the pattern's, and its comment says what the pattern
-    is; an anchor declares a node of the kind its id's prefix names. `plays` is the team's word, and
+    is; an anchor declares a node of the kind its id's prefix names. `applies` is the team's word, and
     like any link it only names a pattern, which an anchor declares. Elements import elements: a
     pattern imports nothing, and nothing imports it.
 
@@ -956,7 +974,7 @@ Feature: See the architecture
          * Charges the card on file.
          *
          * @sdp is ARCH-billing
-         * @sdp plays PAT-retry
+         * @sdp applies PAT-retry
          */
         export const charge = (): Promise<number> => retry(async () => 0)
         """
@@ -964,7 +982,7 @@ Feature: See the architecture
       Then the workspace graph has nodes:
         | id        | kind    | title     | source         |
         | PAT-retry | pattern | PAT-retry | src/retry.ts:4 |
-      When I query "#PAT-retry <-plays- code -is-> element"
+      When I query "#PAT-retry <-applies- code -is-> element"
       Then the result is "ARCH-billing"
       When I query "#ARCH-billing -imports-> *"
       Then the result is "nothing"
@@ -976,8 +994,8 @@ Feature: See the architecture
         Calls again while the provider is down, waiting longer each time.
         """
       And the output contains "PAT-retry <-is- code:src/retry.ts#retry  retry"
-      And the output contains "PAT-retry <-plays- code:src/billing.ts#charge  charge"
-      And the output contains "PAT-retry <-plays- ARCH-billing"
+      And the output contains "PAT-retry <-applies- code:src/billing.ts#charge  charge"
+      And the output contains "PAT-retry <-applies- ARCH-billing"
 
     Scenario: A pattern that no code declares, played by billing
       Given a file "src/billing.ts" containing:
@@ -986,19 +1004,19 @@ Feature: See the architecture
          * Charges the card on file.
          *
          * @sdp is ARCH-billing
-         * @sdp plays PAT-retry
+         * @sdp applies PAT-retry
          */
         export const charge = (): Promise<number> => Promise.resolve(0)
         """
       When the workspace is checked
       Then sdp reports:
         | rule          | at               | message                                             |
-        | dangling-link | src/billing.ts:5 | -plays-> PAT-retry: no node has id PAT-retry        |
+        | dangling-link | src/billing.ts:5 | -applies-> PAT-retry: no node has id PAT-retry      |
 
   Rule: An element links to each pattern its code links to, by the relation the code wrote, at the tag
 
-    Code is part of each element anchored in its file, as its imports are: what it plays, they
-    play. The relation is the code's own word, not one sdp makes, so a question asks for it as the
+    Code is part of each element anchored in its file, as its imports are: what it applies, they
+    apply. The relation is the code's own word, not one sdp makes, so a question asks for it as the
     code wrote it.
 
     Scenario Outline: The retry pattern played by <code>
@@ -1011,15 +1029,15 @@ Feature: See the architecture
         """
         <billing>
         """
-      When I query "#PAT-retry <-plays- element"
+      When I query "#PAT-retry <-applies- element"
       Then the result is "<elements>"
 
       Examples:
         | code                                                            | billing                                                                                                                               | elements     |
-        | the declaration that is billing                                 | /**\n * @sdp is ARCH-billing\n * @sdp plays PAT-retry\n */\nexport const charge = (): number => 0                                     | ARCH-billing |
-        | a declaration of the file that is billing                       | /** @sdp is ARCH-billing */\nimport { retry } from "./retry.ts"\n\n/** @sdp plays PAT-retry */\nexport const charge = (): number => 0 | ARCH-billing |
-        | a declaration of a file another declaration of which is billing | /** @sdp is ARCH-billing */\nexport class Billing {}\n\n/** @sdp plays PAT-retry */\nexport const charge = (): number => 0            | ARCH-billing |
-        | code of no element                                              | /** @sdp plays PAT-retry */\nexport const charge = (): number => 0                                                                    | nothing      |
+        | the declaration that is billing                                 | /**\n * @sdp is ARCH-billing\n * @sdp applies PAT-retry\n */\nexport const charge = (): number => 0                                     | ARCH-billing |
+        | a declaration of the file that is billing                       | /** @sdp is ARCH-billing */\nimport { retry } from "./retry.ts"\n\n/** @sdp applies PAT-retry */\nexport const charge = (): number => 0 | ARCH-billing |
+        | a declaration of a file another declaration of which is billing | /** @sdp is ARCH-billing */\nexport class Billing {}\n\n/** @sdp applies PAT-retry */\nexport const charge = (): number => 0            | ARCH-billing |
+        | code of no element                                              | /** @sdp applies PAT-retry */\nexport const charge = (): number => 0                                                                    | nothing      |
 
     Scenario: Billing plays the retry pattern in every answer
       Given a file "src/retry.ts" containing:
@@ -1032,23 +1050,23 @@ Feature: See the architecture
         /** @sdp is ARCH-billing */
         import { retry } from "./retry.ts"
 
-        /** @sdp plays PAT-retry */
+        /** @sdp applies PAT-retry */
         export const charge = (): Promise<number> => retry(async () => 0)
         """
       When the workspace is loaded
       Then the workspace graph has edges:
-        | from         | rel   | to        | source           |
-        | ARCH-billing | plays | PAT-retry | src/billing.ts:4 |
+        | from         | rel     | to        | source           |
+        | ARCH-billing | applies | PAT-retry | src/billing.ts:4 |
       When I run "sdp arch"
       Then the exit code is 0
-      And the output contains "ARCH-billing -plays-> PAT-retry"
-      And the output contains "PAT-retry <-plays- ARCH-billing"
+      And the output contains "ARCH-billing -applies-> PAT-retry"
+      And the output contains "PAT-retry <-applies- ARCH-billing"
       When I run "sdp arch --mermaid"
       Then the exit code is 0
-      And the output contains "-->|plays|"
+      And the output contains "-->|applies|"
       When I run "sdp context PAT-retry"
       Then the exit code is 0
-      And the output contains "PAT-retry <-plays- ARCH-billing"
+      And the output contains "PAT-retry <-applies- ARCH-billing"
 
   Rule: Each element is shown with its public surface: the shape of what its code exports
 

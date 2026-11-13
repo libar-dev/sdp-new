@@ -19,7 +19,7 @@ Feature: Draw diagrams from the graph
 
   Rule: A node shows its stage in its label and its colour
 
-  @type=quality
+  @quality
   Rule: A diagram of more than 60 nodes is refused with its count and a narrower question, never cut
 
   Rule: The open questions are drawn as a mind map, grouped as sdp questions groups them

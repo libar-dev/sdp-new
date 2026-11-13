@@ -375,12 +375,12 @@ Feature: Configure a workspace
         | data.vocabulary.kinds.decision              | adr                                                                                                  |
         | data.vocabulary.maturity                    | idea, draft, specified, ready                                                                        |
         | data.vocabulary.kinds.driver                | decision                                                                                             |
-        | data.vocabulary.qualities                   | quality                                                                                              |
-        | data.vocabulary.disciplines.requirements    | requirement, feature, story, use-case, epic                                                          |
+        | data.vocabulary.disciplines.requirements    | feature                                                                                              |
+        | data.vocabulary.disciplines.deployment      | environment                                                                                          |
         | data.vocabulary.disciplines.analysis-design | element, pattern, architecture                                                                       |
         | data.made.kinds                             | scenario, rule, code, missing                                                                        |
         | data.made.relations                         | rule-of, imports                                                                                     |
-        | data.made.tags                              | @gate, @serial, @open                                                                                |
+        | data.made.tags                              | @gate, @serial, @open, @quality                                                                      |
         | data.made.stages                            | unrun, failing, in-progress, verified                                                                |
         | data.made.retiredKinds                      | change                                                                                               |
         | data.made.attributes                        | stage, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                            |

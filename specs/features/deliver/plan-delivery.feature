@@ -1146,12 +1146,47 @@ Feature: Plan delivery
   @maturity=draft
   Rule: An iteration whose planned work saw no change stands out
 
-  @maturity=specified
+  @maturity=ready
   Rule: lifecycle --brief prints the milestone, the work planned now and its open questions within 2,000 characters, and says what it left out
 
     It is what an agent is told at the start of a session, so it is bounded by what a hook may add.
+    The work planned now is the current iteration's, or the next one's when none is current.
 
-  @maturity=specified @decided-by:areas-for-reading-epics-for-work
+    Scenario: Between iterations, the next one's work and what waits on a decision
+      Given these specs:
+        | tags                                           | Feature |
+        | @id=IT-later @start=2099-01-05 @end=2099-01-16 | Later   |
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=draft @iteration:IT-later
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+          @open
+          Rule: Does a cart expire?
+        """
+      When I run "sdp lifecycle --brief"
+      Then the exit code is 0
+      And the output line with "MS-objectives" contains "0/2"
+      And the output line with "IT-later" contains "2099-01-05"
+      And the output line with "cart" contains "draft"
+      And the output line with "Does a cart expire?" contains "specs/cart.feature:7"
+      And the output does not contain "alpha"
+      And the output does not contain "DISCIPLINE ACTIVITY"
+
+    Scenario: More work than fits, cut to the bound with what was left out and how to see it
+      Given these specs:
+        | tags                                           | Feature |
+        | @id=IT-later @start=2099-01-05 @end=2099-01-16 | Later   |
+      And 80 features planned into "IT-later", each with an open question
+      When I run "sdp lifecycle --brief"
+      Then the exit code is 0
+      And the output is at most 2000 characters
+      And the output contains "left out:"
+      And the output contains "sdp lifecycle"
+
+  @decided-by:areas-for-reading-epics-for-work
   Rule: An epic is plan, as a milestone is: no discipline names it by default, so it declares no maturity and needs no rule
 
     Scenario: An epic that only names its work
@@ -1165,7 +1200,7 @@ Feature: Plan delivery
         @id=saving @kind=epic @includes:wishlist
         Feature: Saving for later
         """
-      When I run "sdp check"
+      When I run "sdp check --base none"
       Then the exit code is 0
       And the output contains "0 error(s)"
 

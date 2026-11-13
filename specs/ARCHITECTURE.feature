@@ -119,7 +119,7 @@ Feature: Architecture
           graph.ofKind("milestone"),
           node.attrs.activity,
           title === "decision",
-          ["quality"].includes(String(node.attrs.type))
+          ["decision", "milestone"].includes(String(node.kind))
         ]
         switch (edge.rel) {
           case "closes":
@@ -127,7 +127,7 @@ Feature: Architecture
         }
         """
       When the TypeScript files under "src" are searched for interpreted words
-      Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 quality, src/report.ts:9 type, src/report.ts:12 closes"
+      Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 decision, src/report.ts:9 milestone, src/report.ts:12 closes"
 
   @maturity=idea
   Rule: The typecheck fails on an effect that is built and never run, and on an optional property set to undefined

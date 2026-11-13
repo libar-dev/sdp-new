@@ -58,11 +58,7 @@ export interface Vocabulary {
     readonly end: string
     /** The day a milestone was recorded as met (an ISO date). */
     readonly met: string
-    /** The attribute whose value (one of `qualities`) marks a rule or a spec as a quality requirement. */
-    readonly quality: string
   }
-  /** Values of the `quality` attribute that make a node an architectural driver. */
-  readonly qualities: Words
   /**
    * The rungs of the ladder of work still to come, lowest first: a maturity is one of them, as
    * written, and `sdp check` reports any other word as an error. sdp reads no meaning into a rung:
@@ -93,17 +89,19 @@ const defaultKinds: Vocabulary["kinds"] = {
 /**
  * The disciplines of a workspace that names none of its own, and the kinds whose planned nodes are
  * work in each: its features are requirements work, and its architecture and the specs of the rules
- * its code keeps analysis and design, in the words its vocabulary gives them.
+ * its code keeps analysis and design, in the words its vocabulary gives them. They name only the
+ * kinds sdp's own specs need: a rule is a feature's requirement and a story is a slice of delivery,
+ * no spec, so a team that writes either as a kind of its own names it here.
  */
 export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
   new Map<string, Words>([
-    ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
-    ["requirements", [...new Set(["requirement", ...kinds.feature, "story", "use-case", "epic"])]],
+    ["business-modeling", ["vision"]],
+    ["requirements", [...kinds.feature]],
     ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern, "architecture"])]],
     // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
     ["implementation", []],
     ["test", []],
-    ["deployment", ["environment", "deployment"]]
+    ["deployment", ["environment"]]
   ])
 
 /** What an empty configuration means. */
@@ -121,10 +119,8 @@ export const defaultVocabulary: Vocabulary = {
     activity: "activity",
     start: "start",
     end: "end",
-    met: "met",
-    quality: "type"
+    met: "met"
   },
-  qualities: ["quality"],
   maturity: ["idea", "draft", "specified", "ready"],
   disciplines: defaultDisciplines(defaultKinds),
   words: { kinds: [], relations: [], attributes: [] }
@@ -178,8 +174,11 @@ export const made = {
     /** From an element to one it calls: a module anchored to the first imports a value from a module anchored to the second. */
     imports: "imports"
   },
-  /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
-  tags: { gate: "@gate", serial: "@serial", open: "@open" },
+  /**
+   * The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still
+   * a question, and a rule or a spec that is a quality requirement, whose examples inherit the tag.
+   */
+  tags: { gate: "@gate", serial: "@serial", open: "@open", quality: "@quality" },
   /** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
   tagsKey,
   /**
@@ -297,11 +296,10 @@ export const isPlanKind = (vocabulary: Vocabulary, kind: string): boolean =>
 export const attribute = (node: { readonly attrs: Readonly<Record<string, unknown>> }, key: string): unknown =>
   Object.hasOwn(node.attrs, key) ? node.attrs[key] : undefined
 
-/** Architectural drivers: kinds that are drivers, and any node whose quality attribute says it is one. */
+/** Architectural drivers: kinds that are drivers, and any rule or spec tagged as a quality requirement. */
 export const isDriver = (vocabulary: Vocabulary, node: { readonly kind: string; readonly attrs: Readonly<Record<string, unknown>> }): boolean => {
-  const quality = attribute(node, vocabulary.attributes.quality)
-  return hasKind(vocabulary, "driver", node.kind) ||
-    (typeof quality === "string" && vocabulary.qualities.includes(quality.toLowerCase()))
+  const tags = attribute(node, made.tagsKey)
+  return hasKind(vocabulary, "driver", node.kind) || (Array.isArray(tags) && tags.includes(made.tags.quality))
 }
 
 /** The relations sdp reads the plan from: the plan, phase and closing relations. */
@@ -343,8 +341,6 @@ export const vocabularyWords = (vocabulary: Vocabulary) => ({
   kinds: [...new Set([...Object.values(vocabulary.kinds).flat(), ...[...vocabulary.disciplines.values()].flat(), ...vocabulary.words.kinds])],
   relations: [...new Set([...Object.values(vocabulary.relations).flat(), ...linkKeys(vocabulary), ...vocabulary.words.relations])],
   attributes: [...new Set([...Object.values(vocabulary.attributes), ...vocabulary.words.attributes])],
-  /** Attribute values the profile names: the qualities. Maturities compare only along the ladder. */
-  values: [...vocabulary.qualities],
   disciplines: [...vocabulary.disciplines.keys()]
 })
 

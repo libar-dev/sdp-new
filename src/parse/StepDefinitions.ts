@@ -66,7 +66,7 @@ const exits = (node: Node): boolean =>
  * step files, which it may export again.
  *
  * @sdp is ARCH-spec-parser
- * @sdp plays PAT-static-reading
+ * @sdp applies PAT-static-reading
  */
 export const scanStepDefinitions = (file: string, content: string, stepFiles: ReadonlySet<string> = new Set()): StepScan => {
   const script = parseScript(file, content)

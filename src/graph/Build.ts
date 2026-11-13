@@ -546,7 +546,7 @@ export const buildProject = (input: ProjectInput): Project => {
 
 /**
  * The elements each code file is part of: those any anchor of the file names, its own or one of its
- * declarations'. A pattern is no element: the code that plays it is part of one.
+ * declarations'. A pattern is no element: the code that applies it is part of one.
  */
 const elementsOf = (
   annotations: ReadonlyArray<Annotation>,
@@ -608,7 +608,7 @@ const importsBetweenElements = (
 }
 
 /**
- * `A -plays-> P` for each link from code to pattern P, by the relation the code wrote and at its tag,
+ * `A -applies-> P` for each link from code to pattern P, by the relation the code wrote and at its tag,
  * from each element A the code's file is part of: what code of an element applies, the element does.
  */
 const patternsOfElements = (

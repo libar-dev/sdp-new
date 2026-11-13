@@ -119,9 +119,9 @@ Feature: Start a spec
         | feature      | Gift wrapping     |         | specs/features/gift-wrapping.feature         | @id=gift-wrapping @maturity=idea                        | say under the title who needs what, and why, before any solution                                            |
         | risk         | Outage            |         | specs/risk/outage.feature                    | @id=outage @kind=risk                                   | say under the title what it is                                                                              |
         | phase        | Hardening         |         | specs/plan/PH-hardening.feature              | @id=PH-hardening                                        | say under the title what this phase takes on, and why in this order                                         |
-        | story        | Saved carts       |         | specs/story/saved-carts.feature              | @id=saved-carts @kind=story @maturity=idea              | write the idea in a sentence under the title                                                                |
+        | environment  | Staging           |         | specs/environment/staging.feature            | @id=staging @kind=environment @maturity=idea            | write the idea in a sentence under the title                                                                |
         | architecture | Rules of the shop |         | specs/architecture/rules-of-the-shop.feature | @id=rules-of-the-shop @kind=architecture @maturity=idea | write a `Rule:` the code keeps, with an example                                                             |
-        | quality      | Fast search       |         | specs/quality/fast-search.feature            | @id=fast-search @kind=quality                           | a quality requirement is a rule of the feature it constrains, tagged `@type=quality`, not a spec of its own |
+        | quality      | Fast search       |         | specs/quality/fast-search.feature            | @id=fast-search @kind=quality                           | a quality requirement is a rule of the feature it constrains, tagged `@quality`, not a spec of its own      |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -157,7 +157,7 @@ Feature: Start a spec
       And the output contains "next: set `@closes:` to the phase or the iteration this milestone ends: sdp lifecycle shows them"
 
   @decided-by:architecture-is-declared-in-doc-comments
-  Rule: A pattern is declared in its code like an element, so new writes no file for one, and the answer says how code plays it
+  Rule: A pattern is declared in its code like an element, so new writes no file for one, and the answer says how code applies it
 
     Scenario: A pattern
       When I run "sdp new pattern Outbox"
@@ -167,7 +167,7 @@ Feature: Start a spec
         """
         next: no file is written: a pattern is declared where the code its instances share is, by the tag `@sdp is PAT-outbox` in the doc comment of a module-level declaration, or of the file in the comment that opens it
         next: the rest of that comment is its description: say there which problem it solves, and how
-        next: code that applies it says so in its doc comment with `@sdp plays PAT-outbox`: sdp arch shows the pattern with the code that plays it and the elements that code is
+        next: code that applies it says so in its doc comment with `@sdp applies PAT-outbox`: sdp arch shows the pattern with the code that applies it and the elements that code is
         """
       And the file "specs/architecture/PAT-outbox.feature" does not exist
 
@@ -204,7 +204,7 @@ Feature: Start a spec
         """
         next: say under the title who needs what, and why, before any solution; then what it is not
         next: write a `Rule:` per requirement, quality ones included, as what a user can observe: the lines under it say why, its scenarios are the examples
-        next: a quality requirement is a rule of the feature it constrains, tagged `@type=quality`, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
+        next: a quality requirement is a rule of the feature it constrains, tagged `@quality`, with a measurable example: Given the environment, When the stimulus, Then the response and its measure, such as within 300 ms at p95 under 500 concurrent users
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         next: plan it: `@iteration:IT-…` says when it is written
         """

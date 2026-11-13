@@ -12,7 +12,7 @@ npm run verify                    # typecheck, sdp check, and every scenario of 
 node src/cli/main.ts --help       # every command, one line each (`sdp` is this, or `npm link` once)
 ```
 
-- sdp shown by running it: [specs/GUIDE.feature](specs/GUIDE.feature)
+- sdp shown by running it: [specs/guide/sdp-shown-by-running-it.feature](specs/guide/sdp-shown-by-running-it.feature)
 - a small product specified with it, file by file: [examples/shop](examples/shop/README.md)
 - why it exists: [specs/VISION.feature](specs/VISION.feature)
 - what every command promises: [specs/features/adopt/use-the-command-line.feature](specs/features/adopt/use-the-command-line.feature)

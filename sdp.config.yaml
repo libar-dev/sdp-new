@@ -6,5 +6,3 @@ vocabulary:
   disciplines:
     # The guide's rules are tests of this repository, so one still to come is test work, planned as any other.
     test: [guide]
-    # An epic is plan, not work: it names the work it groups, and is deleted once that work is built.
-    requirements: [requirement, feature, story, use-case]

@@ -6,7 +6,7 @@
  * call these and nothing else, so they cannot disagree.
  *
  * @sdp is ARCH-application
- * @sdp plays PAT-answer
+ * @sdp applies PAT-answer
  */
 import { DateTime, Effect, Result } from "effect"
 import { architectureView, workOn } from "../arch/Architecture.ts"

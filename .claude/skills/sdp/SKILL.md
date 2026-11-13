@@ -93,14 +93,18 @@ Feature: Guest checkout
   `features/`, `decisions/`, `plan/` — as `sdp new` writes them. Features go one folder deeper, in
   the folder of their area: a bounded context, or the activity of its users the feature serves, which
   readers browse and CODEOWNERS can route (`sdp new feature "…" --dir specs/features/billing`).
-  Decisions and the plan stay flat: a decision spans features, and the plan spans areas. No folder
-  says a maturity, an iteration, a story, a ticket or a test layer — those are tags — and a folder is
+  Decisions and the plan are not filed by area: a decision spans features, and the plan spans areas.
+  No folder says an iteration, a story, a ticket or a test layer — those are tags — and one says a
+  maturity: a feature whose Feature line declares one may sit in its area's `backlog/`, which repeats
+  the tag, so a scenario keeps the two in step (`feature[maturity][file!~/backlog/]` and
+  `feature[!maturity][file~/backlog/]` find nothing); it leaves once, when it is built. A folder is
   no namespace: ids are unique across the workspace, so a file moves without changing what it is.
 - **An epic is plan, not a grouping that stays.** Where a team groups work toward one outcome, an
   epic is a spec (`@kind=epic`, outside every discipline) whose tag lines link each feature or rule it
-  groups, `@includes:<id>`. An epic of one area sits in that area, in a folder named for it, beside the
-  specs it groups; one that spans areas sits in the plan. It says no status — what its work says is
-  derived — and it is deleted once that work is live, its features then joining their area.
+  groups, `@includes:<id>`. An epic of one area sits in a folder named for it in that area's backlog,
+  beside the features still to come it groups; one that spans areas sits in the plan. It says no
+  status — what its work says is derived — a feature leaves its folder when it is built, and the epic
+  is deleted once all of its work is live.
 
 The sharp edges of the format, each what the official parser does, and what `sdp check` reports:
 
@@ -138,7 +142,7 @@ The sharp edges of the format, each what the official parser does, and what `sdp
   is, the rest of that comment says what it is for, and sdp derives which element `imports` which
   from the TypeScript and JavaScript anchored to them, so nobody writes it. `@sdp is PAT-y` declares
   a pattern in the code its instances share, and code that applies it says so with
-  `@sdp plays PAT-y`; the element that code is then plays it too. An element is in the graph
+  `@sdp applies PAT-y`; the element that code is then applies it too. An element is in the graph
   because someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
@@ -157,7 +161,7 @@ The sharp edges of the format, each what the official parser does, and what `sdp
 - **One feature, one file.** A feature's spec is its requirements document and its test suite at
   once: who needs what and why, what it is not, a rule per requirement with its reason, and the
   scenarios that prove each one. A quality requirement is a rule of the feature it constrains,
-  tagged `@type=quality` so that `sdp arch` shows it beside the elements that realize that feature,
+  tagged `@quality` so that `sdp arch` shows it beside the elements that realize that feature,
   and its example is measured: the environment, the stimulus, the response and its measure. A
   feature is not split into requirement, quality requirement and element files; it names a
   technology only where its users see one.
@@ -199,7 +203,7 @@ than grepping for a guess.
   links to, by the relation the code wrote. `sdp graph -q '<pattern>'` exports only what a query
   matches.
 - **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it with the
-  shape of what it exports, what each element imports, the code that plays each pattern, and the
+  shape of what it exports, what each element imports, the code that applies each pattern, and the
   live work on each and the work still to come),
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).

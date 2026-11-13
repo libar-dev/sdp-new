@@ -260,7 +260,7 @@ Feature: Check specs
         | still to come, as the feature     | @id=export-to-csv @maturity=draft             | Rule: Every row is exported                                            | nothing          |
         | none, in a node of another kind   | @id=terms @kind=glossary                      |                                                                        | nothing          |
         | none, in an environment           | @id=staging @kind=environment                 |                                                                        | untested-feature |
-        | none, in an actor                 | @id=analysts @kind=actor                      |                                                                        | untested-feature |
+        | none, in a vision                 | @id=purpose @kind=vision                      |                                                                        | untested-feature |
         | still to come, as the environment | @id=staging @kind=environment @maturity=draft |                                                                        | nothing          |
 
     Scenario: The feature without a live rule, at its Feature line
