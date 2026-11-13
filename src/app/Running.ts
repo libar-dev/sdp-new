@@ -73,13 +73,13 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
 
 /**
  * What sdp check rejects in which examples a spec holds to account: a scenario outside a rule, one
- * under a question, and the retired rung, which would make live examples still to come.
+ * under a question, and a maturity that says the work is built, which would make live examples still to come.
  */
-const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example", "retired-maturity"])
+const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example", "maturity-says-built"])
 
 /**
  * Fails before anything runs when part of the workspace was not read as written, a scenario is
- * outside a rule, an open question has examples, or a spec declares the retired rung: a result of
+ * outside a rule, an open question has examples, or a maturity says the work is built: a result of
  * such a workspace would be evidence about what sdp check rejects.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {

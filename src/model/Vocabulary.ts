@@ -66,7 +66,7 @@ export interface Vocabulary {
   /**
    * The order of the maturities of work still to come, lowest first. sdp reads no meaning into a
    * rung: any maturity says that the work is still to come, and the ladder orders the values a query
-   * compares, a value off it below every rung.
+   * compares, a value off it below every rung, where `sdp check` reports it.
    */
   readonly maturity: Words
   /** Disciplines and the kinds whose planned nodes are, by default, work in each. */
@@ -212,11 +212,20 @@ export const made = {
  */
 export const reservedRelations: ReadonlyArray<string> = [...made.attributes, "maturity", "status"]
 
+/** Maturities that say the work is built, besides the stages sdp derives for what is. */
+const builtWords: Words = ["implemented", "built", "done", "complete", "finished", "live", "shipped", "released"]
+
 /**
- * The rung that once said work was built. A live test declares no maturity, so this one would say
- * the opposite of what its author meant: it is reported, and no ladder may have it.
+ * Why a maturity says that the work is built — it names a stage sdp derives, or is a word for built
+ * work — or `undefined` when it does not. A live test declares no maturity, so such a one would say
+ * the opposite of what its author meant: it is an error, and no ladder may have it.
  */
-export const retiredMaturity = "implemented"
+export const saysBuilt = (maturity: string): string | undefined =>
+  (Object.values(made.stages) as ReadonlyArray<string>).includes(maturity)
+    ? `${maturity} is a stage sdp derives from a run of what is built`
+    : builtWords.includes(maturity)
+    ? `${maturity} says the work is built`
+    : undefined
 
 /**
  * Whether a declared maturity makes work still to come: any value does, whatever it is, and a
@@ -325,6 +334,8 @@ export const vocabularyJson = (vocabulary: Vocabulary) => ({
     codeAttributes: made.codeAttributes,
     /** The stages beyond the maturity ladder. */
     stages: Object.values(made.stages),
+    /** The words that say work is built, which no maturity can be, as no stage can. */
+    builtWords,
     /** The names no link can have. */
     reservedRelations
   }

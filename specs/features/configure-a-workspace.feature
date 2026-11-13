@@ -314,23 +314,24 @@ Feature: Configure a workspace
     ladder is the order in which a query compares maturities and stages. A value off the ladder is
     below every rung, so a question for what has not come far enough finds it.
 
-    Scenario: A ladder of sketch, agreed and done
+    @replaces:configure-a-workspace#a-ladder-of-sketch-agreed-and-done
+    Scenario: A ladder of sketch, agreed and estimated
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { maturity: [sketch, agreed, done] }
+        vocabulary: { maturity: [sketch, agreed, estimated] }
         """
       And these specs:
-        | tags                          | Feature  |
-        | @id=cart                      | Cart     |
-        | @id=wishlist @maturity=agreed | Wishlist |
-        | @id=returns @maturity=done    | Returns  |
-        | @id=gifts @maturity=someday   | Gifts    |
-      When I query "feature[maturity<done]"
+        | tags                            | Feature  |
+        | @id=cart                        | Cart     |
+        | @id=wishlist @maturity=agreed   | Wishlist |
+        | @id=returns @maturity=estimated | Returns  |
+        | @id=gifts @maturity=someday     | Gifts    |
+      When I query "feature[maturity<estimated]"
       Then the result is "gifts, wishlist"
       When I query "feature[toCome]"
       Then the result is "gifts, returns, wishlist"
       When I run "sdp vocabulary"
-      Then the output line with "maturity" contains "sketch, agreed, done"
+      Then the output line with "maturity" contains "sketch, agreed, estimated"
 
   Rule: sdp vocabulary prints the words sdp interprets as a configuration that reads back, and the words it makes itself, which nothing configures
 
@@ -393,7 +394,8 @@ Feature: Configure a workspace
         | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                               | at ["vocabulary"]["maturity"]               |
         | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                         | at ["vocabulary"]["maturity"]               |
         | vocabulary: { implemented: done }                | excess property                                      | at ["vocabulary"]["implemented"]            |
-        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, implemented] }    | implemented says the work is built                   | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [sketch, done] }         | done says the work is built                          | at ["vocabulary"]["maturity"]               |
         | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                               | at ["vocabulary"]["relations"]["anchor"]    |
         | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                       | at ["vocabulary"]["kinds"]["decision"]      |
         | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                  | at ["vocabulary"]["kinds"]["milestone"]     |

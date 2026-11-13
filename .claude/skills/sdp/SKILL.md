@@ -57,15 +57,16 @@ Feature: Guest checkout
   scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
   named by its path and run as it is.
 - **What is still to come declares a `@maturity=`; what is built declares none, and is live.** The
-  maturity of a Feature or a Rule — idea, draft, specified, ready, or a word of the team's own — is
-  how far it has come in the team's judgement, and sdp reads no meaning into its value, but for the
-  retired rung `implemented`, an error to delete: whatever it says, the work is still to come, and
-  its examples run and fail no run, so they are written before the code; a rule still to come
-  without an example is a to-do. A live Feature or Rule is a test: its examples must pass, a live
-  rule without an example is an error, and so is live work — a feature, or any kind a discipline
-  names — without a live rule. A Rule without a maturity of its own has its Feature's, so a change
-  to a built feature is rules of it, each with a maturity of its own, with
-  `@replaces:<feature>#<rule>` on one that replaces a live rule; nothing moves when it is built.
+  maturity of a Feature or a Rule — a rung of the ladder, by default idea, draft, specified, ready —
+  is how far it has come in the team's judgement, and sdp reads no meaning into the rung: whatever
+  it says, the work is still to come, and its examples run and fail no run, so they are written
+  before the code; a rule still to come without an example is a to-do. A word off the ladder is a
+  warning, and one that says the work is built, such as a stage or `done`, an error to delete. A
+  live Feature or Rule is a test: its examples must pass, a live rule without an example is an
+  error, and so is live work — a feature, or any kind a discipline names — without a live rule. A
+  Rule without a maturity of its own has its Feature's, so a change to a built feature is rules of
+  it, each with a maturity of its own, with `@replaces:<feature>#<rule>` on one that replaces a live
+  rule; nothing moves when it is built.
 - **Nothing live goes back.** `sdp check` compares the specs with the git base: where HEAD meets
   the default branch, or the revision `--base` or `base:` in the configuration names, read with the
   configuration it had there. Without a base, or with a spec there that sdp cannot read, its answer

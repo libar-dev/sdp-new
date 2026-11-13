@@ -270,7 +270,7 @@ Feature: Check specs
         | untested-feature | specs/export-to-csv.feature:1 | export-to-csv is live, so it needs a live rule | write a Rule with an example under it; while its rules are still to come, declare a maturity above `Feature:`, such as @maturity=idea |
 
   @decided-by:declared-maturity-derived-stage
-  Rule: A maturity is the team's judgement, and check reads neither its value nor the content behind it
+  Rule: A maturity is the team's judgement, and check reads no criterion into its rung nor the content behind it
 
     How far work still to come has come is for the team to say, and for a gate of its own to hold
     to a Definition of Ready: a placeholder paragraph with a token scenario would meet any criterion
@@ -294,15 +294,17 @@ Feature: Check specs
       Examples:
         | maturity             |
         | ready                |
-        | someday              |
+        | idea                 |
         | idea @maturity=ready |
 
-  Rule: The retired rung is an error, and its hint is to delete it
+  @replaces:check-specs#the-retired-rung-is-an-error-and-its-hint-is-to-delete-it
+  Rule: A maturity off the ladder is reported, and one that says the work is built is an error whose hint is to delete it
 
-    A live test declares no maturity. The rung that once said a spec was built would now say that it
-    is still to come, and switch its examples off in silence; no other value is judged.
+    A live test declares no maturity, so a stage sdp derives or a word for built work would say that
+    it is still to come, and switch its examples off in silence. A word off the ladder is most often
+    a slip, and a query ranks it below every rung.
 
-    Scenario Outline: The retired rung, on <on>
+    Scenario Outline: <case>, on <on>
       Given a file "specs/cart.feature" containing:
         """
         @id=cart @maturity=<feature's>
@@ -318,13 +320,16 @@ Feature: Check specs
         """
       When the workspace is checked
       Then sdp reports:
-        | rule             | severity | node | at                        | message                                                 | hint                                         |
-        | retired-maturity | error    | <id> | specs/cart.feature:<line> | the retired rung: any maturity makes work still to come | delete it: what declares no maturity is live |
+        | rule   | severity   | node | at                        | message   | hint   |
+        | <rule> | <severity> | <id> | specs/cart.feature:<line> | <message> | <hint> |
 
       Examples:
-        | on        | feature's   | rule's      | line | id                               |
-        | a feature | implemented | ready       | 1    | cart                             |
-        | a rule    | draft       | implemented | 6    | cart#a-cart-holds-what-was-added |
+        | case                  | on        | feature's   | rule's   | line | id                               | rule                | severity | message                                                                       | hint                                                                       |
+        | a word for built work | a feature | implemented | ready    | 1    | cart                             | maturity-says-built | error    | implemented says the work is built, but any maturity makes work still to come | delete it: what declares no maturity is live                               |
+        | a word for built work | a rule    | draft       | done     | 6    | cart#a-cart-holds-what-was-added | maturity-says-built | error    | done says the work is built                                                   | delete it                                                                  |
+        | a word for built work | a feature | live        | draft    | 1    | cart                             | maturity-says-built | error    | live says the work is built                                                   | delete it                                                                  |
+        | a stage               | a rule    | ready       | verified | 6    | cart#a-cart-holds-what-was-added | maturity-says-built | error    | verified is a stage sdp derives from a run of what is built                   | delete it                                                                  |
+        | a word off the ladder | a feature | someday     | idea     | 1    | cart                             | maturity-off-ladder | warning  | someday, which is not on the ladder idea, draft, specified, ready             | write a rung of the ladder, or add someday to it under vocabulary.maturity |
 
   Rule: Nothing live stops being live without an error
 

@@ -7,7 +7,7 @@
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"
 import { formatSource } from "../model/Graph.ts"
-import { idForm, isId, isValueWord, made, retiredMaturity } from "../model/Vocabulary.ts"
+import { idForm, isId, isValueWord, made, saysBuilt } from "../model/Vocabulary.ts"
 import { findFiles, loadProject } from "../workspace/Workspace.ts"
 import { Refused } from "./Errors.ts"
 import { configTemplate, newSpec } from "./Templates.ts"
@@ -72,8 +72,8 @@ const unusable = (input: CreateInput): string | undefined =>
     ? "--dir needs a directory, relative to the workspace root or absolute"
     : input.maturity !== undefined && !isValueWord(input.maturity)
     ? `${JSON.stringify(input.maturity)}: a maturity is one word: write it without a space, @, = or :`
-    : input.maturity === retiredMaturity
-    ? `${retiredMaturity} is the retired rung: a new spec is work still to come, and what is built declares no maturity`
+    : input.maturity !== undefined && saysBuilt(input.maturity) !== undefined
+    ? `${saysBuilt(input.maturity)}: a new spec is work still to come, and what is built declares no maturity`
     : undefined
 
 /**

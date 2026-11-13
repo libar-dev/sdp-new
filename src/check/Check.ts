@@ -25,7 +25,7 @@ import {
   type KindRole,
   made,
   type RelationRole,
-  retiredMaturity,
+  saysBuilt,
   type Vocabulary,
   wordFor
 } from "../model/Vocabulary.ts"
@@ -168,23 +168,35 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }
   }
 
-  // The rung that once said a spec was built would now say it is still to come, and switch its examples off.
-  const retired = (declared: unknown) => [declared].flat().some((value) => value === retiredMaturity)
-  const retiredAt = (id: string, source: SourceRef | undefined) =>
-    out.push(diagnostic("retired-maturity", {
-      message: `${id} declares @maturity=${retiredMaturity}, the retired rung: any maturity makes work still to come, so its examples would fail no run`,
-      node: id,
-      source,
-      hint: "delete it: what declares no maturity is live, and its examples must pass"
-    }))
-  for (const spec of project.specs) {
-    if (retired(attribute(spec, "maturity"))) retiredAt(spec.id, at(spec, spec.attrLines.maturity ?? 1))
-    for (const rule of spec.rules) {
-      if (retired(attribute(rule, "maturity"))) retiredAt(rule.id, at(spec, rule.attrLines.maturity ?? rule.line))
+  // A maturity says that work is still to come, at a rung of the team's ladder. One that says the
+  // work is built would switch its examples off in silence; one off the ladder is most often a slip.
+  const judge = (id: string, declared: unknown, source: SourceRef | undefined) => {
+    for (const value of declared === undefined ? [] : [declared].flat()) {
+      const word = String(value)
+      const built = saysBuilt(word)
+      if (built !== undefined) {
+        out.push(diagnostic("maturity-says-built", {
+          message: `${id} declares @maturity=${word}: ${built}, but any maturity makes work still to come, so its examples would fail no run`,
+          node: id,
+          source,
+          hint: "delete it: what declares no maturity is live, and its examples must pass"
+        }))
+      } else if (!vocabulary.maturity.includes(word)) {
+        out.push(diagnostic("maturity-off-ladder", {
+          message: `${id} declares @maturity=${word}, which is not on the ladder ${vocabulary.maturity.join(", ")}, so a query ranks it below every rung`,
+          node: id,
+          source,
+          hint: `write a rung of the ladder, or add ${word} to it under vocabulary.maturity in the configuration`
+        }))
+      }
     }
   }
+  for (const spec of project.specs) {
+    judge(spec.id, attribute(spec, "maturity"), at(spec, spec.attrLines.maturity ?? 1))
+    for (const rule of spec.rules) judge(rule.id, attribute(rule, "maturity"), at(spec, rule.attrLines.maturity ?? rule.line))
+  }
   for (const node of authored.filter((candidate) => !project.specById.has(candidate.id) && candidate.kind !== made.kinds.rule)) {
-    if (retired(attribute(node, "maturity"))) retiredAt(node.id, node.source)
+    judge(node.id, attribute(node, "maturity"), node.source)
   }
 
   // A question is still to come, whatever maturity it would have: examples under it would be switched off with it.
