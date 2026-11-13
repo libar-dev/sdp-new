@@ -571,23 +571,31 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     if (!isExample(from)) replacers.set(link.to, [...replacers.get(link.to) ?? [], from.id])
     else if (inWorkspace) namesOf.set(from.id, [...namesOf.get(from.id) ?? [], link.to])
   }
-  // Once a replacement has landed, its base has no more what it replaced, and the tag is done; or
-  // the tag means what was built at the base and is gone here, the one whose id begins most like it.
+  // A link the base has too names what a merged replacement replaced, and is done; any other means
+  // what was built at the base and is gone here, in its feature, the one whose id begins most like it.
+  const linkedThere = new Set(links.flatMap(({ inWorkspace, link }) => inWorkspace ? [] : [link.to]))
+  const featureOf = (id: string) => there.get(id)?.spec ?? id.split("#")[0]
   const builtThere = [...before.built, ...before.examples.filter((example) => example.live).map((example) => example.scenario.id)]
   const likeliest = (from: Replacing, id: string) =>
     [...new Set(builtThere)].sort().reduce<string | undefined>((best, candidate) => {
       const named = there.get(candidate)
-      const fits = named !== undefined && !here.has(candidate) && cannotReplace(from, named, vocabulary) === undefined
+      const fits = named !== undefined && !here.has(candidate) && featureOf(candidate) === featureOf(id) &&
+        cannotReplace(from, named, vocabulary) === undefined
       return fits && (best === undefined || sharedStart(candidate, id) > sharedStart(best, id)) ? candidate : best
     }, undefined)
   for (const { from, link, spec } of links.filter(({ inWorkspace, to, toCome }) => inWorkspace && to === undefined && !toCome)) {
-    const meant = likeliest(from, link.to)
+    const merged = linkedThere.has(link.to)
+    const meant = merged ? undefined : likeliest(from, link.to)
+    const tag = `\`@${link.rel}:${link.to}\``
     out.push(diagnostic("replaces-nothing", {
       message: `${from.id} -${link.rel}-> ${link.to}: neither the workspace nor ${at} has ${link.to}, so the link replaces nothing`,
       node: from.id,
       source: { file: spec.file, line: link.line },
-      hint: `${meant === undefined ? "" : `if it means ${meant}, built at the base, write \`@${link.rel}:${meant}\`; `}` +
-        `if the replacement is merged, delete \`@${link.rel}:${link.to}\``
+      hint: merged
+        ? `${at} has the link too, so the replacement is merged: delete ${tag}`
+        : meant === undefined
+        ? `name what it replaces as ${at} has it, or delete ${tag}`
+        : `if it means ${meant}, built at the base, write \`@${link.rel}:${meant}\`; if not, delete ${tag}`
     }))
   }
   // check() judges a link to what is here; one from work still to come to what is gone dangles.

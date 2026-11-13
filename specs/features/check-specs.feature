@@ -664,7 +664,30 @@ Feature: Check specs
       And the JSON output has:
         | data.rule | replaces-nothing |
         | data.line | 6                |
-      And the output contains "if it means cart#a-cart-is-kept-for-a-week, built at the base, write `@replaces:cart#a-cart-is-kept-for-a-week`; if the replacement is merged, delete `@replaces:cart#a-cart-holds-all`"
+      And the output contains "if it means cart#a-cart-is-kept-for-a-week, built at the base, write `@replaces:cart#a-cart-is-kept-for-a-week`; if not, delete `@replaces:cart#a-cart-holds-all`"
+
+    Scenario Outline: A link that replaces nothing, <case>
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+          Rule: A cart holds what was added
+            Scenario: Add an item
+              Then the cart holds 1 item
+          @replaces:<replaced>
+          Rule: A cart holds what was added, once
+            Scenario: Add an item once
+              Then the cart holds 1 item once
+        """
+      And the files are committed on the branch "<branch>"
+      When I run "sdp check"
+      Then the exit code is 0
+      And the output contains "<hint>"
+
+      Examples:
+        | case                     | replaced                         | branch | hint                                                                                     |
+        | named in another feature | basket#a-cart-is-kept-for-a-week | change | has it, or delete `@replaces:basket#a-cart-is-kept-for-a-week`                           |
+        | that the base has too    | cart#a-cart-holds-all            | main   | has the link too, so the replacement is merged: delete `@replaces:cart#a-cart-holds-all` |
 
   Rule: The specs of the base are those its own configuration finds in it, and what of them sdp cannot read makes the answer incomplete
 
