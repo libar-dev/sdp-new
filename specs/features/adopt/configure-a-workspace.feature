@@ -58,7 +58,7 @@ Feature: Configure a workspace
       And these specs:
         | tags     | Feature |
         | @id=<id> | Spec    |
-      Then node "<id>" has attribute kind = "<kind>"
+      Then the workspace node "<id>" has attribute kind = "<kind>"
 
       Examples:
         | id                 | kind        |

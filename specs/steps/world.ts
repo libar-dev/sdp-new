@@ -13,9 +13,12 @@ import type { Project } from "../../src/graph/Build.ts"
 import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { type Attrs, formatSource, type GraphNode } from "../../src/model/Graph.ts"
+import { type Attrs, formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
 import type { RunResults } from "../../src/model/Results.ts"
+import type { ParsedFile } from "../../src/parse/Spec.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
+import type { Matched, Stopped } from "./harness.steps.ts"
+import type { Execution } from "./run.steps.ts"
 
 export interface World {
   /** In-memory workspace: relative path → content. */
@@ -34,8 +37,36 @@ export interface World {
   directory: string | undefined
   lifecycle: LifecycleReport | undefined
   durationMs: number
-  /** Anything else a step module needs to carry between its own steps. */
-  scratch: Record<string, unknown>
+  /** The file the last `"<path>" is parsed` parsed, on its own. */
+  parsedFile?: ParsedFile
+  /** The workspace's graph loaded from memory and from disk, in that order. */
+  workspaceGraphs?: ReadonlyArray<Graph>
+  /** Each record of a command's output that the package's record schema refused, by line. */
+  recordDecodeFailures?: ReadonlyArray<string>
+  /** The steps of every example matched with the step definitions, for the guards to read. */
+  matchedSteps?: Matched
+  /** What became of each step stopped while the process it started ran. */
+  stoppedSteps?: ReadonlyArray<Stopped>
+  /** Where the searched files interpret a word of the vocabulary, each `file:line word`. */
+  interpretedWords?: ReadonlyArray<string>
+  /** A graph built from nodes and edges the scenario keeps in `graphInputs`, to change them once it is built. */
+  builtGraph?: Graph
+  graphInputs?: {
+    nodes: Array<{ id: string; kind: string; title: string; attrs: { owner?: { team: string }; tags?: Array<string> } }>
+    edges: Array<{ from: string; rel: string; to: string; source: { file: string; line: number } }>
+  }
+  /** The MCP tools an agent listed, each by its name and annotations. */
+  mcpTools?: ReadonlyArray<{ readonly name: string; readonly annotations?: Readonly<Record<string, unknown>> | undefined }>
+  /** The step definitions the scenario scripted, where each runs, and what they did when run. */
+  stepExecution?: Execution
+  /** Each file as last written to `directory`, so that only a file changed since is written again. */
+  writtenFiles?: Map<string, string>
+  /** The size of the random graph a timed query runs on; the worker that times it draws the graph. */
+  randomGraphSize?: { readonly nodes: number; readonly edges: number }
+  /** The plugin hook's session ids, the scenario's own, and what its last run showed the agent and how long it took. */
+  pluginHook?: { readonly sessions: string; shown: string | undefined; elapsedMs: number | undefined }
+  /** The lock another run holds on the results, whether it let go, and whether the results were written while it held it. */
+  resultsLock?: { released: boolean; writtenWhileHeld: boolean }
 }
 
 export const newWorld = (): World => ({
@@ -49,8 +80,7 @@ export const newWorld = (): World => ({
   outcome: undefined,
   directory: undefined,
   lifecycle: undefined,
-  durationMs: 0,
-  scratch: {}
+  durationMs: 0
 })
 
 /** The project for the current files, built once and cached until files change. */
@@ -161,13 +191,13 @@ const prose: ReadonlySet<string> = new Set(["message", "hint"])
 
 /**
  * Compares rows with a table whose header names the columns to check, so a scenario states only
- * what it is about. A table of its header alone expects no rows.
+ * what it is about. Exact by default; a table of its header alone expects no rows.
  */
 export const assertRows = (
   what: string,
   actual: ReadonlyArray<Row>,
   table: Table | undefined,
-  mode: "exactly" | "in order" | "including"
+  mode: "exactly" | "in order" | "including" = "exactly"
 ) => {
   assert.ok(table && table.length > 0, `expected a table of ${what}`)
   const columns = table[0]!.map((cell) => cell.trim())

@@ -305,7 +305,7 @@ Feature: See the architecture
         export class Ledger {}
         """
       When the workspace is loaded
-      Then the workspace graph has nodes:
+      Then the workspace graph has at least these nodes:
         | id          | source          | owner    |
         | ARCH-ledger | src/ledger.ts:1 | payments |
       And sdp reports:

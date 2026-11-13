@@ -7,7 +7,7 @@
  * What a hook run leaves to assert on is what the harness shows of it, as Claude Code does: on exit
  * 0, what it adds to the agent's context; on any other exit, what it shows the person, the hook's
  * stderr, and the agent is shown nothing. A diagnostic a hook writes to stderr and exits 0 reaches
- * neither, so no example reads it. What these steps carry between them is kept per world, here.
+ * neither, so no example reads it. What these steps carry between them is kept on the scenario's world.
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Duration, Effect, FileSystem, JsonSchema, Predicate, Result, Schema, SchemaRepresentation, Stream } from "effect"
@@ -16,7 +16,7 @@ import { strict as assert } from "node:assert"
 import { randomUUID } from "node:crypto"
 import { dirname, join, relative, sep } from "node:path"
 import { defineSteps } from "sdp/steps"
-import { assertRows, newWorld, output, produce, type Row, setFile, show, stdout, type World } from "./world.ts"
+import { assertRows, newWorld, output, produce, type Row, setFile, show, stdout, type Table, type World } from "./world.ts"
 import { env, workspace } from "./process.ts"
 
 /**
@@ -25,21 +25,8 @@ import { env, workspace } from "./process.ts"
  */
 const hookScript = "hooks/session-start.mjs"
 
-interface Hook {
-  /** Makes the scenario's session ids its own, wherever the hook keeps what it remembers of one. */
-  readonly sessions: string
-  /** What the last run showed the agent, and how long it took. */
-  shown: string | undefined
-  elapsedMs: number | undefined
-}
-
-const hooks = new WeakMap<World, Hook>()
-
-const hookOf = (world: World): Hook => {
-  let hook = hooks.get(world)
-  if (!hook) hooks.set(world, hook = { sessions: randomUUID(), shown: undefined, elapsedMs: undefined })
-  return hook
-}
+const hookOf = (world: World): NonNullable<World["pluginHook"]> =>
+  world.pluginHook ??= { sessions: randomUUID(), shown: undefined, elapsedMs: undefined }
 
 /** What a harness writes to a command hook's standard input, as Claude Code defines it and the others copy it. */
 const hookInput = (event: string, session: string, cwd: string) => ({
@@ -225,6 +212,28 @@ const agentPluginsSchemas: Readonly<Record<string, JsonSchema.JsonSchema>> = {
   }
 }
 
+/**
+ * The JSON Lines on stdout whose `type` is the one named, a row each. A column is a field of the
+ * record or of its attrs; one a record lacks reads as empty.
+ */
+const assertRecords = (world: World, type: string, table: Table | undefined, mode: "exactly" | "including" = "exactly") => {
+  const records = stdout(world).split("\n").filter((line) => line.trim() !== "").map((line, index): unknown => {
+    try {
+      return JSON.parse(line)
+    } catch {
+      return assert.fail(`line ${index + 1} of the output is not JSON: ${line}`)
+    }
+  })
+  const rows = records
+    .filter((record) => Predicate.hasProperty(record, "type") && record.type === type)
+    .map((record): Row => {
+      const { attrs, ...fields } = record as Record<string, unknown>
+      const all = { ...(Predicate.isObject(attrs) ? attrs : {}), ...fields }
+      return Object.fromEntries(Object.entries(all).map(([key, value]) => [key, show(value)]))
+    })
+  assertRows(`records of type ${type}`, rows, table, mode)
+}
+
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
   // A new session each time: its id is one no other run has used.
   When("the plugin's hook runs at session start in {string}", ({ args: [at], project, world }) =>
@@ -263,25 +272,9 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   Given("{int} features in {string} planned into {string}, each with an open question", ({ args: [count, root, iteration], world }) =>
     plannedFeatures(world, count, iteration, root))
 
-  // The JSON Lines on stdout whose `type` is the one named: each row is one of them, others may be
-  // there too. A column is a field of the record or of its attrs; one a record lacks reads as empty.
-  Then("the records of type {string} are:", ({ args: [type], table, world }) => {
-    const records = stdout(world).split("\n").filter((line) => line.trim() !== "").map((line, index): unknown => {
-      try {
-        return JSON.parse(line)
-      } catch {
-        return assert.fail(`line ${index + 1} of the output is not JSON: ${line}`)
-      }
-    })
-    const rows = records
-      .filter((record) => Predicate.hasProperty(record, "type") && record.type === type)
-      .map((record): Row => {
-        const { attrs, ...fields } = record as Record<string, unknown>
-        const all = { ...(Predicate.isObject(attrs) ? attrs : {}), ...fields }
-        return Object.fromEntries(Object.entries(all).map(([key, value]) => [key, show(value)]))
-      })
-    assertRows(`records of type ${type}`, rows, table, "including")
-  })
+  Then("the records of type {string} are:", ({ args: [type], table, world }) => assertRecords(world, type, table))
+
+  Then("the records of type {string} include at least:", ({ args: [type], table, world }) => assertRecords(world, type, table, "including"))
 
   // Named as a link from the naming file would name it: its path from that file's directory.
   Then("every file under {string} in the repository is named in {string}", ({ args: [directory, file], project }) =>

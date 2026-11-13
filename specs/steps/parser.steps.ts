@@ -16,12 +16,12 @@ const parse = (world: World, path: string) =>
     const content = world.files.get(path)
     assert.ok(content !== undefined, `no file ${path}`)
     const result = parseFeatureSpec(path, content, config)
-    world.scratch.parsed = result
+    world.parsedFile = result
     world.reported = result.diagnostics.map(reportRow)
   })
 
 const parsed = (world: World): ParsedFile => {
-  const result = world.scratch.parsed as ParsedFile | undefined
+  const result = world.parsedFile
   assert.ok(result, "parse a file first: When \"<path>\" is parsed")
   return result
 }
@@ -57,7 +57,7 @@ export default defineSteps(newWorld, ({ Then, When }) => {
   })
 
   // Each attribute's value as a reader sees it, and as JSON, which shows its type.
-  Then("the parsed spec has exactly these attributes:", ({ table, world }) =>
+  Then("the parsed spec has these attributes:", ({ table, world }) =>
     assertRows(
       "attributes",
       Object.entries(spec(world).attrs).map(([key, value]) => ({ key, value: show(value), json: JSON.stringify(value) })),

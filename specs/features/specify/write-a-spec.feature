@@ -35,12 +35,12 @@ Feature: Write a spec
           Rule: Can a guest save the cart for later?
         """
       When the workspace is loaded
-      Then node "guest-checkout" has attribute kind = "feature"
-      And node "guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
-      And node "guest-checkout" has attribute openQuestions = "1"
+      Then the workspace node "guest-checkout" has attribute kind = "feature"
+      And the workspace node "guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
+      And the workspace node "guest-checkout" has attribute openQuestions = "1"
       And the edges from "guest-checkout" are "guest-checkout -realized-by-> ARCH-orders, guest-checkout -iteration-> IT-payments"
-      And node "guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
-      And node "guest-checkout#by-card" has attribute rule = "guest-checkout#a-guest-pays-without-creating-an-account"
+      And the workspace node "guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
+      And the workspace node "guest-checkout#by-card" has attribute rule = "guest-checkout#a-guest-pays-without-creating-an-account"
 
   @decided-by:specs-are-gherkin-files
   Rule: A file is one spec, its Feature, named by its tags or else by its path, and an id and a name are enough
@@ -77,8 +77,8 @@ Feature: Write a spec
               Then the cart holds 1 item
         """
       When the workspace is loaded
-      Then node "cart" has attribute toCome = "<feature still to come>"
-      And node "cart#a-cart-holds-what-was-added" has attribute toCome = "<rule still to come>"
+      Then the workspace node "cart" has attribute toCome = "<feature still to come>"
+      And the workspace node "cart#a-cart-holds-what-was-added" has attribute toCome = "<rule still to come>"
 
       Examples:
         | case                                   | feature         | rule            | feature still to come | rule still to come |
@@ -104,7 +104,7 @@ Feature: Write a spec
               Then one charge is made
         """
       When "specs/pay.feature" is parsed
-      Then the parsed spec has exactly these attributes:
+      Then the parsed spec has these attributes:
         | key      | json               |
         | maturity | "draft"            |
         | estimate | 8                  |
@@ -221,8 +221,8 @@ Feature: Write a spec
       When the workspace is loaded
       And I query "*[!toCome] <-rule-of- rule[tags=@open][!maturity]"
       Then the result is "cart#does-a-cart-expire"
-      And node "cart#does-a-cart-expire" has attribute toCome = "true"
-      And node "cart#can-a-cart-be-shared-with-a-friend" has attribute stage = "idea"
+      And the workspace node "cart#does-a-cart-expire" has attribute toCome = "true"
+      And the workspace node "cart#can-a-cart-be-shared-with-a-friend" has attribute stage = "idea"
 
   Rule: A scenario runs as Cucumber runs it: the Feature's Background, then its Rule's, then its own steps, and an outline once per row
 
@@ -255,7 +255,7 @@ Feature: Write a spec
         | Given   | a wallet                       | 10   |
         | When    | the payment is retried by card | 13   |
       When the workspace is loaded
-      Then node "pay#retry" has attribute examples = "2"
+      Then the workspace node "pay#retry" has attribute examples = "2"
 
   @decided-by:specs-are-gherkin-files
   Rule: A file the Gherkin parser cannot read is an error at the line where it stopped, and no spec until it parses

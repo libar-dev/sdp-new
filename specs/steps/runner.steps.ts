@@ -15,15 +15,6 @@ import { defineSteps } from "sdp/steps"
 import { cli, directoryOf, env, existingFile, record, repository, workspace } from "./process.ts"
 import { newWorld, type World } from "./world.ts"
 
-/** The lock another run holds on the results file of an in-memory workspace, and what it saw when it let go. */
-interface Held {
-  released: boolean
-  /** Whether the results file was written while the lock was still held. */
-  writtenWhileHeld: boolean
-}
-
-const held = new WeakMap<World, Held>()
-
 /** The results file of a workspace that does not configure one, and the lock a run takes on it. */
 const results = ".sdp/results.json"
 const lock = `${results}.lock`
@@ -116,8 +107,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   // The lock file as another run's commit leaves it while it records, removed once the time is up.
   Given("another run holds the lock on the results for {int} ms", ({ args: [ms], world }) => {
-    const holding: Held = { released: false, writtenWhileHeld: false }
-    held.set(world, holding)
+    const holding = { released: false, writtenWhileHeld: false }
+    world.resultsLock = holding
     world.files.set(lock, "")
     setTimeout(() => {
       holding.writtenWhileHeld = world.files.has(results)
@@ -127,7 +118,7 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
   })
 
   Then("the results were recorded only after the lock was released", ({ world }) => {
-    const holding = held.get(world)
+    const holding = world.resultsLock
     assert.ok(holding, "no other run held the lock")
     assert.ok(holding.released, "the other run still holds the lock")
     assert.ok(!holding.writtenWhileHeld, `${results} was written while another run held the lock`)

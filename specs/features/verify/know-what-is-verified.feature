@@ -41,7 +41,7 @@ Feature: Know what is verified
         """
       And a step definition "the wishlist holds a lamp" that <holding>
       When the workspace is run with "<target>"
-      Then node "wishlist" has attribute stage = "<stage>"
+      Then the workspace node "wishlist" has attribute stage = "<stage>"
 
       Examples:
         | declaring           | target               | holding | stage       |
@@ -74,8 +74,8 @@ Feature: Know what is verified
         """
         <content>
         """
-      Then node "catalogue#the-cart-is-specified" has attribute status = "stale"
-      And node "catalogue#the-cart-is-specified" has attribute staleBecause = "<change>"
+      Then the workspace node "catalogue#the-cart-is-specified" has attribute status = "stale"
+      And the workspace node "catalogue#the-cart-is-specified" has attribute staleBecause = "<change>"
 
       Examples:
         | file                   | content                         | change            |
@@ -228,7 +228,7 @@ Feature: Know what is verified
               When I add <added>
               Then the cart holds <held>
         """
-      Then node "cart#add-an-item" has attribute status = "<status>"
+      Then the workspace node "cart#add-an-item" has attribute status = "<status>"
 
       Examples:
         | edit                        | added     | held    | on the feature                     | description             | status |
@@ -255,14 +255,14 @@ Feature: Know what is verified
               Then the node "cart" has stage "unrun"
         """
       When the workspace is run
-      Then node "MS-beta#the-cart-works" has attribute status = "failed"
+      Then the workspace node "MS-beta#the-cart-works" has attribute status = "failed"
       And the step 'the node "cart" has stage "unrun"' reports "is a gate"
       Given a step definition "an empty cart" that passes
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run with "cart"
-      Then node "MS-beta#the-cart-works" has attribute status = "stale"
-      And node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
+      Then the workspace node "MS-beta#the-cart-works" has attribute status = "stale"
+      And the workspace node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
 
   Rule: A run records the scenarios it executed and drops the results of those gone when it started, and keeps what every other run recorded, one that overlaps it too
 
@@ -288,8 +288,8 @@ Feature: Know what is verified
               Then the query "#cart" returns 1 result
         """
       And the workspace is run with "wishlist"
-      Then node "wishlist#remember-a-lamp" has attribute status = "passed"
-      And node "cart#add-an-item" has attribute status = "passed"
+      Then the workspace node "wishlist#remember-a-lamp" has attribute status = "passed"
+      And the workspace node "cart#add-an-item" has attribute status = "passed"
       And the file ".sdp/results.json" does not contain "wishlist#keep-a-lamp-for-later"
 
     Scenario: Two runs at once each record what they executed
@@ -308,8 +308,8 @@ Feature: Know what is verified
       When the workspace is run
       And a step definition "a wishlist" that fails
       And the workspace is run for "cart" and for "wishlist" at the same time
-      Then node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
-      And node "cart#add-an-item" has attribute status = "passed"
+      Then the workspace node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
+      And the workspace node "cart#add-an-item" has attribute status = "passed"
 
     Scenario: A run that finds another recording
       Given a step definition "an empty cart" that passes
@@ -317,7 +317,7 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       And another run holds the lock on the results for 500 ms
       When the workspace is run
-      Then node "cart#add-an-item" has attribute status = "passed"
+      Then the workspace node "cart#add-an-item" has attribute status = "passed"
       And the results were recorded only after the lock was released
 
   Rule: A run that cannot take the lock on the results within two seconds records nothing, and names the lock
