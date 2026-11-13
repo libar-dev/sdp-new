@@ -256,14 +256,15 @@ const carriedLinkTypes: ReadonlyArray<readonly [string, LinkType]> = [
  * has it. A map, so that an author's word such as `constructor` names nothing it does not hold.
  */
 export const linkTypes = (vocabulary: Vocabulary): ReadonlyMap<string, LinkType> => {
-  const { plan, phase, closes, replaces, anchor } = vocabulary.relations
+  const { plan, phase, closes, replaces, anchor, scenario } = vocabulary.relations
   const roles: ReadonlyArray<readonly [Words, LinkType]> = [
     [plan, { from: ["work", "rule"], to: ["iteration"], checked: { from: "plan-reference", to: "plan-reference" } }],
     [phase, { from: ["iteration"], to: ["phase"], checked: { to: "plan-reference" } }],
     [closes, { from: ["milestone"], to: ["iteration", "phase"], checked: { to: "plan-reference" } }],
     [replaces, { from: ["feature", "rule", "scenario"], to: ["feature", "rule", "scenario"], checked: { from: "replacement", to: "replacement" } }],
     // An anchor declares the node it names, of the kind it writes: any spec's kind, not only an element's.
-    [[anchor], { from: ["code"], to: ["spec"], checked: { from: "declared-in-spec", to: "declared-in-spec" } }]
+    [[anchor], { from: ["code"], to: ["spec"] }],
+    [[scenario], { from: ["scenario"], to: ["spec", "rule"] }]
   ]
   const types = new Map<string, LinkType>()
   for (const [words, type] of roles) for (const word of words) if (!types.has(word)) types.set(word, type)
@@ -322,8 +323,13 @@ export const isEnd = (vocabulary: Vocabulary, end: End, kind: string): boolean =
   }
 }
 
-/** A word with its indefinite article: an element, a decision. */
-export const withArticle = (word: string): string => `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`
+/** A kind with its indefinite article, an element, a decision; work and code are counted by no article. */
+export const withArticle = (word: string): string =>
+  ["work", "code"].includes(word) ? word : `${/^[aeiou]/i.test(word) ? "an" : "a"} ${word}`
+
+/** The kinds an end may be, each with its article, as a message says them: work or a rule. */
+export const endPhrase = (vocabulary: Vocabulary, ends: ReadonlyArray<End>): string =>
+  endWords(vocabulary, ends).split(" or ").map(withArticle).join(" or ")
 
 /** The kinds an end may be, in the workspace's words, as a hint says them. */
 export const endWords = (vocabulary: Vocabulary, ends: ReadonlyArray<End>): string =>

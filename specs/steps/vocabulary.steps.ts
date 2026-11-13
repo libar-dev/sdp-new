@@ -134,6 +134,12 @@ const holds = (what: string, column: string, used: Words, table: Table | undefin
 const printedTypes = (world: World): { readonly links: Record<string, { from: Array<string>; to: Array<string> }>; readonly facts: Record<string, { value: string; on: Array<string> }> } => {
   const types = JSON.parse(stdout(world))?.data?.types
   assert.ok(types, "run `sdp vocabulary --json` first: no types were printed")
+  // The ends and placements are lists of kinds, not a sentence that reads like one.
+  const lists = [
+    ...Object.values(types.links ?? {}).flatMap((type: any) => [type.from, type.to]),
+    ...Object.values(types.facts ?? {}).map((type: any) => type.on)
+  ]
+  assert.ok(lists.every((list) => Array.isArray(list) && list.every((kind: unknown) => typeof kind === "string")), "each end and placement is a list of kinds")
   return types
 }
 

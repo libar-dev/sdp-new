@@ -43,15 +43,15 @@ Feature: Every word this repository's specs and code use is listed here, with wh
         | rule-of     | makes      | From a rule to its spec.                                                                                                                    |
         | verifies    | makes      | From a scenario to its rule and to its spec.                                                                                                |
         | imports     | makes      | From an element to each element whose code its code imports.                                                                                |
-        | is          | interprets | From code to the element or pattern it is, written `@sdp is` in its doc comment.                                                            |
+        | is          | interprets | From code to the node it declares, written `@sdp is` in its doc comment: an element or a pattern, unless it names another kind.             |
         | applies     | carries    | From code to a pattern it is an instance of, written `@sdp applies PAT-…` in its doc comment, and so from the element that code is part of. |
         | realized-by | carries    | From a feature to the element whose code makes it work.                                                                                     |
         | depends-on  | carries    | From a feature to another feature it cannot work without, so a change to that one is a change to it too.                                    |
         | decided-by  | carries    | From a rule, or a whole spec, to the decision it rests on.                                                                                  |
         | includes    | carries    | From an epic to each feature or rule it groups.                                                                                             |
         | iteration   | interprets | From work still to come to the iteration it is planned into.                                                                                |
-        | closes      | interprets | From a milestone to the iteration whose last day dates it.                                                                                  |
-        | replaces    | interprets | From a rule still to come to the live rule it takes the place of, which stays live until it is built.                                       |
+        | closes      | interprets | From a milestone to the iteration or phase whose last day dates it.                                                                         |
+        | replaces    | interprets | From a feature, rule or example still to come to the live one it takes the place of, which stays live until it is built.                    |
 
   Rule: The facts written on specs, rules and scenarios are these
 

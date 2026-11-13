@@ -1239,6 +1239,30 @@ Feature: Plan delivery
         | rule      | severity | at                   | message                                                                                              |
         | fact-kind | warning  | specs/cart.feature:6 | cart#add-an-item: @start= dates an iteration, and cart#add-an-item is a scenario, so it says nothing |
 
+    Scenario: A date written with the workspace's dotted word, and a word sdp also derives
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { attributes: { start: plan.date, met: steps } }
+        """
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=idea
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            @plan.date=2026-11-16
+            Scenario: Add an item
+              Then the cart holds 1 item
+
+            Scenario: Add two
+              Then the cart holds 2 items
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | at                   | message                                                                                                  |
+        | fact-kind | specs/cart.feature:6 | cart#add-an-item: @plan.date= dates an iteration, and cart#add-an-item is a scenario, so it says nothing |
+
     Scenario: One word for two dates, written on what either dates
       Given a file "sdp.config.yaml" containing:
         """

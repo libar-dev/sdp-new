@@ -401,11 +401,12 @@ Feature: Link specs into one graph
         | src/a.py        | # @sdp status verified\ndef a(): pass                                  | src/a.py:1        | status   | no link can be named status        | written with =                     |
         | specs/a.feature | @id=a @owner=payments @owner:verified\nFeature: A                      | specs/a.feature:1 | owner    | owner is already an attribute of a | give the relation another name     |
 
-  Rule: A word that joins two nodes or dates the plan has a type: the kinds each end of its link may be, or what its value is and what it is written on
+  Rule: The relations and facts sdp types are these: the kinds each end of a typed link may be, and the value of a typed fact and what it is written on
 
     The type table is the contract of every check of a link and of what an agent reads before it
-    writes a tag, so a change to it is a change here. A word bound to a role has the role's type,
-    in the workspace's words; any other relation joins any nodes.
+    writes a tag, so a change to it is a change here. A word bound to a role takes the role's type,
+    in the workspace's words, and loses any type of its own; a relation the table does not list
+    joins any nodes.
 
     Scenario: The types, in a workspace that renames nothing
       When I run "sdp vocabulary --json"
@@ -422,6 +423,7 @@ Feature: Link specs into one graph
         | depends-on  | feature                 | feature                 |
         | includes    | epic                    | feature, rule           |
         | applies     | code, element           | pattern                 |
+        | verifies    | scenario                | spec, rule              |
       And the fact types are:
         | fact     | value | on         |
         | maturity | rung  | work, rule |
@@ -434,7 +436,7 @@ Feature: Link specs into one graph
         """
         vocabulary:
           kinds: { decision: [adr, decision], iteration: [sprint] }
-          relations: { plan: [scheduled, depends-on], closes: [ends] }
+          relations: { plan: [scheduled, depends-on], closes: [ends], scenario: applies }
           attributes: { end: date, met: date }
         """
       When I run "sdp vocabulary --json"
@@ -450,7 +452,7 @@ Feature: Link specs into one graph
         | realized-by | feature                 | element                 |
         | decided-by  | spec, rule              | adr, decision           |
         | includes    | epic                    | feature, rule           |
-        | applies     | code, element           | pattern                 |
+        | applies     | scenario                | spec, rule              |
       And the fact types are:
         | fact     | value | on                |
         | maturity | rung  | work, rule        |
@@ -494,14 +496,51 @@ Feature: Link specs into one graph
     Scenario: A word the workspace binds to a role has that role's type, and not its own
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { relations: { plan: [depends-on] } }
+        vocabulary: { relations: { plan: [depends-on], scenario: applies } }
         """
-      And these specs:
-        | tags                                          | Feature |
-        | @id=IT-beta @start=2026-11-16 @end=2026-11-27 | Beta    |
-        | @id=cart @maturity=idea @depends-on:IT-beta   | Cart    |
+      And a file "specs/IT-beta.feature" containing:
+        """
+        @id=IT-beta @start=2026-11-16 @end=2026-11-27
+        Feature: Beta
+        """
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=idea @depends-on:IT-beta
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
       When the workspace is checked
       Then sdp reports nothing
+
+    Scenario: A link written above a scenario or in code is held to its type as one written on a spec
+      Given these specs:
+        | tags                                          | Feature |
+        | @id=IT-beta @start=2026-11-16 @end=2026-11-27 | Beta    |
+      And a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=idea
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            @iteration:IT-beta
+            Scenario: Add an item
+              Then the cart holds 1 item
+        """
+      And a file "src/cart.ts" containing:
+        """
+        /** @sdp closes cart */
+        export const cart = (): void => {}
+        """
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | at                   | message                                                                                                       |
+        | link-kind | specs/cart.feature:6 | cart#add-an-item -iteration-> IT-beta: cart#add-an-item is a scenario, and iteration starts at work or a rule |
+        | link-kind | src/cart.ts:1        | code:src/cart.ts#cart -closes-> cart: code:src/cart.ts#cart is code, and closes starts at a milestone         |
 
     Scenario: What the report says, in the workspace's words
       Given a file "sdp.config.yaml" containing:
