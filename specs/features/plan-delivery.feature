@@ -762,7 +762,8 @@ Feature: Plan delivery
 
     Met is recorded once, not read from the calendar or from today's results: a date would fail
     tomorrow the commit that passes today, and results are local and go stale. Recording is
-    somebody's act, and a gate scenario edited while the gate ran has not run.
+    somebody's act, and a gate that changed while it ran, a scenario of it edited, added or
+    deleted, has not run.
 
     Scenario: Nothing is recorded while the gate does not pass
       Given these specs:
@@ -823,6 +824,42 @@ Feature: Plan delivery
       Then the exit code is 1
       And the output contains "MS-objectives is not recorded as met: its gate changed while it ran, and MS-objectives#there-is-a-plan (stale) does not pass"
       And the file "specs/MS-objectives.feature" does not contain "@met="
+
+    Scenario Outline: Nothing is recorded when <what> while it runs
+      Given a file "specs/MS-objectives.feature" containing:
+        """
+        @id=MS-objectives @closes:PH-inception
+        Feature: Lifecycle objectives
+
+          Rule: The work is planned
+
+            Scenario: There is a plan
+              Given the gate is cut while it runs
+
+            Scenario: There is a date
+              Given the gate is cut while it runs
+        """
+      And a file "specs/steps/cut.steps.ts" containing:
+        """
+        import { readFileSync, writeFileSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("the gate is cut while it runs", () => {
+            const file = "specs/MS-objectives.feature"
+            writeFileSync(file, readFileSync(file, "utf8").split("<cut at>")[0])
+          })
+        })
+        """
+      When I run "sdp gate MS-objectives --record"
+      Then the exit code is 1
+      And the output contains "MS-objectives is not recorded as met: its gate changed while it ran<and>"
+      And the file "specs/MS-objectives.feature" does not contain "@met="
+
+      Examples:
+        | what                              | cut at                    | and                       |
+        | its gate is deleted               | Rule:                     | , and has no scenario now |
+        | a scenario of its gate is deleted | Scenario: There is a date | ; run sdp gate            |
 
   Rule: sdp gate --record records nothing on a graph sdp could not read whole
 

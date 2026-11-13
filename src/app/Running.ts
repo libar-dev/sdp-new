@@ -335,7 +335,7 @@ export interface RunReport {
   readonly snippets?: string | undefined
 }
 
-/** Imports the step modules and runs the selection; `enforce` says which scenarios decide `passed`. */
+/** Imports the step modules and runs the selection, with its answer; `enforce` says which scenarios decide `passed`. */
 const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enforce: "scenarios" | "gates") {
   const { concurrency = 1 } = input
   if (!Number.isInteger(concurrency) || concurrency < 1) {
@@ -381,12 +381,12 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   ]
   // Nothing runs on a workspace sdp check rejects; what else sdp did not read leaves the answer incomplete.
   const missing = run.unread.map((diagnostic) => `not read: ${problemLine(diagnostic)}`)
-  return { complete: missing.length === 0, notes: [...missing, ...notes], data: report } satisfies Answer<RunReport>
+  return { run, answer: { complete: missing.length === 0, notes: [...missing, ...notes], data: report } satisfies Answer<RunReport> }
 })
 
 /** `sdp run`: executes the selected scenarios and records their results. An unmet gate does not fail it. */
 export const run = Effect.fn("run")(function*(root: string, input: RunInput = {}) {
-  return yield* execute(root, input, "scenarios")
+  return (yield* execute(root, input, "scenarios")).answer
 })
 
 export interface GateInput {
@@ -420,10 +420,11 @@ const unrecordable = (project: Project, spec: Spec): string | undefined => {
 
 /**
  * Writes `@met=<today>` on a milestone whose gate has just passed, as the workspace is now: read
- * again, whole, the milestone must still be recordable and every scenario of its gate must still
- * pass, or an edit made while the gate ran would be closed without having run.
+ * again, whole, the milestone must still be recordable, its gate must be the scenarios that `ran`,
+ * none of them edited, and every one of them must still pass, or an edit made while the gate ran
+ * would be closed without having run.
  */
-const recordMet = Effect.fnUntraced(function*(root: string, milestone: string) {
+const recordMet = Effect.fnUntraced(function*(root: string, milestone: string, ran: ReadonlyArray<ScenarioResult>) {
   const project = yield* loadProject(root)
   const missing = unread(project)
   if (missing.length > 0) {
@@ -436,17 +437,20 @@ const recordMet = Effect.fnUntraced(function*(root: string, milestone: string) {
   const reason = unrecordable(project, spec)
   if (reason !== undefined) return yield* new Refused({ reason })
   const { vocabulary } = project.config
-  const unmet = spec.scenarios.flatMap((scenario) => {
+  const gate = spec.scenarios.filter((scenario) => isGate(scenario, spec, vocabulary))
+  const hashes = new Map(ran.map((result) => [result.id, result.hash]))
+  const same = gate.length === hashes.size && gate.every((scenario) => hashes.get(scenario.id) === scenario.hash)
+  const unmet = gate.flatMap((scenario) => {
     const status = project.graph.node(scenario.id)?.attrs.status
-    return isGate(scenario, spec, vocabulary) && status !== "passed" ? [`${scenario.id} (${String(status)})`] : []
+    return status !== "passed" ? [`${scenario.id} (${String(status)})`] : []
   })
   const fs = yield* FileSystem.FileSystem
   const file = (yield* Path.Path).join(root, spec.file)
   const content = yield* fs.readFileString(file)
-  if (unmet.length > 0 || content !== spec.body) {
+  if (!same || unmet.length > 0 || content !== spec.body) {
     return yield* new Refused({
       reason: `${milestone} is not recorded as met: its gate changed while it ran${
-        unmet.length > 0 ? `, and ${unmet.join(", ")} does not pass as it is now` : ""
+        gate.length === 0 ? ", and has no scenario now" : unmet.length > 0 ? `, and ${unmet.join(", ")} does not pass as it is now` : ""
       }; run sdp gate ${milestone} --record again`
     })
   }
@@ -482,9 +486,9 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   }
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
-  const ran = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
+  const { answer: ran, run } = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
   // What sdp did not read could change whether the gate holds.
-  const met = input.record && ran.data.passed && ran.complete ? yield* recordMet(root, milestone) : undefined
+  const met = input.record && ran.data.passed && ran.complete ? yield* recordMet(root, milestone, run.gates) : undefined
   const report: GateReport = { ...ran.data, milestone, met }
   const unrecorded = !input.record || met !== undefined
     ? []
