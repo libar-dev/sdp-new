@@ -272,7 +272,10 @@ const today = Effect.map(DateTime.now, DateTime.formatIsoDate)
 
 /** The lifecycle report as plain data: ids refer to the records in `milestones`, `phases` and `work`. */
 const lifecycleData = (report: LifecycleReport) => ({
-  /** Where the project is: the first milestone that is not met, and its phase. The files say it, not the date. */
+  /**
+   * Where the project is: the first milestone on the timeline that is not met, or else the only one
+   * not met, and its phase. The files say it, not the date.
+   */
   position: { milestone: report.next?.node.id ?? null, phase: report.next?.phase?.id ?? null },
   /** Where today falls. It decides nothing. */
   calendar: { today: report.today ?? null, iteration: report.current?.id ?? null },

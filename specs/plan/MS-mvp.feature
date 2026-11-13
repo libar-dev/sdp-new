@@ -22,7 +22,7 @@ Feature: Minimum viable product
     A question about live work declares no maturity of its own; one about work still to come declares one.
 
     Scenario: Open questions about what is built
-      Then the query "rule[tags~@open][!maturity] -rule-of-> *[!toCome]" returns no results
+      Then the query "rule[tags=@open][!maturity] -rule-of-> *[!toCome]" returns no results
 
   Rule: Every element says what it is for
 

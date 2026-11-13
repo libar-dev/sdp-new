@@ -6,7 +6,7 @@
  *
  * @sdp is ARCH-spec-parser
  */
-import { AstBuilder, compile, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
+import { AstBuilder, compile, dialects, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"
 import { IdGenerator } from "@cucumber/messages"
 import { Result } from "effect"
@@ -93,6 +93,8 @@ export interface Paragraph {
 export interface FeatureHead extends Annotations {
   readonly name: string
   readonly description: ReadonlyArray<Paragraph>
+  /** The dialect its keywords are written in: `en`, unless the file's `# language:` names another. */
+  readonly language: string
 }
 
 export interface GherkinError {
@@ -122,7 +124,15 @@ export interface FeatureFile {
   readonly read: (specId: string, tags: ReadonlyArray<string>) => GherkinResult
 }
 
-const featureLine = /^\s*Feature:/
+/** The keywords that open a block of a Gherkin file. */
+export type Block = "feature" | "rule" | "background" | "scenario" | "scenarioOutline" | "examples"
+
+/** A line that opens one of `blocks` in the dialect of `language`: `Feature:`, or `Fonctionnalité:` in a French file. */
+export const keywordLine = (language: string, blocks: ReadonlyArray<Block>): RegExp => {
+  const dialect = dialects[language] ?? dialects.en!
+  const words = blocks.flatMap((block) => dialect[block]).map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  return new RegExp(`^\\s*(?:${words.join("|")}):`)
+}
 
 /** Which keys link, so that one written with `=` is a slip: `@iteration=IT-beta` plans nothing. */
 export type LinkKeys = (key: string) => boolean
@@ -138,6 +148,7 @@ export const parseFeatureFile = (content: string, links: LinkKeys): Result.Resul
     feature: feature && {
       name: feature.name,
       description: paragraphs(placeDescription(lines, feature).lines),
+      language: feature.language,
       ...readTags(feature.tags, "Feature", links)
     },
     read: (specId, tags) =>
@@ -324,20 +335,25 @@ const readFeature = (
     visitSteps(scenario.steps)
     described.push(scenario)
     for (const examples of scenario.examples) {
+      described.push(examples)
       readTags(examples.tags, "Examples", links, problems)
       for (const row of examples.tableBody) astLines.set(row.id, row.location.line)
     }
     scenarioDefs.push({ scenario, rule })
   }
   const writtenRules: Array<Messages.Rule> = []
+  const visitBackground = (background: Messages.Background) => {
+    visitSteps(background.steps)
+    described.push(background)
+  }
   for (const child of feature.children) {
-    if (child.background) visitSteps(child.background.steps)
+    if (child.background) visitBackground(child.background)
     if (child.scenario) visitScenario(child.scenario, undefined)
     if (child.rule) {
       writtenRules.push(child.rule)
       described.push(child.rule)
       for (const ruleChild of child.rule.children) {
-        if (ruleChild.background) visitSteps(ruleChild.background.steps)
+        if (ruleChild.background) visitBackground(ruleChild.background)
         if (ruleChild.scenario) visitScenario(ruleChild.scenario, child.rule)
       }
     }
@@ -353,6 +369,7 @@ const readFeature = (
     })
   }
   // Gherkin reads a second Feature as text of the description above it, and nothing of it as a spec.
+  const featureLine = keywordLine(feature.language, ["feature"])
   for (const { line, text } of placed.flatMap((description) => description.lines).filter((placed) => featureLine.test(placed.text))) {
     problems.push({
       rule: "gherkin-syntax",
@@ -427,10 +444,12 @@ const readFeature = (
  * no tag line is above its Feature.
  */
 export const withTag = (content: string, tag: string): string | undefined => {
+  const parsed = parseDocument(content, IdGenerator.incrementing())
+  const [first] = Result.isSuccess(parsed) ? parsed.success.feature?.tags ?? [] : []
+  if (first === undefined) return undefined
   const lines = content.split("\n")
-  const index = lines.findIndex((line) => line.trimStart().startsWith("@") || featureLine.test(line))
-  const line = lines[index]
-  if (line === undefined || featureLine.test(line)) return undefined
+  const index = first.location.line - 1
+  const line = lines[index]!
   const end = /\s+#/.exec(line)?.index ?? line.trimEnd().length
   lines[index] = `${line.slice(0, end)} ${tag}${line.slice(end)}`
   return lines.join("\n")
@@ -448,14 +467,22 @@ const parserErrors = (error: unknown): ReadonlyArray<GherkinError> => {
 const toTag = (tag: string) => tag.startsWith("@") ? tag.replace(/\s+/g, "-") : `@${tag.replace(/\s+/g, "-")}`
 
 /**
- * Lower-case ASCII words joined by `-`; accents are dropped first, so "für Gäste" → "fur-gaste". At
- * most 64 characters, cut after the last whole word that fits, so an id never ends in half a word.
+ * The slug of a title, or of a rule's or a scenario's name: its words in any script, lower-case and
+ * joined by `-`, a Latin letter without its accents, so "Die Größe zählt" → "die-große-zahlt" and
+ * "Корзина пуста" → "корзина-пуста". A word is letters and digits with the marks they carry, so a
+ * mark on nothing is dropped: only a text without a letter or a digit has no slug.
  */
-export const slugify = (text: string): string => {
-  const slug = text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+export const slugify = (text: string): string =>
+  shortened(
+    text.normalize("NFKD").replace(/(\p{Script=Latin})\p{M}+/gu, "$1").normalize("NFC").toLowerCase()
+      .split(/[^\p{L}\p{N}\p{M}]+/u).map((word) => word.replace(/^\p{M}+/u, "")).filter((word) => word !== "").join("-")
+  )
+
+/** A slug of at most 64 characters, cut after the last whole word that fits, so an id never ends in half a word. */
+const shortened = (slug: string): string => {
   if (slug.length <= 64) return slug
   const cut = slug.lastIndexOf("-", 64)
-  return cut > 0 ? slug.slice(0, cut) : slug.slice(0, 64)
+  return cut > 0 ? slug.slice(0, cut) : [...slug].slice(0, 64).join("")
 }
 
 /** Everything a step handler can observe of a scenario: each example's name, tags (inherited ones too) and steps with their arguments. */

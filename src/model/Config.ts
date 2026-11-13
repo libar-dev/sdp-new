@@ -1,5 +1,5 @@
 import { Schema } from "effect"
-import { defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
+import { defaultDisciplines, defaultVocabulary, isKey, isValueWord, made, reservedRelations, retiredMaturity, type Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
@@ -117,17 +117,21 @@ export const defaults: Config = {
   vocabulary: defaultVocabulary
 }
 
-/** Each role the file names replaces its default; disciplines merge one by one. */
+/**
+ * Each role the file names replaces its default; disciplines merge one by one, over defaults that
+ * name the kinds in the file's words.
+ */
 const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
   const d = defaultVocabulary
   if (!file) return d
+  const kinds = { ...d.kinds, ...file.kinds }
   return {
-    kinds: { ...d.kinds, ...file.kinds },
+    kinds,
     relations: { ...d.relations, ...file.relations },
     attributes: { ...d.attributes, ...file.attributes },
     qualities: file.qualities ?? d.qualities,
     maturity: file.maturity ?? d.maturity,
-    disciplines: new Map([...d.disciplines, ...Object.entries(file.disciplines ?? {})]),
+    disciplines: new Map([...defaultDisciplines(kinds), ...Object.entries(file.disciplines ?? {})]),
     words: { ...d.words, ...file.words }
   }
 }
@@ -238,7 +242,8 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
 /**
  * What a configuration must satisfy beyond its shape, each problem at its path: a vocabulary sdp
  * can work with, a maturity ladder of distinct levels that cannot be mistaken for a derived stage,
- * and id prefixes that kind inference reads back (letters only, one kind each).
+ * and id prefixes that kind inference reads back (letters only, one kind each, none of a kind sdp
+ * makes itself).
  */
 const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => {
   const issues: Array<Schema.FilterIssue> = file.vocabulary === undefined ? [] : [...vocabularyProblems(file.vocabulary)]
@@ -263,19 +268,29 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
       })
     }
   }
+  const madeKinds: ReadonlyArray<string> = Object.values(made.kinds)
+  for (const kind of Object.keys(file.ids ?? {}).filter((candidate) => madeKinds.includes(candidate))) {
+    issues.push({ path: ["ids", kind], issue: `${kind} is a kind sdp makes itself, so no id an author writes can be of it` })
+  }
   const owners = new Map<string, string>()
   for (const [kind, prefix] of [...defaultIds, ...Object.entries(file.ids ?? {})]) {
     if (!/^[A-Za-z]+$/.test(prefix)) {
       issues.push({ path: ["ids", kind], issue: `prefix "${prefix}" must be letters only, so that the kind of an id like ${prefix}-x can be inferred` })
     }
-    owners.set(kind, prefix.toLowerCase())
+    owners.set(kind, prefix)
   }
-  const byPrefix = new Map<string, Array<string>>()
-  for (const [kind, prefix] of owners) byPrefix.set(prefix, [...(byPrefix.get(prefix) ?? []), kind])
-  for (const [prefix, kinds] of byPrefix) {
-    if (kinds.length > 1) {
-      issues.push({ path: ["ids"], issue: `${kinds.join(" and ")} share the prefix ${prefix.toUpperCase()}, so an id cannot say which kind it is` })
-    }
+  // An id's prefix is matched in its case, but prefixes alike but for their case are one to whoever reads an id.
+  const byPrefix = new Map<string, Array<readonly [kind: string, prefix: string]>>()
+  for (const [kind, prefix] of owners) byPrefix.set(prefix.toLowerCase(), [...(byPrefix.get(prefix.toLowerCase()) ?? []), [kind, prefix]])
+  for (const sharing of byPrefix.values()) {
+    if (sharing.length < 2) continue
+    const [prefix, ...cases] = [...new Set(sharing.map(([, written]) => written))]
+    issues.push({
+      path: ["ids"],
+      issue: `${sharing.map(([kind]) => kind).join(" and ")} share the prefix ${prefix}${
+        cases.length > 0 ? `, as ${cases.join(" and ")}, so an id would say its kind only by its case` : ", so an id cannot say which kind it is"
+      }`
+    })
   }
   return issues
 }

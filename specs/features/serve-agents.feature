@@ -95,6 +95,26 @@ Feature: Serve AI agents
       When I ask for the context of "one-line-per-item"
       Then the output section "Rules that rest on this" contains "- [unrun] A cart holds each item once (decided-by) — cart specs/cart.feature:7"
 
+    Scenario: A spec in another language, its examples in its own words
+      Given a file "specs/paie.feature" containing:
+        """
+        # language: fr
+        @id=paie
+        Fonctionnalité: Paie
+
+          Les clients paient.
+
+          Règle: Un invité paie
+
+            Parce que.
+
+            Scénario: Par carte
+              Soit une carte
+        """
+      When I ask for the context of "paie"
+      Then the output section "Specification" contains "Scénario: Par carte"
+      And the output section "Specification" does not contain "Règle:"
+
   Rule: The bundle lists the steps still to write, before a run and after one, and runs no step file to know
 
     Asking must be safe: a step file is read as text, so no question runs the workspace's code.

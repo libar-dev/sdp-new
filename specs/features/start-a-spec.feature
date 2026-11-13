@@ -31,7 +31,8 @@ Feature: Start a spec
 
   Rule: A new spec holds only what stays in it, and the answer says what to write next
 
-    Advice written into the file would outlive its use as prose nobody wrote.
+    Advice written into the file would outlive its use as prose nobody wrote. Only work, a kind a
+    discipline names, is still to come at a maturity, and planned.
 
     Scenario Outline: The file says what the spec is, and the answer what to write in it
       When I run "sdp new <kind> '<title>' <options>"
@@ -43,11 +44,12 @@ Feature: Start a spec
       And the output contains 'next: <next>'
 
       Examples:
-        | kind    | title     | options | file                                  | tags                                    | next                                                                |
-        | gizmo   | Sprocket  |         | specs/gizmo/sprocket.feature          | @id=sprocket @kind=gizmo @maturity=idea | write the idea in a sentence under the title                        |
-        | plan    | Roadmap   |         | specs/delivery/roadmap.feature        | @id=roadmap @kind=plan                  | a phase is a file of its own                                        |
-        | risk    | Outage    |         | specs/risks/outage.feature            | @id=outage @kind=risk @maturity=idea    | link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…       |
-        | phase   | Hardening |         | specs/delivery/PH-hardening.feature   | @id=PH-hardening                        | say under the title what this phase takes on, and why in this order |
+        | kind  | title         | options | file                                 | tags                                       | next                                                                |
+        | gizmo | Sprocket      |         | specs/gizmo/sprocket.feature         | @id=sprocket @kind=gizmo                   | say under the title what it is                                      |
+        | idea  | Gift wrapping |         | specs/features/gift-wrapping.feature | @id=gift-wrapping @maturity=idea           | say under the title who needs what, and why, before any solution    |
+        | risk  | Outage        |         | specs/risk/outage.feature            | @id=outage @kind=risk                      | say under the title what it is                                      |
+        | phase | Hardening     |         | specs/plan/PH-hardening.feature      | @id=PH-hardening                           | say under the title what this phase takes on, and why in this order |
+        | story | Saved carts   |         | specs/story/saved-carts.feature      | @id=saved-carts @kind=story @maturity=idea | write the idea in a sentence under the title                        |
 
     Scenario: A decision starts as the sentence it must become, and the answer says which choices are decisions
       When I run "sdp new decision 'Use Postgres'"
@@ -64,6 +66,23 @@ Feature: Start a spec
         next: record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains
         next: a rule that rests on it is written on the spec it constrains, tagged `@decided-by:use-postgres`
         """
+
+    Scenario: A milestone links nothing it ends, and the answer says what to link
+      Given these specs:
+        | tags                | Feature      |
+        | @id=PH-construction | Construction |
+      When I run "sdp new milestone 'Go live'"
+      Then the file "specs/plan/MS-go-live.feature" is:
+        """
+        @id=MS-go-live
+        Feature: Go live
+
+          Rule: The specification graph is consistent
+
+            Scenario: No errors in the specification graph
+              Then there are no error diagnostics
+        """
+      And the output contains "next: set `@closes:` to the phase or the iteration this milestone ends: sdp lifecycle shows them"
 
   @decided-by:architecture-is-declared-in-doc-comments
   Rule: A pattern is declared in its code like an element, so new writes no file for one, and the answer says how code plays it
@@ -97,10 +116,10 @@ Feature: Start a spec
         """
       And the file "specs/architecture/ARCH-orders.feature" does not exist
 
-  Rule: A new feature is written where it stays, and a change has no file
+  Rule: A new spec is written in the directory sdp gives its kind in any workspace, a feature where it stays, and a change has no file
 
-    Nothing moves when a feature is built. A change to it is rules of it, each with a maturity of its
-    own until it is built, so it has no file of its own, unless a team has a kind of that name.
+    Nothing moves when a feature is built. A change to it is rules of it, each with a maturity of
+    its own until it is built, so it has no file of its own, unless a team has a kind of that name.
 
     Scenario: A feature, written where it stays
       When I run "sdp new feature 'Saved carts'"
@@ -117,6 +136,18 @@ Feature: Start a spec
         next: write what is still unknown as a `Rule:` tagged `@open`, its name the question
         """
       And the output contains "next: it stays in this file: once it is built, delete its maturity, and it is live; a rule still to come after that declares a maturity of its own above `Rule:`"
+
+    Scenario Outline: A <kind>, under <directory>
+      When I run "sdp new <kind> 'Go live'"
+      Then the output lines are "<id>\t<directory>/<id>.feature"
+
+      Examples:
+        | kind      | directory       | id         |
+        | decision  | specs/decisions | go-live    |
+        | milestone | specs/plan      | MS-go-live |
+        | phase     | specs/plan      | PH-go-live |
+        | iteration | specs/plan      | IT-go-live |
+        | runbook   | specs/runbook   | go-live    |
 
     Scenario Outline: A change, <where>
       Given a file "sdp.config.yaml" containing:
@@ -139,18 +170,19 @@ Feature: Start a spec
 
     Scenario: A kind without a template
       When I run "sdp new --help"
-      Then the output contains "feature, idea, decision, element, pattern, milestone, plan, phase, iteration, risk"
+      Then the output contains "feature, idea, decision, element, pattern, milestone, phase, iteration"
       And the output contains "idea (default), draft, specified or ready, or any word of the team's own"
       When I run "sdp new gizmo Sprocket"
       Then the output lines are "sprocket\tspecs/gizmo/sprocket.feature"
       And the file "specs/gizmo/sprocket.feature" contains "@id=sprocket @kind=gizmo"
 
-  Rule: A new spec's id is an ASCII slug of its title, or a number, after its kind's prefix where it has one, and its file is named by it
+  @replaces:start-a-spec#a-new-spec-s-id-is-an-ascii-slug-of-its-title-or-a-number-after
+  Rule: A new spec's id is the slug of its title, as a rule's is of its name, or a number, after its kind's prefix where it has one, and its file is named by it
 
     An id says what it names, so whoever reads a message that cites it needs no lookup. What a spec
     says is name enough: only elements, patterns, milestones, phases and iterations have a prefix,
-    unless the workspace gives one to another kind. Only a title with no letters to slug gets a
-    number, after its kind where it has no prefix.
+    unless the workspace gives one to another kind. Only a title with no letter or digit to slug
+    gets a number, after its kind where it has no prefix.
 
     Scenario Outline: By kind and title, or as --id and --dir say, relative to the workspace root or absolute
       When I run "sdp new <arguments>"
@@ -158,24 +190,29 @@ Feature: Start a spec
       And the file "<file>" contains "@id=<id>"
 
       Examples:
-        | arguments                                               | id                 | file                                      |
-        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/delivery/MS-kasse-fur-gaste.feature |
-        | milestone 'Корзина'                                     | MS-0001            | specs/delivery/MS-0001.feature            |
-        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature      |
-        | feature 'Корзина'                                       | feature-0001       | specs/features/feature-0001.feature       |
-        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature     |
-        | milestone 'Go-live'                                     | MS-go-live         | specs/delivery/MS-go-live.feature         |
-        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature           |
-        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature         |
+        | arguments                                               | id                 | file                                    |
+        | milestone 'Kasse für Gäste'                             | MS-kasse-fur-gaste | specs/plan/MS-kasse-fur-gaste.feature   |
+        | milestone 'Корзина'                                     | MS-корзина         | specs/plan/MS-корзина.feature           |
+        | idea 'Gift wrapping'                                    | gift-wrapping      | specs/features/gift-wrapping.feature    |
+        | feature 'Корзина'                                       | корзина            | specs/features/корзина.feature          |
+        | decision 'Ödeme yöntemi'                                | odeme-yontemi      | specs/decisions/odeme-yontemi.feature   |
+        | decision 'Die Größe zählt'                              | die-große-zahlt    | specs/decisions/die-große-zahlt.feature |
+        | milestone 'Go-live'                                     | MS-go-live         | specs/plan/MS-go-live.feature           |
+        | feature 'Gift cards' --id vouchers --dir specs/payments | vouchers           | specs/payments/vouchers.feature         |
+        | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature       |
 
-    Scenario: A title that leaves no ASCII letter or digit to slug is numbered after the highest number its kind has
+    Scenario: A title with no letter or digit in any script, a mark on nothing included, is numbered after the highest number its kind has
       Given these specs:
         | tags              | Feature  |
         | @id=ARCH-0007     | Корзина  |
         | @id=ARCH-checkout | Checkout |
       When I run "sdp new element 'Платёж'"
+      Then the output lines are "ARCH-платёж"
+      When I run "sdp new element '🛒'"
       Then the output lines are "ARCH-0008"
-      When I run "sdp new element 'Платёж 2'"
+      When I run "sdp new element '◌́'"
+      Then the output lines are "ARCH-0008"
+      When I run "sdp new element '🛒 2'"
       Then the output lines are "ARCH-2"
 
     Scenario: A file outside the workspace, or where its features globs do not look, is in no graph, and the answer says so
@@ -190,17 +227,18 @@ Feature: Start a spec
       When I run "sdp -C shop new feature 'Gift cards' --dir requirements"
       Then the output does not contain "note:"
 
-  Rule: A new spec fails the check only for template text its author has yet to replace
+  Rule: Check reports a new spec only for what its author has yet to write: template text, and what a milestone closes
 
     At any maturity a feature starts as its tags and its title: what it says next is the author's.
 
     Scenario: Every template, at its first maturity and at others
       Given specs created from the sdp new templates:
         | kind      | title         | maturity |
-        | gizmo     | Sprocket      | idea     |
+        | gizmo     | Sprocket      |          |
         | idea      | Gift wrapping |          |
-        | phase     | Elaboration   |          |
         | milestone | Launch        |          |
+        | phase     | Construction  |          |
+        | milestone | Go-live       |          |
         | risk      | Outage        |          |
         | feature   | Gift cards    | draft    |
         | feature   | Wishlist      | ready    |
@@ -208,8 +246,10 @@ Feature: Start a spec
         | decision  | Use Postgres  |          |
       When the workspace is checked
       Then sdp reports:
-        | rule                 | node         | line |
-        | template-placeholder | use-postgres | 4    |
+        | rule                 | severity | node         | line |
+        | plan-reference       | warning  | MS-go-live   | 1    |
+        | plan-reference       | warning  | MS-launch    | 1    |
+        | template-placeholder | warning  | use-postgres | 4    |
 
     Scenario: A feature started at ready
       When I run "sdp new feature 'Saved carts' --maturity ready"

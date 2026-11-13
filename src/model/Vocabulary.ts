@@ -78,19 +78,37 @@ export interface Vocabulary {
   readonly words: { readonly kinds: Words; readonly relations: Words; readonly attributes: Words }
 }
 
+const defaultKinds: Vocabulary["kinds"] = {
+  feature: ["feature"],
+  decision: ["decision"],
+  milestone: ["milestone"],
+  phase: ["phase"],
+  iteration: ["iteration"],
+  pattern: ["pattern"],
+  architectural: ["element", "pattern"],
+  driver: ["decision", "nfr"],
+  anchored: "element"
+}
+
+/**
+ * The disciplines of a workspace that names none of its own, and the kinds whose planned nodes are
+ * work in each: its features are requirements work, and its architecture analysis and design, in
+ * the words its vocabulary gives them.
+ */
+export const defaultDisciplines = (kinds: Vocabulary["kinds"]): ReadonlyMap<string, Words> =>
+  new Map<string, Words>([
+    ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
+    ["requirements", [...new Set(["requirement", "nfr", ...kinds.feature, "story", "use-case", "epic"])]],
+    ["analysis-design", [...new Set([...kinds.architectural, ...kinds.pattern])]],
+    // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
+    ["implementation", []],
+    ["test", []],
+    ["deployment", ["environment", "deployment"]]
+  ])
+
 /** What an empty configuration means. */
 export const defaultVocabulary: Vocabulary = {
-  kinds: {
-    feature: ["feature"],
-    decision: ["decision"],
-    milestone: ["milestone"],
-    phase: ["phase"],
-    iteration: ["iteration"],
-    pattern: ["pattern"],
-    architectural: ["element", "pattern"],
-    driver: ["decision", "nfr"],
-    anchored: "element"
-  },
+  kinds: defaultKinds,
   relations: {
     plan: ["iteration"],
     phase: ["phase"],
@@ -108,15 +126,7 @@ export const defaultVocabulary: Vocabulary = {
   },
   qualities: ["quality", "non-functional", "nfr", "constraint"],
   maturity: ["idea", "draft", "specified", "ready"],
-  disciplines: new Map<string, Words>([
-    ["business-modeling", ["capability", "goal", "actor", "business-process", "vision", "stakeholder"]],
-    ["requirements", ["requirement", "nfr", "feature", "story", "use-case", "epic"]],
-    ["analysis-design", ["element", "pattern"]],
-    // No kind is implementation or test work by itself: a spec plans them with `@activity.<discipline>:`.
-    ["implementation", []],
-    ["test", []],
-    ["deployment", ["environment", "deployment"]]
-  ]),
+  disciplines: defaultDisciplines(defaultKinds),
   words: { kinds: [], relations: [], attributes: [] }
 }
 
@@ -125,6 +135,9 @@ export const isKey = (word: string): boolean => /^[A-Za-z][\w-]*(?:\.[\w-]+)*$/.
 
 /** Whether a word can be the value of a tag, as a kind or a maturity is, and an inherited Cucumber tag: no space, `@`, `=` or `:`. */
 export const isValueWord = (word: string): boolean => /^[^\s@=:]+$/.test(word)
+
+/** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
+const tagsKey = "tags"
 
 /** Words sdp makes itself. They are not configurable, and authors cannot write them. */
 export const made = {
@@ -145,15 +158,18 @@ export const made = {
   },
   /** The Cucumber tags sdp reads: a gate, a scenario that runs alone, a rule or scenario that is still a question. */
   tags: { gate: "@gate", serial: "@serial", open: "@open" },
+  /** The attribute that holds the Cucumber tags of a Feature, a Rule or a Scenario as written, each with its `@`. */
+  tagsKey,
   /**
    * Facts sdp computes on the nodes authors declare; writing one is a `derived-attribute` error.
-   * `toCome` marks work still to come, and `rulesToCome` counts a spec's rules still to come.
+   * `tags` holds the Cucumber tags of a Feature, a Rule or a Scenario as written, `toCome` marks work
+   * still to come, and `rulesToCome` counts a spec's rules still to come.
    */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", "openQuestions", "toCome", "rulesToCome"],
+  attributes: ["stage", "verification", "scenarios", "summary", "file", tagsKey, "openQuestions", "toCome", "rulesToCome"],
   /** Facts sdp computes on scenario nodes. */
-  scenarioAttributes: ["spec", "keyword", "tags", "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
+  scenarioAttributes: ["spec", "keyword", tagsKey, "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */
-  ruleAttributes: ["spec", "description", "tags", "scenarios", "verification", "stage", "toCome"],
+  ruleAttributes: ["spec", "description", tagsKey, "scenarios", "verification", "stage", "toCome"],
   /** What sdp records on a code node: where the annotated declaration is, what its own comment says of it, and its shape or a file's exports. */
   codeAttributes: ["file", "symbol", "doc", "shape", "exports"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
@@ -197,6 +213,13 @@ export const hasKind = (vocabulary: Vocabulary, role: KindRole, kind: string): b
 
 /** Whether `rel` plays `role`, e.g. `hasRelation(v, "plan", edge.rel)`. */
 export const hasRelation = (vocabulary: Vocabulary, role: RelationRole, rel: string): boolean => vocabulary.relations[role].includes(rel)
+
+/**
+ * Whether nodes of a kind are work: what a discipline names, which is still to come at a maturity
+ * and planned. Any other kind is what it is, live, and nothing plans it.
+ */
+export const isWork = (vocabulary: Vocabulary, kind: string): boolean =>
+  [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
 
 /** The plan's own nodes — phases, iterations, milestones: they say when, and are no work themselves. */
 export const isPlanKind = (vocabulary: Vocabulary, kind: string): boolean =>

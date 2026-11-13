@@ -25,7 +25,7 @@ import {
 import { type Annotation, codeNodeId, scanCode } from "../parse/Annotations.ts"
 import type { Import } from "../parse/Script.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
+import { parseFeatureSpec, prefixCaseHint, prefixKind, type Spec, suiteId, writtenKind } from "../parse/Spec.ts"
 import { scanStepDefinitions, type StepSignature } from "../parse/StepDefinitions.ts"
 
 export interface SourceFile {
@@ -173,11 +173,15 @@ export const buildProject = (input: ProjectInput): Project => {
         kept.push([key, value])
         continue
       }
+      // What tags holds is said wherever a node is declared: sdp derives none for one declared in code.
+      const [holds, hint] = key === made.tagsKey
+        ? ["holds the Cucumber tags of a Feature, a Rule or a Scenario as written", `name the attribute otherwise: sdp keeps ${key} for the Cucumber tags it reads`]
+        : ["is derived by sdp", `delete it: sdp computes ${key} (\`sdp vocabulary\` lists what it derives)`]
       diagnostics.push(diagnostic("derived-attribute", {
-        message: `${id}: ${key} is derived by sdp, so the value written here is ignored`,
+        message: `${id}: ${key} ${holds}, so the value written here is ignored`,
         node: id,
         source: at(key),
-        hint: `delete it: sdp computes ${key} (\`sdp vocabulary\` lists what it derives)`
+        hint
       }))
     }
     // Not assigned one by one: `__proto__` is a key like any other.
@@ -219,7 +223,7 @@ export const buildProject = (input: ProjectInput): Project => {
           ...authored(scenario.id, made.kinds.scenario, scenario.attrs, at),
           spec: spec.id,
           keyword: scenario.keyword,
-          tags: scenario.tags.length > 0 ? scenario.tags : undefined,
+          [made.tagsKey]: scenario.tags.length > 0 ? scenario.tags : undefined,
           description: scenario.description,
           rule: scenario.rule,
           steps: scenario.steps.length,
@@ -251,7 +255,7 @@ export const buildProject = (input: ProjectInput): Project => {
           ...authored(rule.id, made.kinds.rule, rule.attrs, at),
           spec: spec.id,
           description: rule.description,
-          tags: rule.tags.length > 0 ? rule.tags : undefined,
+          [made.tagsKey]: rule.tags.length > 0 ? rule.tags : undefined,
           scenarios: examples.length,
           verification: verificationOf(done),
           stage: stageOf(maturity, done, toCome),
@@ -280,6 +284,7 @@ export const buildProject = (input: ProjectInput): Project => {
       title: spec.title,
       attrs: staged(spec.id, spec.kind, compact({
         ...attrs,
+        [made.tagsKey]: spec.tags.length > 0 ? spec.tags : undefined,
         file: spec.file,
         summary: spec.summary || undefined,
         scenarios: spec.scenarios.length,
@@ -419,19 +424,24 @@ export const buildProject = (input: ProjectInput): Project => {
   const activityPrefix = `${vocabulary.attributes.activity}.`
   const hintFor = (edge: GraphEdge) => {
     const known = hasRelation(vocabulary, "phase", edge.rel)
-      ? { what: "phase", ids: phases }
+      ? { what: "phase", ids: phases, kinds: vocabulary.kinds.phase }
       : hasRelation(vocabulary, "plan", edge.rel) || edge.rel.startsWith(activityPrefix)
-      ? { what: "iteration", ids: iterations }
+      ? { what: "iteration", ids: iterations, kinds: vocabulary.kinds.iteration }
       : hasRelation(vocabulary, "closes", edge.rel)
-      ? { what: "phase or iteration", ids: [...phases, ...iterations] }
+      ? { what: "phase or iteration", ids: [...phases, ...iterations], kinds: [...vocabulary.kinds.phase, ...vocabulary.kinds.iteration] }
       : undefined
+    // A relation of the plan says the kind its target is, so a prefix of that kind in another case is
+    // the fix; any other link may name a spec still to write whose id only begins like a prefix.
+    const fixed = known && prefixCaseHint(edge.to, input.config, known.kinds)
+    if (fixed !== undefined) return fixed
+    if (known && known.ids.length > 0) return `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
     // `cart#slug` names a rule or an example of the spec cart, which its file declares.
     const [spec, part] = edge.to.split("#")
-    return known && known.ids.length > 0
-      ? `use one of the declared ${known.what} ids: ${known.ids.join(", ")}`
-      : part !== undefined
+    const write = part !== undefined
       ? `write the \`Rule:\` or the \`Scenario:\` named ${part} in the file of the spec ${spec}, or fix the reference`
       : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
+    const prefix = known ? undefined : prefixCaseHint(edge.to, input.config)
+    return prefix === undefined ? write : `${write}; ${prefix}`
   }
   // Live work may name what it replaced in the change that deletes it: what the link names is the
   // base's, which the comparison with the base reads from the specs, and the graph has no node of it.

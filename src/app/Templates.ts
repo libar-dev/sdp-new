@@ -10,7 +10,7 @@ import { Result } from "effect"
 import { decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, isWork, type Vocabulary, vocabularyWords, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -18,20 +18,18 @@ import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 const directoryFor: Record<string, string> = {
   feature: "specs/features",
   decision: "specs/decisions",
-  milestone: "specs/delivery",
-  plan: "specs/delivery",
-  phase: "specs/delivery",
-  iteration: "specs/delivery",
-  risk: "specs/risks"
+  milestone: "specs/plan",
+  phase: "specs/plan",
+  iteration: "specs/plan"
 }
 
 /**
  * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
  * maturity idea, and an element or a pattern is no file: its code declares it.
  */
-export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "plan", "phase", "iteration", "risk"] as const
+export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "phase", "iteration"] as const
 
-type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "plan" | "phase" | "iteration" | "risk" | "generic"
+type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "phase" | "iteration" | "generic"
 
 /**
  * The template for a kind: the one of the role it plays in the workspace's vocabulary, so a team
@@ -52,10 +50,6 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
     ? "pattern"
     : hasKind(vocabulary, "architectural", kind)
     ? "element"
-    : kind === "plan"
-    ? "plan"
-    : kind === "risk"
-    ? "risk"
     : "generic"
 
 /**
@@ -65,7 +59,7 @@ const templateOf = (kind: string, vocabulary: Vocabulary): Template =>
 export const newId = (kind: string, title: string, config: Config, existing: ReadonlyArray<string>): string => {
   const prefix = config.ids[kind]
   const slug = slugify(title)
-  // Every id says what it names; only a title with no ASCII letters to slug is numbered, after its prefix or else its kind.
+  // Every id says what it names; only a title with no letter or digit to slug is numbered, after its prefix or else its kind.
   if (slug === "") {
     const base = prefix ?? kind
     const numbers = existing.map((id) => new RegExp(`^${base}-(\\d+)$`).exec(id)?.[1]).filter(Boolean).map(Number)
@@ -87,8 +81,9 @@ export interface NewSpec {
  * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
  * `sdp new element` or `sdp new pattern` no file: only the id its code declares, and how.
  * Fails, with the reason, for a change, which is rules of the feature it changes unless the
- * workspace names a kind `change` of its own, and when the content would not read back with its id,
- * kind and title: the id of an element or a pattern is read back too, though it has no file.
+ * workspace names a kind `change` of its own, for a maturity asked of a kind that is no work, and
+ * when the content would not read back with its id, kind and title: the id of an element or a
+ * pattern is read back too, though it has no file.
  */
 export const newSpec = (options: {
   readonly kind: string
@@ -113,6 +108,12 @@ export const newSpec = (options: {
   if (kind === "change" && !vocabularyWords(vocabulary).kinds.includes(kind)) {
     return Result.fail(
       `a change is rules of the ${feature} it changes: write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
+    )
+  }
+  // Only work is still to come at a maturity: one asked for any other kind would not be written.
+  if (options.maturity !== undefined && !isWork(vocabulary, kind)) {
+    return Result.fail(
+      `kind ${kind} belongs to no discipline, so it is no work and is written without a maturity: leave out --maturity, or add ${kind} to a discipline under vocabulary.disciplines`
     )
   }
   const next = guidance({ kind, id, config })
@@ -189,12 +190,12 @@ const specTemplate = (options: {
   switch (templateOf(kind, vocabulary)) {
     case "decision":
       return feature(identity, `  ${decisionPlaceholder}`)
-    case "plan":
     case "phase":
       return feature(identity)
     case "milestone":
+      // What it ends is the author's to say, not a guess: the answer says to link it.
       return feature(
-        [...identity, `@${wordFor(vocabulary.relations.closes)}:${phaseId(config, "Elaboration")}`],
+        identity,
         ...rule("The specification graph is consistent", ["Scenario: No errors in the specification graph", "  Then there are no error diagnostics"])
       )
     case "iteration": {
@@ -205,16 +206,14 @@ const specTemplate = (options: {
       return feature([...identity, ...inPhase, `@${startKey}=${start}`, `@${endKey}=${addDays(start, 13)}`])
     }
   }
-  // Still to come, at whatever maturity it starts: what it says next is the author's.
-  return feature([...identity, `@maturity=${maturity}`])
+  // Work is still to come, at whatever maturity it starts, and what it says next is the author's; any
+  // other kind has no maturity.
+  return feature([...identity, ...(isWork(vocabulary, kind) ? [`@maturity=${maturity}`] : [])])
 }
-
-/** The id `sdp new` gives a phase of that name. */
-const phaseId = (config: Config, name: string) => newId(wordFor(config.vocabulary.kinds.phase), name, config, [])
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
-  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp plays PAT-…`; risk `@affects:<feature>` and `@mitigated-by:<feature>`"
+  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp plays PAT-…`"
 
 /**
  * What the author of a new spec writes next, in the workspace's own words. It is the answer of
@@ -255,12 +254,6 @@ const guidance = (options: {
         `set \`@${closes}:\` to the phase or the iteration this milestone ends: sdp lifecycle shows them`,
         `write what must hold as rules with scenarios: they are its gate, and sdp gate ${id} says whether it is met`
       ]
-    case "plan":
-      return [
-        `a phase is a file of its own: sdp new ${wordFor(vocabulary.kinds.phase)} "Elaboration"; so is an iteration: sdp new ${wordFor(vocabulary.kinds.iteration)} "<title>"`,
-        `plan work on the work itself: on a spec, ${plan}`,
-        `end each phase with a milestone: sdp new ${wordFor(vocabulary.kinds.milestone)} "<title>" writes one that \`@${closes}:${phaseId(config, "Elaboration")}\``
-      ]
     case "phase":
       return [
         "say under the title what this phase takes on, and why in this order",
@@ -270,12 +263,6 @@ const guidance = (options: {
       return [
         `check its dates and its \`@${phase}:\`: a new iteration follows the one that ends last, in its phase`,
         `work is planned into it from the work itself: \`@${wordFor(vocabulary.relations.plan)}:${id}\``
-      ]
-    case "risk":
-      return [
-        "say under the title what could go wrong, and what it would cost",
-        "link it: @affects:<feature> @mitigated-by:<feature> @due:MS-…",
-        "it is retired when the work that mitigates it is verified; `@status=tolerated` says we live with it instead"
       ]
     case "element":
       return [
@@ -290,12 +277,17 @@ const guidance = (options: {
         `code that applies it says so in its doc comment with \`@sdp plays ${id}\`: sdp arch shows the pattern with the code that plays it and the elements that code is`
       ]
     case "generic":
-      return [
-        "write the idea in a sentence under the title",
-        "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
-        "link it: @realized-by:ARCH-…",
-        `plan it: ${plan}`
-      ]
+      return isWork(vocabulary, kind)
+        ? [
+          "write the idea in a sentence under the title",
+          "write what is still unknown as a `Rule:` tagged `@open`, its name the question",
+          "link it: @realized-by:ARCH-…",
+          `plan it: ${plan}`
+        ]
+        : [
+          "say under the title what it is",
+          "link it to what it concerns, `@<relation>:<id>`, and write what must hold of it as a `Rule:` with scenarios as its examples"
+        ]
   }
 }
 

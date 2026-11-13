@@ -21,7 +21,10 @@ export interface Spec {
   readonly id: string
   readonly kind: string
   readonly title: string
+  /** What its author wrote of it as `@key=value`; sdp derives the rest of its node's attributes. */
   readonly attrs: Attrs
+  /** Its Feature's Cucumber tags, as written (`@web`). */
+  readonly tags: ReadonlyArray<string>
   readonly links: ReadonlyArray<LinkDecl>
   readonly scenarios: ReadonlyArray<Scenario>
   /** The `Rule:` blocks: what must hold, each with its reason; the scenarios name the rule they are examples of. */
@@ -33,6 +36,8 @@ export interface Spec {
   readonly description: ReadonlyArray<Paragraph>
   /** The file as written. */
   readonly body: string
+  /** The dialect its keywords are written in: `en`, unless its `# language:` names another. */
+  readonly language: string
   /** The line of each attribute's tag. */
   readonly attrLines: Readonly<Record<string, number>>
 }
@@ -79,14 +84,14 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       hint: "put each scenario under the `Rule:` it is an example of: the rule's name says what must hold, the lines under it why"
     }))
   }
-  const tags = feature.tags.map((tag) => tag.slice(1))
   return {
     spec: {
       file,
       id,
       kind,
       title: feature.name || id,
-      attrs: tags.length > 0 ? { ...attrs, tags } : attrs,
+      attrs,
+      tags: feature.tags,
       links,
       scenarios: gherkin.scenarios,
       rules: gherkin.rules,
@@ -94,6 +99,7 @@ export const parseFeatureSpec = (file: string, content: string, config: Config):
       summary: feature.description[0]?.text ?? "",
       description: feature.description,
       body: content,
+      language: feature.language,
       attrLines
     },
     diagnostics
@@ -143,11 +149,28 @@ export const writtenKind = (
   return undefined
 }
 
-/** `ARCH-orders` → `element` when the config maps that prefix; an id with no prefix it maps names no kind. */
+/**
+ * `ARCH-orders` → `element` when the config maps that prefix, written as it is configured: `it-` and
+ * `ms-` begin words as often as ids. An id with no prefix it maps names no kind.
+ */
 export const prefixKind = (id: string, config: Config): string | undefined => {
   const prefix = /^([A-Za-z]+)[-_]/.exec(id)?.[1]
   if (prefix === undefined) return undefined
-  return Object.entries(config.ids).find(([, p]) => p.toLowerCase() === prefix.toLowerCase())?.[0]
+  return Object.entries(config.ids).find(([, p]) => p === prefix)?.[0]
+}
+
+/**
+ * What to write for an id that begins with a configured prefix in another case, `it-sprint-1` for
+ * `IT-`: as written it names no node of that kind. Undefined when the id begins with no such prefix,
+ * or with the prefix of none of `kinds` when they are given.
+ */
+export const prefixCaseHint = (id: string, config: Config, kinds?: ReadonlyArray<string>): string | undefined => {
+  const [, written, separator] = /^([A-Za-z]+)([-_])/.exec(id) ?? []
+  const [kind, prefix] = Object.entries(config.ids)
+    .find(([kind, configured]) =>
+      configured !== written && configured.toLowerCase() === written?.toLowerCase() && (kinds === undefined || kinds.includes(kind))
+    ) ?? []
+  return prefix && `the prefix of kind ${kind} is \`${prefix}${separator}\`, written as configured: \`${prefix}${id.slice(prefix.length)}\``
 }
 
 /** The kind an id's prefix names; otherwise, as `guest-checkout`, a feature. */

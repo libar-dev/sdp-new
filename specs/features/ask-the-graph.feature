@@ -112,8 +112,8 @@ Feature: Ask the graph
         | query                              | result                    |
         | element[public=TRUE]               | ARCH-orders               |
         | element[title~^bill]               | ARCH-billing              |
-        | feature[tags=web]                  | checkout                  |
-        | feature[tags!=web]                 | refunds                   |
+        | feature[tags=@web]                 | checkout                  |
+        | feature[tags!=@web]                | refunds                   |
         | feature[maturity=ready\|idea]      | checkout, refunds         |
         | feature[maturity!=ready\|draft]    | refunds                   |
         | element[title!~^(billing\|ledger)] | ARCH-orders               |
@@ -178,6 +178,8 @@ Feature: Ask the graph
         | #ARCH-orders <-depends-on+- *            | ARCH-billing, ARCH-ledger, ARCH-orders |
         | #ARCH-orders -depends-on+-> #ARCH-orders | ARCH-orders                            |
         | #checkout -realized-by+-> #checkout      | nothing                                |
+        | #ARCH-orders -depends-on+- #ARCH-orders  | ARCH-orders                            |
+        | #checkout -realized-by+- #checkout       | nothing                                |
 
   Rule: A link can filter instead: keep the nodes that have such a neighbour, or those that have none
 
@@ -247,21 +249,29 @@ Feature: Ask the graph
 
   Rule: Each node in an answer comes with its kind, its state and the file and line it is written at
 
-    Its state is the status it declares, else its stage. The count goes to stderr, so stdout is the
-    answer alone.
+    Its state is what sdp derives, evidence rather than status: a scenario's status as its last run
+    left it, else the node's stage. A status written by hand is an attribute like any other, which
+    show and the graph as data list. The count goes to stderr, so stdout is the answer alone.
 
     Scenario: A node per line, only the ids, or the routes
-      Given these specs:
-        | tags                                                   | Feature                   |
-        | @id=index-outgrows-memory @kind=risk @status=tolerated | The index outgrows memory |
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay
+        Feature: Pay
+
+          Rule: A card is charged once
+
+            Scenario: Charged
+              Then the query "feature" returns at least 1 result
+        """
       When I run "sdp q '#checkout -realized-by-> element'"
       Then the exit code is 0
       And the output contains "ARCH-orders\telement\t\tOrder service, v2\tspecs/ARCH-orders.feature:1"
       And the output contains "1 node(s)"
-      When I run "sdp q 'feature|risk'"
+      When I run "sdp q 'feature|scenario'"
       Then the exit code is 0
       And the output contains "checkout\tfeature\tready"
-      And the output contains "index-outgrows-memory\trisk\ttolerated"
+      And the output contains "pay#charged\tscenario\tunrun"
       When I run "sdp q 'element' --ids"
       Then the exit code is 0
       And the output lines are "ARCH-orders, ARCH-billing, ARCH-ledger"
@@ -279,6 +289,17 @@ Feature: Ask the graph
         | data.paths.nodes      | checkout, ARCH-orders     |
         | data.paths.edges.from | checkout                  |
         | data.paths.edges.rel  | realized-by               |
+
+    Scenario: A status written on a decision is an attribute, and no state
+      Given these specs:
+        | tags                                             | Feature      |
+        | @id=use-postgres @kind=decision @status=accepted | Use Postgres |
+      When I run "sdp q decision"
+      Then the exit code is 0
+      And the output contains "use-postgres\tdecision\t\tUse Postgres\tspecs/use-postgres.feature:1"
+      When I run "sdp show use-postgres"
+      Then the exit code is 0
+      And the output contains 'status: "accepted"'
 
   Rule: One node can be looked up with every link it has, and the title at the other end
 
@@ -310,6 +331,12 @@ Feature: Ask the graph
       Then the exit code is 1
       And the output contains "no node ARCH-ordrs; closest: ARCH-orders"
 
+    Scenario: A tag written without its @
+      When I run "sdp q 'feature[tags=web]'"
+      Then the exit code is 0
+      And the output contains "0 node(s)"
+      And the output contains "note: no tag web; a tag is written with its @, as @web"
+
   Rule: An answer that may miss something says so and why, and exits with 2
 
     A question that reaches too far is cut short at a bound: 12 links followed as far as they lead,
@@ -332,6 +359,15 @@ Feature: Ask the graph
       Given a chain of 15 nodes linked by "next"
       When I query "#N1 -next+-> *"
       Then the result has 12 nodes
+      And the result is truncated because "a + edge reaches further than 12 hops"
+
+    Scenario: A cycle longer than the bound, followed either way, is cut short
+      Given a chain of 20 nodes linked by "next"
+      And these specs:
+        | tags                          | Feature |
+        | @id=N20 @kind=node20 @next:N1 | N20     |
+      When I query "#N1 -next+- #N1"
+      Then the result is "nothing"
       And the result is truncated because "a + edge reaches further than 12 hops"
 
     Scenario: Too many routes at one step

@@ -81,20 +81,30 @@ Feature: Write a spec
         | @id=search                           |                | search                        | feature | search         |
         | @id=true @kind=false                 | Product search | true                          | false   | Product search |
 
-    Scenario: A second Feature in a file is text of the description above it, and an error
+    Scenario Outline: A second Feature in a file is text of the description above it, and an error
       Given a file "specs/pay.feature" containing:
         """
+        # language: <language>
         @id=pay
-        Feature: Pay
+        <feature>: Pay
 
-          Shoppers pay.
+          <above>
 
-        Feature: Refund
+        <feature>: Refund
         """
       When "specs/pay.feature" is parsed
       Then sdp reports:
-        | rule           | severity | line | message                                                       |
-        | gherkin-syntax | error    | 6    | "Feature: Refund" is read as text of the description above it |
+        | rule           | severity | line   | message                                                         |
+        | gherkin-syntax | error    | <line> | "<feature>: Refund" is read as text of the description above it |
+
+      Examples:
+        | language | feature        | above                                                        | line |
+        | en       | Feature        | Shoppers pay.                                                | 7    |
+        | fr       | Fonctionnalité | Shoppers pay.                                                | 7    |
+        | en       | Feature        | Background: Paid                                             | 7    |
+        | fr       | Fonctionnalité | Contexte: Payé                                               | 7    |
+        | en       | Feature        | Rule: R\n    Scenario: S\n      Then ok\n      Examples: E    | 10   |
+        | fr       | Fonctionnalité | Règle: R\n    Scénario: S\n      Alors ok\n      Exemples: E | 10   |
 
     Scenario: A Feature line inside a doc string is content
       Given a file "specs/docs.feature" containing:
@@ -386,7 +396,6 @@ Feature: Write a spec
         | due      | "2026-12-01T10:00"           |
         | owner    | {"team":"core","lead":"ada"} |
         | label    | ["a","b"]                    |
-        | tags     | ["web"]                      |
       And the parsed spec has attribute lines:
         | key        | line |
         | id         | 1    |
@@ -550,10 +559,11 @@ Feature: Write a spec
         | rule                  | severity | at                  | message                                         |
         | scenario-outside-rule | error    | specs/pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
 
-  Rule: A rule or a scenario is identified by the slug of its name: a scenario named like another or like a rule is numbered, a rule alike is an error
+  Rule: A rule or a scenario is identified by the slug of its name, its letters and digits in any script: a scenario named like another or like a rule is numbered, a rule alike is an error
 
     Not a position, which every edit above it would change, nor a tag kept unique by hand. A rule's
-    name says what must hold, so two alike are one rule written twice.
+    name says what must hold, so two alike are one rule written twice. A slug is lower-case, its
+    words joined by `-`, and a Latin letter loses only its accents: `ł` and `ß` have none to lose.
 
     Scenario: An id is the slug of the name, numbered when the file has the name twice or a rule has it, and by position when there is no name
       Given a file "specs/pay.feature" containing:
@@ -574,17 +584,28 @@ Feature: Write a spec
 
             Scenario: A declined card is retried
               Given a card declined twice
+
+          Rule: Отклонённая карта повторяется
+
+            Scenario: Повтор
+              Given a declined card
+
+            Scenario: Płatność, große Karte
+              Given a declined card
         """
       When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                             | line |
-        | pay#a-declined-card-is-retried | 4    |
+        | id                                | line |
+        | pay#a-declined-card-is-retried    | 4    |
+        | pay#отклонённая-карта-повторяется | 18   |
       And the parsed spec has scenarios:
         | id                               | line |
         | pay#retry                        | 6    |
         | pay#retry-2                      | 9    |
         | pay#scenario-3                   | 12   |
         | pay#a-declined-card-is-retried-2 | 15   |
+        | pay#повтор                       | 20   |
+        | pay#płatnosc-große-karte         | 23   |
       And sdp reports nothing
 
     Scenario: A long name is cut after the last whole word within 64 characters

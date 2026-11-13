@@ -18,7 +18,7 @@ const counted = (values: ReadonlyArray<unknown>, order: ReadonlyArray<string> = 
 const resultOrder = ["passed", "failed", "pending", "undefined", "unrun", "stale"]
 
 const isOpen = (rule: GraphNode) => {
-  const tags = rule.attrs.tags
+  const tags = attribute(rule, made.tagsKey)
   return Array.isArray(tags) && tags.includes(made.tags.open)
 }
 

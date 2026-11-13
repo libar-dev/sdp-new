@@ -73,6 +73,7 @@ Feature: Check specs
         | template-placeholder  | warning  | specs/monthly-releases.feature | 3    | @id=monthly-releases @kind=decision\nFeature: Monthly releases\n  Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>. |
         | plan-reference        | warning  | specs/reports.feature          | 1    | @id=reports @iteration:reports\nFeature: Reports                                                                                                                              |
         | plan-date             | warning  | specs/IT-beta.feature          | 1    | @id=IT-beta @kind=iteration @start=2026-11-16 @end=2026-11-31\nFeature: Beta                                                                                                  |
+        | plan-date             | warning  | specs/IT-beta.feature          | 1    | @id=IT-beta @kind=iteration @start=2026-11-16\nFeature: Beta                                                                                                                  |
         | milestone-met         | warning  | specs/MS-beta.feature          | 1    | @id=MS-beta @met=2026-02-30\nFeature: Beta                                                                                                                                    |
         | annotation-ignored    | warning  | src/cart.py                    | 1    | total = 0  # @sdp implements cart                                                                                                                                             |
         | annotation-unreadable | warning  | src/cart.ts                    | 2    | // @sdp implements cart\nexport const total = ( => 0                                                                                                                         |
@@ -1107,9 +1108,9 @@ Feature: Check specs
 
     Scenario Outline: A planning link written as a value, an activity without its discipline, a tag without a value
       Given these specs:
-        | tags                              | Feature |
-        | @id=IT-beta @kind=iteration       | Beta    |
-        | @id=reports @maturity=idea <tags> | Reports |
+        | tags                                                          | Feature |
+        | @id=IT-beta @kind=iteration @start=2026-11-16 @end=2026-11-27 | Beta    |
+        | @id=reports @maturity=idea <tags>                             | Reports |
       When the workspace is checked
       Then sdp reports:
         | rule   | at                      | message   | hint   |

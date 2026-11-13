@@ -10,6 +10,7 @@ import type { NodeRecord } from "../graph/Export.ts"
 import { formatPath } from "../graph/Query.ts"
 import type { StatusSummary } from "../graph/Status.ts"
 import type { ScenarioResult, StepStatus } from "../model/Results.ts"
+import { isDerived } from "../model/Vocabulary.ts"
 import type { ListedStep } from "../run/Match.ts"
 import type { Answer } from "./Answer.ts"
 import type { ArchitectureData, DiagnosticRecord, QueryData, ShowData, VocabularyData } from "./Reading.ts"
@@ -40,8 +41,12 @@ const rows = (items: ReadonlyArray<ReadonlyArray<string>>): string => {
 const where = (record: { readonly file: string | null; readonly line: number | null }): string =>
   record.file === null ? "" : `${record.file}:${record.line}`
 
-/** The one word worth showing in a listing: the status a node declares or was given by a run, else its stage. */
-const state = (node: NodeRecord): string => String(node.attrs.status ?? node.attrs.stage ?? "")
+/**
+ * The one word worth showing in a listing, as sdp derives it: a scenario's status as its last run
+ * left it, else a node's stage. A status written by hand is an attribute like any other, which
+ * `show` lists.
+ */
+const state = (node: NodeRecord): string => String((isDerived(node.kind, "status") ? node.attrs.status : undefined) ?? node.attrs.stage ?? "")
 
 /** What the reader should know about an answer before relying on it: that it is incomplete, and its notes. */
 export const remarks = (answer: Answer<unknown>): ReadonlyArray<string> => [
@@ -49,7 +54,7 @@ export const remarks = (answer: Answer<unknown>): ReadonlyArray<string> => [
   ...answer.notes.map((note) => `note: ${note}`)
 ]
 
-/** Nodes, one per line: id, kind, status or stage, title, `file:line`. */
+/** Nodes, one per line: id, kind, state, title, `file:line`. */
 export const nodes = (records: ReadonlyArray<NodeRecord>): string =>
   rows(records.map((node) => [node.id, node.kind, state(node), node.title, where(node)]))
 

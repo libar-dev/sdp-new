@@ -21,6 +21,7 @@ import {
   hasKind,
   hasRelation,
   isPlanKind,
+  isWork,
   type KindRole,
   made,
   type RelationRole,
@@ -32,7 +33,7 @@ import { type Project, type SourceFile, workOf } from "../graph/Build.ts"
 import { lifecycle, plannedDisciplines, unmetBefore, workKind } from "../lifecycle/Lifecycle.ts"
 import { codeNodeId } from "../parse/Annotations.ts"
 import type { Pickle, Rule, Scenario } from "../parse/Gherkin.ts"
-import { parseFeatureSpec, type Spec, suiteId } from "../parse/Spec.ts"
+import { parseFeatureSpec, prefixCaseHint, type Spec, suiteId } from "../parse/Spec.ts"
 
 const isOpen = (rule: Rule) => rule.tags.includes(made.tags.open)
 
@@ -124,17 +125,21 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const at = (spec: Spec, line = 1) => ({ file: spec.file, line })
-  /** Where an attribute of `node` is written: the line of its tag in a spec, else the node's own line. */
+  /** Where an attribute of `node` is written: the line of its tag in a spec or above a rule, else the node's own line. */
   const writtenAt = (node: GraphNode, key: string): SourceRef | undefined => {
     const spec = project.specById.get(node.id)
-    return spec ? at(spec, spec.attrLines[key] ?? 1) : node.source
+    if (spec) return at(spec, spec.attrLines[key] ?? 1)
+    const owner = node.kind === made.kinds.rule ? project.specById.get(String(node.attrs.spec)) : undefined
+    const rule = owner?.rules.find((candidate) => candidate.id === node.id)
+    return owner && rule ? at(owner, rule.attrLines[key] ?? rule.line) : node.source
   }
   const authored = graph.nodes().filter((node) =>
     node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
   )
 
   // A live feature is a test, so it has a live rule, and a live rule an example: without one, what is
-  // built is not tested.
+  // built is not tested. Only work is still to come at a maturity, so a rule of any other kind has
+  // nothing to wait for.
   for (const spec of project.specs) {
     if (spec.id === suiteId(spec.file) || !isSuite(spec, vocabulary)) continue
     const work = workOf(spec)
@@ -152,7 +157,9 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${rule.id} is live, so it needs an example`,
         node: rule.id,
         source: at(spec, rule.line),
-        hint: "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
+        hint: isWork(vocabulary, spec.kind)
+          ? "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
+          : `write a Scenario under it; kind ${spec.kind} belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines`
       }))
     }
   }
@@ -244,18 +251,29 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }))
   }
 
-  // An iteration's days place it on the timeline; anything else written there places nothing.
+  // An iteration's last day places it on the timeline, and its first day only lets today be in it,
+  // so a first day not written is no mistake while one that is no date is, and neither is why the
+  // timeline leaves an iteration out. One diagnostic for an iteration, naming each day that is wrong.
   for (const node of graph.ofKind(vocabulary.kinds.iteration)) {
-    for (const key of [vocabulary.attributes.start, vocabulary.attributes.end]) {
+    const { end, start } = vocabulary.attributes
+    const offTimeline = dayOf(node, end) === undefined
+    const startNoDay = attribute(node, start) !== undefined && dayOf(node, start) === undefined
+    if (!offTimeline && !startNoDay) continue
+    const wrong = (key: string) => {
       const written = attribute(node, key)
-      if (written === undefined || dayOf(node, key) !== undefined) continue
-      out.push(diagnostic("plan-date", {
-        message: `${node.id}: ${key} is ${JSON.stringify(written)}, which is not a date, so the timeline ignores it`,
-        node: node.id,
-        source: writtenAt(node, key),
-        hint: `write \`@${key}=YYYY-MM-DD\``
-      }))
+      return written === undefined ? `${key} is not written` : `${key} is ${JSON.stringify(written)}, which is not a date`
     }
+    const what = [
+      ...(offTimeline ? [`${wrong(end)}, so the timeline leaves it out`] : []),
+      ...(startNoDay ? [offTimeline ? wrong(start) : `${wrong(start)}, so today is never in it`] : [])
+    ]
+    const lacking = [...(offTimeline ? [end] : []), ...(startNoDay ? [start] : [])]
+    out.push(diagnostic("plan-date", {
+      message: `${node.id}: ${what.join("; ")}`,
+      node: node.id,
+      source: writtenAt(node, lacking.find((key) => attribute(node, key) !== undefined) ?? lacking[0]!),
+      hint: `write ${lacking.map((key) => `\`@${key}=YYYY-MM-DD\``).join(" and ")}`
+    }))
   }
 
   // Met is a date, and milestones are met in the order of their dates: where the project is is
@@ -291,9 +309,18 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${node.id}: ${rel} "${target}" names no ${what}`,
         node: node.id,
         source,
-        hint: known.length > 0
+        hint: prefixCaseHint(target, project.config, roles.flatMap((role) => vocabulary.kinds[role])) ?? (known.length > 0
           ? `use one of the declared ${what} ids: ${known.join(", ")}`
-          : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``
+          : `create it with ${roles.map((role) => `\`sdp new ${wordFor(vocabulary.kinds[role])}\``).join(" or ")}, or remove \`@${rel}:${target}\``)
+      }))
+    }
+    // A milestone is dated, and so ordered, by what it closes.
+    if (hasKind(vocabulary, "milestone", node.kind) && !graph.out(node.id).some((edge) => hasRelation(vocabulary, "closes", edge.rel))) {
+      out.push(diagnostic("plan-reference", {
+        message: `${node.id}: closes nothing, so no date places it among the milestones`,
+        node: node.id,
+        source: node.source,
+        hint: `set \`@${wordFor(vocabulary.relations.closes)}:\` to the phase or iteration it ends`
       }))
     }
     const activityKey = vocabulary.attributes.activity
@@ -318,18 +345,29 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         planReference(edge.rel, edge.to, ["iteration"], edge.source)
       }
     }
-    // An `iteration:` plans the work of the node's kind's discipline — a rule's, its spec's; a kind in no discipline has none.
+    // An `iteration:` plans the work of the node's kind's discipline — a rule's, its spec's; a kind in
+    // no discipline has none, and is no work unless an activity tag plans it, so a maturity of its
+    // marks work still to come that nothing plans.
     const planned = graph.out(node.id).find((edge) =>
       hasRelation(vocabulary, "plan", edge.rel) && hasKind(vocabulary, "iteration", graph.node(edge.to)?.kind ?? "")
     )
     const kind = workKind(project, node)
-    const disciplined = [...vocabulary.disciplines.values()].some((kinds) => kinds.includes(kind))
-    if (planned && !disciplined && !isPlanKind(vocabulary, node.kind)) {
+    if (planned && !isWork(vocabulary, kind) && !isPlanKind(vocabulary, node.kind)) {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: kind ${kind} belongs to no discipline, so its iteration plans no discipline's work`,
         node: node.id,
         source: planned.source,
         hint: `plan the work with \`@${activityKey}.<discipline>:<iteration>\`, or add ${kind} to a discipline under vocabulary.disciplines`
+      }))
+    }
+    // Said once: a node its iteration plans is told so above, and one an activity tag plans is work.
+    const unplannable = !planned && plannedDisciplines(project, node).size === 0 && !isWork(vocabulary, kind) && !isPlanKind(vocabulary, kind)
+    if (attribute(node, "maturity") !== undefined && unplannable) {
+      out.push(diagnostic("plan-reference", {
+        message: `${node.id}: kind ${kind} belongs to no discipline, so its maturity marks work that nothing can plan`,
+        node: node.id,
+        source: writtenAt(node, "maturity"),
+        hint: `delete the maturity — what is no work is live, and its rules have examples — or add ${kind} to a discipline under vocabulary.disciplines`
       }))
     }
     for (const [discipline, edge] of plannedDisciplines(project, node)) {

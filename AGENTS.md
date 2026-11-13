@@ -63,7 +63,7 @@ How the work is done here, on whichever machine and with whichever agent:
   example that runs, name the calls that are the owner's, and do not narrow it to the nearest edit
   of what exists.
 - Nothing needed to continue lives in an agent's memory or outside this repository. A call that
-  waits on the owner is an `@open` rule on the spec it concerns (`sdp q 'rule[tags~open]'`), the
+  waits on the owner is an `@open` rule on the spec it concerns (`sdp q 'rule[tags=@open]'`), the
   next work is a spec in the backlog planned into an iteration (`sdp lifecycle`), and a reason is
   a decision (`sdp q decision`). An open question is asked only where its answer changes what is
   built next; one that only the design of later work can answer waits for that work.

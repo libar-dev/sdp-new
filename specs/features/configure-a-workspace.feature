@@ -90,11 +90,11 @@ Feature: Configure a workspace
       Then the file "out/results.json" contains '"cart#a-new-cart-is-empty"'
       And node "cart" has attribute verification = "passing"
 
-  Rule: An id's prefix says its kind, in any case, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
+  Rule: An id's prefix says its kind as it is configured, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
     So an id says what it is wherever it is cited, and a team's own prefixes name the specs sdp new
     writes. Most specs are features, and a feature is named by what it says, so its id needs no
-    prefix.
+    prefix. A prefix in another case is a word: an IT asset inventory is no iteration.
 
     Scenario Outline: The default prefixes, and two that are none
       Given these specs:
@@ -109,9 +109,31 @@ Feature: Configure a workspace
         | MS-launch       | milestone |
         | PH-construction | phase     |
         | IT-beta         | iteration |
-        | arch_orders     | element   |
+        | ARCH_orders     | element   |
         | TODO-1          | feature   |
         | checkout        | feature   |
+
+    Scenario Outline: A word that begins like a prefix in another case
+      Given these specs:
+        | tags     | Feature |
+        | @id=<id> | Spec    |
+      Then node "<id>" has attribute kind = "feature"
+
+      Examples:
+        | id                   |
+        | it-asset-inventory   |
+        | ms-teams-integration |
+        | arch_orders          |
+
+    Scenario: A link to no node whose id begins like a prefix in another case is told the prefix after what the link may mean
+      Given these specs:
+        | tags                                                                  | Feature |
+        | @id=pay @maturity=idea @depends-on:ms-office-import @iteration:it_one | Pay     |
+      When the workspace is checked
+      Then sdp reports:
+        | rule          | at                  | message                            | hint                                                                                                                                                                                         |
+        | dangling-link | specs/pay.feature:1 | pay -depends-on-> ms-office-import | write the spec `@id=ms-office-import` (`sdp new <kind> "<title>" --id ms-office-import`), or fix the reference; the prefix of kind milestone is `MS-`, written as configured: `MS-office-import` |
+        | dangling-link | specs/pay.feature:1 | pay -iteration-> it_one            | the prefix of kind iteration is `IT_`, written as configured: `IT_one`                                                                                                                       |
 
     Scenario: A prefix of the team's own, beside the defaults
       Given a file "sdp.config.yaml" containing:
@@ -183,6 +205,31 @@ Feature: Configure a workspace
         | requirements | 1  |
         | operations   | 1  |
 
+    Scenario: Features called req are requirements work: new writes them at a maturity, and an iteration plans them
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { kinds: { feature: [req] } }
+        """
+      And these specs:
+        | tags                                         | Feature |
+        | @id=IT-one @start=2026-11-02 @end=2026-11-13 | One     |
+        | @id=search @maturity=idea @iteration:IT-one  | Search  |
+      When I run the pipeline:
+        """
+        sdp new req 'Saved carts'
+        sdp new idea 'Gift wrap'
+        """
+      Then the exit code is 0
+      And the file "specs/features/saved-carts.feature" contains "@id=saved-carts @maturity=idea"
+      And the file "specs/features/gift-wrap.feature" contains "@id=gift-wrap @maturity=idea"
+      When I run "sdp check --base none"
+      Then the exit code is 0
+      And the output contains "0 error(s), 0 warning(s)"
+      When I run "sdp lifecycle --json"
+      Then the JSON output has:
+        | data.disciplines.requirements | 1                      |
+        | data.unplanned                | gift-wrap, saved-carts |
+
     Scenario: A milestone recorded as reached
       Given a file "sdp.config.yaml" containing:
         """
@@ -223,15 +270,17 @@ Feature: Configure a workspace
         sdp new story Wishlist
         """
       Then the exit code is 0
-      And the file "specs/delivery/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
-      And the file "specs/delivery/launch.feature" contains "@id=launch @kind=checkpoint @ends:ERA-elaboration"
+      And the file "specs/plan/IT-baseline.feature" contains "@id=IT-baseline @kind=sprint @part-of:ERA-elaboration @from=2026"
+      And the file "specs/plan/launch.feature" contains "@id=launch @kind=checkpoint"
+      And the output contains "next: set `@ends:` to the phase or the iteration this milestone ends"
       And the file "specs/features/wishlist.feature" contains "@id=wishlist @maturity=idea"
-      When I run "sdp q 'checkpoint -ends-> era <-part-of- sprint' --ids"
+      When I run "sdp q 'era <-part-of- sprint' --ids"
       Then the output lines are "IT-baseline"
       When I run "sdp check --json --base none"
       Then the exit code is 0
       And the JSON output has:
-        | data.rule | template-placeholder |
+        | data.rule | plan-reference, template-placeholder |
+      And the output contains "set `@ends:` to the phase or iteration it ends"
 
   @decided-by:free-vocabulary
   Rule: A ladder of the team's own orders the maturities of work still to come, and a value off it ranks below every rung
@@ -270,17 +319,17 @@ Feature: Configure a workspace
         """
       When I run "sdp vocabulary --json"
       Then the JSON output has:
-        | data.vocabulary.kinds.decision | adr                                                                                                  |
-        | data.vocabulary.maturity       | idea, draft, specified, ready                                                                        |
-        | data.made.kinds                | scenario, rule, code, missing                                                                        |
-        | data.made.relations            | rule-of, imports                                                                                     |
-        | data.made.tags                 | @gate, @serial, @open                                                                                |
-        | data.made.stages               | unrun, failing, in-progress, verified                                                                |
-        | data.made.attributes           | stage, verification, scenarios, summary, file, openQuestions, toCome, rulesToCome                    |
-        | data.made.scenarioAttributes   | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome |
-        | data.made.ruleAttributes       | spec, description, tags, scenarios, verification, stage, toCome                                      |
-        | data.made.codeAttributes       | file, symbol, doc, shape, exports                                                                    |
-        | data.made.reservedRelations    | stage, verification, scenarios, summary, file, openQuestions, toCome, rulesToCome, maturity, status  |
+        | data.vocabulary.kinds.decision | adr                                                                                                       |
+        | data.vocabulary.maturity       | idea, draft, specified, ready                                                                             |
+        | data.made.kinds                | scenario, rule, code, missing                                                                             |
+        | data.made.relations            | rule-of, imports                                                                                          |
+        | data.made.tags                 | @gate, @serial, @open                                                                                     |
+        | data.made.stages               | unrun, failing, in-progress, verified                                                                     |
+        | data.made.attributes           | stage, verification, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                   |
+        | data.made.scenarioAttributes   | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome      |
+        | data.made.ruleAttributes       | spec, description, tags, scenarios, verification, stage, toCome                                           |
+        | data.made.codeAttributes       | file, symbol, doc, shape, exports                                                                         |
+        | data.made.reservedRelations    | stage, verification, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome, maturity, status |
       When I run "sdp vocabulary"
       Then the output line with "decision" contains "adr"
       And the output line with "stages" contains "unrun, failing, in-progress, verified"
@@ -310,24 +359,26 @@ Feature: Configure a workspace
       And loading the workspace fails with '<path>'
 
       Examples:
-        | config                                           | problem                                            | path                                        |
-        | feature: ["specs/**/*.feature"]                  | excess property                                    | at ["feature"]                              |
-        | features: specs/**/*.feature                     | Expected array                                     | at ["features"]                             |
-        | vocabulary: { maturity: [] }                     | needs at least one level                           | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, ready, idea] }    | idea repeats                                       | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, verified] }       | verified is a stage sdp derives                    | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                             | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                       | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { implemented: done }                | excess property                                    | at ["vocabulary"]["implemented"]            |
-        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                    | at ["vocabulary"]["maturity"]               |
-        | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                             | at ["vocabulary"]["relations"]["anchor"]    |
-        | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                     | at ["vocabulary"]["kinds"]["decision"]      |
-        | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                | at ["vocabulary"]["kinds"]["milestone"]     |
-        | vocabulary: { attributes: { activity: stage } }  | stage is an attribute sdp derives or checks itself | at ["vocabulary"]["attributes"]["activity"] |
-        | vocabulary: { relations: { anchor: iteration } } | iteration is also a relation of the plan           | at ["vocabulary"]["relations"]["anchor"]    |
-        | vocabulary: { relations: { scenario: is } }      | is is also relations.anchor                        | at ["vocabulary"]["relations"]["scenario"]  |
-        | vocabulary: { relations: { scenario: rule-of } } | rule-of is a relation sdp makes itself             | at ["vocabulary"]["relations"]["scenario"]  |
-        | vocabulary: { relations: { plan: [in sprint] } } | `in sprint` cannot be the key of a tag             | at ["vocabulary"]["relations"]["plan"]      |
-        | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                 | at ["vocabulary"]["kinds"]["phase"]         |
-        | ids: { component: MY-COMP }                      | must be letters only                               | at ["ids"]["component"]                     |
-        | ids: { component: ARCH }                         | element and component share the prefix ARCH        | at ["ids"]                                  |
+        | config                                           | problem                                              | path                                        |
+        | feature: ["specs/**/*.feature"]                  | excess property                                      | at ["feature"]                              |
+        | features: specs/**/*.feature                     | Expected array                                       | at ["features"]                             |
+        | vocabulary: { maturity: [] }                     | needs at least one level                             | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, ready, idea] }    | idea repeats                                         | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, verified] }       | verified is a stage sdp derives                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, " "] }            | a word cannot be empty                               | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { maturity: [idea, unrun] }          | unrun is a stage sdp derives                         | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { implemented: done }                | excess property                                      | at ["vocabulary"]["implemented"]            |
+        | vocabulary: { maturity: [idea, implemented] }    | implemented is the retired rung                      | at ["vocabulary"]["maturity"]               |
+        | vocabulary: { relations: { anchor: "" } }        | a word cannot be empty                               | at ["vocabulary"]["relations"]["anchor"]    |
+        | vocabulary: { kinds: { decision: [] } }          | a role needs at least one word                       | at ["vocabulary"]["kinds"]["decision"]      |
+        | vocabulary: { kinds: { milestone: [scenario] } } | scenario is a kind sdp makes itself                  | at ["vocabulary"]["kinds"]["milestone"]     |
+        | vocabulary: { attributes: { activity: stage } }  | stage is an attribute sdp derives or checks itself   | at ["vocabulary"]["attributes"]["activity"] |
+        | vocabulary: { relations: { anchor: iteration } } | iteration is also a relation of the plan             | at ["vocabulary"]["relations"]["anchor"]    |
+        | vocabulary: { relations: { scenario: is } }      | is is also relations.anchor                          | at ["vocabulary"]["relations"]["scenario"]  |
+        | vocabulary: { relations: { scenario: rule-of } } | rule-of is a relation sdp makes itself               | at ["vocabulary"]["relations"]["scenario"]  |
+        | vocabulary: { relations: { plan: [in sprint] } } | `in sprint` cannot be the key of a tag               | at ["vocabulary"]["relations"]["plan"]      |
+        | vocabulary: { kinds: { phase: ["a:b"] } }        | `a:b` cannot be the value of a tag                   | at ["vocabulary"]["kinds"]["phase"]         |
+        | ids: { component: MY-COMP }                      | must be letters only                                 | at ["ids"]["component"]                     |
+        | ids: { component: ARCH }                         | element and component share the prefix ARCH          | at ["ids"]                                  |
+        | ids: { component: Arch }                         | element and component share the prefix ARCH, as Arch | at ["ids"]                                  |
+        | ids: { scenario: SC }                            | scenario is a kind sdp makes itself                  | at ["ids"]["scenario"]                      |

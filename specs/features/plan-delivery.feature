@@ -73,12 +73,10 @@ Feature: Plan delivery
     Scenario: In a fresh workspace
       When I run "sdp -C fresh init"
       Then the output contains "created sdp.config.yaml"
+      And the output contains 'a plan: sdp new phase "Elaboration", then sdp new iteration "<title>" and sdp new milestone "<title>"'
       When I run "sdp -C fresh lifecycle"
       Then the output contains 'sdp new phase "Elaboration"'
       And the output contains 'sdp new iteration "<title>"'
-      When I run "sdp -C fresh new plan 'Delivery plan'"
-      Then the output contains "delivery-plan\tspecs/delivery/delivery-plan.feature"
-      And the output contains 'next: end each phase with a milestone: sdp new milestone "<title>" writes one that `@closes:PH-elaboration`'
       When I run the pipeline:
         """
         sdp -C fresh new phase Elaboration
@@ -86,11 +84,14 @@ Feature: Plan delivery
         sdp -C fresh new milestone 'Architecture baseline'
         """
       Then the exit code is 0
-      And the file "fresh/specs/delivery/IT-architecture-baseline.feature" contains "@id=IT-architecture-baseline @phase:PH-elaboration"
-      And the file "fresh/specs/delivery/MS-architecture-baseline.feature" contains "@id=MS-architecture-baseline @closes:PH-elaboration"
+      And the file "fresh/specs/plan/IT-architecture-baseline.feature" contains "@id=IT-architecture-baseline @phase:PH-elaboration"
+      And the output contains "next: set `@closes:` to the phase or the iteration this milestone ends"
       When I run "sdp -C fresh lifecycle"
-      Then the output line with "MS-architecture-baseline" contains "Elaboration"
-      And the output line with "MS-architecture-baseline" contains "IT-architecture-baseline"
+      Then the output contains "project at MS-architecture-baseline"
+      And the output line with "▶ MS-architecture-baseline" contains "0/1"
+      And the output contains "… No errors in the specification graph  (unrun)"
+      And the output line with "no milestone" contains "Elaboration"
+      And the output line with "no milestone" contains "IT-architecture-baseline"
 
     Scenario: In the workspace's own words
       Given a file "fresh/sdp.config.yaml" containing:
@@ -103,10 +104,11 @@ Feature: Plan delivery
       Then the output contains 'sdp new stage "Elaboration"'
       And the output contains 'sdp new sprint "<title>"'
 
-  Rule: The timeline is the iterations in the order they end, each under its phase
+  Rule: The timeline is the iterations in the order they end, each under its phase; one without a last day has no place on it, and check says so
 
     A milestone is dated by the end of what it closes, and milestones are met in the order of their
-    dates: so an iteration inside a longer one comes before it.
+    dates: so an iteration inside a longer one comes before it, and one needs no first day to have
+    its place. An iteration without a last day is planned work all the same, after the timeline.
 
     Scenario: Inception's iteration, then Elaboration's two
       When the lifecycle is computed
@@ -130,6 +132,47 @@ Feature: Plan delivery
         | MS-objectives   | 2026-01-30 |      |
         | MS-architecture | 2026-02-27 |      |
         | MS-long         | 2026-03-27 |      |
+
+    Scenario: Without a first day an iteration keeps its place; without a last day that is a date it has none, and check says why
+      Given these specs:
+        | tags                                                                    | Feature   |
+        | @id=IT-prototype @phase:PH-elaboration @end=2026-02-13                  | Prototype |
+        | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16 @end=2026-02-30 | Baseline  |
+        | @id=IT-hardening @phase:PH-elaboration                                  | Hardening |
+        | @id=IT-release @phase:PH-elaboration @start=2026-04-31                  | Release   |
+      When the lifecycle is computed
+      Then the iterations are:
+        | id           | phase          |
+        | IT-scope     | PH-inception   |
+        | IT-prototype | PH-elaboration |
+        | IT-hardening | PH-elaboration |
+        | IT-release   | PH-elaboration |
+        | IT-baseline  | PH-elaboration |
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | at                           | message                                                                                                   |
+        | plan-date | specs/IT-baseline.feature:1  | IT-baseline: end is "2026-02-30", which is not a date, so the timeline leaves it out                      |
+        | plan-date | specs/IT-hardening.feature:1 | IT-hardening: end is not written, so the timeline leaves it out                                           |
+        | plan-date | specs/IT-release.feature:1   | IT-release: end is not written, so the timeline leaves it out; start is "2026-04-31", which is not a date |
+
+  Rule: An iteration without a last day is ended by the milestone that closes it, or else by its phase's
+
+    It has no place on the timeline, so it is in no stretch between two milestones: the milestone
+    that closes it ends it, and failing that the one that closes its phase.
+
+    Scenario: IT-hardening closed by a milestone of its own, IT-polish by its phase's
+      Given these specs:
+        | tags                                   | Feature   |
+        | @id=IT-hardening @phase:PH-elaboration | Hardening |
+        | @id=IT-polish @phase:PH-elaboration    | Polish    |
+        | @id=MS-hardened @closes:IT-hardening   | Hardened  |
+      When the lifecycle is computed
+      Then the milestones are:
+        | id              | phase          | iterations                           | planned    | next |
+        | MS-objectives   | PH-inception   | IT-scope                             | 2026-01-30 | yes  |
+        | MS-architecture | PH-elaboration | IT-prototype, IT-baseline, IT-polish | 2026-02-27 |      |
+        | MS-hardened     | PH-elaboration | IT-hardening                         |            |      |
+      And the output does not contain "no milestone"
 
   Rule: A milestone closes a phase or an iteration, and ends every iteration since the milestone before it
 
@@ -168,11 +211,20 @@ Feature: Plan delivery
       And the output contains "project at MS-objectives · calendar in IT-baseline"
       And the output line with "no milestone" contains "IT-baseline*"
 
+    Scenario: A milestone that closes nothing is reported, with what to set
+      Given these specs:
+        | tags           | Feature |
+        | @id=MS-release | Release |
+      When the workspace is checked
+      Then sdp reports:
+        | rule           | severity | node       | at                         | message                                                               | hint                                             |
+        | plan-reference | warning  | MS-release | specs/MS-release.feature:1 | MS-release: closes nothing, so no date places it among the milestones | set `@closes:` to the phase or iteration it ends |
+
   Rule: A new iteration follows the one that ends last, in its phase
 
     Scenario: After IT-baseline, which ends last
       When I run "sdp new iteration Packaging"
-      Then the file "specs/delivery/IT-packaging.feature" is:
+      Then the file "specs/plan/IT-packaging.feature" is:
         """
         @id=IT-packaging @phase:PH-elaboration @start=2026-02-28 @end=2026-03-13
         Feature: Packaging
@@ -186,7 +238,7 @@ Feature: Plan delivery
       When I run "sdp new iteration Packaging"
       Then the exit code is 1
       And the output contains 'IT-baseline ends on "2026-02-30", which is not a date'
-      And the file "specs/delivery/IT-packaging.feature" does not exist
+      And the file "specs/plan/IT-packaging.feature" does not exist
 
   Rule: The project is at the first milestone not met; the calendar marks only today and lateness
 
@@ -242,6 +294,77 @@ Feature: Plan delivery
         | met        | off |
         | 2026-02-03 | +4d |
         | 2026-01-28 | -2d |
+
+  Rule: An iteration without a first day is never today's, and lifecycle names each one today could be in
+
+    Today is in an iteration from its first day to its last. Without a first day, sdp cannot say
+    whether today falls in it, and says so rather than show a plan with no iteration today.
+
+    Scenario: Two iterations dated only by their ends, on a day before both end
+      Given these specs:
+        | tags                                                                    | Feature   |
+        | @id=IT-scope @phase:PH-inception @end=2026-01-30                        | Scope     |
+        | @id=IT-prototype @phase:PH-elaboration @end=2026-02-13                  | Prototype |
+      When the lifecycle is computed on "2026-01-20"
+      Then the iterations are:
+        | id           | today |
+        | IT-scope     |       |
+        | IT-prototype |       |
+        | IT-baseline  |       |
+      And the output contains "no iteration today: IT-scope, IT-prototype have no first day"
+      When the lifecycle is computed on "2026-02-20"
+      Then the output contains "calendar in IT-baseline"
+
+  Rule: Off the timeline, the project is at a milestone not met only when no other is; otherwise the heading names those off it, and why
+
+    Milestones are ordered by the dates of what they close, so those that close nothing dated are in
+    no order: one alone not met is where the project is, for nothing else is left, but of two sdp
+    cannot say which comes first.
+
+    Scenario: The milestones on the timeline met, and one that closes nothing
+      Given these specs:
+        | tags                                                       | Feature                |
+        | @id=MS-objectives @closes:PH-inception @met=2026-01-30     | Lifecycle objectives   |
+        | @id=MS-architecture @closes:PH-elaboration @met=2026-02-27 | Lifecycle architecture |
+        | @id=MS-release                                             | Release                |
+      When the lifecycle is computed on "2026-03-02"
+      Then the milestones are:
+        | id              | planned    | met        | next |
+        | MS-objectives   | 2026-01-30 | 2026-01-30 |      |
+        | MS-architecture | 2026-02-27 | 2026-02-27 |      |
+        | MS-release      |            |            | yes  |
+      And the output contains "(2026-03-02 · project at MS-release · no iteration today)"
+      And the output line with "▶ MS-release" contains "no gate"
+
+    Scenario: The milestones on the timeline met, and two that close nothing dated
+      Given these specs:
+        | tags                                                       | Feature                |
+        | @id=MS-objectives @closes:PH-inception @met=2026-01-30     | Lifecycle objectives   |
+        | @id=MS-architecture @closes:PH-elaboration @met=2026-02-27 | Lifecycle architecture |
+        | @id=PH-transition                                          | Transition             |
+        | @id=MS-release @closes:PH-transition                       | Release                |
+        | @id=MS-beta                                                | Beta                   |
+      When the lifecycle is computed on "2026-03-02"
+      Then the milestones are:
+        | id              | planned    | next |
+        | MS-objectives   | 2026-01-30 |      |
+        | MS-architecture | 2026-02-27 |      |
+        | MS-beta         |            |      |
+        | MS-release      |            |      |
+      And the output contains "(2026-03-02 · not on the timeline: MS-beta, MS-release — they close nothing dated · no iteration today)"
+
+    Scenario: Milestones none of which is on the timeline are in no order, and the project is at none of them
+      Given these specs:
+        | tags                                                     | Feature   |
+        | @id=IT-scope @phase:PH-inception @start=2026-01-05       | Scope     |
+        | @id=IT-prototype @phase:PH-elaboration @start=2026-02-02 | Prototype |
+        | @id=IT-baseline @phase:PH-elaboration @start=2026-02-16  | Baseline  |
+      When the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id              | planned | next |
+        | MS-architecture |         |      |
+        | MS-objectives   |         |      |
+      And the output contains "(2026-01-20 · not on the timeline: MS-architecture, MS-objectives — they close nothing dated · no iteration today)"
 
   Rule: Work is planned on the node itself: its iteration plans the discipline of its kind, an activity tag any other
 
@@ -299,6 +422,57 @@ Feature: Plan delivery
         | IT-scope     |               |
         | IT-prototype | ARCH-x, alpha |
         | IT-baseline  |               |
+
+  Rule: A kind no discipline names is no work: nothing lists it as unplanned, and check reports a maturity on it
+
+    Work is what a discipline takes, and only work is still to come at a maturity, and planned. An
+    activity tag plans a discipline's work on any node, but a risk or a policy is otherwise what it
+    is, its rules with examples, until the team adds its kind to a discipline.
+
+    Scenario: A risk at a maturity, and a rule of a live risk without an example
+      Given these specs:
+        | tags                                 | Feature |
+        | @id=outage @kind=risk @maturity=idea | Outage  |
+      And a file "specs/slow-index.feature" containing:
+        """
+        @id=slow-index @kind=risk
+        Feature: Slow index
+
+          Rule: The index may outgrow memory
+        """
+      When the lifecycle is computed
+      Then the unplanned work is "nothing"
+      When the workspace is checked
+      Then sdp reports:
+        | rule           | node                                    | at                         | message                                                                                       | hint                                                                                                                                                                  |
+        | plan-reference | outage                                  | specs/outage.feature:1     | outage: kind risk belongs to no discipline, so its maturity marks work that nothing can plan | delete the maturity — what is no work is live, and its rules have examples — or add risk to a discipline under vocabulary.disciplines                                 |
+        | untested-rule  | slow-index#the-index-may-outgrow-memory | specs/slow-index.feature:4 | slow-index#the-index-may-outgrow-memory is live, so it needs an example                       | write a Scenario under it; kind risk belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines |
+
+    Scenario: Once a discipline names risk, a risk at a maturity is work to plan
+      Given a file "sdp.config.yaml" containing:
+        """
+        vocabulary: { disciplines: { risk-management: [risk] } }
+        """
+      And these specs:
+        | tags                                 | Feature |
+        | @id=outage @kind=risk @maturity=idea | Outage  |
+      When the lifecycle is computed
+      Then the unplanned work is "outage"
+      When the workspace is checked
+      Then sdp reports nothing
+
+    Scenario: A risk at a maturity that an activity tag plans is that discipline's work
+      Given these specs:
+        | tags                                                                      | Feature |
+        | @id=outage @kind=risk @maturity=idea @activity.implementation:IT-baseline | Outage  |
+      When the lifecycle is computed
+      Then the iterations are:
+        | id           | plans         |
+        | IT-scope     |               |
+        | IT-prototype | ARCH-x, alpha |
+        | IT-baseline  | outage        |
+      When the workspace is checked
+      Then sdp reports nothing
 
   Rule: A rule is planned on its own, as work of its spec's kind
 
@@ -520,6 +694,25 @@ Feature: Plan delivery
         | MS-architecture | 1/1  |      |
       And the output contains "✔ There is a plan"
       And the output contains "✘ Every feature is in an iteration"
+
+    Scenario: A scenario of another spec that links to the milestone is not of its gate
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay
+        Feature: Pay
+
+          Rule: A card is charged once
+
+            @verifies:MS-architecture
+            Scenario: Charged
+              Then the query "feature" returns no results
+        """
+      When the workspace is run
+      And the lifecycle is computed on "2026-01-20"
+      Then the milestones are:
+        | id              | gate | next |
+        | MS-objectives   | 1/2  | yes  |
+        | MS-architecture | 1/1  |      |
 
   Rule: A gate passes only when every one of its scenarios passed, run against the current graph
 
@@ -768,6 +961,17 @@ Feature: Plan delivery
         | @activity.implementation:IT-prototype @activity.implementation:PH-elaboration | "PH-elaboration" names no iteration  |
         | @activity.testing:IT-prototype                                                | "testing", which is not a discipline |
         | @kind=risk @iteration:IT-prototype                                            | belongs to no discipline             |
+
+    Scenario: A link whose prefix is another case of the plan's says so
+      Given these specs:
+        | tags                                                                  | Feature  |
+        | @id=it-sprint-1 @maturity=idea                                        | Sprint 1 |
+        | @id=beta @maturity=idea @iteration:it-sprint-1 @iteration:it-sprint-2 | Beta     |
+      When the workspace is checked
+      Then sdp reports:
+        | rule           | at                   | message                                          | hint                                                                        |
+        | dangling-link  | specs/beta.feature:1 | beta -iteration-> it-sprint-2                    | the prefix of kind iteration is `IT-`, written as configured: `IT-sprint-2` |
+        | plan-reference | specs/beta.feature:1 | beta: iteration "it-sprint-1" names no iteration | the prefix of kind iteration is `IT-`, written as configured: `IT-sprint-1` |
 
     Scenario: A feature planned into what the plan declares
       Given these specs:

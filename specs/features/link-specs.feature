@@ -94,7 +94,7 @@ Feature: Link specs into one graph
     Scenario: constructor, toString and __proto__ are words like any other
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { maturity: [constructor, toString, valueOf] }
+        vocabulary: { maturity: [constructor, toString, valueOf], disciplines: { valueOf: [constructor] } }
         """
       And these specs:
         | tags                                                                                    | Feature |
@@ -295,6 +295,40 @@ Feature: Link specs into one graph
         | specs/pay.feature | @id=pay @stage=verified\nFeature: Pay                                                     | specs/pay.feature:1 |
         | specs/pay.feature | @id=pay\nFeature: Pay\n\n  @stage=verified\n  Rule: A card is charged once                | specs/pay.feature:4 |
         | specs/pay.feature | @id=pay\nFeature: Pay\n\n  Rule: R\n\n    @stage=verified\n    Scenario: S\n      Then ok | specs/pay.feature:6 |
+
+    Scenario: Tags written as a value, on a Feature, a Rule, a Scenario and in code
+      Given a file "specs/pay.feature" containing:
+        """
+        @id=pay @tags=custom @web
+        Feature: Pay
+
+          @tags=custom @open
+          Rule: Is a refund charged too?
+
+          Rule: A card is charged once
+
+            @tags=custom @slow
+            Scenario: Once
+              Then one charge is made
+        """
+      And a file "src/orders.ts" containing:
+        """
+        /** @sdp is ARCH-orders tags=web */
+        export const orders = []
+        """
+      When the workspace is loaded
+      Then sdp reports:
+        | rule              | at                  | message                                                                                                          | hint                         |
+        | derived-attribute | specs/pay.feature:1 | tags holds the Cucumber tags of a Feature, a Rule or a Scenario as written, so the value written here is ignored | name the attribute otherwise |
+        | derived-attribute | specs/pay.feature:4 | tags holds the Cucumber tags of a Feature, a Rule or a Scenario as written, so the value written here is ignored | name the attribute otherwise |
+        | derived-attribute | specs/pay.feature:9 | tags holds the Cucumber tags of a Feature, a Rule or a Scenario as written, so the value written here is ignored | name the attribute otherwise |
+        | derived-attribute | src/orders.ts:1     | tags holds the Cucumber tags of a Feature, a Rule or a Scenario as written, so the value written here is ignored | name the attribute otherwise |
+      And the workspace graph has nodes:
+        | id                          | tags  |
+        | pay                         | @web  |
+        | pay#is-a-refund-charged-too | @open |
+        | pay#a-card-is-charged-once  |       |
+        | pay#once                    | @slow |
 
     Scenario: A kind sdp makes itself, written in a spec and in code
       Given a file "specs/a.feature" containing:
