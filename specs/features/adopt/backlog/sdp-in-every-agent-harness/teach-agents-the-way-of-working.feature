@@ -1,5 +1,5 @@
 @id=teach-agents-the-way-of-working @maturity=ready
-@iteration:IT-agent-plugin
+@iteration:IT-agent-plugin @depends-on:install-the-agent-plugin
 Feature: Teach agents the way of working
 
   An agent in a repository specified with sdp asks the graph before it greps, writes the rule and its
@@ -24,8 +24,9 @@ Feature: Teach agents the way of working
   Rule: The skill an agent loads first fits in 10,000 characters
 
     Scenario: The size of the skill
-      When I run "sh -c 'test $(wc -c < skills/sdp/SKILL.md) -le 10000'" in the repository
+      When I run "cat skills/sdp/SKILL.md" in the repository
       Then the exit code is 0
+      And the output is at most 10000 characters
 
   Rule: Every sdp command the skill and its references show runs as written in a workspace sdp init started, and exits as they say
 
@@ -33,6 +34,12 @@ Feature: Teach agents the way of working
       Given the workspace is a copy of "examples/shop"
       When every sdp command shown in "skills/sdp" is run in the workspace
       Then each exited 0, or as the text beside it says
+
+  @open
+  Rule: How does the skill mark what stands in a command for a value, and the exit a command shown failing is expected to end with?
+
+    A command runs as written only when both are marked one way: `sdp context <id>` cannot run as it
+    stands, and a command that fails on purpose reads as one that is broken.
 
   @maturity=idea
   Rule: Agents taught by the skill leave open what a request left open: a choice the requester did not make is a rule tagged @open, not a rule they chose
