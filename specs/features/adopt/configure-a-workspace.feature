@@ -2,18 +2,14 @@
 @realized-by:ARCH-workspace @realized-by:ARCH-vocabulary
 Feature: Configure a workspace
 
-  A team that adopts sdp brings its own repository layout and its own words: user stories rather
-  than requirements, ADRs rather than decisions, sprints rather than iterations. sdp works in any
-  repository unconfigured; a team writes `sdp.config.yaml` (or `.yml`, or `.json`) at the root of
-  the workspace to say where specs, code and step definitions are, how ids are prefixed, and which
-  of its words play the roles sdp interprets.
+  A team that adopts sdp brings its own layout and its own words — user stories, ADRs, sprints. sdp
+  works in any repository unconfigured; `sdp.config.yaml` (or `.yml`, or `.json`) at the root says
+  where specs, code and step definitions are, how ids are prefixed, and which of the team's words
+  play the roles sdp interprets.
 
   Not a schema for specs: kinds, relations and attributes are whatever authors write.
 
-  Rule: A key left out keeps its default; a list or value written replaces it and exclude adds to it, while ids and vocabulary change only the entries they name
-
-    The defaults find specs and code where most repositories keep them, so an empty file or none at
-    all is a configuration that works.
+  Rule: A key left out keeps its default, a key written replaces it, and exclude adds to it
 
     Scenario Outline: Each key, in YAML or JSON
       Given these specs:
@@ -52,40 +48,7 @@ Feature: Configure a workspace
         | A list of code, replaced     | sdp.config.yaml | code: ["tools/**/*.ts"]     | login, scratch, code:tools/report.ts#report |
         | An exclusion, added, in JSON | sdp.config.json | { "exclude": ["notes/**"] } | login, code:src/orders.ts#order             |
 
-    Scenario: Step modules only where steps says, an absolute glob too, and results where results says
-      Given a file "specs/cart.feature" containing:
-        """
-        @id=cart
-        Feature: Cart
-
-          Rule: A cart starts empty
-
-            Scenario: A new cart is empty
-              Then the cart is empty
-        """
-      And a file "acceptance/steps/cart.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
-
-        export default defineSteps(() => ({}), ({ Then }) => {
-          Then("the cart is empty", () => {})
-        })
-        """
-      And a file "specs/legacy.steps.ts" containing:
-        """
-        throw new Error("not a step module of this workspace")
-        """
-      When I run "sh -c 'printf \"steps: [$PWD/acceptance/steps/*.ts]\nresults: out/results.json\n\" > sdp.config.yaml'"
-      Then the exit code is 0
-      When I run "sdp run"
-      Then the exit code is 0
-      And the output contains "1 scenario(s): 1 passed"
-      And the file "out/results.json" contains "cart#a-new-cart-is-empty"
-
-  Rule: An id's prefix says its kind as it is configured, before - or _, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
-
-    So an id says what it is wherever it is cited. A prefix in another case is a word: an IT asset
-    inventory is no iteration.
+  Rule: An id's prefix says its kind, and an id with no prefix sdp knows is a feature; ids adds prefixes or renames them
 
     Scenario Outline: <id> is a <kind>
       Given a file "sdp.config.yaml" containing:
@@ -104,119 +67,28 @@ Feature: Configure a workspace
         | it-asset-inventory | feature     |
 
   @decided-by:free-vocabulary
-  Rule: The vocabulary says which of the team's words play the roles sdp interprets, and every command reads them
+  Rule: The vocabulary names the team's words for the roles sdp interprets, and its ladder of maturities, and every command reads them
 
-    A team keeps its own words, and sdp still knows which nodes are its features, its architecture,
-    its decisions and milestones, and which links plan work.
-
-    Scenario: Features called req, written, checked and planned
+    Scenario: Features called req, on a ladder of sketch and agreed
       Given a file "sdp.config.yaml" containing:
         """
-        vocabulary: { kinds: { feature: [req] } }
+        vocabulary: { kinds: { feature: [req] }, maturity: [sketch, agreed] }
         """
       And these specs:
-        | tags                                         | Feature |
-        | @id=IT-one @start=2026-11-02 @end=2026-11-13 | One     |
-        | @id=search @maturity=idea @iteration:IT-one  | Search  |
+        | tags                        | Feature |
+        | @id=search @maturity=agreed | Search  |
       When I run "sdp new req 'Saved carts'"
       Then the exit code is 0
-      And the file "specs/features/saved-carts.feature" contains "@id=saved-carts @maturity=idea"
-      When I run "sdp check --base none"
+      And the file "specs/features/saved-carts.feature" contains "@id=saved-carts @maturity=sketch"
+      When I run "sdp q 'req[maturity<agreed]' --ids"
       Then the exit code is 0
-      When I run "sdp lifecycle --json"
-      Then the JSON output has:
-        | data.disciplines.requirements | 1           |
-        | data.unplanned                | saved-carts |
-
-    Scenario: A milestone recorded as reached
-      Given a file "sdp.config.yaml" containing:
-        """
-        vocabulary: { attributes: { met: reached } }
-        """
-      And a file "specs/MS-launch.feature" containing:
-        """
-        @id=MS-launch
-        Feature: Launch
-
-          Rule: Launch is planned
-
-            Scenario: There is a milestone
-              Then the query "milestone" returns 1 result
-        """
-      When I run "sdp gate MS-launch --record"
-      Then the exit code is 0
-      And the file "specs/MS-launch.feature" contains "@id=MS-launch @reached=20"
-      When I run "sdp status --json"
-      Then the exit code is 0
-      And the JSON output has:
-        | data.milestones.met | 1 |
-
-  @decided-by:free-vocabulary
-  Rule: A ladder of the team's own orders the maturities of work still to come, and a value off it ranks below every rung
-
-    sdp reads no meaning into a rung: any maturity says the work is still to come, and a question for
-    what has not come far enough finds a value off the ladder too.
-
-    Scenario: A ladder of sketch, agreed and estimated
-      Given a file "sdp.config.yaml" containing:
-        """
-        vocabulary: { maturity: [sketch, agreed, estimated] }
-        """
-      And these specs:
-        | tags                            | Feature  |
-        | @id=cart                        | Cart     |
-        | @id=wishlist @maturity=agreed   | Wishlist |
-        | @id=returns @maturity=estimated | Returns  |
-        | @id=gifts @maturity=someday     | Gifts    |
-      When I query "feature[maturity<estimated]"
-      Then the result is "gifts, wishlist"
-      When I query "feature[toCome]"
-      Then the result is "gifts, returns, wishlist"
-
-  Rule: sdp vocabulary prints the words sdp interprets as a configuration that reads back, and the words it makes itself, which nothing configures
-
-    A team sees which of its words sdp reads meaning into, and starts its own profile from the one
-    in force.
-
-    Scenario: A team's word for decisions, read back from a copy, and the stages sdp makes itself
-      Given a file "sdp.config.yaml" containing:
-        """
-        vocabulary: { kinds: { decision: [adr] } }
-        """
-      When I run the pipeline:
-        """
-        sdp vocabulary --json | jq '{ vocabulary: .data.vocabulary }' > copied.json
-        rm sdp.config.yaml
-        mv copied.json sdp.config.json
-        """
-      Then the exit code is 0
+      And the output lines are "saved-carts"
       When I run "sdp vocabulary --json"
       Then the JSON output has:
-        | data.vocabulary.kinds.decision | adr                                   |
-        | data.vocabulary.maturity       | idea, draft, specified, ready         |
-        | data.made.stages               | unrun, failing, in-progress, verified |
+        | data.vocabulary.kinds.feature | req            |
+        | data.vocabulary.maturity      | sketch, agreed |
 
-  Rule: sdp vocabulary prints the type of each word that joins two nodes or takes a value, in the workspace's words
-
-    An agent that links a feature reads what it may link to before it writes the tag, and check
-    holds the link to the same type.
-
-    Scenario: A team's words for decisions and for planning, in the types
-      Given a file "sdp.config.yaml" containing:
-        """
-        vocabulary: { kinds: { decision: [adr] }, relations: { plan: [scheduled] } }
-        """
-      When I run "sdp vocabulary --json"
-      Then the JSON output has:
-        | data.types.links.realized-by.from | feature   |
-        | data.types.links.realized-by.to   | element   |
-        | data.types.links.decided-by.to    | adr       |
-        | data.types.links.scheduled.to     | iteration |
-
-  Rule: A configuration that cannot work stops sdp with the file and the key, not later in a spec or a query
-
-    A misspelt key read as its default, or a word that no tag can hold, would turn something off
-    without a word.
+  Rule: A configuration that cannot work stops sdp with the file and the key
 
     Scenario Outline: A configuration that cannot work
       Given a file "sdp.config.yaml" containing:

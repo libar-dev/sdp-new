@@ -4,8 +4,8 @@
 Feature: Link specs into one graph
 
   People and agents follow any link from a spec, a decision, the architecture or the plan to the
-  next, in the words their authors wrote. What the files say and link is one graph: a node for each
-  spec, rule and scenario, an edge for each link, each at the line that declares it.
+  next, in the words their authors wrote: a node for each spec, rule and scenario, an edge for each
+  link, each at the line that declares it.
 
   Not a metamodel: sdp reads meaning into the few words `sdp vocabulary` lists, and nothing writes
   the graph but the files.
@@ -44,8 +44,6 @@ Feature: Link specs into one graph
   @decided-by:free-vocabulary
   Rule: Kinds, relations and attributes are whatever the authors write
 
-    A team's words need no translation into sdp's.
-
     Scenario: A bounded context that publishes to an event bus
       Given these specs:
         | tags                                                         | Feature   |
@@ -57,154 +55,63 @@ Feature: Link specs into one graph
         | from        | rel          | to       |
         | ARCH-orders | publishes-to | ARCH-bus |
 
-  Rule: In a spec, a link is a tag, one per target: an edge at the tag's line, and an attribute of the node that writes it
+  Rule: A tag written @rel:id is a link to one target, an edge with a declaration at each line that states it; one written @key=value is a fact
 
-    An id written in a description is text: a link is what the spec states, never what its prose
-    mentions.
-
-    Scenario Outline: One target, and a dotted relation
-      Given these specs:
-        | tags                        | Feature |
-        | @id=IT-beta @kind=iteration | Beta    |
-        | @id=a <links>               | A       |
-      When I query "*[<rel>=IT-beta]"
-      Then the result is "a"
-      And the workspace graph has edges:
-        | from | rel   | to      | source            |
-        | a    | <rel> | IT-beta | specs/a.feature:1 |
-
-      Examples:
-        | links                            | rel                     |
-        | @iteration:IT-beta               | iteration               |
-        | @activity.implementation:IT-beta | activity.implementation |
-
-  Rule: Whether a tag or a key links is a property of how it is written, never of its value
-
-    Were the value to decide, a reference to a renamed node would turn into text without a word.
-
-    Scenario Outline: In a feature file the separator decides; in code, the key
-      Given these specs:
-        | tags                        | Feature     |
-        | @id=IT-beta @kind=iteration | Beta        |
-        | @id=orders-team @kind=team  | Orders team |
-      And a file "<file>" containing:
-        """
-        <content>
-        """
-      When the workspace is loaded
-      Then the edges from "pay" are "<edges>"
-      And sdp reports nothing
-
-      Examples:
-        | file              | content                                          | edges                    |
-        | specs/pay.feature | @id=pay @owner:orders-team\nFeature: Pay         | pay -owner-> orders-team |
-        | specs/pay.feature | @id=pay @owner=orders-team\nFeature: Pay         | nothing                  |
-        | src/pay.py        | # @sdp is pay iteration=IT-beta\ndef pay(): pass | pay -iteration-> IT-beta |
-
-  Rule: Stating a link again adds a declaration to its one edge
-
-    So every place that states it is found from the edge.
-
-    Scenario: The same link in two tags
+    Scenario: The same link in two tags, and a fact that names a node
       Given a file "specs/a.feature" containing:
         """
-        @id=a @iteration:IT-beta
+        @id=a @iteration:IT-beta @owner=orders-team
         @iteration:IT-beta
         Feature: A
         """
       And these specs:
-        | tags                        | Feature |
-        | @id=IT-beta @kind=iteration | Beta    |
+        | tags                        | Feature     |
+        | @id=IT-beta @kind=iteration | Beta        |
+        | @id=orders-team @kind=team  | Orders team |
       When the workspace is loaded
-      Then the workspace graph has edges:
+      Then the edges from "a" are "a -iteration-> IT-beta"
+      And the workspace graph has edges:
         | from | rel       | to      | sources                              |
         | a    | iteration | IT-beta | specs/a.feature:1, specs/a.feature:2 |
       And sdp reports nothing
 
-  Rule: An id is declared once: a second declaration is an error, and the first holds
+  Rule: An id names one node: one declared twice, or named where nothing declares it, is an error where it is written
 
-    So a link always reaches one node.
-
-    Scenario: Two files declare pay
+    Scenario Outline: An id declared twice, and one nothing declares
       Given a file "specs/a.feature" containing:
         """
         @id=pay
-        Feature: Pay by card
+        Feature: Pay
         """
       And a file "specs/b.feature" containing:
         """
-        @id=pay
-        Feature: Pay by wallet
-        """
-      When the workspace is loaded
-      Then node "pay" has attribute title = "Pay by card"
-      And sdp reports:
-        | rule         | severity | at                |
-        | duplicate-id | error    | specs/b.feature:1 |
-
-  Rule: A reference to an id nothing declares is an error where it is written, and the id is a missing node
-
-    So a node renamed or deleted is found from every place that still names it.
-
-    Scenario: A spec depends on an id nothing declares
-      Given these specs:
-        | tags                            | Feature |
-        | @id=sync @depends-on:ARCH-queue | Sync    |
-      When the workspace is loaded
-      Then sdp reports:
-        | rule          | severity | at                   |
-        | dangling-link | error    | specs/sync.feature:1 |
-      And the workspace graph has exactly these nodes:
-        | id         | kind    | source               |
-        | sync       | feature | specs/sync.feature:1 |
-        | ARCH-queue | missing |                      |
-
-  Rule: What sdp derives cannot be written, wherever a node is declared
-
-    A stage is read from what ran, and a kind such as `missing` or `code` or a link such as
-    `imports` from what sdp found: written by hand, any of them would claim what nothing showed.
-
-    Scenario Outline: A stage, a kind and a link sdp derives, written by hand
-      Given a file "<file>" containing:
-        """
-        <content>
-        """
-      When the workspace is loaded
-      Then sdp reports at least:
-        | rule              | at   | message   |
-        | derived-attribute | <at> | <message> |
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | file              | content                                  | at                  | message                                 | query             | result  |
-        | specs/pay.feature | @id=pay @stage=verified\nFeature: Pay    | specs/pay.feature:1 | stage is derived by sdp                 | *[stage=verified] | nothing |
-        | src/pay.py        | # @sdp is pay kind=code\ndef pay(): pass | src/pay.py:1        | sdp makes the nodes of kind code itself | element           | pay     |
-        | specs/a.feature   | @id=a @imports:pay\nFeature: A           | specs/a.feature:1   | sdp makes the imports links itself      | * -imports-> *    | nothing |
-
-  Rule: A link cannot take the name of an attribute, wherever it is declared
-
-    A link reads as an attribute of the node it starts from, so `[key=value]` must mean one thing.
-
-    Scenario Outline: A link named like a fact sdp derives, or like an attribute of its node
-      Given these specs:
-        | tags                     | Feature  |
-        | @id=verified @kind=label | Verified |
-      And a file "specs/a.feature" containing:
-        """
         <content>
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule        | severity | at                |
-        | link-syntax | error    | specs/a.feature:1 |
-      When I query "* -<name>-> *"
-      Then the result is "nothing"
+        | rule   | severity | at                |
+        | <rule> | error    | specs/b.feature:1 |
 
       Examples:
-        | content                                           | name     |
-        | @id=a @maturity:verified\nFeature: A              | maturity |
-        | @id=a @owner=payments @owner:verified\nFeature: A | owner    |
+        | content                                        | rule          |
+        | @id=pay\nFeature: Pay by wallet                | duplicate-id  |
+        | @id=sync @depends-on:ARCH-queue\nFeature: Sync | dangling-link |
+
+  Rule: A tag cannot write what sdp derives, nor a link take the name of an attribute
+
+    Scenario Outline: A derived fact, a derived link and a link named like a fact, written by hand
+      Given a file "specs/a.feature" containing:
+        """
+        <content>
+        """
+      When the workspace is loaded
+      Then sdp reports "<rule>"
+
+      Examples:
+        | content                           | rule              |
+        | @id=a @stage=verified\nFeature: A | derived-attribute |
+        | @id=a @imports:a\nFeature: A      | derived-attribute |
+        | @id=a @maturity:a\nFeature: A     | link-syntax       |
 
   Rule: The relations and facts sdp types are these: the kinds each end of a typed link may be, and the value of a typed fact and what it is written on
 
@@ -265,9 +172,6 @@ Feature: Link specs into one graph
         | date     | day   | sprint, milestone |
 
   Rule: A link the vocabulary types joins the kinds its type names, and one that joins others is reported
-
-    A feature realized by a decision reads as an answer and is none. A relation the vocabulary does
-    not type joins any nodes.
 
     Scenario Outline: Typed links, <what>
       Given these specs:

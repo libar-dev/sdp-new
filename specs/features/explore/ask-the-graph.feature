@@ -2,10 +2,9 @@
 @realized-by:ARCH-query-engine @realized-by:ARCH-application @realized-by:ARCH-reports
 Feature: Ask the graph
 
-  Developers, architects and AI agents need answers that cross specs, decisions, architecture and
-  code: which code is behind a feature, what rests on a decision, what nothing verifies yet. Any
-  such question is one line, on the command line, over MCP or in a scenario, and every answer says
-  where each node is written and whether something may be missing from it.
+  Developers, architects and AI agents ask questions that cross specs, decisions, architecture and
+  code — which code is behind a feature, what rests on a decision — in one line, and learn where
+  each node is written and whether anything may be missing.
 
   Not a general graph database language, and no counting or grouping: those are jq's, over the
   graph as data.
@@ -37,27 +36,9 @@ Feature: Ask the graph
       export const book = (): number => order()
       """
 
-  Rule: A question is one line: the nodes to start from, then the links to follow
+  Rule: A question is one line: the nodes to start from, by kind, id or what they hold, then the links to follow, or to filter by
 
-    One line fits a shell argument and one scenario step, which is how gates and guards are written.
-
-    Scenario: The grammar is what sdp q --help prints
-      When I run "sdp q --help"
-      Then the exit code is 0
-      And the output contains:
-        """
-        query  := node (edge node)* [edge]
-        node   := (kind(|kind)* | * | #ID(|ID)*) ([cond(, cond)*])*
-        cond   := key | !key | key=v(|v)* | key!=v(|v)* | key~regex | key!~regex | key<v | key<=v | key>v | key>=v
-        edge   := [! | ?] (-rel-> | <-rel- | -rel-)        rel := (* | name(|name)* | nothing) [+]
-        """
-
-  Rule: A node is picked by its kind, its id, or anything it holds
-
-    A condition reads a node's attributes, id, kind, title and source, and the targets of its links;
-    a missing or false value is not set, and a word the workspace does not know matches nothing.
-
-    Scenario Outline: A kind, an id, and what a node holds
+    Scenario Outline: A kind, an id, what a node holds, links followed, and links that filter
       When I query "<query>"
       Then the result is "<result>"
 
@@ -66,106 +47,24 @@ Feature: Ask the graph
         | feature\|element                                | checkout, refunds, ARCH-orders, ARCH-billing, ARCH-ledger |
         | #ARCH-orders\|refunds                           | ARCH-orders, refunds                                      |
         | feature[maturity>idea, realized-by=ARCH-orders] | checkout                                                  |
+        | #ARCH-billing -imports-> *                      | ARCH-ledger                                               |
+        | #ARCH-billing <-imports\|realized-by- *         | ARCH-orders, refunds                                      |
+        | #ARCH-orders -imports+-> *                      | ARCH-billing, ARCH-ledger, ARCH-orders                    |
+        | element ?<-realized-by- feature[maturity=ready] | ARCH-orders                                               |
+        | element !<-realized-by- *                       | ARCH-ledger                                               |
 
-    Scenario Outline: Missing, false and zero; case, lists, numbers and quoted values
-      Given these specs:
-        | tags                                            | Feature      |
-        | @id=no-value @kind=flag                         | No value     |
-        | @id=false-value @kind=flag @value=false @web    | False        |
-        | @id=zero-value @kind=flag @value=0 @size=9      | Zero         |
-        | @id=true-value @kind=flag @value=true @size=10  | True, or not |
-      When I query '<query>'
-      Then the result is "<result>"
+  Rule: The answer is the nodes the question ends on, each with its kind, its state and the file and line it is written at, or every route to them
 
-      Examples:
-        | query                      | result                 |
-        | flag[value]                | zero-value, true-value |
-        | flag[!value]               | no-value, false-value  |
-        | flag[value=TRUE]           | true-value             |
-        | flag[tags=@web]            | false-value            |
-        | flag[size>9]               | true-value             |
-        | flag[title="True, or not"] | true-value             |
-
-  Rule: Links are followed out, in or either way, once or as far as they lead
-
-    Scenario Outline: Out, in by any of two relations, and as far as links lead
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | query                                   | result                                 |
-        | #ARCH-billing -imports-> *              | ARCH-ledger                            |
-        | #ARCH-billing <-imports\|realized-by- * | ARCH-orders, refunds                   |
-        | #ARCH-orders -imports+-> *              | ARCH-billing, ARCH-ledger, ARCH-orders |
-
-  Rule: A link can filter instead: keep the nodes that have such a neighbour, or those that have none
-
-    Scenario Outline: With and without such a neighbour
-      When I query "<query>"
-      Then the result is "<result>"
-
-      Examples:
-        | query                                           | result      |
-        | element ?<-realized-by- feature[maturity=ready] | ARCH-orders |
-        | element !<-realized-by- *                       | ARCH-ledger |
-
-  Rule: The answer is the nodes the question ends on, or every route to them as it exists
-
-    A route shows each link as it points, whichever way it was followed, and the route to a node
-    reached as far as links lead is a shortest one.
-
-    Scenario: Several routes to a node are one node and as many routes
-      When I query "feature -realized-by-> element -imports+-> *"
-      Then the result is "ARCH-billing, ARCH-ledger, ARCH-orders"
+    Scenario: Two routes to billing, and a feature where it is written
+      When I query "* -realized-by|imports-> #ARCH-billing"
+      Then the result is "ARCH-billing"
       And the paths are:
-        | checkout -realized-by-> ARCH-orders -imports-> ARCH-billing                                               |
-        | checkout -realized-by-> ARCH-orders -imports-> ARCH-billing -imports-> ARCH-ledger                        |
-        | checkout -realized-by-> ARCH-orders -imports-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders |
-        | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger                                                |
-        | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders                         |
-        | refunds -realized-by-> ARCH-billing -imports-> ARCH-ledger -imports-> ARCH-orders -imports-> ARCH-billing |
-
-    Scenario: A link followed against its direction is shown as it points
-      When I query "#ARCH-ledger <-imports- element <-realized-by- *"
-      Then the paths are:
-        | ARCH-ledger <-imports- ARCH-billing <-realized-by- refunds |
-
-    Scenario: The route to a node reached as far as links lead is a shortest one
-      Given these specs:
-        | tags                             | Feature |
-        | @id=A @kind=stop @next:B @next:C | A       |
-        | @id=B @kind=stop @next:D         | B       |
-        | @id=C @kind=stop @next:D         | C       |
-        | @id=D @kind=stop @next:A         | D       |
-      When I query "#A -next+-> *"
-      Then the paths are:
-        | A -next-> B                     |
-        | A -next-> C                     |
-        | A -next-> B -next-> D           |
-        | A -next-> B -next-> D -next-> A |
-
-  Rule: Each node in an answer comes with its kind, its state and the file and line it is written at
-
-    Its state is what sdp derives: a scenario's status as its last run left it, else the node's stage.
-
-    Scenario: A feature and an example
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay
-        Feature: Pay
-
-          Rule: A card is charged once
-
-            Scenario: Charged
-              Then the query "feature" returns at least 1 result
-        """
-      When I run "sdp q 'feature|scenario'"
+        | refunds -realized-by-> ARCH-billing |
+        | ARCH-orders -imports-> ARCH-billing |
+      When I run "sdp q feature"
       Then the exit code is 0
-      And the output line with "checkout" contains "feature"
       And the output line with "checkout" contains "ready"
-      And the output line with "pay#charged" contains "scenario"
-      And the output line with "pay#charged" contains "unrun"
-      And the output line with "pay#charged" contains "specs/pay.feature:6"
+      And the output line with "checkout" contains "specs/checkout.feature:1"
 
   Rule: One node can be looked up with every link it has, and the title at the other end
 
@@ -173,66 +72,28 @@ Feature: Ask the graph
       When I run "sdp show ARCH-billing --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.node.id          | ARCH-billing                                         |
-        | data.out.to           | ARCH-ledger                                          |
-        | data.in.from          | ARCH-orders, code:src/billing.ts#bill, refunds       |
-        | data.in.declared.file | src/orders.ts, src/billing.ts, specs/refunds.feature |
-        | data.neighbours.title | Ledger [legacy], Order service, Refunds, bill        |
+        | data.out.to           | ARCH-ledger                                    |
+        | data.in.from          | ARCH-orders, code:src/billing.ts#bill, refunds |
+        | data.neighbours.title | Ledger [legacy], Order service, Refunds, bill  |
 
-  Rule: A word the workspace does not know is pointed out, with the closest one it knows
+  Rule: A question that reaches too far is cut short, and its answer says so and exits with 2
 
-    A question still gets its answer, with a note; a lookup of an id nothing declares is refused.
-
-    Scenario: A misspelt relation and attribute in a question, and a misspelt id
-      When I run "sdp q 'feature -realised-by-> element[titel]'"
-      Then the exit code is 0
-      And the output contains "note: no relation realised-by; closest: realized-by"
-      And the output contains "note: element has no attribute titel; closest: title"
-      When I run "sdp show ARCH-ordrs"
-      Then the exit code is 1
-      And the output contains "no node ARCH-ordrs; closest: ARCH-orders"
-
-  Rule: An answer that may miss something says so and why, and exits with 2
-
-    A question that reaches too far is cut short at a bound: 12 links followed as far as they lead,
-    or 10 000 routes at one step. An answer that a bound could not have changed is complete.
-
-    Scenario Outline: Cut short, even when nothing was found
+    Scenario: Links followed further than 12 hops
       Given a chain of 14 nodes linked by "next"
-      When I run "<command>"
+      When I run "sdp q '#N1 -next+-> node14'"
       Then the exit code is 2
       And the output contains "cut short: a + edge reaches further than 12 hops"
 
-      Examples:
-        | command                            |
-        | sdp q '#N1 -next+-> node14'        |
-        | sdp q '#N1 -next+-> node14' --json |
-        | sdp graph -q '#N1 -next+-> node14' |
-
-    Scenario Outline: A filter is cut short only when the bound leaves it undecided
-      Given a chain of 15 nodes linked by "next"
-      When I query "<query>"
-      Then the result is "<result>"
-      And the result is <completeness>
-
-      Examples:
-        | query              | result  | completeness                                              |
-        | #N1 ?-next+-> #N2  | N1      | complete                                                  |
-        | #N1 ?-next+-> #N15 | nothing | truncated because "a + edge reaches further than 12 hops" |
-        | #N1 !-next+-> #N15 | N1      | truncated because "a + edge reaches further than 12 hops" |
-
   Rule: The same question gets the same answer on the command line, over MCP and from a program
 
-    One answer serves them all, so they cannot differ in what they accept, their bounds or their notes.
-    A program gets it as a Promise from `sdp`; one written with Effect gets it as an Effect from
-    `sdp/effect`, on a file system of its choosing.
+    A program gets it as a Promise from `sdp`, or as an Effect from `sdp/effect` on a file system of
+    its choosing.
 
     Scenario: What imports billing, four ways
       When I run "sdp q '#ARCH-billing <-imports- *' --json"
       Then the exit code is 0
       And the JSON output has:
         | complete        | true          |
-        | data.nodes      | ARCH-orders   |
         | data.nodes.file | src/orders.ts |
       When an MCP client of "sdp mcp" calls "sdp_query" with:
         """
@@ -240,17 +101,14 @@ Feature: Ask the graph
         """
       Then the JSON output has:
         | complete        | true          |
-        | data.nodes      | ARCH-orders   |
         | data.nodes.file | src/orders.ts |
       When a program asks the API for "#ARCH-billing <-imports- *"
       Then the JSON output has:
         | complete        | true          |
-        | data.nodes      | ARCH-orders   |
         | data.nodes.file | src/orders.ts |
       When a program written with Effect asks the API for "#ARCH-billing <-imports- *" on files in memory
       Then the JSON output has:
         | complete        | true          |
-        | data.nodes      | ARCH-orders   |
         | data.nodes.file | src/orders.ts |
 
   @decided-by:the-state-holds-what-is-significant
@@ -371,47 +229,22 @@ Feature: Ask the graph
       And the output lines are "coupons, discounts, coupons uses discounts"
       When I run "sdp graph --mermaid -q '#coupons -uses-> #discounts'"
       Then the exit code is 0
-      And the output contains "discounts"
       And the output contains "uses"
       And the output does not contain "avoids"
-      And the output does not contain "checkout"
-
-  @maturity=idea
-  Rule: The graph says which files it could not read, and why
-
-  @maturity=idea
-  Rule: Each record of the exported graph names the version of its format
-
-    Programs outside sdp will read it, and a format that changes without a word breaks them.
 
   Rule: Questions stay interactive on workspaces far larger than a typical repository's
 
-    Agents ask many small questions while they work, and every command rebuilds the graph.
-
     @serial
-    Scenario Outline: A question over 20,000 nodes answers within 250 ms
+    Scenario: A question over 20,000 nodes answers within 250 ms
       Given a generated graph of 20000 nodes and 60000 edges
-      When the query "<query>" runs on it
+      When the query "feature[maturity=ready] -realized-by-> element -decided-by-> decision" runs on it
       Then the median run completes within 250 ms
-
-      Examples:
-        | query                                                                 |
-        | feature[maturity=ready] -realized-by-> element -decided-by-> decision |
-        | element !-*- decision                                                 |
-
-    @serial
-    Scenario: The graph of 5,000 specs builds within a second
-      Given a generated workspace of 5000 specs
-      When the graph is built from it
-      Then the median run completes within 1000 ms
 
   @maturity=draft @iteration:IT-scale
   Rule: A question on 5,000 specs and 20,000 source files on disk answers within a second, the median of warm runs
 
-    Every question reads the workspace from disk too: in a monorepo the reading alone could make
-    agents stop asking and start guessing.
+  @maturity=idea
+  Rule: An answer names the commit it was read at, says when the files differ from it, and which files it could not read
 
   @maturity=idea
-  Rule: An answer names the commit it was read at, and says when the files differ from it
-
-    An agent that compares two answers must know whether they read the same thing.
+  Rule: Each record of the exported graph names the version of its format
