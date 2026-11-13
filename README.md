@@ -1,8 +1,9 @@
 # Archive: organizing the specs and choosing a runner, November 2026
 
 What was read and tried while the specs were organized into areas, a backlog and epics, the
-vocabulary was pinned, and the runner was decided (branch `organize-specs`). sdp reads nothing here,
-and none of it is a specification: what was concluded is in `specs/` on the default branch.
+vocabulary was pinned, and the runner was decided. sdp reads nothing here, and none of it is a
+specification: what was concluded is in `specs/` on the branch `organize-specs`, and on the default
+branch once that is merged.
 
 ## research/
 
@@ -16,7 +17,15 @@ Three reports the work started from, as they were received.
 
 ## discussion/
 
-The working discussion of 13 November 2026, up to the point where the runner question was opened.
+The working discussion of 13 November 2026, in two parts, as it was held.
+
+- `organizing-specs-2026-11-13.md`: from the report on organizing specs up to the point where the
+  runner question was opened.
+- `runner-backlog-and-migration-2026-11-13.md`: from there to the end. The three calls proposed —
+  a backlog folder per area, Vitest as the runner of application suites, tests moved to Gherkin area
+  by area — with their worked examples; an independent review of them, whose points on evidence,
+  isolation, cleanup and the migration became rules; and the rounds that wrote the specs and made
+  the branch's commits. The scratchpads its paths point at are not archived.
 
 ## prototypes/
 
@@ -28,13 +37,13 @@ used a link to `libar-platform/node_modules`).
 - `sdp-run-cannot-load-the-adopter/`: a workspace whose step definitions import the adopter's
   kernel and its convex-test composition. `sdp run` fails both on the first import: the adopter
   writes `./x.js` for a file `x.ts`, which Node.js alone does not resolve. Its convex-test tier also
-  rests on `import.meta.glob` and the edge-runtime environment, which only Vite provides.
+  rests on Vite's `import.meta.glob` and Vitest's edge-runtime environment, which Node.js alone lacks.
 - `scenarios-in-vitest-on-the-adopter/`: a Vite plugin that makes a `.feature` file a Vitest test
   module, a runtime that matches and runs steps, and a reporter that writes one sdp result per
   scenario. One feature ran in two Vitest projects: 3 scenarios passed against the adopter's real
   code (the kernel's `fold`, and `receipts.sweep` on convex-test), and an example of work still to
   come ran and failed nothing. `sdp-results.json` is what the reporter wrote. Known gaps, now rules
-  of `run-specs-in-another-runner`: a scenario outside a project's tags is skipped where it should
-  be left out, a result is kept per scenario and not per way of running, and what a scenario ran
-  against is not recorded.
+  of `run-specs-in-another-runner` and `know-what-is-verified`: a scenario outside a project's tags
+  is skipped where it should be left out, a result is kept per scenario and not per way of running,
+  and what a scenario ran against is not recorded.
 - `vitest-adapter-first-sketch/`: the first sketch, about 70 lines, on a toy cart.
