@@ -7,6 +7,7 @@
  */
 import { isBuiltin } from "node:module"
 import {
+  buildFile,
   cache,
   configDirectory,
   dependencyLists,
@@ -51,25 +52,32 @@ export interface Modules {
 }
 
 /**
- * What the names code imports mean, as TypeScript resolves them with the tsconfig.json — or
- * jsconfig.json — nearest the code, or the one of those it references that includes the code, and
- * the package.json files of the workspace:
+ * What the names code imports mean, as TypeScript 7 resolves them — and TypeScript 5 where a project
+ * relies on what TypeScript 7 does not do — with the tsconfig.json — or jsconfig.json — nearest the
+ * code, or the one of those it references that includes the code, and the package.json files of the
+ * workspace:
  *
- * - a relative name, the file it names;
+ * - a relative name, the file it names, completed as TypeScript completes it, with its
+ *   `moduleSuffixes`; a directory, by the entry its package.json names, else its index;
+ * - a name the `imports` of the nearest deno.json map, the file or the library they map it to;
  * - any other, the file the `paths` of that tsconfig.json map it to — what it extends included —
  *   or the file it names under `baseUrl`, which TypeScript read until version 7;
  * - a `#` name, the file the `imports` of the nearest package.json map it to;
  * - a package of the workspace — one whose package.json sdp reads, by the name it gives, or by the
- *   alias a package.json declares for it — the file its `exports` map the name to, else its
- *   `types` or `main`, else its index; an entry its build writes is the source it is built from,
- *   by the `rootDir` and `outDir` of the package's tsconfig.json, as project references map it;
+ *   alias or the directory a package.json declares for it — the file its `exports` map the name to,
+ *   else its `types` or `main`, else its index; an entry its build writes is the source it is built
+ *   from, by the `outDir` and `rootDir` of the package's tsconfig.json or tsconfig.build.json, as
+ *   project references map it — without a `rootDir`, from the tsconfig.json's directory, as
+ *   TypeScript 7 builds, or the directory of the code it includes, as TypeScript 5 did;
  * - a library a package.json declares, a module of Node.js, a name with a scheme (`node:`,
  *   `virtual:`) or a file that is not code, no code of the workspace.
  *
  * `exports` and `imports` are walked in their order under the conditions TypeScript 7 resolves the
  * import by: `import` or `require` as the import is written and the file is compiled, `types`,
- * `node` for Node.js, the tsconfig.json's `customConditions`, and `default`. Any other name is not
- * followed, and reported. What sdp could not read of the tsconfig.json — a setting of a type
+ * `node` for Node.js, the tsconfig.json's `customConditions`, and `default`; a target is the file it
+ * names, never one TypeScript would have to complete. They are not read by `node10` resolution —
+ * written, which TypeScript 7 rejects, or TypeScript 5's for CommonJS where a package.json declares
+ * TypeScript 5 — nor where a tsconfig.json turns them off. Any other name is not followed, and reported. What sdp could not read of the tsconfig.json — a setting of a type
  * TypeScript does not read, a file that does not parse, or one it extends that is not there — comes
  * back with each name it could change: a relative name only by a setting that completes it, and any
  * other by any setting but those of a build, which only a package's entries depend on.
@@ -111,9 +119,8 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   const indexOf = (directory: string, lookup: Lookup) => suffixed(at.join(directory, "index"), addedExtensions, lookup).find((candidate) => contents.has(candidate))
 
   /** The conditions `imported` is resolved under in `file`, read with `options`, besides `default`. */
-  const conditionsOf = (file: string, imported: Import, options: Settings): ReadonlySet<string> => {
-    const node = options.moduleResolution === "node16" || options.moduleResolution === "nodenext" ||
-      (options.moduleResolution !== "bundler" && /^node(16|18|20|next)$/.test(options.module ?? ""))
+  const conditionsOf = (file: string, imported: Import, options: Settings, resolution: Resolution): ReadonlySet<string> => {
+    const node = resolution === "node16"
     const module = /\.m[jt]sx?$/.test(file)
       ? true
       : /\.c[jt]sx?$/.test(file)
@@ -126,19 +133,43 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 
   /**
-   * The source a package's build writes `path` from, by the `rootDir` and `outDir` of the
-   * tsconfig.json nearest the package, and what sdp could not read of either.
+   * The source a package's build writes `path` from, by the `outDir` and `rootDir` of the
+   * tsconfig.json — else the tsconfig.build.json — nearest the package, and what sdp could not read
+   * of either. Without a `rootDir`, TypeScript 7 builds from the tsconfig.json's own directory, and
+   * TypeScript 5 from the directory of all the code it includes: the one that has the source is taken.
    */
   const sourceOf = (directory: string, path: string, how: "file" | "entry" | "exactly", lookup: Lookup): Walk => {
-    const config = at.upFrom(directory).map((above) => at.join(above, tsconfigFile)).find((candidate) => read.has(candidate))
-    if (config === undefined) return nothing
-    const { outDir, rootDir, unread } = settings(config)
-    const built = { passed: [], unread: unread.filter((each) => each.setting === undefined || building.has(each.setting)) }
-    if (outDir === undefined || !path.startsWith(`${outDir}/`)) return built
-    const written = path.slice(outDir.length + 1).replace(/\.d\.([cm]?)ts$/, ".$1js")
-    const source = fileAt(at.join(rootDir ?? directoryOf(config), written), how, lookup)
-    return source === undefined ? built : { ...built, found: { module: source } }
+    const nearest = at.upFrom(directory).find((above) => [tsconfigFile, buildFile].some((name) => read.has(at.join(above, name))))
+    let walked = nothing
+    for (const config of nearest === undefined ? [] : [tsconfigFile, buildFile].map((name) => at.join(nearest, name)).filter(read.has)) {
+      const { outDir, rootDir, unread } = settings(config)
+      walked = after(walked, { passed: [], unread: unread.filter((each) => each.setting === undefined || building.has(each.setting)) })
+      if (outDir === undefined || !path.startsWith(`${outDir}/`)) continue
+      const written = path.slice(outDir.length + 1).replace(/\.d\.([cm]?)ts$/, ".$1js")
+      for (const root of rootDir !== undefined ? [rootDir] : [directoryOf(config), commonDirectoryOf(config)]) {
+        const source = root === undefined ? undefined : fileAt(at.join(root, written), how, lookup)
+        if (source !== undefined) return { ...walked, found: { module: source } }
+      }
+    }
+    return walked
   }
+
+  /** The directory all the code a tsconfig.json includes is in, declaration files aside: the root TypeScript 5 builds it from. */
+  const commonDirectoryOf = cache((config: string): string | undefined => {
+    const directories = codePaths.filter((file) => !/\.d\.[cm]?ts$/.test(file) && read.includes(config, file)).map((file) => directoryOf(file).split("/"))
+    if (directories.length === 0) return undefined
+    return directories.reduce((common, parts) => common.slice(0, Math.max(0, common.findIndex((part, at) => part !== parts[at])) || common.length)).join("/")
+  })
+
+  /** The major version of TypeScript the nearest package.json at or above `directory` that declares it asks for; none for one it names by no number. */
+  const typescriptOf = cache((directory: string): number | undefined => {
+    for (const above of at.upFrom(directory)) {
+      const declaring = manifest(at.join(above, packageFile))
+      const range = (declaring === undefined ? [] : dependencyLists(declaring)).find((list) => list.typescript !== undefined)?.typescript
+      if (range !== undefined) return /^[a-z]+:/i.test(range) ? undefined : Number(/\d+/.exec(range)?.[0]) || undefined
+    }
+    return undefined
+  })
 
   /** What a path of a package means — a subpath, an entry, or a target of its map of names, taken `exactly` — or the path it names when that is no file. */
   const entry = (directory: string, target: string, how: "file" | "entry" | "exactly", lookup: Lookup): Walk => {
@@ -156,7 +187,9 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const path = at.join(directory, packageFile)
     // Nothing a package without code means is the workspace's code.
     if (!hasCode(directory)) return { found: {}, passed: [] }
-    const { exports, main, types, typings } = manifest(path) ?? {}
+    const { main, types, typings, ...read } = manifest(path) ?? {}
+    // node10 resolution, and a tsconfig.json that turns them off, read no `exports`.
+    const exports = lookup.exports ? read.exports : undefined
     const missed = (walk: Walk): Walk => ({
       ...walk,
       found: {
@@ -234,8 +267,19 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return undefined
   }
 
-  /** What a `#` name means by the `imports` of the package.json nearest `file`. */
-  const packageImport = (file: string, specifier: string, lookup: Lookup): Walk => {
+  /** What a `#` name means by the `imports` of the package.json nearest `file`, read with `project`. */
+  const packageImport = (file: string, specifier: string, lookup: Lookup, project: string | undefined): Walk => {
+    if (!lookup.imports) {
+      return {
+        found: {
+          unresolved: {
+            message: `"${specifier}" names the imports of a package.json, and TypeScript reads none with ${project}, so it is not resolved`,
+            hint: `map it in the paths of ${project ?? "a tsconfig.json"}, or have it resolve names as bundler or nodenext does`
+          }
+        },
+        passed: []
+      }
+    }
     const scope = scopeOf(directoryOf(file))
     const imports = scope === undefined ? undefined : manifest(scope)?.imports
     const key = imports === undefined ? undefined : matchKey(Object.keys(imports), specifier)
@@ -273,7 +317,38 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   /** What a name that is not relative means in `file`, read with `options`. */
   const meaningOf = (file: string, imported: Import, options: Settings, project: string | undefined): Walk => {
     const { specifier } = imported
-    const lookup = { conditions: conditionsOf(file, imported, options), suffixes: suffixesOf(options) }
+    const resolution = resolutionOf(options, typescriptOf(directoryOf(project ?? file)))
+    const lookup: Lookup = {
+      conditions: conditionsOf(file, imported, options, resolution),
+      suffixes: suffixesOf(options),
+      exports: resolution !== "node10" && options.resolvePackageJsonExports !== false,
+      imports: resolution !== "node10" && options.resolvePackageJsonImports !== false
+    }
+    const map = read.importMapOf(directoryOf(file))
+    const mapped = map === undefined ? undefined : importMapKey(Object.keys(map.imports), specifier)
+    if (map !== undefined && mapped !== undefined) {
+      const target = `${map.imports[mapped]}${specifier.slice(mapped.length)}`
+      if (/^\.\.?\//.test(target)) {
+        const path = at.join(map.from, target)
+        const found = fileAt(path, "file", lookup)
+        if (found !== undefined || namesNoCode(path)) return { found: { module: found }, passed: [] }
+        return {
+          found: { unresolved: { message: `"${specifier}" is mapped by the imports of ${map.path} to ${path}, which is no code file, so it is not resolved`, hint: `map it to a code file in the imports of ${map.path}` } },
+          passed: []
+        }
+      }
+      const walk = packageOf(file, target, lookup)
+      if (walk.found !== undefined) return walk
+      return {
+        ...walk,
+        found: {
+          unresolved: {
+            message: `"${specifier}" is mapped by the imports of ${map.path} to ${target}, which is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved`,
+            hint: `map it to a code file, or to a library with its scheme (npm:, jsr:), in the imports of ${map.path}`
+          }
+        }
+      }
+    }
     let mappedTo: string | undefined
     const key = options.paths === undefined ? undefined : matchKey(Object.keys(options.paths.map), specifier)
     for (const target of key === undefined ? [] : options.paths!.map[key.key]!) {
@@ -287,7 +362,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     }
     const under = options.baseUrl === undefined ? undefined : fileAt(at.join(options.baseUrl, specifier), "file", lookup)
     if (under !== undefined) return { found: { module: under }, passed: [] }
-    if (specifier.startsWith("#")) return packageImport(file, specifier, lookup)
+    if (specifier.startsWith("#")) return packageImport(file, specifier, lookup, project)
     const walk = packageOf(file, specifier, lookup)
     if (walk.found !== undefined) return walk
     const { name } = packageName(specifier)
@@ -302,7 +377,9 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
           }
           : {
             message: `"${specifier}" is neither a package of the workspace nor a dependency a package.json declares, so it is not resolved${unread}`,
-            hint: `declare ${name} in the dependencies of package.json, or map it in the paths of a tsconfig.json`
+            hint: map === undefined
+              ? `declare ${name} in the dependencies of package.json, or map it in the paths of a tsconfig.json`
+              : `map ${name} in the imports of ${map.path}, or declare it in the dependencies of package.json`
           }
       }
     }
@@ -313,7 +390,7 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     const project = projectOf(file)
     const options: Settings = project === undefined ? { unread: [] } : { ...settings(project), configDir: directoryOf(project) }
     if (/^\.\.?(\/|$)/.test(specifier)) {
-      const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options) }
+      const lookup = { conditions: new Set<string>(), suffixes: suffixesOf(options), exports: false, imports: false }
       return {
         module: fileAt(at.join(directoryOf(file), specifier), /(^|\/)\.{0,2}$/.test(specifier) ? "directory" : "file", lookup),
         unread: options.unread.filter((each) => each.setting !== undefined && completing.has(each.setting)),
@@ -358,11 +435,36 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   }
 }
 
-/** How a name is looked up: under which conditions, and with which of the `moduleSuffixes` before each extension. */
+/**
+ * How a name is looked up: under which conditions, with which of the `moduleSuffixes` before each
+ * extension, and whether the `exports` and `imports` of a package.json are read.
+ */
 interface Lookup {
   readonly conditions: ReadonlySet<string>
   readonly suffixes: ReadonlyArray<string>
+  readonly exports: boolean
+  readonly imports: boolean
 }
+
+/**
+ * How TypeScript resolves names with a tsconfig.json's `options`: as Node.js does (`node16`,
+ * `nodenext`, or a `module` of theirs), as a bundler does, or by `node10` — written, or TypeScript
+ * 5's for a `module` of `commonjs` where a package.json declares TypeScript 5 — which reads no
+ * `exports` or `imports`. TypeScript 7 has no `node10`, and resolves CommonJS as a bundler does.
+ */
+type Resolution = "node16" | "bundler" | "node10"
+const resolutionOf = (options: Settings, typescript: number | undefined): Resolution => {
+  const written = options.moduleResolution
+  if (written === "node16" || written === "nodenext") return "node16"
+  if (written === "node" || written === "node10") return "node10"
+  if (written === "bundler") return "bundler"
+  if (/^node(16|18|20|next)$/.test(options.module ?? "")) return "node16"
+  return options.module === "commonjs" && typescript !== undefined && typescript < 6 ? "node10" : "bundler"
+}
+
+/** The key of an import map that `name` matches: itself, or else the longest that ends with `/` and that it starts with. */
+const importMapKey = (keys: ReadonlyArray<string>, name: string): string | undefined =>
+  keys.includes(name) ? name : keys.filter((key) => key.endsWith("/") && name.startsWith(key)).sort((a, b) => b.length - a.length)[0]
 
 /** The `moduleSuffixes` of a tsconfig.json, none being the one suffix "" as TypeScript has it. */
 const suffixesOf = (options: Settings): ReadonlyArray<string> => options.moduleSuffixes === undefined || options.moduleSuffixes.length === 0 ? [""] : options.moduleSuffixes

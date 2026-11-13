@@ -27,21 +27,24 @@ export interface ModuleConfigs {
 }
 
 export const tsconfigFile = "tsconfig.json"
+/** The tsconfig.json a package is built with by convention, `tsc -p tsconfig.build.json`, where it is not the tsconfig.json. */
+export const buildFile = "tsconfig.build.json"
 const jsconfigFile = "jsconfig.json"
 export const packageFile = "package.json"
 const pnpmWorkspaceFile = "pnpm-workspace.yaml"
+const denoFiles = ["deno.json", "deno.jsonc"]
 
 /**
- * The files that may say what the names code imports mean: the tsconfig.json, jsconfig.json,
- * package.json and pnpm-workspace.yaml of each directory that holds code and of every one above it,
- * up to the repository's `top`, as TypeScript and package managers look for them. What these name
- * in turn is `namedBy` and `listedPackages`.
+ * The files that may say what the names code imports mean: the tsconfig.json, tsconfig.build.json,
+ * jsconfig.json, package.json, pnpm-workspace.yaml and deno.json of each directory that holds code
+ * and of every one above it, up to the repository's `top`, as TypeScript, package managers and Deno
+ * look for them. What these name in turn is `namedBy` and `listedPackages`.
  */
 export const moduleConfigFiles = (root: string, top: string, code: ReadonlyArray<string>): ReadonlyArray<string> => {
   const at = pathsFrom(root, top)
   const directories = new Set(code.flatMap((file) => at.upFrom(directoryOf(file))))
   return [...directories].flatMap((directory) =>
-    [tsconfigFile, jsconfigFile, packageFile, pnpmWorkspaceFile].map((name) => at.join(directory, name))
+    [tsconfigFile, buildFile, jsconfigFile, packageFile, pnpmWorkspaceFile, ...denoFiles].map((name) => at.join(directory, name))
   )
 }
 
@@ -119,6 +122,8 @@ export interface Settings {
   readonly module?: string
   readonly moduleResolution?: string
   readonly moduleSuffixes?: ReadonlyArray<string>
+  readonly resolvePackageJsonExports?: boolean
+  readonly resolvePackageJsonImports?: boolean
   readonly rootDir?: string
   readonly outDir?: string
   readonly files?: ReadonlyArray<string>
@@ -212,6 +217,8 @@ export const readConfigs = (configs: ModuleConfigs) => {
       ...own.module === undefined ? {} : { module: own.module.toLowerCase() },
       ...own.moduleResolution === undefined ? {} : { moduleResolution: own.moduleResolution.toLowerCase() },
       ...own.moduleSuffixes === undefined ? {} : { moduleSuffixes: own.moduleSuffixes },
+      ...own.resolvePackageJsonExports === undefined ? {} : { resolvePackageJsonExports: own.resolvePackageJsonExports },
+      ...own.resolvePackageJsonImports === undefined ? {} : { resolvePackageJsonImports: own.resolvePackageJsonImports },
       ...own.rootDir === undefined ? {} : { rootDir: place(own.rootDir) },
       ...own.outDir === undefined ? {} : { outDir: place(own.outDir) },
       ...config.files === undefined ? {} : { files: config.files.map(place) },
@@ -258,9 +265,19 @@ export const readConfigs = (configs: ModuleConfigs) => {
     return including(nearest) ?? nearest
   })
 
+  /** The `imports` of the deno.json nearest a directory, at it or above it, by which Deno resolves names, and the directory they are from. */
+  const importMapOf = cache((directory: string) => {
+    const path = at.upFrom(directory).flatMap((above) => denoFiles.map((name) => at.join(above, name))).find((candidate) => byPath.has(candidate))
+    const read = path === undefined ? undefined : readConfig(byPath.get(path)!, decodeDenoJson)
+    return path === undefined || read === undefined || !("value" in read) || read.value.imports === undefined
+      ? undefined
+      : { path, imports: read.value.imports, from: directoryOf(path) }
+  })
+
   return {
     at,
     has: (path: string) => byPath.has(path),
+    importMapOf,
     settings,
     includes,
     projectOf,
@@ -293,6 +310,8 @@ const CompilerOptions = Schema.Struct({
   module: Schema.optional(Schema.String),
   moduleResolution: Schema.optional(Schema.String),
   moduleSuffixes: Schema.optional(Strings),
+  resolvePackageJsonExports: Schema.optional(Schema.Boolean),
+  resolvePackageJsonImports: Schema.optional(Schema.Boolean),
   rootDir: Schema.optional(Schema.String),
   outDir: Schema.optional(Schema.String)
 })
@@ -359,6 +378,10 @@ const PackageJson = Schema.Struct({
 export type PackageJson = typeof PackageJson.Type
 
 const PnpmWorkspace = Schema.Struct({ packages: Schema.optional(Strings) })
+
+/** What sdp reads of a deno.json: its import map. */
+const DenoJson = Schema.Struct({ imports: Schema.optional(Schema.Record(Schema.String, Schema.String)) })
+const decodeDenoJson = Schema.decodeUnknownOption(DenoJson)
 
 const decodePackageJson = Schema.decodeUnknownOption(PackageJson)
 
@@ -429,8 +452,8 @@ const referencePath = (at: Paths, config: string, reference: string) => {
   return path.endsWith(".json") ? path : at.join(path, tsconfigFile)
 }
 
-/** Whether a file read is a tsconfig.json, a jsconfig.json, or one they extend or reference: any JSON but a package.json. */
-const isProject = (path: string) => path.endsWith(".json") && baseName(path) !== packageFile
+/** Whether a file read is a tsconfig.json, a jsconfig.json, or one they extend or reference: any JSON but a package.json or a deno.json. */
+const isProject = (path: string) => path.endsWith(".json") && baseName(path) !== packageFile && !denoFiles.includes(baseName(path))
 
 /** A package's name and the path after it: `@shop/mailer` and `templates` in `@shop/mailer/templates`. */
 export const packageName = (specifier: string): { readonly name: string; readonly subpath: string } => {
