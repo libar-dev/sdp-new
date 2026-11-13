@@ -524,12 +524,12 @@ Feature: See the architecture
         | data.file     | tsconfig.json         |
         | data.line     | 1                     |
 
-  Rule: An import sdp cannot follow is reported, and the answer is incomplete, when it could name the workspace's code
+  Rule: What sdp cannot follow of an import, its name or a setting it depends on, is reported once where it is written, and makes the answer incomplete when it could name the workspace's code
 
-    A library's module that a package.json declares, a module of Node.js and a file that is not
-    code are no element, whatever sdp reads. Any other name sdp cannot follow could hide a
-    dependency from the architecture's rules; one that could not is no reason to doubt the answer,
-    and a warning that fires for nothing teaches users to ignore it.
+    A library a package.json declares, a module of Node.js or one the code declares, and a file
+    that is not code are no element, whatever sdp reads. Any other name, or a setting sdp cannot read
+    or does not follow, could hide a dependency from the architecture's rules; one that could not is
+    no reason to doubt the answer, and a warning that fires for nothing teaches users to ignore it.
 
     Scenario Outline: An import sdp cannot follow is reported, and the answer is incomplete: <case>
       Given a file "<config>" containing:
@@ -572,6 +572,10 @@ Feature: See the architecture
         | a library, what the tsconfig.json extends not installed   | tsconfig.json    | { "extends": "@tsconfig/strictest" }                           | { "name": "@shop/tax", "exports": "./src/index.ts", "dependencies": { "effect": "^4.0.0" } } | effect    | nothing  | tsconfig.json:1  | tsconfig.json extends @tsconfig/strictest, which is neither a package of the workspace nor installed in the repository |
         | the tsconfig.json does not parse                          | tsconfig.json    | { "compilerOptions": { "paths": } }                            | { "name": "@shop/tax", "exports": "./src/index.ts" }                                         | @shop/tax | ARCH-tax | tsconfig.json:1  | tsconfig.json does not parse                                                                         |
         | a setting of a type TypeScript does not read | tsconfig.json | { "compilerOptions": { "paths": { "@/*": "./src/*" } } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | @shop/tax | ARCH-tax | tsconfig.json:1 | tsconfig.json sets paths to a value of a type TypeScript does not read |
+        | a tsconfig.json that resolves names as classic does | tsconfig.json | { "compilerOptions": { "moduleResolution": "classic" } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | @shop/tax | ARCH-tax | tsconfig.json:1 | tsconfig.json sets moduleResolution to classic, which sdp does not follow |
+        | a relative name of no file, which rootDirs could find | tsconfig.json | { "compilerOptions": { "rootDirs": ["src", "generated"] } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | ./rates.ts | nothing | tsconfig.json:1 | tsconfig.json sets rootDirs, which sdp does not follow |
+        | a package that maps its names by typesVersions | package.json | { "name": "shop" } | { "name": "@shop/tax", "main": "./src/index.ts", "typesVersions": { "*": { "*": ["dist/*"] } } } | @shop/tax | ARCH-tax | packages/tax/package.json:1 | packages/tax/package.json maps names by typesVersions, which sdp does not follow |
+        | a deno.json that maps names by scopes | deno.json | { "scopes": { "./src/": { "@shop/tax": "./packages/tax/src/index.ts" } } } | { "name": "@shop/tax", "exports": "./src/index.ts" } | @shop/tax | ARCH-tax | deno.json:1 | deno.json maps names by scopes, which sdp does not follow |
 
     Scenario Outline: An import that cannot name the workspace's code, or whose answer sdp read, is not reported: <case>
       Given a file "<config>" containing:

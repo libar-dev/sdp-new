@@ -188,14 +188,23 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return { ...source, missing: path }
   }
 
-  /** What `specifier` means as a package of the workspace, in `directory`, by its subpath. */
+  /**
+   * What `specifier` means as a package of the workspace, in `directory`, by its subpath; where it is
+   * not by `exports`, with the `typesVersions` sdp does not follow.
+   */
   const packageExport = (directory: string, specifier: string, subpath: string, lookup: Lookup): Walk => {
+    const walk = packageEntry(directory, specifier, subpath, lookup)
+    const path = at.join(directory, packageFile)
+    const byExports = lookup.exports && manifest(path)?.exports !== undefined
+    return !hasCode(directory) || byExports ? walk : { ...walk, unread: [...walk.unread ?? [], ...read.unfollowedOf(path)] }
+  }
+  const packageEntry = (directory: string, specifier: string, subpath: string, lookup: Lookup): Walk => {
     const path = at.join(directory, packageFile)
     // Nothing a package without code means is the workspace's code.
     if (!hasCode(directory)) return { found: {}, passed: [] }
-    const { main, types, typings, ...read } = manifest(path) ?? {}
+    const { exports: written, main, types, typings } = manifest(path) ?? {}
     // node10 resolution, and a tsconfig.json that turns them off, read no `exports`.
-    const exports = lookup.exports ? read.exports : undefined
+    const exports = lookup.exports ? written : undefined
     const missed = (walk: Walk): Walk => ({
       ...walk,
       found: {
@@ -437,13 +446,17 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       return {
         module,
         unresolved: missing ? { message: `"${specifier}" names no code file of the workspace, so it is not resolved`, hint: "correct the name" } : undefined,
-        unread: options.unread.filter((each) => each.setting !== undefined && completing.has(each.setting)),
+        // rootDirs could only find a name TypeScript finds no file for in the importing file's own directory.
+        unread: options.unread.filter((each) =>
+          each.setting !== undefined && (completing.has(each.setting) || (each.setting === "rootDirs" && module === undefined && !namesNoCode(path) && !declares(path, how, lookup)))
+        ),
         outside: options.outside
       }
     }
     const walk = meaningOf(file, imported, options, project)
-    const unread = options.unread.filter((each) => each.setting === undefined || !building.has(each.setting))
-    return { module: walk.found?.module, unresolved: walk.found?.unresolved, unread: [...unread, ...walk.unread ?? []], outside: options.outside }
+    const unread = options.unread.filter((each) => each.setting === undefined || (!building.has(each.setting) && each.setting !== "rootDirs"))
+    const map = read.importMapOf(directoryOf(file))?.unread ?? []
+    return { module: walk.found?.module, unresolved: walk.found?.unresolved, unread: [...unread, ...map, ...walk.unread ?? []], outside: options.outside }
   }
 
   /** What a code file exports: as already read, or else as it parses. */

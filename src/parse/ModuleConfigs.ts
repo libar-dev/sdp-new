@@ -172,6 +172,23 @@ export const readConfigs = (configs: ModuleConfigs) => {
       message: `${path} sets ${setting} to a value of a type TypeScript does not read, so it is not read`,
       hint: `correct ${setting} in ${path}: \`tsc --noEmit -p ${path}\` says what it takes`
     }))
+    // What TypeScript would resolve by, and sdp does not follow.
+    const unfollowed: ReadonlyArray<Unread> = [
+      ...own.moduleResolution?.toLowerCase() !== "classic" ? [] : [{
+        file: path,
+        line: lineOf(read.text, "moduleResolution"),
+        setting: "moduleResolution",
+        message: `${path} sets moduleResolution to classic, which sdp does not follow: it resolves names as a bundler does`,
+        hint: `set moduleResolution to bundler or nodenext in ${path}; TypeScript 7 has no classic`
+      }],
+      ...own.rootDirs === undefined ? [] : [{
+        file: path,
+        line: lineOf(read.text, "rootDirs"),
+        setting: "rootDirs",
+        message: `${path} sets rootDirs, which sdp does not follow: a relative name it finds no file for could name one in another of them`,
+        hint: "import the file by its path from the code that imports it"
+      }]
+    ]
     let inherited: Settings = { unread: [] }
     for (const base of [config.extends ?? []].flat()) {
       const found = extendsCandidates(at, packages, path, base).find((candidate) => byPath.has(candidate))
@@ -210,7 +227,7 @@ export const readConfigs = (configs: ModuleConfigs) => {
     const overridden = (setting: string | undefined) => setting !== undefined && ((own as Record<string, unknown>)[setting] ?? (config as Record<string, unknown>)[setting]) !== undefined
     return {
       ...inherited,
-      unread: [...inherited.unread.filter((each) => !overridden(each.setting)), ...unread],
+      unread: [...inherited.unread.filter((each) => !overridden(each.setting)), ...unread, ...unfollowed],
       ...own.baseUrl === undefined ? {} : { baseUrl: place(own.baseUrl) },
       ...own.paths === undefined ? {} : { paths: { map: own.paths, from: directory } },
       ...own.customConditions === undefined ? {} : { customConditions: own.customConditions },
@@ -265,19 +282,52 @@ export const readConfigs = (configs: ModuleConfigs) => {
     return including(nearest) ?? nearest
   })
 
-  /** The `imports` of the deno.json nearest a directory, at it or above it, by which Deno resolves names, and the directory they are from. */
+  /**
+   * The `imports` of the deno.json nearest a directory, at it or above it, by which Deno resolves
+   * names, the directory they are from, and what sdp could not read of it or does not follow.
+   */
   const importMapOf = cache((directory: string) => {
     const path = at.upFrom(directory).flatMap((above) => denoFiles.map((name) => at.join(above, name))).find((candidate) => byPath.has(candidate))
-    const read = path === undefined ? undefined : readConfig(byPath.get(path)!, decodeDenoJson)
-    return path === undefined || read === undefined || !("value" in read) || read.value.imports === undefined
-      ? undefined
-      : { path, imports: read.value.imports, from: directoryOf(path) }
+    if (path === undefined) return undefined
+    const json = readJson(byPath.get(path)!)
+    if ("error" in json || !isRecord(json.value)) {
+      const line = "error" in json ? json.line : 1
+      return { path, imports: {}, from: directoryOf(path), unread: [{ file: path, line, message: `${path} does not parse, so what it maps is not read`, hint: `fix the syntax of ${path}` }] }
+    }
+    const { read, unread } = fieldsOf(DenoJson, json.value)
+    const located = (setting: string, message: string, hint: string): Unread => ({ file: path, line: lineOf(json.text, setting), setting, message, hint })
+    return {
+      path,
+      imports: read.imports ?? {},
+      from: directoryOf(path),
+      unread: [
+        ...unread.map((setting) => located(setting, `${path} sets ${setting} to a value of a type Deno does not read, so it is not read`, `correct ${setting} in ${path}`)),
+        ...read.scopes === undefined ? [] : [located("scopes", `${path} maps names by scopes, which sdp does not follow`, `map them in the imports of ${path}`)],
+        ...read.importMap === undefined ? [] : [located("importMap", `${path} names its import map in importMap, which sdp does not follow`, `move the map into the imports of ${path}`)],
+        ...read.workspace === undefined ? [] : [located("workspace", `${path} lists the members of a Deno workspace, which sdp does not find by their names`, `map them in the imports of ${path}`)]
+      ]
+    }
+  })
+
+  /** What sdp does not follow of a package.json, where it is written: `typesVersions`, which TypeScript reads where it reads no `exports`. */
+  const unfollowedOf = cache((path: string): ReadonlyArray<Unread> => {
+    const read = manifests(path)
+    return "value" in read && read.value.typesVersions !== undefined
+      ? [{
+        file: path,
+        line: lineOf(read.text, "typesVersions"),
+        setting: "typesVersions",
+        message: `${path} maps names by typesVersions, which sdp does not follow`,
+        hint: `map them by the exports of ${path}, which TypeScript reads before typesVersions`
+      }]
+      : []
   })
 
   return {
     at,
     has: (path: string) => byPath.has(path),
     importMapOf,
+    unfollowedOf,
     settings,
     includes,
     projectOf,
@@ -310,6 +360,7 @@ const CompilerOptions = Schema.Struct({
   module: Schema.optional(Schema.String),
   moduleResolution: Schema.optional(Schema.String),
   moduleSuffixes: Schema.optional(Strings),
+  rootDirs: Schema.optional(Strings),
   resolvePackageJsonExports: Schema.optional(Schema.Boolean),
   resolvePackageJsonImports: Schema.optional(Schema.Boolean),
   rootDir: Schema.optional(Schema.String),
@@ -369,6 +420,7 @@ const PackageJson = Schema.Struct({
   types: Schema.optional(Schema.String),
   typings: Schema.optional(Schema.String),
   main: Schema.optional(Schema.String),
+  typesVersions: Schema.optional(Schema.Unknown),
   dependencies: Schema.optional(Dependencies),
   devDependencies: Schema.optional(Dependencies),
   peerDependencies: Schema.optional(Dependencies),
@@ -379,20 +431,24 @@ export type PackageJson = typeof PackageJson.Type
 
 const PnpmWorkspace = Schema.Struct({ packages: Schema.optional(Strings) })
 
-/** What sdp reads of a deno.json: its import map. */
-const DenoJson = Schema.Struct({ imports: Schema.optional(Schema.Record(Schema.String, Schema.String)) })
-const decodeDenoJson = Schema.decodeUnknownOption(DenoJson)
+/** What sdp reads of a deno.json: its import map, and what else maps names, which it does not follow. */
+const DenoJson = Schema.Struct({
+  imports: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  scopes: Schema.optional(Schema.Unknown),
+  importMap: Schema.optional(Schema.Unknown),
+  workspace: Schema.optional(Schema.Unknown)
+})
 
 const decodePackageJson = Schema.decodeUnknownOption(PackageJson)
 
 export const dependencyLists = (read: PackageJson): ReadonlyArray<{ readonly [name: string]: string }> =>
   [read.dependencies, read.devDependencies, read.peerDependencies, read.optionalDependencies].filter((list) => list !== undefined)
 
-/** A package.json as `decode` reads it, or that it does not read. */
-const readConfig = <A>(content: string, decode: (input: unknown) => Option.Option<A>): { readonly value: A } | { readonly unread: string } => {
+/** A package.json as `decode` reads it, with its text as JSON reads it, or that it does not read. */
+const readConfig = <A>(content: string, decode: (input: unknown) => Option.Option<A>): { readonly value: A; readonly text: string } | { readonly unread: string } => {
   const read = readJson(content)
   if ("error" in read) return { unread: "does not parse" }
-  return Option.match(decode(read.value), { onNone: () => ({ unread: "holds a field of a type sdp does not read" }), onSome: (value) => ({ value }) })
+  return Option.match(decode(read.value), { onNone: () => ({ unread: "holds a field of a type sdp does not read" }), onSome: (value) => ({ value, text: read.text }) })
 }
 
 /** The line of the first `"key":` in JSON as `readJson` reads it, whose lines are those of the file; the first line when there is none. */
