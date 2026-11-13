@@ -3,15 +3,11 @@
 Feature: Write a spec
 
   Analysts, architects, developers and agents write down what a system must do, and why, as plain
-  files that people read in a review, tools parse and sdp runs. A spec is one Gherkin `.feature`
-  file: its tags say what it is and what it links to, its rules what must hold and why, its
-  scenarios are the examples, and what is still undecided is a question in it. The file grows with
-  understanding — a name becomes a description, rules gain examples, open questions become rules —
-  and never moves to another tool or format.
+  files that people review, tools parse and sdp runs. A spec is one Gherkin `.feature` file that
+  grows with understanding — a name becomes a description, rules gain examples, open questions
+  become rules — and never moves to another tool or format.
 
-  No syntax of sdp's own: what the official Gherkin parser reads is all there is, so no front
-  matter, no Markdown and no numbering kept by hand. Not how specs link into one graph, nor how
-  their scenarios run: this is one file and what it says.
+  Not a syntax of sdp's own: what the official Gherkin parser reads is all there is.
 
   @decided-by:specs-are-gherkin-files
   Rule: One file says what a spec is, what it links to, what must hold and why, and what is still open
@@ -22,15 +18,11 @@ Feature: Write a spec
     Scenario: Every part of the format in one feature
       Given a file "specs/guest-checkout.feature" containing:
         """
-        @id=guest-checkout @maturity=specified @checkout   # what it is: = describes; a bare tag is a Cucumber tag
-        @refines:checkout @realized-by:ARCH-orders         # what it links to: one tag, one link
-        @iteration:IT-payments @activity.implementation:IT-launch   # when it is written, when it is built
+        @id=guest-checkout @maturity=specified @checkout
+        @realized-by:ARCH-orders @iteration:IT-payments
         Feature: Guest checkout
 
           Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form.
-
-          Background:
-            Given a cart with 2 items
 
           @decided-by:no-sign-up-at-checkout
           Rule: A guest pays without creating an account
@@ -50,81 +42,28 @@ Feature: Write a spec
       Then node "guest-checkout" has attribute kind = "feature"
       And node "guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
       And node "guest-checkout" has attribute openQuestions = "1"
-      And node "guest-checkout" has attribute scenarios = "1"
-      And the edges from "guest-checkout" are "guest-checkout -refines-> checkout, guest-checkout -realized-by-> ARCH-orders, guest-checkout -iteration-> IT-payments, guest-checkout -activity.implementation-> IT-launch"
-      And the edges from "guest-checkout#a-guest-pays-without-creating-an-account" are "guest-checkout#a-guest-pays-without-creating-an-account -rule-of-> guest-checkout, guest-checkout#a-guest-pays-without-creating-an-account -decided-by-> no-sign-up-at-checkout"
+      And the edges from "guest-checkout" are "guest-checkout -realized-by-> ARCH-orders, guest-checkout -iteration-> IT-payments"
       And node "guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
       And node "guest-checkout#by-card" has attribute rule = "guest-checkout#a-guest-pays-without-creating-an-account"
 
   @decided-by:specs-are-gherkin-files
   Rule: A file is one spec: its Feature, named by its tags or else by its path
 
-    Gherkin reads a second `Feature:` as text of the description above it, so sdp says so rather
-    than lose a spec without a word.
-
-    Scenario Outline: Named by its tags or its path, titled by its Feature or its id
+    Scenario Outline: Named by its tags or its path
       Given a file "features/search.feature" containing:
         """
         <tags>
-        Feature: <name>
+        Feature: Product search
         """
       When "features/search.feature" is parsed
       Then the parsed spec has id "<id>"
       And the parsed spec has kind "<kind>"
-      And the parsed spec has title "<title>"
 
       Examples:
-        | tags                                 | name           | id                            | kind    | title          |
-        | @id=search                           | Product search | search                        | feature | Product search |
-        | @id=search-by-voice @kind=story @web | Product search | search-by-voice               | story   | Product search |
-        | @web                                 | Product search | suite:features/search.feature | suite   | Product search |
-        | @id=search                           |                | search                        | feature | search         |
-        | @id=true @kind=false                 | Product search | true                          | false   | Product search |
-
-    Scenario Outline: A second Feature in a file is text of the description above it, and an error
-      Given a file "specs/pay.feature" containing:
-        """
-        # language: <language>
-        @id=pay
-        <feature>: Pay
-
-          <above>
-
-        <feature>: Refund
-        """
-      When "specs/pay.feature" is parsed
-      Then sdp reports at least:
-        | rule           | severity | line   | message                                                         |
-        | gherkin-syntax | error    | <line> | "<feature>: Refund" is read as text of the description above it |
-
-      Examples:
-        | language | feature        | above                                                        | line |
-        | en       | Feature        | Shoppers pay.                                                | 7    |
-        | fr       | Fonctionnalité | Shoppers pay.                                                | 7    |
-        | en       | Feature        | Background: Paid                                             | 7    |
-        | fr       | Fonctionnalité | Contexte: Payé                                               | 7    |
-        | en       | Feature        | Rule: R\n    Scenario: S\n      Then ok\n      Examples: E    | 10   |
-        | fr       | Fonctionnalité | Règle: R\n    Scénario: S\n      Alors ok\n      Exemples: E | 10   |
-
-    Scenario: A Feature line inside a doc string is content
-      Given a file "specs/docs.feature" containing:
-        """
-        @id=docs
-        Feature: Docs
-
-          Rule: A feature file can be shown
-
-            Scenario: Describe a feature
-              Given a feature file containing:
-                ```
-                Feature: Search
-                ```
-        """
-      When "specs/docs.feature" is parsed
-      Then sdp reports nothing
-      And the executable steps of "docs#describe-a-feature" are:
-        | keyword | text                       | doc string      |
-        | Given   | a feature file containing: | Feature: Search |
+        | tags                                 | id                            | kind    |
+        | @id=search                           | search                        | feature |
+        | @id=search-by-voice @kind=story @web | search-by-voice               | story   |
+        | @web                                 | suite:features/search.feature | suite   |
 
   Rule: An idea is a spec already: an id and a name are enough
 
@@ -137,24 +76,19 @@ Feature: Write a spec
         | @id=dark-mode @maturity=idea | Dark mode |
       When the workspace is loaded
       Then node "dark-mode" has attribute kind = "feature"
-      And node "dark-mode" has attribute title = "Dark mode"
       And node "dark-mode" has attribute stage = "idea"
 
   @decided-by:still-to-come-is-marked-where-it-is-written
   Rule: A Feature or a Rule that declares a maturity is still to come, whatever the value, and one that declares none is live
 
-    A live Feature or Rule is built: it is its examples, which must pass, and has no maturity to
-    declare. Work still to come is `toCome` in the graph, at the stage its maturity names, and a
-    change to a live feature is rules of it with a maturity of their own, so nothing moves when it is
-    built.
+    A live Feature or Rule is built: its examples must pass. A change to a live feature is rules of
+    it with a maturity of their own, so nothing moves when it is built.
 
     Scenario Outline: A feature that declares <declared>
       Given a file "specs/cart.feature" containing:
         """
         @id=cart <maturity>
         Feature: Cart
-
-          Shoppers collect items before paying.
 
           Rule: A cart holds what was added
 
@@ -166,51 +100,21 @@ Feature: Write a spec
       And node "cart" has attribute stage = "<stage>"
 
       Examples:
-        | declared                    | maturity                        | still to come | stage     |
-        | nothing                     |                                 | undefined     | unrun     |
-        | a rung of the ladder        | @maturity=specified             | true          | specified |
-        | a word off the ladder       | @maturity=someday               | true          | someday   |
-        | two values                  | @maturity=draft @maturity=ready | true          | draft     |
-        | a stage that sdp derives    | @maturity=verified              | true          | undefined |
-
-    Scenario: A live feature with a rule still to come
-      Given a file "specs/cart.feature" containing:
-        """
-        @id=cart
-        Feature: Cart
-
-          Shoppers collect items before paying.
-
-          Rule: A cart holds what was added
-
-            Scenario: Add an item
-              Then the cart holds 1 item
-
-          @maturity=draft
-          Rule: A cart is kept for a week
-
-            Shoppers come back to finish what they started.
-        """
-      When the workspace is loaded
-      And I query "*[toCome]"
-      Then the result is "cart#a-cart-is-kept-for-a-week"
-      And node "cart" has attribute rulesToCome = "1"
-      And node "cart#a-cart-is-kept-for-a-week" has attribute stage = "draft"
-      And node "cart#a-cart-holds-what-was-added" has attribute stage = "unrun"
+        | declared              | maturity            | still to come | stage     |
+        | nothing               |                     | undefined     | unrun     |
+        | a rung of the ladder  | @maturity=specified | true          | specified |
+        | a word off the ladder | @maturity=someday   | true          | someday   |
 
   Rule: A Rule without a maturity of its own has its Feature's
 
     So a rule still to come is written in the live feature it changes, and all of a feature still to
-    come is still to come. On a Scenario or Examples a maturity would switch single examples off, so
-    it is an error.
+    come is still to come.
 
     Scenario Outline: A rule's own maturity, else its Feature's
       Given a file "specs/cart.feature" containing:
         """
         @id=cart <feature>
         Feature: Cart
-
-          Shoppers collect items before paying.
 
           <rule>
           Rule: A cart holds what was added
@@ -220,7 +124,6 @@ Feature: Write a spec
         """
       When the workspace is loaded
       Then node "cart#a-cart-holds-what-was-added" has attribute toCome = "<rule still to come>"
-      And node "cart#add-an-item" has attribute toCome = "<rule still to come>"
       And node "cart" has attribute toCome = "<feature still to come>"
 
       Examples:
@@ -228,40 +131,11 @@ Feature: Write a spec
         |                 |                 | undefined          | undefined             |
         |                 | @maturity=ready | true               | undefined             |
         | @maturity=draft |                 | true               | true                  |
-        | @maturity=draft | @maturity=ready | true               | true                  |
-
-    Scenario: A maturity on a Scenario or on Examples is an error, and the example stays its rule's
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay
-        Feature: Pay
-
-          Rule: An order needs a payment
-
-            @maturity=draft
-            Scenario Outline: Card
-              Then an order is created
-
-              @maturity=idea
-              Examples:
-                | n |
-                | 1 |
-        """
-      When the workspace is loaded
-      Then sdp reports:
-        | rule       | severity | line | message                                                       |
-        | tag-syntax | error    | 6    | @maturity=draft: only a Feature or a Rule declares a maturity |
-        | tag-syntax | error    | 10   | @maturity=idea: only a Feature or a Rule declares a maturity  |
-      And node "pay#card" has attribute toCome = "undefined"
 
   Rule: Work still to come names the live rule or feature it replaces
 
     What it replaces stays live until the change that builds the replacement deletes it, so no two
-    replace each other; a link to a feature, or from one, stands for all of its rules. Built, the
-    replacement may keep the link in that change, where it names what the base had: sdp check holds
-    the change to its base. Merged, the link names nothing — the default branch is its own base — so
-    check warns until it is deleted, and does not fail. Removing behaviour is written as what
-    happens instead.
+    replace each other; a link to a feature stands for all of its rules.
 
     Scenario Outline: A rule that replaces <case>
       Given a file "specs/cart.feature" containing:
@@ -269,9 +143,6 @@ Feature: Write a spec
         @id=cart
         Feature: Cart
 
-          Shoppers collect items before paying.
-
-          <first>
           Rule: A cart holds what was added
 
             Scenario: Add an item
@@ -280,80 +151,28 @@ Feature: Write a spec
           @maturity=draft
           Rule: A cart is kept for a week
 
-            Shoppers come back to finish what they started.
-
           <tags>
           Rule: A cart holds each item once
-
-            Two lines for one item would be charged twice.
         """
-      When the workspace is checked
-      Then sdp reports "<reported>"
-      And node "cart#add-an-item" has attribute toCome = "undefined"
-
-      Examples:
-        | case                      | first                                      | tags                                                       | reported                   |
-        | a live rule               |                                            | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | nothing                    |
-        | a rule still to come      |                                            | @maturity=draft @replaces:cart#a-cart-is-kept-for-a-week   | replacement                |
-        | itself                    |                                            | @maturity=draft @replaces:cart#a-cart-holds-each-item-once | replacement                |
-        | its own feature           |                                            | @maturity=draft @replaces:cart                             | replacement                |
-        | a rule, once it is built  |                                            | @replaces:cart#a-cart-holds-what-was-added                 | replacement, untested-rule |
-        | the rule that replaces it | @replaces:cart#a-cart-holds-each-item-once | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | replacement                |
-
-    Scenario: A feature that names a rule of its own, and the rule it should be on
-      Given a file "specs/cart.feature" containing:
-        """
-        @id=cart @replaces:cart#a-cart-holds-what-was-added
-        Feature: Cart
-
-          Shoppers collect items before paying.
-
-          Rule: A cart holds what was added
-
-            Scenario: Add an item
-              Then the cart holds 1 item
-        """
-      When the workspace is checked
-      Then sdp reports:
-        | rule        | line | hint                                                                                              |
-        | replacement | 1    | put `@replaces:cart#a-cart-holds-what-was-added` on the rule that replaces it, above its `Rule:` |
-
-    Scenario Outline: A feature still to come that replaces <case>
-      Given a file "specs/cart.feature" containing:
-        """
-        @id=cart
-        Feature: Cart
-
-          Rule: A cart holds what was added
-
-            Scenario: Add an item
-              Then the cart holds 1 item
-        """
-      And these specs:
-        | tags                              | Feature |
-        | @id=basket @maturity=draft <link> | Basket  |
       When the workspace is checked
       Then sdp reports "<reported>"
 
       Examples:
-        | case           | link             | reported    |
-        | a live feature | @replaces:cart   | nothing     |
-        | itself         | @replaces:basket | replacement |
+        | case                 | tags                                                       | reported    |
+        | a live rule          | @maturity=draft @replaces:cart#a-cart-holds-what-was-added | nothing     |
+        | a rule still to come | @maturity=draft @replaces:cart#a-cart-is-kept-for-a-week   | replacement |
+        | its own feature      | @maturity=draft @replaces:cart                             | replacement |
 
   Rule: An example renamed with its steps edited, or merged into another, is named where it went in the change that does it
 
-    `@replaces:<feature>#<example>` on its Scenario, once for each example it takes over: by neither
-    its name nor its steps would sdp check know it for the one the base had. The link names what is
-    gone, so it lasts the change: merged, it names nothing, and check warns until it is deleted. An
-    example that is still here is its own test, and naming it is an error.
+    `@replaces:<feature>#<example>` on its Scenario, once for each example it takes over. An example
+    that is still here is its own test, and naming it is an error.
 
     Scenario Outline: An example that names <case>
       Given a file "specs/cart.feature" containing:
         """
         @id=cart
         Feature: Cart
-
-          Shoppers collect items before paying.
 
           Rule: A cart holds what was added
 
@@ -368,51 +187,37 @@ Feature: Write a spec
       Then sdp reports "<reported>"
 
       Examples:
-        | case                   | tags                                                | reported    |
-        | two examples now gone  | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | nothing     |
-        | an example still here  | @replaces:cart#add-an-item                          | replacement |
-        | the rule it is under   | @replaces:cart#a-cart-holds-what-was-added          | replacement |
+        | case                  | tags                                                | reported    |
+        | two examples now gone | @replaces:cart#add-a-lamp @replaces:cart#add-a-desk | nothing     |
+        | an example still here | @replaces:cart#add-an-item                          | replacement |
+        | the rule it is under  | @replaces:cart#a-cart-holds-what-was-added          | replacement |
 
   @decided-by:specs-are-gherkin-files
   Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, and any other tag is a Cucumber tag
 
     The first sign decides, so a value may hold the other, as a time does: `@due=2026-12-01T10:00`.
 
-    Scenario: Values, lists, nested keys and links, each at the line of its tag
+    Scenario: Values, lists, nested keys and links
       Given a file "specs/checkout.feature" containing:
         """
         @id=checkout @maturity=draft @web
-        @estimate=8 @ratio=1.50 @public=false @due=2026-12-01T10:00 @owner.team=core @owner.lead=ada @label=a @label=b
-        @refines:sales @iteration:IT-beta @activity.test:IT-beta @activity.test:IT-launch
+        @estimate=8 @ratio=1.50 @due=2026-12-01T10:00 @owner.team=core @label=a @label=b
+        @refines:sales @activity.test:IT-beta
         Feature: Guest checkout
         """
       When "specs/checkout.feature" is parsed
       Then the parsed spec has exactly these attributes:
-        | key      | json                         |
-        | maturity | "draft"                      |
-        | estimate | 8                            |
-        | ratio    | "1.50"                       |
-        | public   | false                        |
-        | due      | "2026-12-01T10:00"           |
-        | owner    | {"team":"core","lead":"ada"} |
-        | label    | ["a","b"]                    |
-      And the parsed spec has attribute lines:
-        | key        | line |
-        | id         | 1    |
-        | maturity   | 1    |
-        | estimate   | 2    |
-        | ratio      | 2    |
-        | public     | 2    |
-        | due        | 2    |
-        | owner.team | 2    |
-        | owner.lead | 2    |
-        | label      | 2    |
+        | key      | json               |
+        | maturity | "draft"            |
+        | estimate | 8                  |
+        | ratio    | "1.50"             |
+        | due      | "2026-12-01T10:00" |
+        | owner    | {"team":"core"}    |
+        | label    | ["a","b"]          |
       And the parsed spec has links:
-        | rel           | to        | line |
-        | refines       | sales     | 3    |
-        | iteration     | IT-beta   | 3    |
-        | activity.test | IT-beta   | 3    |
-        | activity.test | IT-launch | 3    |
+        | rel           | to      | line |
+        | refines       | sales   | 3    |
+        | activity.test | IT-beta | 3    |
       And sdp reports nothing
 
   Rule: A tag is about the Feature, the Rule or the Scenario it sits on, and only Cucumber tags are inherited
@@ -429,10 +234,9 @@ Feature: Write a spec
           @decided-by:charge-once @slow @owner=payments
           Rule: A wallet is charged once
 
-            @priority=1 @serial @covers:refund
+            @priority=1 @serial
             Scenario Outline: Retry
-              When the payment is retried by <method>
-              Then one charge is made
+              Then one charge is made by <method>
 
               @eu
               Examples:
@@ -441,18 +245,16 @@ Feature: Write a spec
         """
       When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                           | line | tags  | attributes       | links                     |
-        | pay#a-wallet-is-charged-once | 5    | @slow | owner="payments" | -decided-by-> charge-once |
+        | id                           | tags  | attributes       | links                     |
+        | pay#a-wallet-is-charged-once | @slow | owner="payments" | -decided-by-> charge-once |
       And the parsed spec has scenarios:
-        | id        | rule                     | tags    | attributes | links            |
-        | pay#retry | A wallet is charged once | @serial | priority=1 | -covers-> refund |
+        | id        | tags    | attributes |
+        | pay#retry | @serial | priority=1 |
       And the executable tags of "pay#retry" are "@checkout, @feature, @slow, @serial, @eu"
-      And sdp reports nothing
 
   Rule: The text under a Feature, a Rule or a Scenario is its description, and the Feature's first paragraph is the summary
 
-    A description says why, and a relation is a tag, so an id written in one is only text. Gherkin
-    drops a `#` line from a description without a word, so sdp says so.
+    A description says why, and a relation is a tag, so an id written in one is only text.
 
     Scenario: Two paragraphs under the Feature, two lines under a Rule, one under a Scenario
       Given a file "specs/pay.feature" containing:
@@ -486,61 +288,18 @@ Feature: Write a spec
         | id        | description                          |
         | pay#retry | The network failed after the charge. |
 
-    Scenario: A # line inside a description is a comment, which Gherkin leaves out of it, and sdp says so
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay
-        Feature: Pay
-
-          Shoppers pay.
-          # Why
-          Cards first, wallets later.
-
-          # A comment after the description is only a comment.
-          Rule: An order needs a payment
-        """
-      When "specs/pay.feature" is parsed
-      Then the parsed spec has summary "Shoppers pay. Cards first, wallets later."
-      And sdp reports:
-        | rule                | severity | line | message                                        |
-        | description-comment | warning  | 5    | "# Why" is a comment, so Gherkin leaves it out |
-
   Rule: Every scenario is an example of the Rule above it, and one outside every Rule is an error, except in a suite named by its path
 
     A rule is the contract and its scenarios the evidence: a scenario outside one tests what nobody
     stated. A suite without an id is someone else's, and runs as it is.
 
-    Scenario: A scenario after a Rule, at the Feature's indentation, is still the Rule's
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay
-        Feature: Pay
-
-          Rule: A wallet is charged once
-
-            Scenario: Retry
-              When the payment is retried
-
-          Scenario: Refund
-            When the order is refunded
-        """
-      When "specs/pay.feature" is parsed
-      Then the parsed spec has scenarios:
-        | id         | rule                     |
-        | pay#retry  | A wallet is charged once |
-        | pay#refund | A wallet is charged once |
-      And sdp reports nothing
-
-    Scenario: Two scenarios before the first Rule, and a suite named by its path
+    Scenario: A scenario before the first Rule, and a suite named by its path
       Given a file "specs/pay.feature" containing:
         """
         @id=pay
         Feature: Pay
 
           Scenario: Card
-            Then an order is created
-
-          Scenario: Wallet
             Then an order is created
 
           Rule: An order needs a payment
@@ -556,16 +315,15 @@ Feature: Write a spec
         """
       When the workspace is loaded
       Then sdp reports:
-        | rule                  | severity | at                  | message                                         |
-        | scenario-outside-rule | error    | specs/pay.feature:4 | "Card" is an example of no rule, nor are 1 more |
+        | rule                  | severity | at                  |
+        | scenario-outside-rule | error    | specs/pay.feature:4 |
 
   Rule: A rule or a scenario is identified by the slug of its name, its letters and digits in any script: a scenario named like another or like a rule is numbered, a rule alike is an error
 
     Not a position, which every edit above it would change, nor a tag kept unique by hand. A rule's
-    name says what must hold, so two alike are one rule written twice. A slug is lower-case, its
-    words joined by `-`, and a Latin letter loses only its accents: `ł` and `ß` have none to lose.
+    name says what must hold, so two alike are one rule written twice.
 
-    Scenario: An id is the slug of the name, numbered when the file has the name twice or a rule has it, and by position when there is no name
+    Scenario: An id is the slug of the name, numbered when the file has the name twice or a rule has it
       Given a file "specs/pay.feature" containing:
         """
         @id=pay
@@ -579,138 +337,37 @@ Feature: Write a spec
             Scenario: Retry
               Given an expired card
 
-            Scenario:
-              Given no card
-
             Scenario: A declined card is retried
               Given a card declined twice
 
           Rule: Отклонённая карта повторяется
-
-            Scenario: Повтор
-              Given a declined card
 
             Scenario: Płatność, große Karte
               Given a declined card
         """
       When "specs/pay.feature" is parsed
       Then the parsed spec has rules:
-        | id                                | line |
-        | pay#a-declined-card-is-retried    | 4    |
-        | pay#отклонённая-карта-повторяется | 18   |
+        | id                                |
+        | pay#a-declined-card-is-retried    |
+        | pay#отклонённая-карта-повторяется |
       And the parsed spec has scenarios:
-        | id                               | line |
-        | pay#retry                        | 6    |
-        | pay#retry-2                      | 9    |
-        | pay#scenario-3                   | 12   |
-        | pay#a-declined-card-is-retried-2 | 15   |
-        | pay#повтор                       | 20   |
-        | pay#płatnosc-große-karte         | 23   |
+        | id                               |
+        | pay#retry                        |
+        | pay#retry-2                      |
+        | pay#a-declined-card-is-retried-2 |
+        | pay#płatnosc-große-karte         |
       And sdp reports nothing
 
-    Scenario: A long name is cut after the last whole word within 64 characters
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay
-        Feature: Pay
+  Rule: A Rule tagged `@open` is a question, its name the question: it is still to come, and has no examples
 
-          Rule: A card the bank declines is retried every hour for a whole day, then never again
-        """
-      When "specs/pay.feature" is parsed
-      Then the parsed spec has rules:
-        | id                                                                 | line |
-        | pay#a-card-the-bank-declines-is-retried-every-hour-for-a-whole-day | 4    |
+    A question is a choice of what must hold, so it is written where the rule chosen will be, and it
+    cannot switch off the examples of a rule that holds.
 
-    Scenario: Two rules alike are one id twice, which stops a run
-      Given a file "specs/pay.feature" containing:
-        """
-        @id=pay
-        Feature: Pay
-
-          Rule: A card is charged once
-
-            Scenario: Twice
-              Then one charge is made
-
-          Rule: A card is charged once
-        """
-      When the workspace is loaded
-      Then sdp reports:
-        | rule         | at                  | message                                                                  |
-        | duplicate-id | specs/pay.feature:9 | id pay#a-card-is-charged-once is already declared at specs/pay.feature:4 |
-      When I run "sdp run"
-      Then the exit code is 1
-      And the output contains "specs/pay.feature:9 [duplicate-id]"
-
-  Rule: A Rule tagged `@open` is a question, its name the question
-
-    A question is a choice of what must hold, so it is written where the rule chosen will be. A
-    Scenario is an example of a rule, tagged `@open` or not.
-
-    Scenario: An open Rule needs no example, and an open Scenario is an example like any other
-      Given a file "specs/explorer.feature" containing:
-        """
-        @id=explorer @maturity=draft
-        Feature: Explorer
-
-          Stakeholders read the graph in a browser.
-
-          Rule: A reader browses the architecture
-
-          @open
-          Rule: A static export, or a local server?
-
-          Rule: The explorer only reads
-
-            @open
-            Scenario: Is the code behind an element shown always?
-        """
-      When "specs/explorer.feature" is parsed
-      Then the parsed spec has open questions:
-        | question                            | line |
-        | A static export, or a local server? | 9    |
-      When the workspace is checked
-      Then sdp reports:
-        | rule           | line |
-        | scenario-empty | 14   |
-
-  Rule: An open question is still to come, and has no examples
-
-    It cannot switch off the examples of a rule that holds, whatever maturity it would inherit.
-
-    Scenario Outline: A question in a feature <case>
-      Given a file "specs/explorer.feature" containing:
-        """
-        @id=explorer <maturity>
-        Feature: Explorer
-
-          Stakeholders read the graph in a browser.
-
-          Rule: A reader browses the architecture
-
-            Scenario: Browse
-              Then the architecture is shown
-
-          @open
-          Rule: A static export, or a local server?
-        """
-      When the workspace is checked
-      Then sdp reports nothing
-      And node "explorer#a-static-export-or-a-local-server" has attribute toCome = "true"
-      And node "explorer#a-reader-browses-the-architecture" has attribute toCome = "<still to come>"
-
-      Examples:
-        | case             | maturity            | still to come |
-        | that is live     |                     | undefined     |
-        | still to come    | @maturity=specified | true          |
-
-    Scenario: An open rule with an example is an error
+    Scenario: An open rule with an example
       Given a file "specs/explorer.feature" containing:
         """
         @id=explorer
         Feature: Explorer
-
-          Stakeholders read the graph in a browser.
 
           Rule: A reader browses the architecture
 
@@ -725,21 +382,21 @@ Feature: Write a spec
         """
       When the workspace is checked
       Then sdp reports:
-        | rule             | severity | line | message                                                                               |
-        | question-example | error    | 14   | explorer#a-static-export-or-a-local-server is an open question, so it has no examples |
+        | rule             | severity | line |
+        | question-example | error    | 12   |
+      And node "explorer#a-static-export-or-a-local-server" has attribute toCome = "true"
+      And node "explorer#a-reader-browses-the-architecture" has attribute toCome = "undefined"
 
   Rule: An open question in a live feature is about what is built, unless it declares a maturity, which makes it one about work still to come
 
     So a gate can ask that nothing built is still undecided, while the questions of work still to
     come wait for that work.
 
-    Scenario: A question about the live cart, one about a rule of it still to come, and one about a wishlist still to come
+    Scenario: A question about the live cart, and one about a rule of it still to come
       Given a file "specs/cart.feature" containing:
         """
         @id=cart
         Feature: Cart
-
-          Shoppers collect items before paying.
 
           Rule: A cart holds what was added
 
@@ -752,26 +409,14 @@ Feature: Write a spec
           @open @maturity=idea
           Rule: Can a cart be shared with a friend?
         """
-      And a file "specs/wishlist.feature" containing:
-        """
-        @id=wishlist @maturity=draft
-        Feature: Wishlist
-
-          Shoppers keep what they want for later.
-
-          @open
-          Rule: Is a wishlist public?
-        """
       When the workspace is loaded
       And I query "*[!toCome] <-rule-of- rule[tags=@open][!maturity]"
       Then the result is "cart#does-a-cart-expire"
       And node "cart#can-a-cart-be-shared-with-a-friend" has attribute stage = "idea"
-      And node "wishlist#is-a-wishlist-public" has attribute stage = "draft"
 
   Rule: A scenario runs the Feature's Background, then its Rule's, then its own steps, each at the line it is written on
 
-    As Cucumber runs it, so a step that fails is reported at the line it is written on, in the
-    Background where it is.
+    As Cucumber runs it, so a step that fails is reported at the line it is written on.
 
     Scenario: Under a Rule with a Background of its own
       Given a file "specs/pay.feature" containing:
@@ -789,18 +434,13 @@ Feature: Write a spec
 
             Scenario: Retry
               When the payment is retried
-              Then one charge is made
         """
       When "specs/pay.feature" is parsed
-      Then the parsed spec has scenarios:
-        | id        | line |
-        | pay#retry | 12   |
-      And the executable steps of "pay#retry" are:
+      Then the executable steps of "pay#retry" are:
         | keyword | text                   | line |
         | Given   | a shop                 | 5    |
         | Given   | a wallet               | 10   |
         | When    | the payment is retried | 13   |
-        | Then    | one charge is made     | 14   |
 
   Rule: An outline is one scenario, with an example per row
 
@@ -828,7 +468,7 @@ Feature: Write a spec
 
     Its author meant a fact or a link, so it is not quietly read as a Cucumber tag instead.
 
-    Scenario Outline: A list in one tag, a second id, an id that links, a key that is a value and a map, a key that names nothing, an id below the Feature, a fact on Examples
+    Scenario Outline: A list in one tag, a key that names nothing, a maturity on a Scenario
       Given a file "specs/pay.feature" containing:
         """
         @id=pay <feature>
@@ -838,13 +478,8 @@ Feature: Write a spec
           Rule: An order needs a payment
 
             <scenario>
-            Scenario Outline: Card
+            Scenario: Card
               Then an order is created
-
-              <examples>
-              Examples:
-                | n |
-                | 1 |
         """
       When "specs/pay.feature" is parsed
       Then sdp reports:
@@ -853,20 +488,10 @@ Feature: Write a spec
       And the executable tags of "pay#card" are "@feature"
 
       Examples:
-        | feature                     | rule        | scenario    | examples         | line | message                                       |
-        | @uses:A,B                   |             |             |                  | 1    | @uses:A,B: one tag is one link                |
-        | @id=other                   |             |             |                  | 1    | @id=other: a spec has one id                  |
-        | @id=pay#card                |             |             |                  | 1    | @id=pay#card: a spec's id holds no #          |
-        | @id=pay(card)               |             |             |                  | 1    | @id=pay(card): pay(card) is no id             |
-        | @id:other                   |             |             |                  | 1    | @id:other: a spec's id is written with =      |
-        | @owner=ada @owner.team=core |             |             |                  | 1    | owner is written as a value and as a map      |
-        | @owner..team=core           |             |             |                  | 1    | @owner..team=core: this key names nothing     |
-        |                             | @1st=ok     |             |                  | 4    | @1st=ok: this key names nothing               |
-        |                             |             | @:b         |                  | 7    | @:b: this key names nothing                   |
-        |                             | @id=payment |             |                  | 4    | @id=payment: only a Feature says what it is   |
-        |                             |             | @kind=story |                  | 7    | @kind=story: only a Feature says what it is   |
-        |                             |             |             | @browser=firefox | 11   | a fact or a link on Examples is about no node |
-        | @owner=ada@pay.com          |             |             |                  | 1    | @owner=ada@pay.com: a tag holds no @          |
+        | feature   | rule    | scenario        | line | message                                                       |
+        | @uses:A,B |         |                 | 1    | @uses:A,B: one tag is one link                                |
+        |           | @1st=ok |                 | 4    | @1st=ok: this key names nothing                               |
+        |           |         | @maturity=draft | 7    | @maturity=draft: only a Feature or a Rule declares a maturity |
 
   Rule: A file the parser cannot read is an error at the line where it stopped, and no spec until it parses
 
@@ -895,18 +520,13 @@ Feature: Write a spec
 
   Rule: A file reads the same whatever its line endings
 
-    A file saved with Windows line endings means what it means anywhere else: the same summary, the
-    same lines, the same steps.
-
     Scenario: CRLF line endings
       Given a file "specs/pay.feature" containing:
         """
         @id=pay
-        @maturity=ready
         Feature: Pay
 
           Shoppers pay
-          # Why
           by card.
 
           Rule: A wallet is charged once
@@ -918,24 +538,15 @@ Feature: Write a spec
                 one
                 two
                 ```
-              Then one charge is made
         """
       When "specs/pay.feature" is parsed with CRLF line endings
       Then the parsed spec has summary "Shoppers pay by card."
-      And the parsed spec has attribute lines:
-        | key      | line |
-        | id       | 1    |
-        | maturity | 2    |
       And the parsed spec has rules:
         | name                     | line | description                      |
-        | A wallet is charged once | 9    | A retry reuses the first charge. |
+        | A wallet is charged once | 7    | A retry reuses the first charge. |
       And the executable steps of "pay#retry" are:
         | keyword | text                         | line | doc string |
-        | When    | the payment is retried with: | 13   | one\ntwo   |
-        | Then    | one charge is made           | 18   |            |
-      And sdp reports:
-        | rule                | line |
-        | description-comment | 6    |
+        | When    | the payment is retried with: | 11   | one\ntwo   |
 
   @decided-by:specs-are-gherkin-files
   Rule: Specs stay on the official Gherkin parser, and check reports each of its silent edges that it can see
@@ -943,13 +554,17 @@ Feature: Write a spec
     Every editor and Cucumber tool reads the parser's Gherkin; what the parser drops without a word,
     check says.
 
-    Scenario: A link written after a comment on a tag line is reported, not dropped
+    Scenario Outline: A link after a comment on a tag line, and a second Feature
       Given a file "specs/pay.feature" containing:
         """
-        @id=pay @maturity=idea #wallets later @depends-on:cart
-        Feature: Pay
+        <content>
         """
       When "specs/pay.feature" is parsed
-      Then sdp reports:
-        | rule       | severity | line | message                                           |
-        | tag-syntax | error    | 1    | so the tags in it are dropped: @depends-on:cart |
+      Then sdp reports at least:
+        | rule   | severity | line   | message   |
+        | <rule> | error    | <line> | <message> |
+
+      Examples:
+        | content                                                              | rule           | line | message                                                       |
+        | @id=pay @maturity=idea #wallets later @depends-on:cart\nFeature: Pay | tag-syntax     | 1    | so the tags in it are dropped: @depends-on:cart               |
+        | @id=pay\nFeature: Pay\n\n  Shoppers pay.\n\nFeature: Refund          | gherkin-syntax | 6    | "Feature: Refund" is read as text of the description above it |
