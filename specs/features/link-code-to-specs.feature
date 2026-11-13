@@ -313,6 +313,7 @@ Feature: Link code to specs
         | a class                        | import os\n\n\nclass Payment:\n    """\n    Charges the card on file.\n\n    @sdp implements pay\n    """\n\n    def charge(self):\n        pass | code:src/pay.py#Payment | 4    |
         | a function                     | def pay(order):\n    '''Charges the card on file.\n\n    @sdp implements pay'''\n    return order                     | code:src/pay.py#pay     | 1    |
         | a function of several lines    | def pay(\n    order,\n) -> None:\n    """Charges the card on file.\n\n    @sdp implements pay\n    """                | code:src/pay.py#pay     | 1    |
+      | a function of several lines, with a comment | def pay(\n    order,  # an (order\n) -> None:\n    """Charges the card on file.\n\n    @sdp implements pay\n    """ | code:src/pay.py#pay     | 1    |
 
     Scenario Outline: A decorated declaration, <placed>
       Given a file "src/pay.ts" containing:
@@ -407,6 +408,8 @@ Feature: Link code to specs
         | src/Pay.java | /** @sdp implements pay */   | @RequestMapping("/pay") @ResponseBody\npublic class Payment {} | code:src/Pay.java#Payment |
         | src/Pay.cs   | /// @sdp implements pay      | [ApiController]\n[Route("api/[controller]")]\npublic class Payment {} | code:src/Pay.cs#Payment  |
         | src/pay.rs   | /// @sdp implements pay      | #[derive(\n    Debug,\n)]\npub struct Payment {} | code:src/pay.rs#Payment  |
+        | src/pay.py   | # @sdp implements pay        | @app.route(  # was (legacy\n    "/pay",  # see (legacy\n)\ndef pay(): | code:src/pay.py#pay      |
+        | src/Pay.java | /** @sdp implements pay */   | @RequestMapping(\n    value = "/pay" // see (legacy\n)\npublic class Payment {} | code:src/Pay.java#Payment |
 
     Scenario: After a blank line, inside a doc comment, two in a row, with typed attributes
       Given a file "src/billing.ts" containing:

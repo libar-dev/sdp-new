@@ -666,6 +666,7 @@ const decorating = (line: string): number | undefined => {
   let at = 0
   while (at < line.length) {
     const char = line[at]!
+    if (commentAt(line, at)) break
     if (open > 0) {
       if (char === "\"" || char === "'") {
         const close = line.indexOf(char, at + 1)
@@ -673,8 +674,6 @@ const decorating = (line: string): number | undefined => {
         continue
       }
       open += "([{".includes(char) ? 1 : ")]}".includes(char) ? -1 : 0
-    } else if (line.startsWith("//", at) || (char === "#" && line[at + 1] !== "[")) {
-      break
     } else if (char === "@" || char === "[" || char === "#") {
       const name = /^@[A-Za-z_$][\w$.]*|^#?/.exec(line.slice(at))![0]
       at += name.length
@@ -687,11 +686,17 @@ const decorating = (line: string): number | undefined => {
   return decorators > 0 ? open : undefined
 }
 
-/** How many more brackets a line of code opens than it closes, outside its strings. */
+/** How many more brackets a line of code opens than it closes, outside its strings and the comment that ends it. */
 const brackets = (line: string): number => {
   const code = line.replace(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'/g, "")
-  return (code.match(/[([{]/g)?.length ?? 0) - (code.match(/[)\]}]/g)?.length ?? 0)
+  let end = 0
+  while (end < code.length && !commentAt(code, end)) end++
+  const counted = code.slice(0, end)
+  return (counted.match(/[([{]/g)?.length ?? 0) - (counted.match(/[)\]}]/g)?.length ?? 0)
 }
+
+/** Whether a comment starts at `at` of a line of code: `//`, or `#` that opens no attribute (`#[derive(Debug)]`). */
+const commentAt = (line: string, at: number): boolean => line.startsWith("//", at) || (line[at] === "#" && line[at + 1] !== "[")
 
 const tokenize = (text: string): ReadonlyArray<string> => text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? []
 
