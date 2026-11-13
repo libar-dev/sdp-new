@@ -345,7 +345,7 @@ const gateCommand = Command.make(
   Command.withDescription("Evaluate one milestone's gate scenarios against the current graph; exit 0 only when every one of them passed"),
   Command.withExamples([
     { command: "sdp gate MS-beta", description: "Does this milestone's gate pass?" },
-    { command: "sdp gate MS-beta --record", description: "End what it closes: record it as met, in the same commit as whatever must keep holding" }
+    { command: "sdp gate MS-beta --record", description: "Record it as met: its gate runs no more, so move what must keep holding to the spec it tests, in the same commit" }
   ])
 )
 
