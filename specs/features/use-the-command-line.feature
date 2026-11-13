@@ -27,8 +27,8 @@ Feature: Use the command line
         Rule: Do misspelled names match?
       """
     And these specs:
-      | tags           | Feature      |
-      | @id=ARCH-index | Search index |
+      | tags                          | Feature      |
+      | @id=ARCH-index @maturity=idea | Search index |
     And a file "specs/MS-beta.feature" containing:
       """
       @id=MS-beta

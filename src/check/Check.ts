@@ -136,14 +136,18 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const authored = graph.nodes().filter((node) =>
     node.kind !== made.kinds.scenario && node.kind !== made.kinds.code && node.kind !== made.kinds.missing
   )
+  /** Whether a node is work: of a kind a discipline names — a rule, its spec's — or planned by an activity tag. */
+  const isWorkNode = (node: GraphNode) => isWork(vocabulary, workKind(project, node)) || plannedDisciplines(project, node).size > 0
 
-  // A live feature is a test, so it has a live rule, and a live rule an example: without one, what is
+  // Live work is a test, so it has a live rule, and a live rule an example: without one, what is
   // built is not tested. Only work is still to come at a maturity, so a rule of any other kind has
   // nothing to wait for.
   for (const spec of project.specs) {
     if (spec.id === suiteId(spec.file) || !isSuite(spec, vocabulary)) continue
     const work = workOf(spec)
-    if (hasKind(vocabulary, "feature", spec.kind) && !work.spec && spec.rules.every((rule) => work.rule(rule).toCome)) {
+    const node = graph.node(spec.id)
+    const isWorkSpec = node !== undefined && isWorkNode(node)
+    if (isWorkSpec && !work.spec && spec.rules.every((rule) => work.rule(rule).toCome)) {
       out.push(diagnostic("untested-feature", {
         message: `${spec.id} is live, so it needs a live rule`,
         node: spec.id,
@@ -157,7 +161,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         message: `${rule.id} is live, so it needs an example`,
         node: rule.id,
         source: at(spec, rule.line),
-        hint: isWork(vocabulary, spec.kind)
+        hint: isWorkSpec
           ? "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
           : `write a Scenario under it; kind ${spec.kind} belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines`
       }))
@@ -361,7 +365,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       }))
     }
     // Said once: a node its iteration plans is told so above, and one an activity tag plans is work.
-    const unplannable = !planned && plannedDisciplines(project, node).size === 0 && !isWork(vocabulary, kind) && !isPlanKind(vocabulary, kind)
+    const unplannable = !planned && !isWorkNode(node) && !isPlanKind(vocabulary, kind)
     if (attribute(node, "maturity") !== undefined && unplannable) {
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: kind ${kind} belongs to no discipline, so its maturity marks work that nothing can plan`,

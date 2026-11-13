@@ -390,9 +390,18 @@ Feature: Write step definitions
 
     Background:
       Given these specs:
-        | tags                                              | Feature      |
-        | @id=search @maturity=idea @realized-by:ARCH-index | Search       |
-        | @id=ARCH-index                                    | Search index |
+        | tags                                              | Feature |
+        | @id=search @maturity=idea @realized-by:ARCH-index | Search  |
+      And a file "specs/ARCH-index.feature" containing:
+        """
+        @id=ARCH-index
+        Feature: Search index
+
+          Rule: The index serves search
+
+            Scenario: Search
+              Then the query "#ARCH-index <-realized-by- feature" returns 1 result
+        """
       And a file "specs/inverted-index.feature" containing:
         """
         @id=inverted-index @kind=decision

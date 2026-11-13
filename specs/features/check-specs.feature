@@ -4,7 +4,7 @@ Feature: Check specs
 
   Authors and reviewers, people and agents, need every problem in the specs reported at the line to
   fix, with what to write instead, so that they can fix it without reading sdp's code. And what is
-  built must stay tested: a live feature has a live rule, a live rule has an example, and nothing live
+  built must stay tested: live work has a live rule, a live rule has an example, and nothing live
   stops being live without an error, so that a test is never turned off in silence.
 
   Not a linter of style or wording, nor a judge of how far work still to come has come: sdp checks
@@ -224,12 +224,13 @@ Feature: Check specs
         | rule          | at                            | message                                                                      |
         | untested-rule | specs/export-to-csv.feature:4 | export-to-csv#archived-rows-are-exported-too is live, so it needs an example |
 
-  Rule: A live feature has a live rule, so that what it says is built is tested
+  Rule: Live work has a live rule, so that what it says is built is tested
 
-    A feature that declares no maturity says it is built, and stays so: one whose rules are all still
-    to come is still to come itself. A node of another kind, such as an actor, says what there is.
+    Work — a feature, an element, any kind a discipline names, or what an activity tag plans — that
+    declares no maturity says it is built, and stays so: work whose rules are all still to come is
+    still to come itself. A node of a kind that is no work, such as a glossary, says what there is.
 
-    Scenario Outline: A feature whose rules are <case>
+    Scenario Outline: Work whose rules are <case>
       Given a file "specs/export-to-csv.feature" containing:
         """
         <tags>
@@ -249,7 +250,10 @@ Feature: Check specs
         | a question                      | @id=export-to-csv                 | @open\nRule: Are archived rows exported too?                           | untested-feature |
         | live, with an example           | @id=export-to-csv                 | Rule: Every row is exported\n  Scenario: Export\n    Then I get a file | nothing          |
         | still to come, as the feature   | @id=export-to-csv @maturity=draft | Rule: Every row is exported                                            | nothing          |
-        | none, in a node of another kind | @id=analysts @kind=actor          |                                                                        | nothing          |
+        | none, in a node of another kind | @id=terms @kind=glossary          |                                                                        | nothing          |
+        | none, in an element             | @id=ARCH-export                   |                                                                        | untested-feature |
+        | none, in an actor               | @id=analysts @kind=actor          |                                                                        | untested-feature |
+        | still to come, as the element   | @id=ARCH-export @maturity=draft   |                                                                        | nothing          |
 
     Scenario: The feature without a live rule, at its Feature line
       Given a file "specs/export-to-csv.feature" containing:
