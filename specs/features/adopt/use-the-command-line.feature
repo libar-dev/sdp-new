@@ -156,11 +156,11 @@ Feature: Use the command line
       And the output lines are "sdp exited with 0"
       And the output does not contain "EPIPE"
 
-  @open
-  Rule: Does a run whose reader stops early run on to its end and record its results, rather than end where the reader stopped?
+  @maturity=ready
+  Rule: A run whose reader stops early runs on to its end, records its results and writes no more, and exits as its scenarios say; it prints no stack
 
-    Ending there is what `head` asks of a command that only reads. A run ended there records none of
-    the results it had, and its exit code says nothing of the scenarios it did not reach.
+    A reader that stops is no Ctrl-C: a command that only reads may end where `head` stopped, but a
+    run has results to record, and its exit code says how the scenarios it ran went.
 
   Rule: status counts the graph on one screen: kinds, relations, stages, rules, scenarios, gates and milestones, each by where it stands
 

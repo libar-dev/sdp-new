@@ -372,12 +372,13 @@ Feature: Ask the graph
       Then the exit code is 0
       And the median run completes within 1000 ms
 
-  @open
-  Rule: Does every JSON answer — q and sdp_query, show, arch, lifecycle and check — give its nodes and edges as the records sdp graph prints?
+  @maturity=ready @iteration:IT-packaging
+  Rule: Every JSON answer gives its nodes and edges as the records sdp graph prints, with what a command adds beside a record and never in it; check gives diagnostics, which are no records
 
-    Only graph gives what an author wrote and the facts the state keeps: q, show, arch and lifecycle
-    add derived attributes, arch and lifecycle fields beside a node's own, a route's edges are {from,
-    rel, to} alone, show adds the rule-of and verifies edges, and check names a node by its id.
+    q and sdp_query give node records, show edge records, the edges it derives too, and a route its
+    edges as records; lifecycle gives an entry as {node, closes, iterations, …} and arch a driver as
+    {node, through}. sdp graph may give fewer attributes in the same records. A program that reads
+    one answer then reads every other, and the shape is the contract the package publishes.
 
   @maturity=idea
   Rule: An answer names the commit it was read at, says when the files differ from it, and which files it could not read

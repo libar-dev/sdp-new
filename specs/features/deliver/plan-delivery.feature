@@ -592,3 +592,10 @@ Feature: Plan delivery
 
   @maturity=idea
   Rule: lifecycle lists the work planned into no iteration under its area and its spec, each with its maturity, not as one line of ids
+
+  @open @maturity=idea
+  Rule: How is an iteration ordered, and which is the current one, when it declares no dates?
+
+    Dates order the timeline today: an iteration without them is off it, so lifecycle cannot say
+    which comes next, and `lifecycle --brief`, which the hook shows, finds no work planned now. Early
+    iterations are planned by their order more than by a calendar.

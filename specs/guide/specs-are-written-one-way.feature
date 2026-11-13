@@ -42,12 +42,12 @@ Feature: A spec of this repository is written one way
       When I run "git ls-files '*.md'" in the repository
       Then the output lines are "README.md, AGENTS.md, CLAUDE.md, .claude/skills/sdp/SKILL.md, examples/shop/README.md, scripts/orient/README.md"
 
-  @open @maturity=idea @iteration:IT-agent-plugin
-  Rule: Where are the stubs of a spec's significant API shapes kept, in what form, how does a reader reach them from the spec, and do stubs of critical step definitions join them?
+  @maturity=draft @iteration:IT-agent-plugin
+  Rule: The stubs of a spec's significant API shapes are TypeScript files in specs/stubs/<spec id>/, typechecked but never built, loaded as steps or packed; a stub of a step definition joins them only where several scenarios depend on it, and a stub goes once the real API is written
 
     Where the architect calls an API or type shape significant, its conceptual design is shown in
-    a stub outside the spec, in a folder the build does not compile. The rest is left to the
-    session that implements it.
+    a stub outside the spec, which a reader finds by the spec's id. The rest is left to the session
+    that implements it.
 
   @maturity=ready
   Rule: A table cell holds one line, and a case that needs a file of several lines is a scenario of its own, the file its docstring

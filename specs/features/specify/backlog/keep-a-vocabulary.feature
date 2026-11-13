@@ -16,17 +16,16 @@ Feature: Keep a vocabulary
   @decided-by:free-vocabulary
   Rule: In a workspace that asks for it, as one sdp init starts does, sdp check reports a word used and not listed, with the closest listed word, and a word of its own listed and used nowhere
 
-  @open @iteration:IT-agent-plugin
-  Rule: Are a workspace's words and their meanings written in its configuration, or in a spec of its own?
+  @iteration:IT-agent-plugin
+  Rule: A workspace's words and their meanings are written in its configuration, and its specs say how words are used, not the words again
 
-    In the configuration they are read before any spec; in a spec they are reviewed with its users.
+    sdp reads the words before any spec, and an author reviews them in one place.
 
-  @open @iteration:IT-agent-plugin
-  Rule: Is the catalog of a workspace's words its vocabulary or its taxonomy, one word in the commands, the specs and the skill?
+  @iteration:IT-agent-plugin
+  Rule: The catalog of a workspace's words is its vocabulary, one word in the commands, the specs and the skill, and taxonomy is no second name for it
 
     A second word for one thing is what this feature prevents.
 
-  @open
-  Rule: Are a workspace's Cucumber tags listed and reported as its kinds, relations and fact keys are?
+  Rule: A workspace's Cucumber tags are listed and reported with their meanings as its kinds, relations and fact keys are, each said to be made, interpreted or carried
 
     Left out, a tag an agent coins is the one word nothing guards.

@@ -109,12 +109,12 @@ Feature: Every step of this repository can fail
         | example                            | step                     |
         | cart#in-a-workspace-without-a-cart | I run "sdp context cart" |
 
-  @open
-  Rule: Does an example fail when no step after the last command it ran looked at what that command did?
+  @maturity=draft
+  Rule: An example fails when a command it ran is never looked at: a step that reads its exit code, its output or a file marks it looked at, and an example that ends with one unmarked fails
 
     Ending on a Then is checked by keyword: `Then the query "feature" returns at least 1 result` after
-    `When I run …` passes whatever the command did. A check when an example ends needs a hook the
-    step API does not offer, or a reading of which definitions look at a command.
+    `When I run …` passes whatever the command did. The check needs a step that runs when an example
+    ends, which the step API does not offer yet.
 
   Rule: A step that looks into a section of the output fails when the output has no such section
 

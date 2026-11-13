@@ -357,3 +357,10 @@ Feature: See the architecture
         | named by      | maturity        | reported      | shown   |
         | still to come | @maturity=ready | nothing       | 1 time  |
         | that is live  |                 | dangling-link | 0 times |
+
+  @maturity=idea
+  Rule: sdp arch shows the code no element claims that lies on an import between elements, with the elements that depend through it, and check never fails on it
+
+    Followed, such code hides no dependency, but a change to it reaches the elements that import it
+    unseen. Shown, each file is the architect's call: sdp anchors nothing itself, and lists no helper
+    that no element reaches through.

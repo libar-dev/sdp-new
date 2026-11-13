@@ -35,11 +35,10 @@ Feature: Teach agents the way of working
       When every sdp command shown in "skills/sdp" is run in the workspace
       Then each exited 0, or as the text beside it says
 
-  @open
-  Rule: How does the skill mark what stands in a command for a value, and the exit a command shown failing is expected to end with?
+  Rule: A command the skill shows runs as written: it names ids and paths of examples/shop, a command shown failing is followed by the exit it ends with, `Exit: 1`, and what stands for a value is written in prose, never in a command
 
-    A command runs as written only when both are marked one way: `sdp context <id>` cannot run as it
-    stands, and a command that fails on purpose reads as one that is broken.
+    `sdp context <id>` cannot run as it stands, and a command that fails on purpose reads as one
+    that is broken.
 
   @maturity=idea
   Rule: Agents taught by the skill leave open what a request left open: a choice the requester did not make is a rule tagged @open, not a rule they chose

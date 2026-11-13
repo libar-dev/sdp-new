@@ -91,11 +91,10 @@ Feature: Orient agents through hooks
       Then the output contains "MS-beta"
       And the output line with "0.2.0" contains "0.1.0"
 
-  @open
-  Rule: How does the hook find the sdp a workspace installed, and which sdp answers where it installed none?
+  Rule: The hook runs the sdp the workspace installed, found from its root, and names both versions when the plugin's differs; where the workspace installed none it runs the plugin's own and says so, and never npx, a download or an sdp on the PATH
 
-    A plugin installed for a person serves every repository, each with sdp at a version of its own or
-    none, and the name an installed sdp is found by is install-from-npm's to settle.
+    A plugin installed for a person serves every repository, each with sdp at a version of its own
+    or none, and `sdp` on npm is another package.
 
   @maturity=idea
   Rule: An agent that edits a spec is shown the diagnostics of that file before its next step

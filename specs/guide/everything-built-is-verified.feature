@@ -108,3 +108,9 @@ Feature: A change to sdp is done when everything built is verified
 
   @maturity=idea
   Rule: A commit runs sdp check and a push runs npm run verify, through git hooks that npm install sets up
+
+  @maturity=idea
+  Rule: npm run verify ends within a budget set once it is profiled, and a scenario runs sdp in a process of its own only for what a process shows: its arguments, its exit code, signals, a reader that stops, the packed command
+
+    verify took 15 seconds before the timing examples and the packed package, and 66 after; most
+    of it is a process started for each command.

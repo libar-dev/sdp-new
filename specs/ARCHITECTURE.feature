@@ -157,19 +157,11 @@ Feature: Architecture
       Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 decision, src/report.ts:9 milestone, src/report.ts:12 closes"
 
   @open
-  Rule: Which element claims src/model/Diagnostic.ts, src/model/Records.ts, src/model/TagValue.ts and src/model/PackageJson.ts, code no element claims that elements import?
+  Rule: Is src/model/Diagnostic.ts, which ten files of seven elements import, an element of its own, ARCH-diagnostics?
 
-    `sdp arch` shows them under no element, though ten files of seven elements import Diagnostic.ts.
-    Candidates that make no cycle: ARCH-graph, which imports nothing, for Diagnostic.ts and the record
-    schemas of Records.ts; ARCH-vocabulary for TagValue.ts, which both parsers ask; ARCH-code-annotations
-    for PackageJson.ts, which ARCH-workspace already imports. ARCH-checker would make a cycle.
-
-  @open @maturity=idea
-  Rule: Does sdp report code that no element claims, now that what elements import is followed through it?
-
-    Followed, it hides no dependency, but it is in no view: `sdp arch` shows no element for it, and
-    a change to it reaches the elements that import it unseen. A report would make each such file
-    the architect's call, where sdp otherwise never judges what belongs in the architecture.
+    The catalog of what sdp reports is distinct from the graph, which would otherwise claim whatever
+    its builders share. Records.ts is ARCH-graph's, TagValue.ts ARCH-vocabulary's and PackageJson.ts
+    ARCH-code-annotations'; which element claims code is the architect's call.
 
   @maturity=idea
   Rule: No code compares with a tag sdp interprets, such as `@open`, as a literal either
@@ -178,3 +170,8 @@ Feature: Architecture
   Rule: The typecheck fails on an effect that is built and never run, and on an optional property set to undefined
 
     Plain TypeScript accepts both, and both are bugs in this code.
+
+  @maturity=idea
+  Rule: Each use case decodes its input with one Schema, which the command line, the MCP tools and the API share
+
+    Each transport checks its input by hand today, so the three can disagree on what they accept.

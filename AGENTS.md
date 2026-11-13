@@ -1,6 +1,8 @@
 # Agent guide
 
-This repository is **sdp**, and it is specified *with* sdp. How to work in such a repository is the skill, `.claude/skills/sdp/SKILL.md`: read it first. What this repository keeps to and a scenario can check is a spec of kind `guide` in `specs/guide/`; here is only what no scenario can.
+**sdp** keeps requirements, decisions, architecture, the delivery plan and test evidence in one graph, rebuilt from a repository's files (`specs/VISION.feature`). Gherkin scenarios are both specification and test; work still to come declares a maturity, and live work takes its stage from its scenarios' results; the architecture is curated through code annotations, not harvested from every abstraction; the CLI, MCP, Promise and Effect APIs ask the same graph.
+
+This repository is sdp, and it is specified *with* sdp. How to work in such a repository is the skill, `.claude/skills/sdp/SKILL.md`: read it first. What this repository keeps to and a scenario can check is a spec of kind `guide` in `specs/guide/`; here is only what no scenario can.
 
 - **First:** run `node scripts/orient/orient.ts` (about 8k tokens), a work-in-progress orientation over sdp's state and API, and understand its first section, the taxonomy, before anything else; its README says what each section shows.
 - sdp's state, its API and spec-driven development are being bootstrapped: this is the project's inception, so work iteratively, with an MVP mindset, and do not decide every detail upfront. Why the state holds what it holds is the decision `the-state-holds-what-is-significant`, and how a spec is written, `specs-say-what-not-how`.

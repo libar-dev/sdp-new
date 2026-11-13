@@ -74,15 +74,16 @@ Feature: Start from the state of the repository
         | ARCH-orders               | element | Owns the order aggregate and its transaction boundary. |
         | code:src/orders.ts#Orders | code    | Owns the order aggregate and its transaction boundary. |
 
-  @open
-  Rule: Where does the architect write once what an element is for, when several files declare it?
+  Rule: The architect writes once what an element is for, on the anchor marked primary, `@sdp is ARCH-x primary=true`, and check reports an element marked primary twice
 
-    The first doc comment found may not describe it.
+    The comments of its other anchors describe their own code, and which file sorts first is no
+    choice.
 
-  @open
-  Rule: How large may the state be: the hook's 2,000 characters, a larger first fetch with the hook a part of it, or a share of the specs and code it is read from?
+  Rule: The state the hook gives stays within 2,000 characters, and a larger one is fetched when asked for, within a budget of its own, naming what it left out; neither is sized by the specs and code it is read from
 
-    An agent must read it whole before its first step.
+    An agent must read it whole before its first step, and a deep dive into one node is `sdp
+    context <id>`. The larger budget is set once it is measured.
 
-  @open
-  Rule: How does an element that has no code yet enter the state, so that work still to come reaches the code it will change?
+  Rule: An element that has no code yet enters the state as work still to come names it, `@realized-by:ARCH-x`, an element still to come that needs no anchor until that work is live
+
+    The work then reaches the code it will change as soon as that code declares the element.

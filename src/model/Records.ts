@@ -1,3 +1,6 @@
+/**
+ * @sdp is ARCH-graph
+ */
 import { Schema } from "effect"
 
 const Line = Schema.Number.check(

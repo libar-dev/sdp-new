@@ -54,11 +54,11 @@ Feature: Install the agent plugin
         | Grok Build  | PreToolUse       |
         | OpenCode    | context          |
 
-  @open
-  Rule: Do the examples learn where each harness finds a plugin's hook, and how it runs it, from a model of each kept in the steps?
+  Rule: The examples learn where each harness finds a plugin's hook, and how it runs it, from a model of each kept in the steps at the version it was measured at, and say only that the plugin is wired as that model expects
 
     The harnesses are not installed where the examples run; a model is what the earlier
     implementation measured at the versions the gate names, and goes stale when a harness changes.
+    That a harness supports the plugin only its gate says.
 
   Rule: init starts a workspace with a configuration that shows every default and overwrites nothing, writes no skill, and names how each supported harness installs the plugin
 
@@ -101,7 +101,7 @@ Feature: Install the agent plugin
         | Grok Build  | 1.0.70  |
         | OpenCode    | 2.2.5   |
 
-  @open
-  Rule: Is a gate example run by a person, who starts a session in the harness and records what its model was given, or by steps that drive the harness where it is installed?
+  Rule: A gate example drives the harness where it is installed, at the version the gate pins, and reads what its model was given; a person may run it or find why it failed, and records nothing by hand
 
     A harness is installed on few machines and answers through a model, at a cost per session.
+    Where what a model was given cannot be read yet, support stays unverified.

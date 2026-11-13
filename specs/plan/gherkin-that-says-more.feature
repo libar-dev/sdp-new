@@ -5,7 +5,6 @@
 @includes:write-specs-in-an-editor
 @includes:write-step-definitions#a-step-definition-can-be-scoped-to-an-area-so-that-two-areas-say
 @includes:write-step-definitions#a-step-module-defines-parameter-types-of-its-own-such-as-an-id
-@includes:write-step-definitions#is-a-step-matched-only-by-a-definition-of-its-own-kind-given
 Feature: Gherkin that says more
 
   The tools teams already use, Cucumber's runner and reporters and their editors, read and run specs.

@@ -1,2 +1,2 @@
-@id=IT-packaging @start=2026-11-30 @end=2026-12-11
+@id=IT-packaging @start=2026-12-07 @end=2026-12-18
 Feature: Packaging

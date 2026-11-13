@@ -1,3 +1,6 @@
+/**
+ * @sdp is ARCH-code-annotations
+ */
 import { Schema } from "effect"
 
 /** A target of `exports` or `imports`: a path, conditions that each map to one, fallbacks, or `null`, which excludes the name. */

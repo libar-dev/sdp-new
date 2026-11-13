@@ -439,14 +439,35 @@ Feature: Write step definitions
         | passed | 1                             |
         | sdp    | a session description parser |
 
+  Rule: A step is matched against every definition whatever its keyword, as Cucumber matches it: Given, When and Then are for its reader
+
+    One definition serves a step under any keyword; a repository's guide can still check how steps
+    are written.
+
+    Scenario: Each step matched by a definition written with another keyword
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({ items: 0 }), ({ Given, Then, When }) => {
+          Then("an empty cart", () => {})
+          Given("I add a lamp", ({ world }) => {
+            world.items += 1
+          })
+          When("the cart holds {int} item(s)", ({ args: [count], world }) => {
+            if (world.items !== count) throw new Error(`the cart holds ${world.items}`)
+          })
+        })
+        """
+      When I run "sdp run --json"
+      Then the JSON output has:
+        | data.summary.passed | 1 |
+
   @maturity=idea
   Rule: Each scenario runs apart: it sees no global state another left, and a step past its timeout is stopped whether or not it yields
 
   @maturity=idea
   Rule: A step definition can be scoped to an area, so that two areas say the same words and mean steps of their own
-
-  @open @maturity=idea
-  Rule: Is a step matched only by a definition of its own kind — Given, When or Then — though every step is matched against every definition today?
 
   @maturity=idea
   Rule: A step module defines parameter types of its own, such as an id, and steps lists them
