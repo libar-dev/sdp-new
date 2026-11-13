@@ -180,7 +180,9 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
   const packageOf = (file: string, specifier: string, lookup: Lookup): Walk => {
     if (isBuiltin(specifier) || /^[a-z][a-z0-9+.-]*:/i.test(specifier)) return { found: {}, passed: [], decided: false }
     const { name, subpath } = packageName(specifier)
-    const linked = aliasOf(file, name) ?? name
+    const link = linkOf(file, name)
+    if (link !== undefined && "directory" in link) return packageExport(link.directory, specifier, subpath, lookup)
+    const linked = link?.name ?? name
     const directories = packages.named.get(linked) ?? []
     if (directories.length > 1) {
       return {
@@ -199,14 +201,20 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
     return nothing
   }
 
-  /** The package a dependency of the package.json files at or above `file` names under another name (`"tax": "npm:@shop/tax@1"`). */
-  const aliasOf = (file: string, name: string): string | undefined => {
+  /**
+   * What the nearest package.json at or above `file` that declares `name` as a dependency links it
+   * to, when that is not a library by that name: another package (`"tax": "npm:@shop/tax@1"`), or a
+   * directory, from the package.json (`"tax": "file:./packages/tax"`).
+   */
+  const linkOf = (file: string, name: string): { readonly name: string } | { readonly directory: string } | undefined => {
     for (const directory of at.upFrom(directoryOf(file))) {
-      const declaring = read.has(at.join(directory, packageFile)) ? manifest(at.join(directory, packageFile)) : undefined
-      for (const dependencies of declaring === undefined ? [] : dependencyLists(declaring)) {
-        const linked = aliasPattern.exec(dependencies[name] ?? "")?.[1]
-        if (linked !== undefined) return linked
-      }
+      const path = at.join(directory, packageFile)
+      const declaring = read.has(path) ? manifest(path) : undefined
+      const declared = (declaring === undefined ? [] : dependencyLists(declaring)).find((dependencies) => dependencies[name] !== undefined)?.[name]
+      if (declared === undefined) continue
+      const other = aliasPattern.exec(declared)?.[1]
+      const local = directoryPattern.exec(declared)?.[1]
+      return other !== undefined ? { name: other } : local !== undefined ? { directory: at.join(directory, local) } : undefined
     }
     return undefined
   }
@@ -401,6 +409,9 @@ const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take
 
 /** A dependency declared as another package, by npm or by the workspace: `npm:@shop/tax@1.0.0`, `workspace:@shop/tax@*`. */
 const aliasPattern = /^(?:npm|workspace):((?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*)(?:@|$)/i
+
+/** A dependency declared as a directory, by its path from the package.json: `file:../tax`, `link:packages/tax`, `portal:./tax`, `workspace:../tax`. */
+const directoryPattern = /^(?:(?:file|link|portal):(?![\\/]|[a-z]:)|workspace:(?=\.\.?\/))(.+)$/i
 
 /** The package of TypeScript declarations that declares a library's types: `@types/node-fetch`, `@types/babel__core`. */
 const typesPackage = (name: string) => `@types/${name.startsWith("@") ? name.slice(1).replace("/", "__") : name}`
