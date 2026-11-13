@@ -1017,6 +1017,25 @@ Feature: Plan delivery
       When I run "sdp status"
       Then the output contains "milestones    met 1 · open 1"
 
+    Scenario: A met milestone, in a graph sdp could not read whole
+      Given a file "specs/MS-objectives.feature" containing:
+        """
+        @id=MS-objectives @closes:PH-inception @met=2026-01-30
+        Feature: Lifecycle objectives
+        """
+      And a file "src/cart.ts" containing:
+        """
+        import { rate } from "./missing.ts"
+
+        /** @sdp is ARCH-cart */
+        export const total = (): number => rate
+        """
+      When I run "sdp gate MS-objectives --json"
+      Then the exit code is 2
+      And the JSON output has:
+        | complete | false                      |
+        | data.met | 2026-01-30                 |
+
   @decided-by:declared-maturity-derived-stage
   Rule: What ready means is the team's Definition of Ready, a gate of its own
 

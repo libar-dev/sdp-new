@@ -44,7 +44,7 @@ import {
   whereLeads,
   type Workspace
 } from "../workspace/Workspace.ts"
-import { type Answer, unread } from "./Answer.ts"
+import { type Answer, answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
 export interface Selection {
@@ -510,7 +510,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   if (spec && isClosed(spec, vocabulary)) {
     const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, wentStale: {}, scenarios: [] }
     const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }
-    return { complete: true, notes: [], data: report } satisfies Answer<GateReport>
+    return answer(project, report)
   }
   if (!spec?.scenarios.some((scenario) => isGate(scenario, spec, vocabulary))) {
     return yield* new Refused({
