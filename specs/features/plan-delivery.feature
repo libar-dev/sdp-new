@@ -715,8 +715,8 @@ Feature: Plan delivery
 
   Rule: A gate passes only when every one of its scenarios passed, run against the current graph
 
-    A criterion nobody has automated is not met, and a result from before the graph changed says
-    nothing of the graph as it is now.
+    A gate scenario nobody has automated has not passed, and a result from before the graph changed
+    says nothing of the graph as it is now.
 
     Scenario: A step not automated yet
       Given a file "specs/MS-release.feature" containing:
@@ -762,7 +762,7 @@ Feature: Plan delivery
 
     Met is recorded once, not read from the calendar or from today's results: a date would fail
     tomorrow the commit that passes today, and results are local and go stale. Recording is
-    somebody's act, and a criterion edited while the gate ran has not run.
+    somebody's act, and a gate scenario edited while the gate ran has not run.
 
     Scenario: Nothing is recorded while the gate does not pass
       Given these specs:
@@ -849,10 +849,10 @@ Feature: Plan delivery
         | rule          | node            | at                              |
         | milestone-met | MS-architecture | specs/MS-architecture.feature:1 |
 
-  Rule: A milestone that is met is closed: its gate does not run again, nor is it needed once its criteria moved
+  Rule: A milestone that is met is closed: its gate does not run again, nor is it needed once its scenarios moved
 
     Met records that the gate passed when it was recorded. Run again, the gate would read a graph
-    that has moved on, its own @met included; and once met, its criteria are a plan of work that is
+    that has moved on, its own @met included; and once met, its scenarios are a plan of work that is
     done, to be deleted or to become the tests of what was built.
 
     Scenario: A met milestone whose gate would fail now, and one whose gate is gone

@@ -51,7 +51,7 @@ Feature: Guest checkout
   tags: they are not inherited, not matched by `--tags` and not part of a scenario's hash, so
   re-planning a spec leaves the results of its scenarios valid — except those of scenarios that
   read the graph, which any change to a spec makes stale.
-- **The Feature is the node**: its name is the title, its first paragraph the intent.
+- **The Feature is the node**: its name is the title, its first paragraph the summary.
 - **A `Rule:` is the unit of content.** Its name states what must hold, the one to three lines
   under it say why, and its scenarios are the examples; a scenario's name says the case. Every
   scenario of a spec belongs to a rule; a feature file without `@id=` is someone else's suite,
@@ -128,7 +128,7 @@ The sharp edges of the format, each what the official parser does:
   examples, not a paragraph. When you would write "X depends on Y" or "this must never happen",
   write the link or the rule (between elements, the code's imports already say it). A description says what the examples cannot — never a "verified by"
   list, a status, or a restatement of the rules below it. When a sentence becomes a rule, delete
-  the sentence: promote, do not copy.
+  the sentence: move it, do not copy it.
 - **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
   context and a real trade-off, and that spans features, is recorded: a Feature whose name is the
   choice and one to three sentences on what was chosen over what, why, and the cost accepted with

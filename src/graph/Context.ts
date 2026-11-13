@@ -144,7 +144,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("")
   }
 
-  // The work on an element or a pattern: what is live on it, then what is still to come, ready first.
+  // The work on an element or a pattern: what is live on it, then what is still to come, the furthest along first.
   if (hasKind(vocabulary, "architectural", node.kind)) {
     const { live, toCome } = workOn(project, node)
     const stage = (n: GraphNode) => Predicate.isString(n.attrs.stage) ? ` (${n.attrs.stage})` : ""
@@ -204,7 +204,7 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
 
 /**
  * The spec as written, without what the contract shows: its tag lines and name, and each rule's
- * tags, name and reason. What is left is its intent, its backgrounds and its examples. Its keywords
+ * tags, name and reason. What is left is its description, its backgrounds and its examples. Its keywords
  * are those of the language it is written in.
  */
 const specification = (spec: Spec): string => {

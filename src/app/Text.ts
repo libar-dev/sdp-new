@@ -116,9 +116,9 @@ export const steps = (listed: ReadonlyArray<ListedStep>): string =>
  * through feature`. What it is for is the first paragraph of its spec — or, for a node declared
  * without one, what the code anchored to it says of itself. Under each piece of code that is it
  * comes its surface: a declaration's shape, or what a file exports. Then the work on it: what is
- * live, and what is still to come, ready first. A node no file declares is still to come, named by
- * the work still to come that names it. A title that only repeats the id, as that of an element
- * declared by its code, is left out.
+ * live, and what is still to come, the furthest along first. A node no file declares is still to
+ * come, named by the work still to come that names it. A title that only repeats the id, as that of
+ * an element declared by its code, is left out.
  */
 export const architecture = ({ anchor, anchors, architecture, drivers, edges, kinds, work }: ArchitectureData): string => {
   const titles = new Map([...architecture, ...drivers, ...anchors].map((node) => [node.id, node.title]))

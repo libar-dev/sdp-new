@@ -86,7 +86,7 @@ export const description = (project: Project, node: GraphNode): ReadonlyArray<st
     })
 }
 
-/** The work on an architectural node: what is live on it, and what is still to come, ready first. */
+/** The work on an architectural node: what is live on it, and what is still to come, the furthest along first. */
 export interface Work {
   readonly live: ReadonlyArray<GraphNode>
   readonly toCome: ReadonlyArray<GraphNode>
@@ -95,7 +95,7 @@ export interface Work {
 /**
  * The work on an architectural node: each feature or rule that names it, and each rule still to come
  * of a feature built on it, which is a change to that feature. What is still to come is ordered by
- * how far it has come, ready first: ready is designed and all but final. A question is no work.
+ * the workspace's ladder, the last rung first. A question is no work.
  */
 export const workOn = (project: Project, node: GraphNode): Work => {
   const { graph } = project

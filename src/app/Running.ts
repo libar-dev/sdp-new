@@ -459,7 +459,7 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const { vocabulary } = project.config
   if (!project.graph.node(milestone)) return yield* new UnknownNode({ id: milestone })
   const spec = project.specById.get(milestone)
-  // Closed first: the closing commit may move its last criterion to the spec that owns the rule.
+  // Closed first: the closing commit may move its last gate scenario to the spec that owns the rule.
   if (spec && isClosed(spec, vocabulary)) {
     const nothing = { passed: true, summary: summarize([]), toCome: summarize([]), gates: summarize([]), stale: {}, wentStale: {}, scenarios: [] }
     const report: GateReport = { ...nothing, milestone, met: metOn(vocabulary, spec) }

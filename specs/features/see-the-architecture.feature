@@ -1031,10 +1031,11 @@ Feature: See the architecture
         function charge(invoice: Invoice): Promise<boolean>
         """
 
-  Rule: Each element is shown with the live work on it and the work still to come, ready first
+  Rule: Each element is shown with the live work on it and the work still to come, the furthest along first
 
     The work on an element is each feature that names it, and each rule still to come of a feature
-    built on it. Ready is designed and all but final: it weighs nearly what live work does.
+    built on it. What is still to come is in the order of the workspace's ladder, the last rung
+    first: what has come furthest is the next to weigh on the element.
 
     Scenario: The work on orders
       Given a file "specs/returns.feature" containing:

@@ -217,7 +217,7 @@ export interface DriverRecord extends NodeRecord {
   readonly through: ReadonlyArray<QueryPath>
 }
 
-/** The work on an architectural node: what is live on it, and what is still to come, ready first. */
+/** The work on an architectural node: what is live on it, and what is still to come, the furthest along first. */
 export interface WorkRecord {
   readonly node: string
   readonly live: ReadonlyArray<NodeRecord>
