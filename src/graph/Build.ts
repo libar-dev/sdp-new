@@ -121,7 +121,20 @@ export const buildProject = (input: ProjectInput): Project => {
   for (const file of input.featureFiles) {
     const parsed = parseFeatureSpec(file.path, file.content, input.config)
     diagnostics.push(...parsed.diagnostics)
-    if (parsed.spec) specs.push(parsed.spec)
+    if (parsed.spec === undefined) continue
+    // An element or a pattern is declared where its code is: a spec of one would say what that code
+    // is for in a second place, and its links belong to the rules of the features that realize it.
+    if (hasKind(vocabulary, "architectural", parsed.spec.kind)) {
+      const { file, id, kind } = parsed.spec
+      diagnostics.push(diagnostic("declared-in-spec", {
+        message: `${id} is declared by its code, as every ${kind} is, so this spec is not read`,
+        node: id,
+        source: { file, line: 1 },
+        hint: `move its words to the doc comment of its code, beside \`@sdp ${vocabulary.relations.anchor} ${id}\`, and its links to the rules of the features that realize it, then delete ${file}; until it has code, work still to come that names it shows it as still to come`
+      }))
+      continue
+    }
+    specs.push(parsed.spec)
   }
   // Markdown where specs live is a spec written out of habit, and in no graph, run or check. Beside
   // someone else's suites, named by their paths, it is their documentation.
@@ -347,8 +360,8 @@ export const buildProject = (input: ProjectInput): Project => {
     }
   }
   // Every anchor declares the node it names, in the order of their files: the kind it writes or its
-  // id's prefix names, a title and attributes. What a spec, or else an earlier anchor, gives holds;
-  // a value given differently is reported where it is written.
+  // id's prefix names, a title and attributes. What was declared first holds; a value given
+  // differently is reported where it is written.
   const declaredBy = new Map<string, Map<string, SourceRef>>()
   // The kind sdp gives an anchored node that names none is no kind it declares: one written later replaces it.
   const unnamedKind = new Set<string>()
@@ -373,22 +386,19 @@ export const buildProject = (input: ProjectInput): Project => {
       if (sources === undefined) {
         sources = new Map()
         declaredBy.set(target, sources)
-        // What a spec declares, at the line it is written.
-        const spec = existing && specById.get(target)
-        for (const key of spec ? ["kind", "title", ...Object.keys(spec.attrs)] : []) {
-          sources.set(key, { file: spec!.file, line: spec!.attrLines[key] ?? 1 })
-        }
       }
+      // What the node holds before this anchor declares it. A title that only repeats the id was given by no one.
+      const given = (key: string): unknown =>
+        existing === undefined
+          ? undefined
+          : key === "kind"
+          ? (named === undefined && !unnamedKind.has(target) ? existing.kind : undefined)
+          : key === "title"
+          ? (existing.title === target ? undefined : existing.title)
+          : attribute(existing, key)
       if (existing === undefined) {
         nodes.set(target, { id: target, kind, title: Predicate.isString(title) ? title : target, attrs: staged(target, kind, attrs), source: at })
       } else {
-        // A title that only repeats the id was given by no one.
-        const given = (key: string): unknown =>
-          key === "kind"
-            ? (named === undefined && !unnamedKind.has(target) ? existing.kind : undefined)
-            : key === "title"
-            ? (existing.title === target ? undefined : existing.title)
-            : attribute(existing, key)
         for (const [key, value] of declared) {
           const kept = given(key)
           if (kept === undefined || JSON.stringify(kept) === JSON.stringify(value)) continue
@@ -404,7 +414,7 @@ export const buildProject = (input: ProjectInput): Project => {
         const titled = Predicate.isString(title) && given("title") === undefined ? { title } : {}
         nodes.set(target, { ...existing, kind, ...titled, attrs: staged(target, kind, { ...existing.attrs, ...added }) })
       }
-      for (const [key] of declared) if (!sources.has(key)) sources.set(key, at)
+      for (const [key] of declared) if (!sources.has(key) && given(key) === undefined) sources.set(key, at)
       for (const link of links) edges.push({ from: target, rel: link.rel, to: link.to, source: at })
     }
   }
@@ -476,6 +486,8 @@ export const buildProject = (input: ProjectInput): Project => {
     const [spec, part] = edge.to.split("#")
     const write = part !== undefined
       ? `write the \`Rule:\` or the \`Scenario:\` named ${part} in the file of the spec ${spec}, or fix the reference`
+      : architectural(edge.to)
+      ? `declare it in the doc comment of its code, \`@sdp ${vocabulary.relations.anchor} ${edge.to}\`, or fix the reference`
       : `write the spec \`@id=${edge.to}\` (\`sdp new <kind> "<title>" --id ${edge.to}\`), or fix the reference`
     const prefix = known ? undefined : prefixCaseHint(edge.to, input.config)
     return prefix === undefined ? write : `${write}; ${prefix}`
@@ -511,7 +523,7 @@ export const buildProject = (input: ProjectInput): Project => {
   const elements = elementsOf(annotations, nodes, vocabulary)
   const played = patternsOfElements(elements, present, nodes, vocabulary)
   const graph = new Graph(nodes.values(), [
-    ...notPlayedByCode(present, played, diagnostics),
+    ...present,
     ...importsBetweenElements(elements, importsOf, modules, diagnostics),
     ...played
   ])
@@ -611,28 +623,6 @@ const patternsOfElements = (
     const file = code?.kind === made.kinds.code ? code.attrs.file : undefined
     if (!Predicate.isString(file) || link.rel === vocabulary.relations.anchor || !hasKind(vocabulary, "pattern", nodes.get(link.to)?.kind ?? "")) return []
     return [...elementsOf.get(file) ?? []].map((element) => ({ from: element, rel: link.rel, to: link.to, source: link.source }))
-  })
-
-/**
- * The links authors wrote, but for one from an element to a pattern that its code makes: the code
- * says it, and only while it does, so a copy in a spec is reported where it is written, and dropped.
- * One the code does not make is the author's, and stays.
- */
-const notPlayedByCode = (
-  links: ReadonlyArray<GraphEdge>,
-  played: ReadonlyArray<GraphEdge>,
-  diagnostics: Array<Diagnostic>
-): ReadonlyArray<GraphEdge> =>
-  links.filter((link) => {
-    const byCode = played.find((edge) => edge.from === link.from && edge.rel === link.rel && edge.to === link.to)
-    if (byCode === undefined) return true
-    diagnostics.push(diagnostic("derived-attribute", {
-      message: `${link.from} -${link.rel}-> ${link.to}: the code of ${link.from} says it at ${formatSource(byCode.source) || "?"}, so the link written here is ignored`,
-      node: link.from,
-      source: link.source,
-      hint: "delete it: the code says it, and only while it does"
-    }))
-    return false
   })
 
 /**

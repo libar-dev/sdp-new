@@ -192,20 +192,43 @@ Feature: Serve AI agents
 
     Scenario: Two hops reach an element's pattern and neighbour, three its neighbour's, and none an iteration's work
       Given these specs:
-        | tags                                                              | Feature  |
-        | @id=pay @realized-by:ARCH-payments @iteration:IT-beta             | Pay      |
-        | @id=ARCH-payments @instance-of:PAT-saga @publishes-to:ARCH-ledger | Payments |
-        | @id=ARCH-ledger @replicates-to:ARCH-archive                       | Ledger   |
-        | @id=ARCH-archive                                                  | Archive  |
-        | @id=PAT-saga                                                      | Saga     |
-        | @id=IT-beta @kind=iteration                                       | Beta     |
-        | @id=ARCH-search @iteration:IT-beta                                | Search   |
+        | tags                                                  | Feature  |
+        | @id=pay @realized-by:ARCH-payments @iteration:IT-beta | Pay      |
+        | @id=IT-beta @kind=iteration                           | Beta     |
+        | @id=wishlist @maturity=idea @iteration:IT-beta        | Wishlist |
+      And a file "src/archive.ts" containing:
+        """
+        /** @sdp is ARCH-archive */
+        export const keep = (): void => {}
+        """
+      And a file "src/ledger.ts" containing:
+        """
+        import { keep } from "./archive.ts"
+
+        /** @sdp is ARCH-ledger */
+        export const book = (): void => keep()
+        """
+      And a file "src/saga.ts" containing:
+        """
+        /** @sdp is PAT-saga */
+        export const compensate = (): void => {}
+        """
+      And a file "src/payments.ts" containing:
+        """
+        import { book } from "./ledger.ts"
+
+        /**
+         * @sdp is ARCH-payments
+         * @sdp plays PAT-saga
+         */
+        export const charge = (): void => book()
+        """
       When I ask for the context of "pay"
       Then the output section "Relationships" contains "pay -iteration-> IT-beta"
       And the output section "Architecture within" contains "ARCH-ledger"
       And the output section "Architecture within" contains "PAT-saga"
       And the output section "Architecture within" does not contain "ARCH-archive"
-      And the output does not contain "ARCH-search"
+      And the output does not contain "wishlist"
       When I run "sdp context pay --depth 3"
       Then the output section "Architecture within" contains "ARCH-archive"
 

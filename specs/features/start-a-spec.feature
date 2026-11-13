@@ -202,10 +202,14 @@ Feature: Start a spec
         | feature 'Gift cards' --dir $PWD/specs/payments          | gift-cards         | specs/payments/gift-cards.feature       |
 
     Scenario: A title with no letter or digit in any script, a mark on nothing included, is numbered after the highest number its kind has
-      Given these specs:
-        | tags              | Feature  |
-        | @id=ARCH-0007     | Корзина  |
-        | @id=ARCH-checkout | Checkout |
+      Given a file "src/cart.ts" containing:
+        """
+        /** @sdp is ARCH-0007 */
+        export const cart = 0
+
+        /** @sdp is ARCH-checkout */
+        export const checkout = 0
+        """
       When I run "sdp new element 'Платёж'"
       Then the output lines are "ARCH-платёж"
       When I run "sdp new element '🛒'"
