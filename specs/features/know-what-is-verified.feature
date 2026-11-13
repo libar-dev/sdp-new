@@ -990,6 +990,38 @@ Feature: Know what is verified
       Then the exit code is 1
       And the output contains "1 scenario(s): 1 undefined"
 
+    Scenario: A directory made where evidence.inputs names a path counts by its path and what it is
+      Given a file "sdp.config.yaml" containing:
+        """
+        evidence:
+          inputs: [flag]
+        """
+      And a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { existsSync } from "node:fs"
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {
+            if (existsSync("flag")) throw new Error("the cart is flagged")
+          })
+        })
+        """
+      When I run "sdp run"
+      Then the exit code is 0
+      When I run "mkdir flag"
+      Then the exit code is 0
+      When I run "sdp status --json"
+      Then the JSON output has:
+        | data.stale.inputs-changed | 1 |
+      When I run "sdp q feature[stage=verified] --ids"
+      Then the output lines are ""
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "the cart is flagged"
+
     Scenario: A variable of evidence.env has another value, and only a digest of its value is stored
       When I run "SHOP_REGION=atlantis sdp run"
       Then the exit code is 1

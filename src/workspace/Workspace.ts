@@ -126,9 +126,9 @@ const notAFile: Partial<Record<FileSystem.File.Type, NotAFile["is"]>> = {
 
 /**
  * Expands globs relative to `root` to the files they match, de-duplicated and sorted for stable
- * output, and to what they match that is no file sdp can read: a link that leads to none, a named
- * pipe, a socket or a device, and a directory it may not list, which may hold more. A glob matches
- * directories too (`fixtures/**` is `fixtures` and all below it); they are neither.
+ * output, to the directories they match (`fixtures/**` is `fixtures` and all below it), and to what
+ * they match that is no file sdp can read: a link that leads to none, a named pipe, a socket or a
+ * device, and a directory it may not list, which may hold more.
  */
 export const findPaths = Effect.fn("findPaths")(function*(
   root: string,
@@ -191,6 +191,7 @@ export const findPaths = Effect.fn("findPaths")(function*(
     ), { concurrency: 32 })) typeOf.set(file, type)
   return {
     files: sorted.filter((file) => typeOf.get(file) === "File"),
+    directories: sorted.filter((file) => typeOf.get(file) === "Directory"),
     unread: [
       ...sorted.flatMap((file): ReadonlyArray<NotAFile> => {
         const type = typeOf.get(file)
@@ -474,9 +475,11 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const fingerprints: Fingerprints = {
     sources: new Set(recorded.filter(([sources, files]) => fingerprint(sourcesWith(files)) === sources).map(([sources]) => sources)),
     toolchain: toolchain(yield* readFiles(root, lockfileNames)),
-    // What the steps read is no part of the graph: an input that is no file counts by its path and what it is.
+    // What the steps read is no part of the graph: an input that is no file counts by its path and
+    // what it is, a directory as much as a named pipe.
     inputs: declaredInputs([
       ...read.inputs.files,
+      ...inputs.directories.map((file): SourceFile => ({ path: file, content: "a directory" })),
       ...[...inputs.unread, ...read.inputs.unread].map(({ is, path: file }): SourceFile => ({ path: file, content: is }))
     ], config.evidence.env),
     // Markdown where specs live counts by its path: the graph warns of it, and reads none of it. The
