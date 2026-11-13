@@ -636,17 +636,30 @@ export const unknownWords = (project: Project, parsed: Query): ReadonlyArray<str
     )
     const carried = new Set([...everywhere, ...candidates.flatMap((node) => Object.keys(node.attrs))])
     const selected = selector.ids ? `#${selector.ids.join("|")}` : selector.kinds === "*" ? "*" : selector.kinds.join("|")
-    for (const { key, op, values } of selector.conditions) {
+    for (const { key } of selector.conditions) {
       if (!carried.has(key) && !carried.has(key.split(".")[0]!)) unknown(`${selected} has no attribute`, key, carried)
-      if (key !== made.tagsKey || (op !== "=" && op !== "!=")) continue
-      for (const value of values.filter((value) => !value.startsWith("@"))) found.push(`no tag ${value}; a tag is written with its @, as @${value}`)
     }
   }
   for (const rel of parsed.steps.flatMap((step) => step.edge.rels)) {
     if (rel !== anyRelation && !relations.has(rel)) unknown("no relation", rel, relations)
   }
-  return [...new Set(found)]
+  return [...new Set([...found, ...untaggedWords(parsed)])]
 }
+
+/**
+ * The words a query compares `tags` with, by `=` or `!=`, without their `@`, one line each saying
+ * how the tag is written: `tags` holds each tag as written, so such a word matches none.
+ */
+export const untaggedWords = (parsed: Query): ReadonlyArray<string> =>
+  [...new Set(
+    [parsed.start, ...parsed.steps.map((step) => step.node)].flatMap((selector) =>
+      selector.conditions.flatMap(({ key, op, values }) =>
+        key !== made.tagsKey || (op !== "=" && op !== "!=")
+          ? []
+          : values.filter((value) => !value.startsWith("@")).map((value) => `no tag ${value}; a tag is written with its @, as @${value}`)
+      )
+    )
+  )]
 
 /** The known word nearest to `word` by edit distance, if any is near enough to be what was meant. */
 export const closest = (word: string, known: Iterable<string>): string | undefined => {

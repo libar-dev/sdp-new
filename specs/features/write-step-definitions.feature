@@ -409,6 +409,18 @@ Feature: Write step definitions
         | there are no constructor diagnostics                                 | unknown severity "constructor"                      |
         | there are no diagnostics for rule "decision-stats"                   | unknown rule "decision-stats"                       |
 
+    Scenario: A tag compared without its @ is told how a tag is written, and not to declare a word
+      Given a file "specs/guard.feature" containing:
+        """
+        Feature: Guard
+          Scenario: Guard
+            Then the query "feature[tags=web]" returns no results
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "no tag web; a tag is written with its @, as @web"
+      And the output does not contain "vocabulary.words"
+
     Scenario Outline: A word the vocabulary declares, or a kind an id prefix names, can be asserted absent
       Given a file "sdp.config.yaml" containing:
         """

@@ -11,7 +11,7 @@
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { closest, parseQuery, projectQueryOptions, type Query, runQuery, unknownWords } from "../graph/Query.ts"
+import { closest, parseQuery, projectQueryOptions, type Query, runQuery, unknownWords, untaggedWords } from "../graph/Query.ts"
 import { isRuleId, problemLine, rules, type Severity, unreadRules } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, made } from "../model/Vocabulary.ts"
@@ -73,10 +73,13 @@ const run = (context: Asserting, source: string): ReadonlyArray<GraphNode> => {
   }
   const unknown = unknownWords(project, parsed.success)
   if (unknown.length > 0) {
+    // A tag without its @ is fixed by writing the @, and no declaration under vocabulary.words makes it match.
+    const untagged = new Set(untaggedWords(parsed.success))
+    const words = unknown.some((line) => !untagged.has(line))
     throw new Error(
-      `query "${source}" names what this workspace does not know, so it proves nothing: ${
-        unknown.join("; ")
-      }. Fix the word, or declare one that is meant under vocabulary.words in the configuration`
+      `query "${source}" names what this workspace does not know, so it proves nothing: ${unknown.join("; ")}${
+        words ? ". Fix the word, or declare one that is meant under vocabulary.words in the configuration" : ""
+      }`
     )
   }
   const result = runQuery(project.graph, parsed.success, projectQueryOptions(project))
