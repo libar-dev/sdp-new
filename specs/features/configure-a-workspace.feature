@@ -239,21 +239,16 @@ Feature: Configure a workspace
         | tags                                         | Feature |
         | @id=IT-one @start=2026-11-02 @end=2026-11-13 | One     |
         | @id=search @maturity=idea @iteration:IT-one  | Search  |
-      When I run the pipeline:
-        """
-        sdp new req 'Saved carts'
-        sdp new idea 'Gift wrap'
-        """
+      When I run "sdp new req 'Saved carts'"
       Then the exit code is 0
       And the file "specs/features/saved-carts.feature" contains "@id=saved-carts @maturity=idea"
-      And the file "specs/features/gift-wrap.feature" contains "@id=gift-wrap @maturity=idea"
       When I run "sdp check --base none"
       Then the exit code is 0
       And the output contains "0 error(s), 0 warning(s)"
       When I run "sdp lifecycle --json"
       Then the JSON output has:
-        | data.disciplines.requirements | 1                      |
-        | data.unplanned                | gift-wrap, saved-carts |
+        | data.disciplines.requirements | 1           |
+        | data.unplanned                | saved-carts |
 
     Scenario: A milestone recorded as reached
       Given a file "sdp.config.yaml" containing:

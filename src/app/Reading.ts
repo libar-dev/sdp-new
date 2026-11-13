@@ -141,7 +141,7 @@ const comparedWith = (project: Project, read: BaseRead) => {
   if ("none" in read) {
     return {
       diagnostics: [],
-      missing: [`not compared: no live test was compared with a base: ${read.none}; name one with --base, or waive the comparison with --base ${noBase}`],
+      missing: [`not compared: no live test was compared with a base: ${read.none}; ${read.remedy ?? "name one with --base"}, or waive the comparison with --base ${noBase}`],
       notes: []
     }
   }

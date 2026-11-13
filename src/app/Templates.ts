@@ -24,10 +24,10 @@ const directoryFor: Record<string, string> = {
 }
 
 /**
- * What `sdp new` has a template for; any other kind gets the generic one. `idea` is a feature at
- * maturity idea, and an element or a pattern is no file: its code declares it.
+ * What `sdp new` has a template for; any other kind gets the generic one. An element or a pattern
+ * is no file: its code declares it.
  */
-export const templateKinds = ["feature", "idea", "decision", "element", "pattern", "milestone", "phase", "iteration"] as const
+export const templateKinds = ["feature", "decision", "element", "pattern", "milestone", "phase", "iteration"] as const
 
 type Template = "feature" | "decision" | "element" | "pattern" | "milestone" | "phase" | "iteration" | "generic"
 
@@ -78,8 +78,8 @@ export interface NewSpec {
 
 /**
  * What `sdp new` writes: the new node's id, its file and content. The file is relative to the
- * workspace root unless `dir` is absolute. `sdp new idea` writes a feature at maturity idea, and
- * `sdp new element` or `sdp new pattern` no file: only the id its code declares, and how.
+ * workspace root unless `dir` is absolute. `sdp new element` or `sdp new pattern` writes no file:
+ * only the id its code declares, and how.
  * Fails, with the reason, for a change, which is rules of the feature it changes unless the
  * workspace names a kind `change` of its own, for a maturity asked of a kind that is no work, and
  * when the content would not read back with its id, kind and title: the id of an element or a
@@ -100,7 +100,7 @@ export const newSpec = (options: {
   const { config, dir, graph, title } = options
   const { vocabulary } = config
   const feature = wordFor(vocabulary.kinds.feature)
-  const kind = options.kind === "idea" ? feature : options.kind
+  const { kind } = options
   const maturity = options.maturity ?? vocabulary.maturity[0]!
   const id = options.id ?? newId(kind, title, config, graph.nodes().map((node) => node.id))
   const template = templateOf(kind, vocabulary)
@@ -227,10 +227,10 @@ const guidance = (options: {
   const { config, id, kind } = options
   const { vocabulary } = config
   const { anchor } = vocabulary.relations
-  const activity = vocabulary.attributes.activity
   const iterationPrefix = config.ids[wordFor(vocabulary.kinds.iteration)]
   const iteration = iterationPrefix === undefined ? "<iteration>" : `${iterationPrefix}-…`
-  const plan = `\`@${wordFor(vocabulary.relations.plan)}:${iteration}\` says when it is written, \`@${activity}.implementation:${iteration} @${activity}.test:${iteration}\` when it is built and tested`
+  // Only the iteration: activities are for a team that plans its disciplines apart, as the skill says.
+  const plan = `\`@${wordFor(vocabulary.relations.plan)}:${iteration}\` says when it is written`
   const closes = wordFor(vocabulary.relations.closes)
   const phase = wordFor(vocabulary.relations.phase)
   switch (templateOf(kind, vocabulary)) {

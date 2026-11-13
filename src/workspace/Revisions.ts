@@ -34,11 +34,12 @@ export class BaseNotFound extends Schema.TaggedError<BaseNotFound>()("BaseNotFou
 
 /**
  * The specs at the base, with the git command that finds it and what of the base its configuration
- * reaches that git cannot say, or why there is no base to compare with.
+ * reaches that git cannot say, or why there is no base to compare with and, where naming one would
+ * not help, what to do instead.
  */
 export type BaseRead =
   | { readonly found: BaseSpecs & { readonly command: string; readonly missing: ReadonlyArray<string> } }
-  | { readonly none: string }
+  | { readonly none: string; readonly remedy?: string | undefined }
 
 export interface RevisionsReader {
   /** The specs where HEAD meets `named`, or else the default branch, with the configuration they were read with. */
@@ -108,13 +109,16 @@ export const gitRevisions = Layer.effect(
       result?.code === 0 ? result.out.toString("utf8").replace(/\n$/, "") : undefined
 
     const base = Effect.fn("Revisions.base")(function*(root: string, named: string | undefined) {
-      const missing = (reason: string): Effect.Effect<BaseRead, BaseNotFound> =>
-        named === undefined ? Effect.succeed({ none: reason }) : Effect.fail(new BaseNotFound({ base: named, reason }))
+      const missing = (reason: string, remedy?: string): Effect.Effect<BaseRead, BaseNotFound> =>
+        named === undefined ? Effect.succeed({ none: reason, remedy }) : Effect.fail(new BaseNotFound({ base: named, reason }))
       const env = withoutRepositoryVariables(process.env, text(yield* git(root, ["rev-parse", "--local-env-vars"])))
       const inWorkspace = (args: ReadonlyArray<string>, input?: string) => git(root, args, input, env)
       const inside = yield* inWorkspace(["rev-parse", "--is-inside-work-tree"])
       if (inside === undefined) return yield* missing("git did not run in this workspace")
       if (text(inside) !== "true") return yield* missing("this workspace is in no git repository")
+      // Before the first commit HEAD names a branch that git has yet to make, so there is no base either.
+      const head = text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "HEAD"]))
+      if (head === undefined) return yield* missing("nothing is committed yet", "commit")
       // The default branch by its full ref: a tag `main`, or a branch `origin/main`, would shadow its short name.
       const ref = named ?? text(yield* inWorkspace(["symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"])) ??
         (text(yield* inWorkspace(["rev-parse", "--quiet", "--verify", "refs/heads/main"])) ? "refs/heads/main" : undefined) ??

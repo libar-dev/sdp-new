@@ -13,6 +13,7 @@ its code, and step definitions that drive the domain code.
 | [specs/steps/cart.steps.ts](specs/steps/cart.steps.ts) | step definitions, importing `defineSteps` from `sdp/steps` |
 | [src/pricing.ts](src/pricing.ts) | the element `ARCH-pricing`, declared where its code is by a tag in the comment that opens the file; the rest of that comment says what it is for |
 | [src/cart.ts](src/cart.ts) | code outside the architecture: nothing anchors it |
+| [sdp.config.yaml](sdp.config.yaml) | the configuration, every key at its default: a command run anywhere in the shop reads the shop, not the repository around it |
 
 From the repository root:
 
