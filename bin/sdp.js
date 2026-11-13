@@ -1,3 +1,4 @@
 #!/usr/bin/env node
-// Node >= 24 runs the TypeScript sources directly (type stripping), so there is no build step.
-import "../src/cli/main.ts"
+// A checkout runs its sources; an installed package runs the JavaScript emitted at pack time.
+import { existsSync } from "node:fs"
+await import(existsSync(new URL("../src/cli/main.ts", import.meta.url)) ? "../src/cli/main.ts" : "../dist/cli/main.js")
