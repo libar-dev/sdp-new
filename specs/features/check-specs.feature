@@ -316,7 +316,7 @@ Feature: Check specs
       And the output contains ", is gone, and nothing that replaces cart#a-cart-holds-what-was-added is live with a new live example  specs/cart.feature:8"
       And the output contains "write what replaces cart#a-cart-holds-what-was-added, `@replaces:cart#a-cart-holds-what-was-added`, with a new live example of its own"
 
-  Rule: An example keeps its test under a new name, in a new place or with new steps, and another takes it over only by naming it
+  Rule: An example keeps its test under a new name or in a new place, or with new steps under its name, and another takes it over only by naming it
 
     A test is what a reader would call the same example, each row of an outline on its own, so one
     that is gone is not made up for by another that tests the same.
@@ -348,7 +348,7 @@ Feature: Check specs
         """
       And the files are committed on the branch "main"
 
-    Scenario Outline: An example kept: <change>
+    Scenario Outline: A live example changed: <change>
       Given a file "specs/cart.feature" containing:
         """
         <cart>
@@ -360,10 +360,11 @@ Feature: Check specs
         | data.line | <line>     |
 
       Examples:
-        | change                                               | exit code | reported | line    | cart                                                                                                                                                     |
-        | The live example and its rule renamed                | 0         | nothing  | nothing | @id=cart\nFeature: Cart\n  Rule: A cart keeps what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 item                                 |
-        | The live example's steps edited                      | 0         | nothing  | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item     |
-        | The live example renamed, its steps edited, it named | 0         | nothing  | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @replaces:cart#add-an-item\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp |
+        | change                                                | exit code | reported        | line    | cart                                                                                                                                                     |
+        | The live example and its rule renamed                 | 0         | nothing         | nothing | @id=cart\nFeature: Cart\n  Rule: A cart keeps what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 item                                 |
+        | The live example's steps edited                       | 0         | nothing         | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item     |
+        | The live example renamed, its steps edited, it named  | 0         | nothing         | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @replaces:cart#add-an-item\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp |
+        | The live example renamed, its steps edited, not named | 1         | example-dropped | 8       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp                                 |
 
     Scenario Outline: One example for one example: <change>
       Given a file "specs/cart.feature" containing:
