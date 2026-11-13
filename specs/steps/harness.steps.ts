@@ -6,7 +6,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Duration, Effect } from "effect"
 import { strict as assert } from "node:assert"
-import { spawnSync } from "node:child_process"
+import { execFile, spawnSync } from "node:child_process"
 import { randomUUID } from "node:crypto"
 import { mkdir, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
@@ -96,11 +96,26 @@ const running = (marker: string) => {
 const fill = (text: string, marker: string) =>
   Object.entries(running(marker)).reduce((filled, [placeholder, value]) => filled.replaceAll(placeholder, value), text)
 
+const psArgs = ["-A", "-ww", "-o", "pid=", "-o", "args="]
+
+/** The lines `ps` lists, one per process of this machine; `ps` failing is no list of none. */
+const listed = (ps: { readonly status: number | null; readonly stdout: string; readonly stderr: string }): ReadonlyArray<string> => {
+  assert.equal(ps.status, 0, `ps could not list the processes: ${ps.stderr}`)
+  return ps.stdout.split("\n")
+}
+
+const pidsNaming = (lines: ReadonlyArray<string>, marker: string): ReadonlyArray<number> =>
+  lines.filter((line) => line.includes(marker)).map((line) => Number(line.trim().split(/\s+/)[0]))
+
 /** The processes of this machine whose command line names the marker, by pid. */
 const processesOf = (marker: string): ReadonlyArray<number> =>
-  spawnSync("ps", ["-A", "-ww", "-o", "pid=", "-o", "args="], { encoding: "utf8" }).stdout.split("\n")
-    .filter((line) => line.includes(marker))
-    .map((line) => Number(line.trim().split(/\s+/)[0]))
+  pidsNaming(listed(spawnSync("ps", psArgs, { encoding: "utf8" })), marker)
+
+/** The same, without blocking what runs meanwhile. */
+const processesNow = (): Promise<ReadonlyArray<string>> =>
+  new Promise((done) =>
+    execFile("ps", psArgs, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 }, (error, stdout, stderr) =>
+      done(listed({ status: error ? Number(error.code ?? 1) : 0, stdout, stderr }))))
 
 /** What became of a step stopped while its process ran. */
 export interface Stopped {
@@ -108,6 +123,9 @@ export interface Stopped {
   readonly status: string
   readonly error: string
   readonly running: number
+  /** The most processes naming its marker seen at once while it ran, and how many it starts: itself, and the one it spawns. */
+  readonly started: number
+  readonly starts: number
 }
 
 export default defineSteps(newWorld, ({ Then, When }) => {
@@ -159,9 +177,22 @@ export default defineSteps(newWorld, ({ Then, When }) => {
         return directory
       })
       const modules = [builtinSteps, ...yield* Effect.promise(() => repositoryModules(project))]
+      // Each step's processes are seen while the run goes on: a step that timed out before it started
+      // them would otherwise leave none running too.
+      const started = new Map(cases.map(({ marker }) => [marker, 0]))
+      let running = true
+      const watching = (async () => {
+        while (running) {
+          const lines = await processesNow()
+          for (const { marker } of cases) started.set(marker, Math.max(started.get(marker) ?? 0, pidsNaming(lines, marker).length))
+          await new Promise((done) => setTimeout(done, 50))
+        }
+      })()
       const run = yield* runWorkspace(directory, { modules, timeout: Duration.millis(500), concurrency: cases.length }).pipe(
-        Effect.provide(NodeServices.layer)
+        Effect.provide(NodeServices.layer),
+        Effect.ensuring(Effect.sync(() => running = false))
       )
+      yield* Effect.promise(() => watching)
       // A process told to stop may take a moment to end.
       const deadline = Date.now() + 3000
       while (Date.now() < deadline && cases.some(({ marker }) => processesOf(marker).length > 0)) yield* Effect.sleep("100 millis")
@@ -177,7 +208,9 @@ export default defineSteps(newWorld, ({ Then, When }) => {
             // Ended meanwhile.
           }
         }
-        return { step, status: ran?.status ?? "not run", error: ran?.error ?? "", running: left.length }
+        // A command, a program and a module each start a process that starts one more; sdp mcp is one.
+        const starts = /<command>|<program>|<module>/.test(step + rows[index]!.join(" ")) ? 2 : 1
+        return { step, status: ran?.status ?? "not run", error: ran?.error ?? "", running: left.length, started: started.get(marker) ?? 0, starts }
       })
       world.stoppedSteps = stopped
     }))
@@ -185,11 +218,15 @@ export default defineSteps(newWorld, ({ Then, When }) => {
   Then("each timed out and left no process running", ({ world }) => {
     const stopped = world.stoppedSteps
     assert.ok(stopped, "stop the steps first")
-    const wrong = stopped.filter(({ error, running, status }) => status !== "failed" || error !== "step timed out" || running > 0)
+    const wrong = stopped.filter(({ error, running, started, starts, status }) =>
+      status !== "failed" || error !== "step timed out" || running > 0 || started < starts
+    )
     assert.deepEqual(
-      wrong.map(({ error, running, status, step }) => `${step} | ${status}${error ? `: ${error}` : ""} | ${running} still running`),
+      wrong.map(({ error, running, started, starts, status, step }) =>
+        `${step} | ${status}${error ? `: ${error}` : ""} | ${started} of ${starts} started | ${running} still running`
+      ),
       [],
-      "these steps did not time out, or left a process running"
+      "these steps did not start their processes before they timed out, did not time out, or left a process running"
     )
   })
 })

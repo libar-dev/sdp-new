@@ -85,7 +85,7 @@ export interface Ran {
  * the group gets SIGTERM, and SIGKILL a second later, and the step ends once all of it has.
  */
 export const spawned = Effect.fn("spawned")(
-  function*(file: string, args: ReadonlyArray<string>, options: { readonly cwd: string; readonly env?: typeof env; readonly input?: string }) {
+  function*(file: string, args: ReadonlyArray<string>, options: { readonly cwd: string; readonly env?: Readonly<Record<string, string | undefined>>; readonly input?: string }) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
     const handle = yield* spawner.spawn(ChildProcess.make(file, [...args], {
       cwd: options.cwd,

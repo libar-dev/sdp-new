@@ -8,21 +8,15 @@
  * the package declares linked into node_modules/.bin.
  */
 import { strict as assert } from "node:assert"
-import { execFile } from "node:child_process"
 import { createHash } from "node:crypto"
 import { rmSync } from "node:fs"
 import { chmod, cp, lstat, mkdir, mkdtemp, readdir, readFile, realpath, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join, relative } from "node:path"
+import { Effect } from "effect"
 import { defineSteps } from "sdp/steps"
-import { directoryOf, env, record, repository } from "./process.ts"
+import { directoryOf, env, type Ran, record, repository, spawned } from "./process.ts"
 import { ids, newWorld, stdout } from "./world.ts"
-
-interface Ran {
-  readonly code: number
-  readonly stdout: string
-  readonly stderr: string
-}
 
 interface Packed extends Ran {
   /** The tarball npm wrote, when it wrote one. */
@@ -32,16 +26,12 @@ interface Packed extends Ran {
   readonly after: ReadonlyMap<string, string>
 }
 
-const run = (command: string, args: ReadonlyArray<string>, cwd: string, environment: NodeJS.ProcessEnv = env) =>
-  new Promise<Ran>((done, reject) => {
-    execFile(command, args, { cwd, env: environment, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-      if (error && typeof error.code !== "number") reject(error)
-      else done({ code: error ? Number(error.code) : 0, stdout, stderr })
-    })
-  })
+/** A command and every process it starts, as one group that ends when the step waiting on it is stopped. */
+const run = (command: string, args: ReadonlyArray<string>, cwd: string, signal: AbortSignal, environment: Readonly<Record<string, string | undefined>> = env): Promise<Ran> =>
+  Effect.runPromise(spawned(command, args, { cwd, env: environment }), { signal })
 
 /** npm as a developer runs it: none of the settings an `npm run` that started this process hands down, and no network. */
-const npmEnv: NodeJS.ProcessEnv = {
+const npmEnv: Readonly<Record<string, string | undefined>> = {
   ...Object.fromEntries(Object.entries(env).filter(([key]) => !/^npm_/i.test(key) && key !== "INIT_CWD")),
   npm_config_offline: "true",
   npm_config_audit: "false",
@@ -64,13 +54,13 @@ const snapshot = async (root: string): Promise<ReadonlyMap<string, string>> => {
   return files
 }
 
-const pack = async (): Promise<Packed> => {
+const pack = async (signal: AbortSignal): Promise<Packed> => {
   const base = await mkdtemp(join(tmpdir(), "sdp-pack-"))
   process.once("exit", () => rmSync(base, { recursive: true, force: true }))
   const checkout = join(base, "checkout")
   const destination = join(base, "packed")
   await mkdir(destination, { recursive: true })
-  const listed = await run("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], repository)
+  const listed = await run("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], repository, signal)
   assert.equal(listed.code, 0, `git ls-files failed: ${listed.stderr}`)
   for (const file of new Set(listed.stdout.split("\0").filter((file) => file !== ""))) {
     // A file git tracks that the working tree deleted is not in the checkout.
@@ -80,14 +70,19 @@ const pack = async (): Promise<Packed> => {
   }
   await symlink(await realpath(join(repository, "node_modules")), join(checkout, "node_modules"))
   const before = await snapshot(checkout)
-  const packed = await run("npm", ["pack", "--pack-destination", destination], checkout, npmEnv)
+  const packed = await run("npm", ["pack", "--pack-destination", destination], checkout, signal, npmEnv)
   const after = await snapshot(checkout)
   const tarball = (await readdir(destination)).find((file) => file.endsWith(".tgz"))
   return { ...packed, tarball: tarball && join(destination, tarball), before, after }
 }
 
+/** Packed once per process, by the step that needs it first; one stopped while it packs leaves the next to pack again. */
 let packing: Promise<Packed> | undefined
-const packed = () => packing ??= pack()
+const packed = (signal: AbortSignal) =>
+  packing ??= pack(signal).catch((error: unknown) => {
+    packing = undefined
+    throw error
+  })
 
 const readJson = async (file: string): Promise<Record<string, any>> => JSON.parse(await readFile(file, "utf8"))
 
@@ -102,12 +97,12 @@ const linkInstalled = async (project: string, name: string) => {
 }
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
-  When("a checkout of this repository is packed with npm", async ({ world }) => {
-    record(world, "npm pack", await packed())
+  When("a checkout of this repository is packed with npm", async ({ signal, world }) => {
+    record(world, "npm pack", await packed(signal))
   })
 
-  Then("the checkout is as it was before it was packed", async () => {
-    const { after, before } = await packed()
+  Then("the checkout is as it was before it was packed", async ({ signal }) => {
+    const { after, before } = await packed(signal)
     const changes = {
       added: [...after.keys()].filter((file) => !before.has(file)).sort(),
       removed: [...before.keys()].filter((file) => !after.has(file)).sort(),
@@ -118,13 +113,13 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   // The workspace's package.json, when it has one, says what the project depends on: the package
   // under that name is the one npm packs, and every other one is linked from this repository.
-  Given("the package npm packs from a checkout of this repository, installed in the workspace as {string}", async ({ args: [name], world }) => {
-    const result = await packed()
+  Given("the package npm packs from a checkout of this repository, installed in the workspace as {string}", async ({ args: [name], signal, world }) => {
+    const result = await packed(signal)
     assert.ok(result.code === 0 && result.tarball, `npm pack exited with ${result.code}:\n${result.stdout}${result.stderr}`)
     const project = await directoryOf(world)
     const installed = join(project, "node_modules", name)
     await mkdir(installed, { recursive: true })
-    const unpacked = await run("tar", ["-xzf", result.tarball, "-C", installed, "--strip-components=1"], project)
+    const unpacked = await run("tar", ["-xzf", result.tarball, "-C", installed, "--strip-components=1"], project, signal)
     assert.equal(unpacked.code, 0, `tar could not unpack ${basename(result.tarball)}: ${unpacked.stderr}`)
     const manifest = await readJson(join(installed, "package.json"))
     const own = world.files.get("package.json")

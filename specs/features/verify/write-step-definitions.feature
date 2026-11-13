@@ -128,6 +128,29 @@ Feature: Write step definitions
       And the output contains "the fixtures are missing"
       And the file ".sdp/results.json" does not exist
 
+    Scenario: A step module that loaded leaves a rejection while the next one never finishes loading
+      Given a file "specs/steps/a-audit.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        setTimeout(() => void Promise.reject(new Error("the audit log is full")), 50)
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+        })
+        """
+      And a file "specs/steps/b-fixtures.steps.ts" containing:
+        """
+        await new Promise(() => {})
+        export {}
+        """
+      When I run "sdp run"
+      Then the exit code is 1
+      And the output contains "could not load step definitions"
+      And the output contains "the audit log is full"
+
   Rule: A handler gets the step's arguments, typed by its expression, and its doc string or data table
 
     Scenario: A price and a list
@@ -309,6 +332,28 @@ Feature: Write step definitions
       Then the exit code is 1
       And the output contains "specs/steps/cart.steps.ts:5: invalid step expression"
       And the file ".sdp/results.json" does not exist
+
+  Rule: A step module counts once, however many names and files export it
+
+    Scenario: A module exported under two names, and again from another file, is one module
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export const steps = defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item", () => {})
+        })
+        export default steps
+        """
+      And a file "specs/steps/shop.steps.ts" containing:
+        """
+        export { steps } from "./cart.steps.ts"
+        """
+      When I run "sdp run --json"
+      Then the JSON output has:
+        | data.summary.passed | 1 |
 
   Rule: steps lists the step definitions a run would know, built-in ones included, that mention a text or match it
 

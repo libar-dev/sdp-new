@@ -273,6 +273,29 @@ Feature: Ask the graph
       And the output does not contain '"rel":"rule-of"'
       And the output does not contain '"rel":"verifies"'
 
+    Scenario: A fact an author wrote under a name sdp gives a fact of another kind, and a spec an example says it verifies
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @doc=https://example.test/cart @steps=3
+        Feature: Cart
+
+          Rule: A cart holds what was added
+
+            @verifies:checkout
+            Scenario: Add a lamp
+              When I add "a lamp"
+        """
+      And a file "specs/checkout.feature" containing:
+        """
+        @id=checkout @maturity=idea
+        Feature: Checkout
+        """
+      When the graph is exported
+      Then the output contains '"doc":"https://example.test/cart"'
+      And the output contains '"steps":3'
+      And the output contains '"from":"cart#add-a-lamp","rel":"verifies","to":"checkout"'
+      And the output does not contain '"from":"cart#add-a-lamp","rel":"verifies","to":"cart"'
+
     Scenario: Every node first, then every link
       When I run the pipeline:
         """

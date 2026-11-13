@@ -83,7 +83,3 @@ Feature: Start from the state of the repository
 
     An agent must read it whole before its first step, and a deep dive into one node is `sdp
     context <id>`. The larger budget is set once it is measured.
-
-  Rule: An element that has no code yet enters the state as work still to come names it, `@realized-by:ARCH-x`, an element still to come that needs no anchor until that work is live
-
-    The work then reaches the code it will change as soon as that code declares the element.

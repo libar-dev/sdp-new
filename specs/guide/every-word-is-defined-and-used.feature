@@ -49,6 +49,7 @@ Feature: Every word this repository's specs and code use is listed here, with wh
         | depends-on  | carries    | From a feature to another feature it cannot work without, so a change to that one is a change to it too.                                    |
         | decided-by  | carries    | From a rule, or a whole spec, to the decision it rests on.                                                                                  |
         | includes    | carries    | From an epic to each feature or rule it groups.                                                                                             |
+        | replaces    | interprets | From a rule, a feature or an example to the live one it replaces, which check then lets go once the replacement is live.                    |
         | iteration   | interprets | From work still to come to the iteration it is planned into.                                                                                |
         | closes      | interprets | From a milestone to the iteration or phase whose last day dates it.                                                                         |
 

@@ -156,11 +156,12 @@ Feature: Use the command line
       And the output lines are "sdp exited with 0"
       And the output does not contain "EPIPE"
 
-  @maturity=ready
-  Rule: A run whose reader stops early runs on to its end, records its results and writes no more, and exits as its scenarios say; it prints no stack
+  @maturity=ready @replaces:use-the-command-line#a-reader-that-stops-reading-early-is-no-error-the-command-prints
+  Rule: A reader that stops reading early is no error and prints no stack: a command that only reads exits with 0 unless it had already failed, and a run runs on to its end, records its results, writes no more and exits as its scenarios say
 
     A reader that stops is no Ctrl-C: a command that only reads may end where `head` stopped, but a
-    run has results to record, and its exit code says how the scenarios it ran went.
+    run has results to record, and its exit code says how the scenarios it ran went, those after
+    the reader stopped too.
 
   Rule: status counts the graph on one screen: kinds, relations, stages, rules, scenarios, gates and milestones, each by where it stands
 

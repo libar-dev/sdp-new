@@ -9,7 +9,7 @@
  * Every JSON answer of sdp is made of the same records; the state's hold less.
  */
 import type { Graph, GraphEdge, GraphNode } from "../model/Graph.ts"
-import { hasKind, made, type Vocabulary } from "../model/Vocabulary.ts"
+import { hasKind, isDerived, made, type Vocabulary } from "../model/Vocabulary.ts"
 import { type EdgeRecord, type GraphRecord, type NodeRecord } from "../model/Records.ts"
 
 export { EdgeRecord, GraphRecord, NodeRecord, SourceRef } from "../model/Records.ts"
@@ -48,27 +48,30 @@ const stateFacts: ReadonlyMap<string, ReadonlyArray<string>> = new Map([
   [made.kinds.code, ["doc"]]
 ])
 
-const madeFacts: ReadonlySet<string> = new Set([
-  ...made.attributes,
-  ...made.ruleAttributes,
-  ...made.scenarioAttributes,
-  ...made.codeAttributes
-])
+/**
+ * Whether sdp makes a fact on nodes of a kind. A fact of the same name an author writes on another
+ * kind is the author's: a feature's `@doc=` is no code's comment, and stays.
+ */
+const madeOn = (kind: string, key: string): boolean =>
+  isDerived(kind, key) || (kind === made.kinds.code && (made.codeAttributes as ReadonlyArray<string>).includes(key))
 
 /** A node as the state holds it: what an author wrote of it, and the few facts sdp makes that the state keeps. */
 export const stateRecord = (node: GraphNode): NodeRecord => {
   const keep = stateFacts.get(node.kind) ?? specFacts
-  const attrs = Object.fromEntries(Object.entries(node.attrs).filter(([key]) => !madeFacts.has(key) || keep.includes(key)))
+  const attrs = Object.fromEntries(Object.entries(node.attrs).filter(([key]) => !madeOn(node.kind, key) || keep.includes(key)))
   return { ...nodeRecord(node), attrs: attrs as NodeRecord["attrs"] }
 }
 
 /**
  * Whether an edge only says where a node is written, which the records already say: a rule's id names
- * its spec, and an example's `rule` its rule.
+ * its spec, and an example's `spec` and `rule` say what it verifies by being written there. An example
+ * that names another spec it verifies keeps that link.
  */
-const contains = (vocabulary: Vocabulary, graph: Graph, edge: GraphEdge): boolean =>
-  edge.rel === made.relations.rule ||
-  (edge.rel === vocabulary.relations.scenario && graph.node(edge.from)?.kind === made.kinds.scenario)
+const contains = (vocabulary: Vocabulary, graph: Graph, edge: GraphEdge): boolean => {
+  if (edge.rel === made.relations.rule) return true
+  const from = edge.rel === vocabulary.relations.scenario ? graph.node(edge.from) : undefined
+  return from?.kind === made.kinds.scenario && (edge.to === from.attrs.spec || edge.to === from.attrs.rule)
+}
 
 /**
  * One JSON value per line.

@@ -307,6 +307,40 @@ Feature: Know what is verified
       Then the workspace node "MS-beta#the-cart-works" has attribute status = "stale"
       And the workspace node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
 
+    Scenario: A step reads the project after the cart passed, in an ordinary scenario and in a gate
+      Given a file "specs/steps/cart.steps.ts" containing:
+        """
+        import { defineSteps } from "sdp/steps"
+
+        export default defineSteps(() => ({}), ({ Step }) => {
+          Step("an empty cart", () => {})
+          Step("I add a lamp", () => {})
+          Step("the cart holds {int} item(s)", () => {})
+          Step("the cart's example reads as {string}", ({ args: [expected], project }) => {
+            const status = project.graph.node("cart#add-an-item")?.attrs.status
+            if (status !== expected) throw new Error(`the cart's example reads as ${String(status)}`)
+          })
+        })
+        """
+      And a file "specs/audit.feature" containing:
+        """
+        @id=audit
+        Feature: Audit
+          Rule: An audit reads the cart
+            Scenario: As a test
+              Then the cart's example reads as "unrun"
+
+            @gate
+            Scenario: As a gate
+              Then the cart's example reads as "passed"
+        """
+      When I run "sdp run cart"
+      Then the exit code is 0
+      When I run "sdp run audit"
+      Then the exit code is 0
+      When I run "sdp q 'scenario[status=passed]' --ids"
+      Then the output lines are "audit#as-a-gate, audit#as-a-test, cart#add-an-item"
+
   Rule: A run records the scenarios it executed and drops the results of those gone when it started, and keeps what every other run recorded, one that overlaps it too
 
     Scenario: A partial run keeps the results of everything else

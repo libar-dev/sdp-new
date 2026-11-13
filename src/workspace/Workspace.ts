@@ -780,7 +780,12 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   let unawaited: StepLoadError | undefined
   // One whose origin Node did not keep is taken as the file loading then.
   let loading = files[0] ?? root
-  const watch = yield* watchUnawaited((problem) => unawaited ??= new StepLoadError({ file: loading, message: problem }))
+  // Whichever file it came from, it fails the module loading now, which may never finish otherwise.
+  let failLoading: ((error: StepLoadError) => void) | undefined
+  const watch = yield* watchUnawaited((problem) => {
+    unawaited ??= new StepLoadError({ file: loading, message: problem })
+    failLoading?.(unawaited)
+  })
   // A module exported under two names, or again by another file, is one module: its steps match once.
   const modules = new Set<StepModule<any>>()
   const empty: Array<string> = []
@@ -790,9 +795,11 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     const exports = yield* Effect.tryPromise({
       try: () =>
         new Promise<Record<string, unknown>>((loaded, failed) => {
+          failLoading = failed
+          // A file that loaded already can fail later, while another loads.
           const fail = (problem: string) => {
             unawaited ??= new StepLoadError({ file, message: problem })
-            failed(unawaited)
+            failLoading?.(unawaited)
             return true
           }
           const started = startedBy({ watch, name: file, fail }, () => import(urlOf(file))) as Promise<Record<string, unknown>>
@@ -807,6 +814,7 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
     if (found.length === 0) empty.push(file)
     for (const module of found) modules.add(module)
   }
+  failLoading = undefined
   /** A file by its path relative to the real root, one outside it — a monorepo's shared code — too. */
   const name = (url: string) => path.relative(real, fileURLToPath(url))
   /**
