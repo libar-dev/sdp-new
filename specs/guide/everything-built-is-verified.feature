@@ -28,7 +28,6 @@ Feature: A change to sdp is done when everything built is verified
       And the query "feature[!toCome][stage!=verified]" returns no results
       And the query "feature <-rule-of- rule[!toCome][stage!=verified]" returns no results
 
-    @replaces:GUIDE#a-live-rule-beside-a-rule-still-to-come-holds-the-gate-until-its
     Scenario: A live rule beside a rule still to come holds the gate until its example has passed
       Given the workspace is a copy of "specs/guide/everything-built-is-verified.feature"
       And a file "specs/cart.feature" containing:
@@ -69,7 +68,6 @@ Feature: A change to sdp is done when everything built is verified
       When I run "sdp gate everything-built-is-verified"
       Then the exit code is 0
 
-    @replaces:GUIDE#the-build-asks-for-this-gate-and-for-no-milestone-s
     Scenario: The build asks for this gate, and for no milestone's
       When I run "grep verify package.json" in the repository
       Then the output contains "gate everything-built-is-verified"

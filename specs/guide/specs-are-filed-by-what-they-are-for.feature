@@ -9,7 +9,6 @@ Feature: Each spec of this repository is in the folder of what it is for
     Rule by rule: a change to a live feature is rules of it with a maturity of their own, so a live
     feature stays where it is while a change to it is built.
 
-    @replaces:GUIDE#where-each-spec-of-this-repository-is
     Scenario: Where each spec of this repository is
       When I run "sh -c 'git ls-files specs | cut -d/ -f2 | sort -u'" in the repository
       Then the output lines are "ARCHITECTURE.feature, VISION.feature, decisions, features, guide, plan, steps"

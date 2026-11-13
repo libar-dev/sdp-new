@@ -485,7 +485,10 @@ Feature: Check specs
   Rule: An example keeps its test under a new name or in a new place, or with new steps under its name, and another takes it over only by naming it
 
     A test is what a reader would call the same example, each row of an outline on its own, so one
-    that is gone is not made up for by another that tests the same.
+    that is gone is not made up for by another that tests the same. A spec split in two or renamed
+    keeps its examples' names, so where the spec an example was in is gone, the one example of its
+    name in another spec is it, its steps edited or not; while that spec is there, or two specs have
+    one of that name, it is another example, and takes the test over only by naming it.
 
     Background:
       Given a file "specs/cart.feature" containing:
@@ -531,6 +534,81 @@ Feature: Check specs
         | The live example's steps edited                       | 0         | nothing         | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add an item\n      Given an empty cart\n      Then the cart holds 1 item     |
         | The live example renamed, its steps edited, it named  | 0         | nothing         | nothing | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    @replaces:cart#add-an-item\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp |
         | The live example renamed, its steps edited, not named | 1         | example-dropped | 8       | @id=cart\nFeature: Cart\n  Rule: A cart holds what was added\n    Scenario: Add a lamp\n      Then the cart holds 1 lamp                                 |
+
+    Scenario: The spec it was in gone, the example in another under its name, its steps edited
+      Given a file "specs/basket.feature" containing:
+        """
+        @id=basket
+        Feature: Basket
+
+          Rule: A basket holds what was added
+
+            Scenario: Add an item
+              Given an empty basket
+              Then the basket holds 1 item
+        """
+      When I run "rm specs/cart.feature"
+      Then the exit code is 0
+      When I run "sdp check --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.rule | nothing |
+
+    Scenario: The spec it was in still there, an example of its name in another, its steps edited
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart
+        Feature: Cart
+
+          Rule: A cart holds what was added
+        """
+      And a file "specs/basket.feature" containing:
+        """
+        @id=basket
+        Feature: Basket
+
+          Rule: A basket holds what was added
+
+            Scenario: Add an item
+              Given an empty basket
+              Then the basket holds 1 item
+        """
+      When I run "sdp check --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule | example-dropped, untested-rule |
+        | data.line | 8, 4                           |
+
+    Scenario: The spec it was in gone, an example of its name in two others, their steps edited
+      Given a file "specs/basket.feature" containing:
+        """
+        @id=basket
+        Feature: Basket
+
+          Rule: A basket holds what was added
+
+            Scenario: Add an item
+              Given an empty basket
+              Then the basket holds 1 item
+        """
+      And a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist
+        Feature: Wishlist
+
+          Rule: A wishlist holds what was added
+
+            Scenario: Add an item
+              Given an empty wishlist
+              Then the wishlist holds 1 item
+        """
+      When I run "rm specs/cart.feature"
+      Then the exit code is 0
+      When I run "sdp check --json"
+      Then the exit code is 1
+      And the JSON output has:
+        | data.rule | example-dropped |
+        | data.line | 8               |
 
     Scenario Outline: One example for one example: <change>
       Given a file "specs/cart.feature" containing:

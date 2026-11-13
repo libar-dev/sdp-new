@@ -37,7 +37,6 @@ Feature: A spec of this repository is written one way
     A rule written in Markdown is in no graph, no run and no check, so it counts for nothing. What
     counts is what the repository holds: a working note nobody committed is no page of it.
 
-    @replaces:GUIDE#the-markdown-files-of-this-repository-the-example-s-included
     Scenario: The Markdown files of this repository, the example's included
       When I run "git ls-files '*.md'" in the repository
       Then the output lines are "README.md, AGENTS.md, CLAUDE.md, .claude/skills/sdp/SKILL.md, examples/shop/README.md"
