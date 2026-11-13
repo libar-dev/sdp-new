@@ -3,7 +3,7 @@
 Feature: Ask the graph
 
   Developers, architects and AI agents need answers that cross specs, decisions, architecture and
-  code: which code realises a requirement, what rests on a decision, what nothing verifies yet.
+  code: which code is behind a feature, what rests on a decision, what nothing verifies yet.
   Without them they grep and guess. Any such question is one line, asked on the command line, over
   MCP or in a scenario, and every answer says where each node is written and whether something may
   be missing from it. The graph is plain data too, so grep and jq answer as well.

@@ -303,7 +303,7 @@ const runCommand = Command.make(
       Argument.withDescription("Spec ids, scenario ids, files or directories (default: everything)"),
       Argument.variadic()
     ),
-    tags: Flag.String("tags").pipe(Flag.withDescription("Cucumber tag expression, e.g. '@nfr and not @slow'"), Flag.optional),
+    tags: Flag.String("tags").pipe(Flag.withDescription("Cucumber tag expression, e.g. '@checkout and not @slow'"), Flag.optional),
     snippets: Flag.Boolean("snippets").pipe(
       Flag.withDescription("Print one step definition module with a suggested definition for every undefined step"),
       Flag.withDefault(false)

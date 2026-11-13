@@ -50,7 +50,7 @@ import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } fr
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */
   readonly targets?: ReadonlyArray<string> | undefined
-  /** A Cucumber tag expression such as `@nfr and not @slow`, matched against each example's tags. */
+  /** A Cucumber tag expression such as `@checkout and not @slow`, matched against each example's tags. */
   readonly tags?: string | undefined
 }
 

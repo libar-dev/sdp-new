@@ -8,7 +8,7 @@ Feature: See the architecture
   to come, in one view: `sdp arch`, or the MCP tool `sdp_architecture`.
 
   Not a discovery of the architecture: sdp never judges what belongs in it. Nor are quality
-  requirements a document apart: they are specs, and their scenarios run with the rest.
+  requirements a document apart: they are in the specs, and their examples run with the rest.
 
   Background:
     Given these specs:

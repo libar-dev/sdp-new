@@ -368,8 +368,7 @@ Feature: Plan delivery
 
   Rule: Work is planned on the node itself: its iteration plans the discipline of its kind, an activity tag any other
 
-    A requirement is written in one iteration and built in another, and a gate has to tell the two
-    apart.
+    A feature is written in one iteration and built in another, and a gate has to tell the two apart.
 
     Scenario: A feature and an element in IT-prototype
       When the lifecycle is computed

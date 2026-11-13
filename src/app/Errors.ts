@@ -37,7 +37,7 @@ export class InvalidTags extends Schema.TaggedError<InvalidTags>()("InvalidTags"
   problem: Schema.String
 }) {
   override get message() {
-    return `invalid --tags ${JSON.stringify(this.tags)}: ${this.problem}; write a tag expression such as "@nfr and not @slow"`
+    return `invalid --tags ${JSON.stringify(this.tags)}: ${this.problem}; write a tag expression such as "@checkout and not @slow"`
   }
 }
 

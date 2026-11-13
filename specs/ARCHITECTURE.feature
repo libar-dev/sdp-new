@@ -76,12 +76,12 @@ Feature: Architecture
       And there are no diagnostics for rule "annotation-unreadable"
       And there are no diagnostics for rule "annotation-ignored"
 
-  Rule: Code in this repository links only to the architecture, and every live requirement or feature names the element that realizes it
+  Rule: Code in this repository links only to the architecture, and every live feature names the element that realizes it
 
-    Scenario: No code outside the architecture, none linked to anything else, no live requirement or feature without an element
+    Scenario: No code outside the architecture, none linked to anything else, no live feature without an element
       Then the query "code !-is-> element|pattern" returns no results
       And the query "code ?-*-> *[kind!=element|pattern]" returns no results
-      And the query "requirement|feature[!toCome] !-realized-by-> element" returns no results
+      And the query "feature[!toCome] !-realized-by-> element" returns no results
 
   Rule: The step API loads nothing of the parser, the graph or the workspace
 
