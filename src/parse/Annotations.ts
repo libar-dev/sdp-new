@@ -13,7 +13,8 @@
  * shows, in an `@example` or a fenced block. The modules a file anchored to a node imports come
  * from the same parse. Other languages have no parser here: a line that opens with a comment marker
  * and the tag annotates the declaration directly below it, past its decorators, or else the file —
- * best effort, even inside a multi-line string — the comment lines around it describe that code,
+ * best effort, even inside a multi-line string, but never in a fenced block of code a comment or a
+ * docstring shows — the comment lines around it describe that code,
  * and their imports are not read. A tag in a Python docstring annotates the module, the class or the
  * function the docstring opens, and the docstring describes it.
  *
@@ -74,10 +75,7 @@ const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], import
 export const scanCode = (file: string, content: string, anchor: string): CodeScan => {
   if (!content.includes("@sdp") && !content.includes(retiredModule)) return nothing
   const script = parseScript(file, content)
-  if (script === undefined) {
-    const { annotations, unreadable } = scanLines(file, content)
-    return { annotations, unreadable, ignored: ignoredLines(content), imports: [] }
-  }
+  if (script === undefined) return { ...scanLines(file, content), imports: [] }
   if (script.error) {
     // Unread tags would silently drop out of the graph: say so.
     return {
@@ -200,7 +198,7 @@ const exampleTag = /^[\s*]*@example\b/
 const blockTag = /^[\s*]*@\w+(?:\s|$)/
 
 /** In a doc comment, a line that opens or closes a fenced block of code. */
-const fence = /^[\s*]*(?:```|~~~)/
+const fence = /^[\s/*!]*(?:```|~~~)/
 
 /** What a tag annotates: a module-level declaration, or the file, with what the comment and the code say of it. */
 type Target = Pick<Annotation, "symbol" | "symbolLine" | "doc" | "shape" | "returnType" | "exports">
@@ -228,19 +226,21 @@ const readTags = (file: string, content: string, script: Script): Pick<CodeScan,
   const firstCode = program.body[0] === undefined ? content.length : leadingStart(program.body[0])
   const shaped = shapes(content, script)
   for (const group of groups) {
+    let example = false
+    let fenced = false
     const tags = group.flatMap((comment, at) => {
-      let example = false
-      let fenced = false
+      // A block ends what it shows; a fenced block goes on over a run of line comments.
+      if (comment.type === "Block" || group[at - 1]?.type !== "Line") [example, fenced] = [false, false]
       return comment.value.split(/\r?\n/).flatMap((text, index) => {
         // Code a doc comment shows, as an example or in a fenced block, is code, whatever it says.
-        if (comment.type === "Block") {
-          if (fence.test(text)) {
-            fenced = !fenced
-            return []
-          }
-          if (!fenced && (exampleTag.test(text) || (example && blockTag.test(text)))) example = exampleTag.test(text)
-          if (fenced || example) return []
+        if (fence.test(text)) {
+          fenced = !fenced
+          return []
         }
+        if (comment.type === "Block" && !fenced && (exampleTag.test(text) || (example && blockTag.test(text)))) {
+          example = exampleTag.test(text)
+        }
+        if (fenced || example) return []
         const line = lineOf(comment.start) + index
         const match = commentMarker.exec(text)
         const tag = match && readTag(match[1]!, match[2]!)
@@ -350,12 +350,19 @@ const declaredName = (statement: Node): string | undefined => {
 
 /**
  * What a comment says of the code it documents: its first paragraph without its tags or a tool's
- * directives, before any other tag of the comment's own (`@internal`, `@param`).
+ * directives, before any other tag of the comment's own (`@internal`, `@param`). A fenced block of
+ * code it shows is no paragraph of it.
  */
 const description = (comments: ReadonlyArray<string>): string | undefined => {
+  let fenced = false
   const lines = comments
     .flatMap((comment) => comment.split(/\r?\n/))
     .map((line) => line.replace(/^\s*\*+ ?/, "").replace(/^[/!]+ ?/, "").trimEnd())
+    .flatMap((line) => {
+      if (!fence.test(line)) return fenced ? [] : [line]
+      fenced = !fenced
+      return [""]
+    })
     .filter((line) => !commentMarker.test(line) && !directive.test(line))
   const tagged = lines.findIndex((line) => /^\s*@\w/.test(line))
   const words = tagged < 0 ? lines : lines.slice(0, tagged)
@@ -381,12 +388,14 @@ const declaration =
   /\b(?:class|interface|type|function\*?|const|let|var|enum|def|func|fn|struct|trait|module|object|record|namespace|impl)\s+([A-Za-z_$][\w$]*)/
 const commentOnly = /^\s*(\/\/|\/\*|\*|#|--|<!--|;|%|"""|''')/
 
-/** Languages without a parser: comment lines that open with the tag, line by line. */
-const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" | "unreadable"> => {
+/** Languages without a parser: comment lines that open with the tag, line by line, but for code a doc comment shows. */
+const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" | "unreadable" | "ignored"> => {
   const lines = content.split(/\r?\n/)
   const unreadable: Array<Unread> = []
   const docstrings = /\.pyi?$/.test(file) ? pythonDocstrings(content, lines) : []
+  const shown = fencedLines(lines, docstrings)
   const annotations = lines.flatMap((text, index) => {
+    if (shown.has(index)) return []
     const match = lineMarker.exec(text)
     const tag = match && readTag(match[1]!, match[2]!)
     if (!tag) return []
@@ -399,8 +408,39 @@ const scanLines = (file: string, content: string): Pick<CodeScan, "annotations" 
     const below = nextSymbol(lines, index)
     return [{ file, line: index + 1, ...tag, symbol: below?.name, symbolLine: below?.line ?? 1, doc: lineCommentDoc(lines, index) }]
   })
-  return { annotations, unreadable }
+  return { annotations, unreadable, ignored: ignoredLines(lines, shown) }
 }
+
+/**
+ * The lines of the fenced blocks of code that comments and docstrings show, their fences included:
+ * from a line that opens with ``` or ~~~ to the one that closes the block, or else to the end of the
+ * comment.
+ */
+const fencedLines = (lines: ReadonlyArray<string>, docstrings: ReadonlyArray<Docstring>): ReadonlySet<number> => {
+  const shown = new Set<number>()
+  let fenced = false
+  // Whether a block comment opened above goes on: its lines need no marker of their own.
+  let block = false
+  lines.forEach((line, index) => {
+    const docstring = docstrings.find(({ first, last }) => first <= index && index <= last)
+    const opens = !block && blockStart.test(line)
+    if (docstring === undefined && !block && !opens && !commentOnly.test(line)) {
+      fenced = false
+      return
+    }
+    const fences = fence.test(docstring === undefined ? commentText(line) : line)
+    if (fenced || fences) shown.add(index)
+    if (fences) fenced = !fenced
+    const inBlock = block || opens
+    block = inBlock && !blockEnd.test(opens ? line.replace(blockStart, "") : line)
+    if (docstring?.last === index || (inBlock && !block)) fenced = false
+  })
+  return shown
+}
+
+/** A comment's line that opens a block, and one that closes it. */
+const blockStart = /^\s*(?:\/\*+|<!--)/
+const blockEnd = /\*\/|-->/
 
 /** A Python docstring: the lines it spans, what it says, and the class or function it documents — none for the module's. */
 interface Docstring {
@@ -485,9 +525,9 @@ const trailing =
   /\S.*?(?:\/\/+|\/\*+|#+|--+|;+)\s*(@sdp\s+[A-Za-z][\w.:-]*\s+[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*(?:,[\p{L}\p{N}][\p{L}\p{M}\p{N}_.:#/-]*)*)(?=\s|$|\*\/|-->)/u
 
 /** Languages without a parser: tags after code or words on their line, which look like tags but, not opening it, are not read. */
-const ignoredLines = (content: string): ReadonlyArray<Unread> =>
-  content.split(/\r?\n/).flatMap((text, index) => {
-    if (lineMarker.test(text)) return []
+const ignoredLines = (lines: ReadonlyArray<string>, shown: ReadonlySet<number>): ReadonlyArray<Unread> =>
+  lines.flatMap((text, index) => {
+    if (shown.has(index) || lineMarker.test(text)) return []
     // A comment line that mentions a tag in its words is prose, unless the tag is one as written.
     if (commentOnly.test(text)) return wordsBefore(text, index + 1)
     const match = trailing.exec(text)

@@ -231,6 +231,7 @@ Feature: Link code to specs
         | the tag after the words            | /**\n * Charges the card on file.\n *\n * @sdp implements pay\n */            | 6    |
         | the tag before the words           | /**\n * @sdp implements pay\n *\n * Charges the card on file.\n */            | 6    |
         | a JSDoc tag of its own after them  | /**\n * Charges the card on file.\n *\n * @internal\n * @sdp implements pay\n */ | 7    |
+      | a fenced block of code after them  | /**\n * Charges the card on file.\n * ```ts\n * pay()\n * ```\n * @sdp implements pay\n */ | 8    |
         | line comments                      | // Charges the card on file.\n// @sdp implements pay                          | 3    |
         | a tag below the doc comment        | /** Charges the card on file. */\n// @sdp implements pay                      | 3    |
         | a comment of its own above it      | // Copyright 2026 Acme Corp.\n/**\n * Charges the card on file.\n *\n * @sdp implements pay\n */ | 7    |
@@ -438,6 +439,26 @@ Feature: Link code to specs
         | a fenced block                             | * ```ts\n * // @sdp implements pay\n * ```                                  | nothing |
         | an example, then the comment's own tag     | * @example\n * register()\n *\n * @sdp implements pay                       | pay     |
         | a fenced block, then the comment's own tag | * ```ts\n * // @sdp is ARCH-mailer\n * ```\n *\n * @sdp implements pay      | pay     |
+
+    Scenario Outline: In <language>, a doc comment's own tags are read, not those of code it shows in a fenced block
+      Given a file "<file>" containing:
+        """
+        <code>
+        """
+      When the workspace is loaded
+      Then sdp reports nothing
+      When I query "code -*-> *"
+      Then the result is "pay"
+
+      Examples:
+        | language                     | file            | code                                                                                                                                                 |
+        | Java                         | src/Mailer.java | /**\n * Registers the mailer:\n * ```java\n * @sdp is ARCH-mailer\n * ```\n * @sdp implements pay\n */\npublic class Mailer {}                       |
+        | Kotlin                       | src/Mailer.kt   | /**\n * ```kotlin\n * @sdp is ARCH-mailer\n * val mailer = Mailer() // @sdp uses ARCH-ledger\n * ```\n * @sdp implements pay\n */\nclass Mailer          |
+        | C#                           | src/Mailer.cs   | /// ```\n/// @sdp is ARCH-mailer\n/// ```\n/// @sdp implements pay\npublic class Mailer {}                                                           |
+        | Rust                         | src/mailer.rs   | /// ```\n/// @sdp is ARCH-mailer\n/// ```\n/// @sdp implements pay\npub struct Mailer {}                                                              |
+        | Python, in a docstring       | src/mailer.py   | def register():\n    """Registers the mailer.\n\n    ```python\n    @sdp is ARCH-mailer\n    mailer = Mailer()  # @sdp uses ARCH-ledger\n    ```\n\n    @sdp implements pay\n    """ |
+        | Ruby                         | src/mailer.rb   | # ~~~ruby\n# @sdp is ARCH-mailer\n# ~~~\n# @sdp implements pay\ndef register                                                                          |
+        | TypeScript, in line comments | src/mailer.ts   | // ```ts\n// // @sdp is ARCH-mailer\n// ```\n// @sdp implements pay\nexport const register = (): number => 0                                            |
 
     Scenario Outline: A tag after words on its line is not read, and is reported: <language>
       Given a file "<file>" containing:
