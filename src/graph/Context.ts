@@ -126,8 +126,8 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("## Rules that rest on this", "")
     for (const e of resting) {
       const from = graph.node(e.from)!
-      const state = from.kind === made.kinds.rule ? from.attrs.verification : from.attrs.status
-      out.push(`- [${String(state)}] ${from.title} (${e.rel}) — ${String(from.attrs.spec)} ${formatSource(from.source)}`)
+      const state = from.kind === made.kinds.rule ? ruleLabel(from) : String(from.attrs.status)
+      out.push(`- [${state}] ${from.title} (${e.rel}) — ${String(from.attrs.spec)} ${formatSource(from.source)}`)
     }
     out.push("")
   }

@@ -147,11 +147,11 @@ The sharp edges of the format, each what the official parser does:
   and its example is measured: the environment, the stimulus, the response and its measure. A
   feature is not split into requirement, quality requirement and element files; it names a
   technology only where its users see one.
-- **Evidence, not status.** Scenarios are the tests. A scenario's status is what it did when it
-  last ran — passed, failed, undefined and the like — and from its examples' statuses sdp derives a
-  rule's or a spec's verification, from none to passing, and its stage: the maturity of work still
-  to come, and unrun, failing, in-progress or verified for live work. A result goes stale when what
-  it ran against changes, and none of these is written by hand: `@stage=` is an error.
+- **Evidence, not status.** Scenarios are the tests. A scenario's status is what it did when it last
+  ran — passed, failed, undefined and the like — and from its examples' statuses sdp derives a
+  rule's or a spec's stage: the maturity of work still to come, and unrun, failing, in-progress or
+  verified for live work. A result goes stale when what it ran against changes, and none of these is
+  written by hand: `@stage=` is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words. `sdp vocabulary` prints the
   few words sdp itself interprets in this workspace.
 
@@ -217,8 +217,8 @@ closest.
    says so: delete its maturity, and it is live. Gates never fail `sdp run`; `sdp gate <milestone>`
    enforces one.
 
-A scenario that asserts on delivery state (`stage`, `verification`, a scenario's `status`) must be
-a gate: tag it `@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
+A scenario that asserts on delivery state (`stage`, a scenario's `status`) must be a gate: tag it
+`@gate` or put it in a milestone. Ordinary scenarios run without seeing results.
 
 ## Planning work
 

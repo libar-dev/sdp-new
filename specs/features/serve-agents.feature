@@ -72,7 +72,7 @@ Feature: Serve AI agents
         3 rule(s), 1 scenario(s), 1 open
 
         ### A cart holds each item once
-        [still to come at draft, unrun] — specs/cart.feature:7 · decided-by one-line-per-item
+        [still to come at draft] — specs/cart.feature:7 · decided-by one-line-per-item
 
         Two lines for one item would be charged twice.
 
@@ -93,7 +93,7 @@ Feature: Serve AI agents
         """
       And the output section "Specification" does not contain "Rule:"
       When I ask for the context of "one-line-per-item"
-      Then the output section "Rules that rest on this" contains "- [unrun] A cart holds each item once (decided-by) — cart specs/cart.feature:7"
+      Then the output section "Rules that rest on this" contains "- [still to come at draft] A cart holds each item once (decided-by) — cart specs/cart.feature:7"
 
     Scenario: A spec in another language, its examples in its own words
       Given a file "specs/paie.feature" containing:

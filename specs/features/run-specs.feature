@@ -66,7 +66,7 @@ Feature: Run specs as tests
   Rule: An example of work still to come runs, and fails no run
 
     It is the acceptance test of what is not built yet, written before its code and kept on the main
-    line. Its stage stays the maturity it declares; its verification is what its examples did.
+    line. Its stage stays the maturity it declares, whatever its examples did.
 
     Scenario Outline: An example of a feature at specified that <outcome>
       Given a file "specs/wishlist.feature" containing:

@@ -88,7 +88,7 @@ Feature: Configure a workspace
       Then sdp run loads the step modules "acceptance/steps/cart.ts"
       When the workspace is run
       Then the file "out/results.json" contains '"cart#a-new-cart-is-empty"'
-      And node "cart" has attribute verification = "passing"
+      And node "cart" has attribute stage = "verified"
 
     Scenario: Step modules where a steps glob written as an absolute path says
       Given a file "specs/cart.feature" containing:
@@ -345,20 +345,20 @@ Feature: Configure a workspace
         """
       When I run "sdp vocabulary --json"
       Then the JSON output has:
-        | data.vocabulary.kinds.decision           | adr                                                                                                       |
-        | data.vocabulary.maturity                 | idea, draft, specified, ready                                                                             |
-        | data.vocabulary.kinds.driver             | decision                                                                                                  |
-        | data.vocabulary.qualities                | quality                                                                                                   |
-        | data.vocabulary.disciplines.requirements | requirement, feature, story, use-case, epic                                                               |
-        | data.made.kinds                          | scenario, rule, code, missing                                                                             |
-        | data.made.relations                      | rule-of, imports                                                                                          |
-        | data.made.tags                           | @gate, @serial, @open                                                                                     |
-        | data.made.stages                         | unrun, failing, in-progress, verified                                                                     |
-        | data.made.attributes                     | stage, verification, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                   |
-        | data.made.scenarioAttributes             | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome      |
-        | data.made.ruleAttributes                 | spec, description, tags, scenarios, verification, stage, toCome                                           |
-        | data.made.codeAttributes                 | file, symbol, doc, shape, exports                                                                         |
-        | data.made.reservedRelations              | stage, verification, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome, maturity, status |
+        | data.vocabulary.kinds.decision           | adr                                                                                                  |
+        | data.vocabulary.maturity                 | idea, draft, specified, ready                                                                        |
+        | data.vocabulary.kinds.driver             | decision                                                                                             |
+        | data.vocabulary.qualities                | quality                                                                                              |
+        | data.vocabulary.disciplines.requirements | requirement, feature, story, use-case, epic                                                          |
+        | data.made.kinds                          | scenario, rule, code, missing                                                                        |
+        | data.made.relations                      | rule-of, imports                                                                                     |
+        | data.made.tags                           | @gate, @serial, @open                                                                                |
+        | data.made.stages                         | unrun, failing, in-progress, verified                                                                |
+        | data.made.attributes                     | stage, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome                            |
+        | data.made.scenarioAttributes             | spec, keyword, tags, description, rule, steps, examples, status, staleBecause, lastRun, hash, toCome |
+        | data.made.ruleAttributes                 | spec, description, tags, scenarios, stage, toCome                                                    |
+        | data.made.codeAttributes                 | file, symbol, doc, shape, exports                                                                    |
+        | data.made.reservedRelations              | stage, scenarios, summary, file, tags, openQuestions, toCome, rulesToCome, maturity, status          |
       When I run "sdp vocabulary"
       Then the output line with "decision" contains "adr"
       And the output line with "stages" contains "unrun, failing, in-progress, verified"

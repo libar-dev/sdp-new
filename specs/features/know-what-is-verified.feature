@@ -38,9 +38,7 @@ Feature: Know what is verified
         | @id=wishlist @maturity=idea | Wishlist |
       When the workspace is loaded
       Then node "cart#add-an-item" has attribute status = "unrun"
-      And node "cart" has attribute verification = "unrun"
       And node "cart" has attribute stage = "unrun"
-      And node "wishlist" has attribute verification = "none"
       And node "wishlist" has attribute stage = "idea"
 
     Scenario Outline: Work still to come stays at its maturity, whatever its examples did
@@ -59,20 +57,18 @@ Feature: Know what is verified
       And a step definition "the wishlist holds a lamp" that <holding>
       When the workspace is run
       Then node "wishlist#keep-a-lamp" has attribute status = "<status>"
-      And node "wishlist" has attribute verification = "<verification>"
       And node "wishlist" has attribute stage = "specified"
       And node "wishlist" has attribute toCome = "true"
 
       Examples:
-        | holding | status  | verification |
-        | passes  | passed  | passing      |
-        | fails   | failed  | failing      |
-        | pends   | pending | partial      |
+        | holding | status  |
+        | passes  | passed  |
+        | fails   | failed  |
+        | pends   | pending |
 
     Scenario: Without step definitions a scenario is undefined, and live work with one is failing
       When the workspace is run
       Then node "cart#add-an-item" has attribute status = "undefined"
-      And node "cart" has attribute verification = "undefined"
       And node "cart" has attribute stage = "failing"
 
     Scenario: A scenario without steps is undefined: it automates nothing
@@ -100,14 +96,13 @@ Feature: Know what is verified
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
       Then node "cart#add-an-item" has attribute status = "<scenario>"
-      And node "cart" has attribute verification = "<verification>"
       And node "cart" has attribute stage = "<stage>"
 
       Examples:
-        | adding | scenario | verification | stage    |
-        | passes | passed   | passing      | verified |
-        | pends  | pending  | partial      | failing  |
-        | fails  | failed   | failing      | failing  |
+        | adding | scenario | stage    |
+        | passes | passed   | verified |
+        | pends  | pending  | failing  |
+        | fails  | failed   | failing  |
 
     Scenario: A spec is verified only when every one of its scenarios passed, and in-progress while some have not run
       Given a file "specs/wishlist.feature" containing:
@@ -129,10 +124,10 @@ Feature: Know what is verified
       When the workspace is run with "wishlist#keep-a-lamp"
       Then node "wishlist#keep-a-lamp" has attribute status = "passed"
       And node "wishlist#share-the-list" has attribute status = "unrun"
-      And node "wishlist" has attribute verification = "partial"
       And node "wishlist" has attribute stage = "in-progress"
 
-    Scenario: Verification orders from none to passing, so a query can ask for everything short of it
+    @replaces:know-what-is-verified#verification-orders-from-none-to-passing-so-a-query-can-ask-for
+    Scenario: The stage orders work still to come below live work, so a query can ask for everything short of verified
       Given these specs:
         | tags                        | Feature  |
         | @id=wishlist @maturity=idea | Wishlist |
@@ -140,9 +135,9 @@ Feature: Know what is verified
       And a step definition "I add a lamp" that passes
       And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
-      And I query "feature[verification<passing]"
+      And I query "feature[stage<verified]"
       Then the result is "wishlist"
-      When I query "feature[verification>=passing]"
+      When I query "feature[stage>=verified]"
       Then the result is "cart"
 
   Rule: A live feature is verified when its live rules pass
@@ -183,12 +178,12 @@ Feature: Know what is verified
       And node "cart" has attribute rulesToCome = "2"
       And node "cart#a-cart-holds-what-was-added" has attribute stage = "<stage>"
       And node "cart#a-cart-is-kept-for-a-week" has attribute stage = "ready"
-      And node "cart#a-cart-is-kept-for-a-week" has attribute verification = "<verification>"
+      And node "cart#come-back-to-the-cart" has attribute status = "<kept>"
 
       Examples:
-        | adding | later  | stage    | verification |
-        | passes | fails  | verified | failing      |
-        | fails  | passes | failing  | passing      |
+        | adding | later  | stage    | kept   |
+        | passes | fails  | verified | failed |
+        | fails  | passes | failing  | passed |
 
     Scenario: A live rule that has no example yet keeps its feature from verified
       Given a file "specs/cart.feature" containing:
@@ -518,7 +513,6 @@ Feature: Know what is verified
         """
       Then node "cart#add-an-item" has attribute status = "stale"
       And node "cart#add-an-item" has attribute staleBecause = "scenario-changed"
-      And node "cart" has attribute verification = "unrun"
       And node "cart" has attribute stage = "unrun"
 
       Examples:
@@ -1194,7 +1188,7 @@ Feature: Know what is verified
         | the query "feature[stage=verified]" returns no results |
         | the query "scenario[status=failed]" returns no results |
         | the query "*[status=failed]" returns no results        |
-        | the node "cart" has verification "passing"             |
+        | the node "cart" has stage "unrun"                      |
         | the node "cart#add-an-item" has status "unrun"         |
 
     Scenario: A gate sees what the ordinary results say, not when or how they ran

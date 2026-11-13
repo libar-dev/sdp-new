@@ -66,7 +66,7 @@ Feature: Link specs into one graph
       And node "pay" has attribute openQuestions = "1"
       And node "pay#a-wallet-is-charged-once" has attribute description = "Charging twice is the one error a shopper does not forgive."
       And node "pay#a-wallet-is-charged-once" has attribute scenarios = "1"
-      And node "pay#a-refund-returns-the-whole-amount" has attribute verification = "none"
+      And node "pay#a-refund-returns-the-whole-amount" has attribute scenarios = "0"
       And node "pay#retry" has attribute rule = "pay#a-wallet-is-charged-once"
       And node "pay#retry" has attribute description = "The network failed after the charge."
       When I query "#charge-once <-decided-by- rule -rule-of-> *"

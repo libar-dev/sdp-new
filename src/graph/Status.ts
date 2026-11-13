@@ -24,17 +24,17 @@ const isOpen = (rule: GraphNode) => {
 
 /**
  * Where a rule stands: a question still `open`, a rule `still to come`, a live rule with
- * `no example`, or what the examples of a live rule verify.
+ * `no example`, or the stage of a live rule.
  */
 export const ruleState = (rule: GraphNode): string =>
-  isOpen(rule) ? "open" : rule.attrs.toCome === true ? "still to come" : rule.attrs.scenarios === 0 ? "no example" : String(rule.attrs.verification)
+  isOpen(rule) ? "open" : rule.attrs.toCome === true ? "still to come" : rule.attrs.scenarios === 0 ? "no example" : String(rule.attrs.stage)
 
-/** A rule's state as the context shows it: for a rule still to come, also the maturity it is at and what its examples did. */
+/** A rule's state as the context shows it: for a rule still to come, also the maturity it is at, and whether it has no example yet. */
 export const ruleLabel = (rule: GraphNode): string => {
   const state = ruleState(rule)
   if (state !== "still to come") return state
   const at = Predicate.isString(rule.attrs.stage) ? ` at ${rule.attrs.stage}` : ""
-  return `${state}${at}, ${rule.attrs.scenarios === 0 ? "no example" : String(rule.attrs.verification)}`
+  return `${state}${at}${rule.attrs.scenarios === 0 ? ", no example" : ""}`
 }
 
 /**
@@ -151,7 +151,7 @@ export const statusSummary = (project: Project): StatusSummary => {
       graph.nodes().flatMap((n) => n.kind !== made.kinds.rule && Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []),
       stageLadder(vocabulary).flat()
     ),
-    rules: counted(graph.ofKind([made.kinds.rule]).map(ruleState), ["passing", "failing", "partial", "undefined", "unrun", "no example", "still to come", "open"]),
+    rules: counted(graph.ofKind([made.kinds.rule]).map(ruleState), [...Object.values(made.stages), "no example", "still to come", "open"]),
     scenarios: counted(scenarios.filter((n) => !gates.has(n.id) && n.attrs.toCome !== true).map((n) => n.attrs.status), resultOrder),
     toCome: counted(scenarios.filter((n) => !gates.has(n.id) && n.attrs.toCome === true).map((n) => n.attrs.status), resultOrder),
     gates: counted(scenarios.filter((n) => gates.has(n.id)).map((n) => n.attrs.status), resultOrder),

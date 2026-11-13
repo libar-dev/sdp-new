@@ -187,15 +187,15 @@ export const made = {
    * `tags` holds the Cucumber tags of a Feature, a Rule or a Scenario as written, `toCome` marks work
    * still to come, and `rulesToCome` counts a spec's rules still to come.
    */
-  attributes: ["stage", "verification", "scenarios", "summary", "file", tagsKey, "openQuestions", "toCome", "rulesToCome"],
+  attributes: ["stage", "scenarios", "summary", "file", tagsKey, "openQuestions", "toCome", "rulesToCome"],
   /** Facts sdp computes on scenario nodes. */
   scenarioAttributes: ["spec", "keyword", tagsKey, "description", "rule", "steps", "examples", "status", "staleBecause", "lastRun", "hash", "toCome"],
   /** Facts sdp computes on rule nodes. */
-  ruleAttributes: ["spec", "description", tagsKey, "scenarios", "verification", "stage", "toCome"],
+  ruleAttributes: ["spec", "description", tagsKey, "scenarios", "stage", "toCome"],
   /** What sdp records on a code node: where the annotated declaration is, what its own comment says of it, and its shape or a file's exports. */
   codeAttributes: ["file", "symbol", "doc", "shape", "exports"],
   /** The attributes a node has only through scenario results, on any kind; a scenario's `status` is one more. */
-  resultAttributes: ["stage", "verification", "staleBecause", "lastRun"],
+  resultAttributes: ["stage", "staleBecause", "lastRun"],
   /** When a scenario's result was recorded: shown to readers, never to a scenario that runs. */
   recordedAt: "lastRun",
   /**
