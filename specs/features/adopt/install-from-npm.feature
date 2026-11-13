@@ -1,21 +1,29 @@
-@id=install-from-npm @maturity=draft
-@iteration:IT-packaging
+@id=install-from-npm
+@realized-by:ARCH-cli @realized-by:ARCH-application @realized-by:ARCH-runner
 Feature: Install sdp from npm
 
   Teams that adopt sdp install it as a development dependency of their repository, as they install
   any tool, not from a clone of this one.
 
-  Rule: The package `@libar-dev/software-delivery-protocol` gives the command `sdp`, and programs and step modules import its entries from where it is installed, typed
+  Rule: The package is published public as `@libar-dev/software-delivery-protocol` and installed as `sdp`: it gives the command `sdp`, and programs and step modules import `sdp`, `sdp/effect` and `sdp/steps`, typed
 
-    A project's own `tsc` checks its step modules and programs, so the package ships declarations
-    beside the JavaScript it runs.
+    `sdp` is taken on npm, by a package of utilities for WebRTC's session descriptions. Installed
+    through an npm alias, `npm install --save-dev sdp@npm:@libar-dev/software-delivery-protocol`, sdp
+    has one name in every import, which its step reader, loader and snippets write; `npm install sdp`
+    or `npx sdp` without the alias fetches that other package. A project's own `tsc` checks its step
+    modules and programs, so the package ships declarations beside the JavaScript it runs. The
+    checkout is private, so that `npm publish` run in it publishes nothing: a release publishes the
+    package npm packs.
 
     Scenario: The command sdp writes the skill it ships
       Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
       When I run "cat node_modules/sdp/package.json"
       Then the exit code is 0
       And the JSON output has:
-        | name | @libar-dev/software-delivery-protocol |
+        | name                 | @libar-dev/software-delivery-protocol |
+        | publishConfig.access | public                                |
+      And the JSON output has none of these fields:
+        | private |
       When I run "node_modules/.bin/sdp init"
       Then the exit code is 0
       And the file ".claude/skills/sdp/SKILL.md" contains "name: sdp"
@@ -76,6 +84,7 @@ Feature: Install sdp from npm
       Then the exit code is 0
       And the output contains "cart function"
 
+  @maturity=ready @iteration:IT-packaging
   Rule: A release is published by CI, with provenance, from a tag on a commit that passed npm run verify and the command-line scenarios run against the packed package
 
   Rule: The published package depends on the exact versions of Effect its checks passed with, and runs on Node.js 24 and later
@@ -90,15 +99,3 @@ Feature: Install sdp from npm
       And the JSON output has:
         | engines.node | >=24 |
       And the JSON output depends on exactly the versions of "effect, @effect/platform-node" this repository runs with
-
-  @open
-  Rule: Which elements realize installing sdp from npm: ARCH-cli, ARCH-application and ARCH-runner, whose command and entries the package ships?
-
-    A live feature names the elements that realize it, and which those are is the architect's call.
-
-  @open
-  Rule: Does a project install the package as `sdp`, the name its step modules import, or import it by the name it is published under?
-
-    `sdp` is taken on npm. Installed as `sdp`, as the examples above install it, `sdp/steps` resolves
-    for Node and `tsc` as sdp's snippets write it; imported by its published name, sdp's step reader,
-    its loader and its snippets must know that name too.

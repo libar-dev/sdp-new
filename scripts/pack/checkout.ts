@@ -30,9 +30,11 @@ const Manifest = Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unkno
 
 /**
  * The package.json of the package npm packs: the checkout's, with the name it is published under,
- * its entries as the emitted JavaScript and declarations, and only the files an installed sdp
- * reads. It keeps the checkout's scripts: a checkout that a failed pack left with this manifest is
- * put back by the next `npm pack`, or by `npm run postpack`.
+ * public where the checkout is private, its entries as the emitted JavaScript and declarations, and
+ * only the files an installed sdp reads. The checkout stays private so that `npm publish` run in it
+ * publishes nothing; a scoped name is private on npm unless its access says otherwise. It keeps the
+ * checkout's scripts: a checkout that a failed pack left with this manifest is put back by the next
+ * `npm pack`, or by `npm run postpack`.
  */
 export const packedManifest = Effect.fn("packedManifest")(function*(checkout: string) {
   const source = yield* Schema.decodeUnknownEffect(Manifest)(checkout)
@@ -40,6 +42,8 @@ export const packedManifest = Effect.fn("packedManifest")(function*(checkout: st
   return JSON.stringify({
     ...source,
     name: "@libar-dev/software-delivery-protocol",
+    private: undefined,
+    publishConfig: { access: "public" },
     exports: { ".": entry("index"), "./effect": entry("effect"), "./steps": entry("steps") },
     files: ["dist", "bin", ".claude/skills/sdp/SKILL.md"]
   }, null, 2) + "\n"
