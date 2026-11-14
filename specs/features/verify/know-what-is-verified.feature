@@ -23,7 +23,10 @@ Feature: Know what is verified
       """
 
   @decided-by:declared-maturity-derived-stage
-  Rule: Work still to come stays at its maturity; live work is verified when every example of its live rules passed, failing when one did not, and in progress until all have run
+  Rule: Live work is verified once every live example passed, failing once one did not, and in progress while only some ran
+
+    Work still to come shows the maturity declared for it whatever its examples did: how far it has
+    come is the team's judgement.
 
     Scenario Outline: A wishlist <declaring> run as <target>, its step <holding>
       Given a file "specs/wishlist.feature" containing:
@@ -51,7 +54,7 @@ Feature: Know what is verified
         |                     | wishlist#keep-a-lamp | passes  | in-progress |
 
   @decided-by:what-makes-a-decision
-  Rule: A decision's rules state what holds, so they are no work: status counts none of them and the context shows them without a state
+  Rule: A decision's rules are no work: status and context give them no state
 
     Scenario: A decision with a rule, beside the cart
       Given a file "specs/monthly-releases.feature" containing:
@@ -69,10 +72,10 @@ Feature: Know what is verified
       Then the exit code is 0
       And the output does not contain "no example"
 
-  Rule: A result counts only while what it ran against is unchanged — the code and every file its steps imported, the toolchain, the inputs the workspace declares and, for a scenario that reads the graph, the specs — and is stale after
+  Rule: A result goes stale, with the reason, once anything it ran against changes
 
-    This sdp's version, Node's major version and the lockfile decide what ran as much as the code
-    does.
+    sdp's version, Node's major version and the lockfile decide what ran as much as the code does,
+    and a gate ran against the results it read.
 
     Scenario Outline: <file> changes after a run
       Given a file "sdp.config.yaml" containing:
@@ -142,6 +145,22 @@ Feature: Know what is verified
         | as sdp "0.0.1"   |
         | on Node 99       |
 
+    Scenario: A milestone's gate, once the cart it read has passed
+      Given a file "specs/MS-beta.feature" containing:
+        """
+        @id=MS-beta
+        Feature: Beta
+          Rule: The cart is verified before the beta
+            Scenario: The cart works
+              Then the node "cart" has stage "verified"
+        """
+      When the workspace is run
+      And a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that passes
+      And a step definition "the cart holds {int} item(s)" that passes
+      And the workspace is run with "cart"
+      Then the workspace node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
+
   Rule: A variable of evidence.env counts by its value, which no result keeps
 
     The environment may hold secrets.
@@ -162,7 +181,7 @@ Feature: Know what is verified
       Then the JSON output has:
         | data.stale.inputs-changed | 1 |
 
-  Rule: A result is about the step code that ran: one whose code changed while it ran is stale at once, and a process records nothing on step code that changed after it loaded it
+  Rule: A result never certifies step code that changed after it was loaded
 
     A result would certify code that never ran.
 
@@ -269,7 +288,9 @@ Feature: Know what is verified
         | first | 1 |
       And the output contains "lib/lamps.ts leads to two/lamps.ts now, not where it led when this process imported it"
 
-  Rule: Editing a scenario makes its result stale; planning or rewording its spec does not
+  Rule: A result goes stale when its scenario is edited, not when its spec is planned or reworded
+
+    A plan and its wording change every week, and change nothing a scenario does.
 
     Scenario Outline: An edit of <edit>
       Given a step definition "an empty cart" that passes
@@ -297,34 +318,10 @@ Feature: Know what is verified
         | its steps                   | two lamps | 2 items |                                    | Shoppers collect items. | stale  |
         | its spec's plan and wording | a lamp    | 1 item  | @maturity=ready @iteration:IT-beta | Shoppers buy items.     | passed |
 
-  Rule: Only a gate — a scenario of a milestone or tagged @gate — sees results, and it goes stale when they change
+  Rule: Only a gate, a scenario of a milestone or tagged @gate, sees the results of other scenarios
 
-    Scenario: A milestone that needs the cart verified, before and after the cart passes
-      Given a file "specs/MS-beta.feature" containing:
-        """
-        @id=MS-beta
-        Feature: Beta
-          Rule: The cart is verified before the beta
-            Scenario: The cart works
-              Then the node "cart" has stage "verified"
-        """
-      And a file "specs/progress.feature" containing:
-        """
-        @id=progress
-        Feature: Progress
-          Rule: Progress is delivery state
-            Scenario: Delivery state
-              Then the node "cart" has stage "unrun"
-        """
-      When the workspace is run
-      Then the workspace node "MS-beta#the-cart-works" has attribute status = "failed"
-      And the step 'the node "cart" has stage "unrun"' reports "is a gate"
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      When the workspace is run with "cart"
-      Then the workspace node "MS-beta#the-cart-works" has attribute status = "stale"
-      And the workspace node "MS-beta#the-cart-works" has attribute staleBecause = "results-changed"
+    What an ordinary scenario shows hangs on nothing the others did, nor on the order they ran in;
+    gates run after them, to judge them.
 
     Scenario: A step reads the project after the cart passed, in an ordinary scenario and in a gate
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -360,13 +357,13 @@ Feature: Know what is verified
       When I run "sdp q 'scenario[status=passed]' --ids"
       Then the output lines are "audit#as-a-gate, audit#as-a-test, cart#add-an-item"
 
-  Rule: A run records the scenarios it executed and drops the results of those gone when it started, and keeps what every other run recorded, one that overlaps it too
+  Rule: A run changes only the results of the scenarios it ran or found gone
 
-    Scenario: A partial run keeps the results of everything else
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      And a file "specs/wishlist.feature" containing:
+    Runs overlap, as agents, shells and CI jobs run parts of the specs at once, and none may lose
+    what another recorded.
+
+    Scenario: A run of the cart and a run of a wishlist whose scenario was renamed, at once
+      Given a file "specs/wishlist.feature" containing:
         """
         @id=wishlist
         Feature: Wishlist
@@ -374,6 +371,9 @@ Feature: Know what is verified
             Scenario: Keep a lamp for later
               Then the query "#cart" returns 1 result
         """
+      And a step definition "an empty cart" that passes
+      And a step definition "I add a lamp" that takes a moment
+      And a step definition "the cart holds {int} item(s)" that passes
       When the workspace is run
       And a file "specs/wishlist.feature" containing:
         """
@@ -383,43 +383,20 @@ Feature: Know what is verified
             Scenario: Remember a lamp
               Then the query "#cart" returns 1 result
         """
-      And the workspace is run with "wishlist"
+      And the workspace is run for "cart" and for "wishlist" at the same time
       Then the workspace node "wishlist#remember-a-lamp" has attribute status = "passed"
       And the workspace node "cart#add-an-item" has attribute status = "passed"
       And the file ".sdp/results.json" does not contain "wishlist#keep-a-lamp-for-later"
 
-    Scenario: Two runs at once each record what they executed
-      Given a file "specs/wishlist.feature" containing:
-        """
-        @id=wishlist
-        Feature: Wishlist
-          Rule: A wishlist keeps what a shopper wants for later
-            Scenario: Keep a lamp for later
-              Given a wishlist
-        """
-      And a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that takes a moment
-      And a step definition "the cart holds {int} item(s)" that passes
-      And a step definition "a wishlist" that passes
-      When the workspace is run
-      And a step definition "a wishlist" that fails
-      And the workspace is run for "cart" and for "wishlist" at the same time
-      Then the workspace node "wishlist#keep-a-lamp-for-later" has attribute status = "failed"
-      And the workspace node "cart#add-an-item" has attribute status = "passed"
-
-    Scenario: A run that finds another recording
-      Given a step definition "an empty cart" that passes
-      And a step definition "I add a lamp" that passes
-      And a step definition "the cart holds {int} item(s)" that passes
-      And another run holds the lock on the results for 500 ms
-      When the workspace is run
-      Then the workspace node "cart#add-an-item" has attribute status = "passed"
-      And the results were recorded only after the lock was released
-
-  Rule: A run that cannot take the lock on the results within two seconds records nothing, and names the lock
+  Rule: A run that cannot take the lock on the results within two seconds records nothing
 
     A run that stopped while it recorded leaves its lock behind, and every run after it would wait
     for it.
+
+    Scenario: Another run holds the lock for half a second
+      Given another run holds the lock on the results for 500 ms
+      When the workspace is run
+      Then the results were recorded only after the lock was released
 
     Scenario: A lock no run holds any more
       Given a file ".sdp/results.json.lock" containing:
@@ -430,7 +407,7 @@ Feature: Know what is verified
       And the output contains ".sdp/results.json.lock exists"
       And the file ".sdp/results.json" does not exist
 
-  Rule: A run that stops before its end — interrupted, or failed by what it reports each result to — runs nothing more, and records the scenarios it finished
+  Rule: A run that stops before its end still records the scenarios it finished
 
     A stop says nothing against what finished, and running it again would cost the time the stop
     saved.
@@ -476,11 +453,7 @@ Feature: Know what is verified
       Then the output lines are "cart#add-an-item"
 
     Scenario: Ctrl-C while the second scenario runs
-      Given a file "sdp.config.yaml" containing:
-        """
-        timeout: 5s
-        """
-      And a file "specs/wishlist.feature" containing:
+      Given a file "specs/wishlist.feature" containing:
         """
         @id=wishlist
         Feature: Wishlist
@@ -508,7 +481,7 @@ Feature: Know what is verified
       When I run "sdp q 'scenario[status!=unrun]' --ids"
       Then the output lines are "cart#add-an-item"
 
-  Rule: A results file sdp cannot read is kept: an answer that reads results says it is incomplete and names the file, and a run records nothing over it
+  Rule: A results file sdp cannot read is kept, and every answer that reads results names it
 
     It holds what earlier runs recorded, perhaps written by another version of sdp: read as no
     results, the next run would drop them all without a word.
@@ -517,16 +490,6 @@ Feature: Know what is verified
       Given a file ".sdp/results.json" containing:
         """
         <content>
-        """
-      And a file "specs/steps/cart.steps.ts" containing:
-        """
-        import { defineSteps } from "sdp/steps"
-
-        export default defineSteps(() => ({}), ({ Step }) => {
-          Step("an empty cart", () => {})
-          Step("I add a lamp", () => {})
-          Step("the cart holds {int} item(s)", () => {})
-        })
         """
       When I run "sdp status --json"
       Then the exit code is 2
@@ -546,19 +509,14 @@ Feature: Know what is verified
         | cut short                 | { "version": 4, "scenarios": {                   |
         | of another version of sdp | { "version": 5, "imports": {}, "scenarios": {} } |
 
-  @maturity=idea
-  Rule: A result CI recorded counts in every checkout that matches what it ran against
-
-    A colleague or a reviewer then knows what CI verified without running everything again.
-
   @maturity=idea @decided-by:a-host-runner-runs-application-suites
-  Rule: A scenario that runs in several ways keeps a result for each, and passes, as does a gate that needs it, only on a current pass of every way it must run
+  Rule: A scenario that runs in several ways passes only while every way it must run passed
 
     A pass against a simulator says nothing of the real backend, and a run of one part says nothing
     of the rest.
 
   @maturity=idea
-  Rule: A scenario's cleanup always runs, and a scenario or a run whose cleanup failed has not passed
+  Rule: A scenario or a run whose cleanup failed has not passed
 
     What one left behind would decide the result of the next.
 

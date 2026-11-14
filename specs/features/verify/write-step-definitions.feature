@@ -22,7 +22,7 @@ Feature: Write step definitions
             Then the cart holds 1 item
       """
 
-  Rule: What a handler returns or throws is its step's status; the steps after one that does not pass are skipped, but one that no definition matches is still undefined, and the scenario takes the worst status
+  Rule: Steps after one that did not pass are skipped, but those no definition matches still show as undefined
 
     A run shows every step still to be written, not only those before the first that failed.
 
@@ -44,10 +44,10 @@ Feature: Write step definitions
         | pends      | the cart holds {int} item(s)     | pending | skipped     | pending  |
         | fails      | the wishlist holds {int} item(s) | failed  | undefined   | failed   |
 
-  Rule: A rejection or an exception nobody awaited fails the step that started it while that step runs, and the run goes on; one that fails after the step fails the run once it has recorded what it ran, and one left as a step module loads fails loading, as one it throws does
+  Rule: A failure nobody awaited fails the step that started it while that step runs, and otherwise the run
 
-    Work a step starts and does not await is still its work, and a failure that ends the run would
-    lose what every other scenario showed.
+    Work a step starts and does not await is still its work, and a failure that ended the run at once
+    would lose what every other scenario showed.
 
     Scenario: A step starts a call it does not await, which fails while the step still runs
       Given a file "specs/wishlist.feature" containing:
@@ -171,7 +171,7 @@ Feature: Write step definitions
         | milk  | 1 |
         | bread | 2 |
 
-  Rule: A handler gets a world fresh for each scenario and each row of an outline, shared by the step modules on one world factory; a factory that throws fails the step that needs its world
+  Rule: Each example gets a world of its own, shared by the step modules that name the same factory
 
     Scenario Outline: Two scenarios count lamps in a world the <checkout> factory makes
       Given a file "specs/shop.feature" containing:
@@ -206,6 +206,8 @@ Feature: Write step definitions
         | shop     | passed |
         | till     | failed |
 
+  Rule: A world factory that throws fails the step that needs its world
+
     Scenario: A world factory that throws
       Given a file "specs/steps/cart.steps.ts" containing:
         """
@@ -227,7 +229,9 @@ Feature: Write step definitions
         | data.scenarios.examples.steps.status | failed, skipped, skipped |
       And the output contains "could not create the world of specs/steps/cart.steps.ts: no database"
 
-  Rule: A step fails once it outlasts the workspace's timeout — one that never yields, once it returns — and is told through its signal to stop; a timeout of its own fails it with its own error
+  Rule: A step fails once it outlasts the workspace's timeout, and its signal tells it to stop
+
+    sdp cannot stop code that never yields: such a step fails once it returns.
 
     Scenario: A step that waits past a timeout of 50 ms
       Given a file "sdp.config.yaml" containing:
@@ -278,7 +282,7 @@ Feature: Write step definitions
         | data.summary.failed | 1 |
       And the output contains "Operation timed out after '10ms'"
 
-  Rule: --snippets writes a definition to start from for each step that matches none
+  Rule: sdp run --snippets prints a definition to start from for each step no definition matches
 
     Scenario: Two steps without a definition
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -314,7 +318,7 @@ Feature: Write step definitions
         | data.summary.undefined | 1 |
       And the output contains "specs/steps/cart.steps.ts defines no steps"
 
-  Rule: A run refuses step definitions whose expression is malformed, and names each at its file and line
+  Rule: A run refuses step definitions whose expression is malformed
 
     No step could be matched against them reliably, nor against the definitions beside them.
 
@@ -355,7 +359,7 @@ Feature: Write step definitions
       Then the JSON output has:
         | data.summary.passed | 1 |
 
-  Rule: steps lists the step definitions a run would know, built-in ones included, that mention a text or match it
+  Rule: sdp steps lists the definitions a run would know, built-in ones included, that mention or match a text
 
     Scenario Outline: Find the definitions for '<text>'
       Given a file "specs/steps/search.steps.ts" containing:
@@ -377,7 +381,7 @@ Feature: Write step definitions
         | a shopper searches for \"lamp\"  | /^a shopper searches for "(.*)"$/ |
         | there are no warning diagnostics | there are no {word} diagnostics    |
 
-  Rule: A built-in step passes when the graph agrees, and otherwise says what it expected and what it found, or why its answer cannot be trusted
+  Rule: A built-in step that does not hold says what it expected and found, or why its answer cannot be trusted
 
     Scenario Outline: A built-in step that does not hold: <step>
       Given these specs:
@@ -401,6 +405,7 @@ Feature: Write step definitions
         | the query "feature" returns at most 1 result                         | returned 2 result(s), expected at most 1                    |
         | every node matching "feature" also matches "feature[maturity=ready]" | 2 node(s) match "feature" but not "feature[maturity=ready]" |
         | there are no diagnostics for rule "fact-kind"                        | search: @start= dates an iteration                          |
+        | the node "cart" has stage "verified"                                 | a scenario that asserts on delivery state is a gate         |
 
     Scenario: A built-in step that holds, the answer listed
       Given a file "specs/guard.feature" containing:
@@ -413,7 +418,10 @@ Feature: Write step definitions
       When the workspace is run
       Then the step 'the query "feature" returns:' has status "passed"
 
-  Rule: Only a run runs step files; every other command reads them without running them
+  Rule: Only a run executes the code of step files
+
+    Reading a workspace must not run its code: a step file may write files, open connections or take
+    its time.
 
     Scenario Outline: <command> and a step file that writes a file when it runs
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -461,14 +469,14 @@ Feature: Write step definitions
       Then the JSON output has:
         | data.summary.passed | 1 |
 
-  Rule: Importing sdp/steps loads no parser of specs or code
+  @quality
+  Rule: Importing sdp/steps loads no package but Effect
 
     A step module needs only the step API, so importing it costs no more than a step needs.
 
     Scenario: A fresh process that imports sdp/steps
       When a fresh Node process imports "sdp/steps"
-      Then the output does not contain "oxc-parser"
-      And the output does not contain "@cucumber/gherkin"
+      Then the packages it loaded are "effect"
 
   Rule: A program that runs the specs through the API keeps its own imports of sdp
 
@@ -507,10 +515,9 @@ Feature: Write step definitions
         | passed | 1                             |
         | sdp    | a session description parser |
 
-  Rule: A step is matched against every definition whatever its keyword, as Cucumber matches it: Given, When and Then are for its reader
+  Rule: A step matches a definition whatever the keyword of either
 
-    One definition serves a step under any keyword; a repository's guide can still check how steps
-    are written.
+    Given, When and Then are for the reader, as in Cucumber.
 
     Scenario: Each step matched by a definition written with another keyword
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -532,13 +539,17 @@ Feature: Write step definitions
         | data.summary.passed | 1 |
 
   @maturity=idea
-  Rule: Each scenario runs apart: it sees no global state another left, and a step past its timeout is stopped whether or not it yields
+  Rule: Each scenario runs apart, so no global state another left reaches it
+
+    Apart, a step that never yields can be stopped at its timeout too.
 
   @maturity=idea
-  Rule: A step definition can be scoped to an area, so that two areas say the same words and mean steps of their own
+  Rule: Two areas can mean steps of their own by the same words
 
   @maturity=idea
-  Rule: A step module defines parameter types of its own, such as an id, and steps lists them
+  Rule: A step module defines parameter types of its own, such as an id
+
+    sdp steps lists them beside the definitions.
 
   @maturity=idea @decided-by:a-host-runner-runs-application-suites
   Rule: A step module says what runs after each scenario, passed or failed, to clean up what its steps made
