@@ -44,9 +44,10 @@ const VocabularyFile = Vocabulary
 type VocabularyFile = typeof VocabularyFile.Type
 
 /**
- * Shape of `sdp.config.yaml`. Every key is optional; see `defaults` for what an empty file means.
- *
  * @sdp is ARCH-workspace
+ *
+ * @remarks
+ * Shape of `sdp.config.yaml`. Every key is optional; see `defaults` for what an empty file means.
  */
 export const ConfigFile = Schema.Struct({
   features: Schema.optional(Globs),

@@ -1,12 +1,13 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * What a use case fails with when the user's input or files are at fault. Each
  * error is a value the caller can inspect, and `describe` words any of them as
  * one line that names the input or the file — a user's mistake is never a
  * stack trace. Each of sdp's errors, here or in the module that fails with it,
  * carries that line as its CLI user message, which the command line prints on
  * stderr before it exits with 1.
- *
- * @sdp is ARCH-application
  */
 import { Predicate, Schema } from "effect"
 import * as CliError from "effect/cli/CliError"

@@ -1,12 +1,16 @@
 /**
+ * sdp's questions as read-only MCP tools for agents, each answering as the command of the same
+ * name does.
+ *
+ * @sdp is ARCH-mcp
+ *
+ * @remarks
  * MCP server exposing the graph to AI agents. A thin transport: each tool
  * checks its arguments, calls one use case of the application layer
  * (`src/app/`) — the one the command line calls for the same question — and
  * returns the answer as text, or as the JSON envelope when asked. Every call
  * reads the workspace again, so agents always see the files as they are now,
  * and no tool runs workspace code.
- *
- * @sdp is ARCH-mcp
  */
 import * as NodeStdio from "@effect/platform-node/NodeStdio"
 import { Effect, FileSystem, Layer, Path, Schema } from "effect"

@@ -1,12 +1,13 @@
 /**
+ * @sdp is ARCH-application
+ * @sdp applies PAT-answer
+ *
+ * @remarks
  * Reading the graph: one use case per question a person or an agent asks.
  * Each reads the workspace as it is now — files, never workspace code — and
  * returns an answer (Answer.ts) made of plain records (`graph/Export.ts`), or
  * fails with a typed error (Errors.ts). The command line and the MCP server
  * call these and nothing else, so they cannot disagree.
- *
- * @sdp is ARCH-application
- * @sdp applies PAT-answer
  */
 import { DateTime, Effect, Result } from "effect"
 import { architectureView, workOn } from "../arch/Architecture.ts"
@@ -125,7 +126,7 @@ export const context = Effect.fn("context")(function*(root: string, input: { rea
   const project = yield* loadProject(root)
   const node = yield* known(project, input.id)
   // The bundle matches the steps of the node's scenarios: a registration that was not read may define one of them.
-  const matched = (project.specById.get(node.id)?.scenarios.length ?? 0) > 0
+  const matched = project.graph.ofKind([made.kinds.scenario]).some((scenario) => scenario.attrs.spec === node.id)
   const missing = matched ? stepsMissing(project) : []
   // An element in the bundle is shown with what it imports, or is in reach through it.
   const showsImports = isElement(project, node) || neighbourhood(project, node.id, depth).some((other) => isElement(project, other))

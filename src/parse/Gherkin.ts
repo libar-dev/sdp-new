@@ -1,10 +1,14 @@
 /**
+ * Reads a spec from its Gherkin file: the Feature, its rules and examples, and what their tags say
+ * and link to.
+ *
+ * @sdp is ARCH-spec-parser
+ *
+ * @remarks
  * A spec is a Gherkin file, read by the official Cucumber parser as it is: the Feature is the
  * node, a `Rule:` the unit of content, its scenarios the examples. Tags say what a Feature, a Rule
  * or a Scenario is and what it links to — `@key=value` describes, `@rel:ID` links, any other tag
  * is a Cucumber tag — and the free text under each keyword line is its description.
- *
- * @sdp is ARCH-spec-parser
  */
 import { AstBuilder, compile, dialects, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"

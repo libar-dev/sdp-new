@@ -236,6 +236,18 @@ Feature: Plan delivery
       When the workspace is checked
       Then sdp reports "maturity-on-no-work"
 
+  Rule: A milestone, a phase or an iteration declares no maturity
+
+    It is the plan, not work in it: a maturity would make a milestone's gate work still to come.
+
+    Scenario: A milestone at a maturity
+      Given these specs:
+        | tags                                          | Feature |
+        | @id=IT-beta @start=2026-11-02 @end=2026-11-13 | Beta    |
+        | @id=MS-beta @maturity=draft @closes:IT-beta   | Beta    |
+      When the workspace is checked
+      Then sdp reports "maturity-on-no-work"
+
   Rule: A plan tag that would plan nothing is reported
 
     Planned activity is counted by discipline, in iterations: a link to anything else, or work of a

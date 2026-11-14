@@ -168,11 +168,15 @@ const plannedActivity = (project: Project, node: GraphNode): ReadonlyArray<Plann
 }
 
 /**
+ * Where the project stands against its plan: the milestones, the iterations each ends and the work
+ * planned into them.
+ *
+ * @sdp is ARCH-lifecycle
+ *
+ * @remarks
  * Milestones with the stretch of the timeline each ends, phases, iterations and planned discipline
  * activity, with the evidence for the planned work. `today` is an ISO date (YYYY-MM-DD); without
  * it nothing is marked current or late.
- *
- * @sdp is ARCH-lifecycle
  */
 export const lifecycle = (project: Project, today?: string): LifecycleReport => {
   const { graph } = project

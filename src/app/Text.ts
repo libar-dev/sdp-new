@@ -1,10 +1,11 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * How answers read as text: one function per kind of answer, used by the
  * command line and the MCP server alike. A list is one item per line with its
  * fields separated by tabs, so it pipes into grep and cut; on a terminal the
  * same fields are aligned in columns and coloured.
- *
- * @sdp is ARCH-application
  */
 import type { NodeRecord } from "../graph/Export.ts"
 import { formatPath } from "../graph/Query.ts"

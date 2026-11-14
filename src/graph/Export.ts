@@ -94,11 +94,12 @@ const shapeOf = (vocabulary: Vocabulary, kind: string): readonly [string, string
     : ["[", "]"]
 
 /**
+ * @sdp is ARCH-reports
+ *
+ * @remarks
  * The state: every spec, rule, example, element, pattern and anchored code, then every link an author
  * wrote and every import sdp derived from the code. What only says where a node is written is left to
  * the records; with a query, the routes it walks are kept whole.
- *
- * @sdp is ARCH-reports
  */
 export const stateRecords = (graph: Graph, vocabulary: Vocabulary, routes = false): ReadonlyArray<GraphRecord> => [
   ...graph.nodes().map(stateRecord),

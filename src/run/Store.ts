@@ -1,11 +1,12 @@
 /**
+ * @sdp is ARCH-runner
+ *
+ * @remarks
  * The results store: one generated file (`config.results`) with the latest
  * result of every scenario. Runs may overlap — agents, shells, CI jobs — so a
  * run never writes back what it read when it started: a commit takes a lock,
  * reads the file as it is then, replaces only the scenarios this run executed,
  * and publishes the new file with a rename.
- *
- * @sdp is ARCH-runner
  */
 import { Effect, FileSystem, Path, Schedule, Schema } from "effect"
 import * as CliError from "effect/cli/CliError"

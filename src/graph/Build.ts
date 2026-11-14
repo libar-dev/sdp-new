@@ -116,9 +116,13 @@ export interface Project {
 }
 
 /**
- * Builds the whole-system graph from parsed sources — specs, annotations and stored results — without any IO.
+ * Builds the one graph every command answers from, out of the specs, the code's annotations and
+ * the stored results.
  *
  * @sdp is ARCH-graph-builder
+ *
+ * @remarks
+ * Builds the whole-system graph from parsed sources — specs, annotations and stored results — without any IO.
  */
 export const buildProject = (input: ProjectInput): Project => {
   const vocabulary = input.config.vocabulary

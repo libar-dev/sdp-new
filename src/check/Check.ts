@@ -121,9 +121,13 @@ const planRelations: ReadonlyArray<readonly [RelationRole, ReadonlyArray<KindRol
 ]
 
 /**
- * Every rule check over a built project, as diagnostics with `file:line` and a hint.
+ * Finds what is wrong in the specs and the code anchored to them, and what was live at the base
+ * and no longer is, each at the line to fix.
  *
  * @sdp is ARCH-checker
+ *
+ * @remarks
+ * Every rule check over a built project, as diagnostics with `file:line` and a hint.
  */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const out: Array<Diagnostic> = [...project.diagnostics]
@@ -401,6 +405,16 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: `delete the maturity — what is no work is live, and its rules have examples — or add ${kind} to a discipline under vocabulary.disciplines`
       }))
     }
+    // A milestone, a phase or an iteration is the plan, not work in it: a maturity on one, or on a rule
+    // of one, would make its gate work still to come that nothing plans.
+    if (attribute(node, "maturity") !== undefined && isPlanKind(vocabulary, kind)) {
+      out.push(diagnostic("maturity-on-no-work", {
+        message: `${node.id}: a ${kind} is the plan, not work in it, so it declares no maturity`,
+        node: node.id,
+        source: writtenAt(node, "maturity"),
+        hint: "delete the maturity: a milestone is met when its gate passes, and an iteration or a phase is dated by its days"
+      }))
+    }
     for (const [discipline, edge] of plannedDisciplines(project, node)) {
       if (Object.hasOwn(vocabulary.disciplines, discipline)) continue
       out.push(diagnostic("plan-reference", {
@@ -439,17 +453,18 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const toOk = type.to.some((end) => isEnd(vocabulary, end, to.kind))
     // A target another rule holds and finds wrong is the one thing said about the link.
     if (toChecked && !toOk) continue
-    const wrong = !fromOk ? { end: from, may: type.from } : !toChecked && !toOk ? { end: to, may: type.to } : undefined
+    // Which end is wrong is said by its side, not by the node: a link from a node to itself has one node at both.
+    const wrong = !fromOk ? { end: from, starts: true, may: type.from } : !toChecked && !toOk ? { end: to, starts: false, may: type.to } : undefined
     // A link code writes is also its element's, at the same line: one report says both.
     const key = `${edge.rel} ${edge.to} ${edge.source?.file}:${edge.source?.line}`
     if (!wrong || reportedLinks.has(key)) continue
     reportedLinks.add(key)
     const may = endPhrase(vocabulary, wrong.may)
     out.push(diagnostic("link-kind", {
-      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${wrong.end.id} is ${withArticle(wrong.end.kind)}, and ${edge.rel} ${wrong.end === from ? "starts at" : "leads to"} ${may}`,
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${wrong.end.id} is ${withArticle(wrong.end.kind)}, and ${edge.rel} ${wrong.starts ? "starts at" : "leads to"} ${may}`,
       node: edge.from,
       source: edge.source,
-      hint: `${wrong.end === from ? `write it on ${may}` : `link ${may}`}, or name the link with a relation of your own, which joins any kinds`
+      hint: `${wrong.starts ? `write it on ${may}` : `link ${may}`}, or name the link with a relation of your own, which joins any kinds`
     }))
   }
   // A fact is judged where it is written, by the key it is written with, `plan.date` too: what sdp

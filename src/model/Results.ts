@@ -1,9 +1,10 @@
 /**
+ * @sdp is ARCH-graph
+ *
+ * @remarks
  * What `sdp run` records: the result of each scenario and the evidence it rests
  * on, as stored in the results file. Plain data: the runner writes it, the
  * graph builder reads it.
- *
- * @sdp is ARCH-graph
  */
 import { Schema } from "effect"
 

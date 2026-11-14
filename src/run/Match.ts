@@ -1,11 +1,12 @@
 /**
+ * @sdp is ARCH-runner
+ *
+ * @remarks
  * Matching step text against step definitions, without running anything. The
  * runner matches each step against the definitions it loaded before it
  * executes it; `sdp context`, `sdp steps` and the MCP tool `sdp_snippets` match
  * against the definitions read statically from the step files, so they run no
  * workspace code. Either way an unmatched step gets a suggested definition.
- *
- * @sdp is ARCH-runner
  */
 import { CucumberExpression, CucumberExpressionGenerator, ParameterTypeRegistry } from "@cucumber/cucumber-expressions"
 import { Predicate } from "effect"

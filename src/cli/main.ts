@@ -1,10 +1,13 @@
 /**
+ * `sdp`, the command line: parses a command, calls one use case and prints its answer.
+ *
+ * @sdp is ARCH-cli
+ *
+ * @remarks
  * `sdp` — the command line. A thin transport: each command parses its flags,
  * calls one use case of the application layer (`src/app/`) and prints the
  * answer — as text by default, as the JSON envelope with `--json`. Notes go to
  * stderr, and an incomplete answer exits with 2 (use-the-command-line).
- *
- * @sdp is ARCH-cli
  */
 // Subpath imports: the package index loads every Node service (HTTP, sockets, …) and slows every start.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime"

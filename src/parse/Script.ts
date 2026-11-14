@@ -1,9 +1,13 @@
 /**
+ * Code is parsed, never run: what sdp reads of a file comes from one parse, each finding with its
+ * line.
+ *
+ * @sdp is PAT-static-reading
+ *
+ * @remarks
  * A TypeScript or JavaScript file, parsed and never run: what sdp reads out of
  * code statically — annotations, the modules it imports and step definitions —
  * it reads from this one parse, with the line of everything it finds.
- *
- * @sdp is PAT-static-reading
  */
 import { Predicate } from "effect"
 import { parseSync, type ParserOptions, rawTransferSupported } from "oxc-parser"

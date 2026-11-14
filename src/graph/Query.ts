@@ -1,4 +1,10 @@
 /**
+ * The one-line path-pattern language in which people, scripts and agents ask the graph a question,
+ * within bounds that keep it interactive.
+ *
+ * @sdp is ARCH-query-engine
+ *
+ * @remarks
  * SDPQ — a tiny path-pattern language over the system graph, shaped like
  * Cypher's ASCII art so agents can guess it, but written on one line so it
  * fits a shell argument. Its syntax is `querySyntax` below, which
@@ -20,8 +26,6 @@
  * node it accepts, a step's stops once the step holds as many paths as the
  * limit allows, and a node is walked from once in a step however many paths
  * end at it.
- *
- * @sdp is ARCH-query-engine
  */
 import { Predicate, Result, Schema } from "effect"
 import * as CliError from "effect/cli/CliError"
@@ -444,7 +448,8 @@ const ownValue = (node: GraphNode, key: string): unknown => {
 }
 
 /**
- * What `key` holds for a node: `id`, `kind`, `title` and `source` are keys like any attribute, and
+ * What `key` holds for a node: `id`, `kind`, `title`, `file` and `source` are keys like any attribute,
+ * `file` the one a node is written in, as its record says, whatever its kind; and
  * the key of a link holds the link's targets, so a link reads the same whichever way it was
  * written. A key is one or the other: the builder lets no link share a name with an attribute.
  */
@@ -458,6 +463,8 @@ const valueOf = (context: Context, node: GraphNode, key: string): unknown => {
       return node.title
     case "source":
       return node.source ? `${node.source.file}:${node.source.line}` : undefined
+    case "file":
+      return ownValue(node, key) ?? node.source?.file
   }
   const linked = context.graph.out(node.id).filter((edge) => edge.rel === key).map((edge) => edge.to)
   return linked.length === 0 ? ownValue(node, key) : linked.length === 1 ? linked[0] : linked

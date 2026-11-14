@@ -1,10 +1,11 @@
 /**
+ * @sdp is ARCH-code-annotations
+ * @sdp applies PAT-static-reading
+ *
+ * @remarks
  * What the names code imports mean: the code file of the workspace TypeScript resolves each name to,
  * by what the configuration files around the code say (`readConfigs`). A name sdp cannot follow,
  * though it could name the workspace's code, comes back with why.
- *
- * @sdp is ARCH-code-annotations
- * @sdp applies PAT-static-reading
  */
 import { isBuiltin } from "node:module"
 import {

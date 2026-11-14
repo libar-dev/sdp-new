@@ -1,8 +1,9 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * Authoring: the use cases that write files — `sdp init` and `sdp new`. Each
  * says what it wrote, and neither rewrites a file that exists.
- *
- * @sdp is ARCH-application
  */
 import { DateTime, Effect, FileSystem, Path, Result } from "effect"
 import { readFile } from "node:fs/promises"

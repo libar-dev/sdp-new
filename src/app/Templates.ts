@@ -1,10 +1,11 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * File templates for `sdp new` and `sdp init`. A template writes only what stays in the file —
  * what it is, at any maturity; what the author writes next is said in the answer of `sdp new`,
  * never in the file. A new spec is a Gherkin file: its
  * tags say what it is and what it links to, its Feature's name is its title.
- *
- * @sdp is ARCH-application
  */
 import { Duration, Result } from "effect"
 import { changeIsRules, decisionPlaceholder } from "../check/Check.ts"

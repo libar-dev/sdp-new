@@ -1,10 +1,17 @@
 /**
+ * What code says of the architecture, read and never run: its `@sdp` tags in any language, the
+ * code each annotates, and its shape and imports.
+ *
+ * @sdp is ARCH-code-annotations
+ * @sdp applies PAT-static-reading
+ *
+ * @remarks
  * Code annotations, in any language: a tag in a comment,
  *
  *     @sdp <relation> <ID>[,<ID>...] [key=value ...]
  *
  * links code to graph nodes. The relation is free text (`implements`, `is`, `applies`, ...); `is`
- * anchors a node in code and declares it if no spec does. `grep -rn "@sdp" src/` lists every one.
+ * anchors a node in code and declares it if no spec does.
  *
  * In TypeScript and JavaScript the file is parsed, never run: a tag annotates the module-level
  * declaration its comment documents, or the file when its comment opens the file, and the rest of
@@ -18,9 +25,6 @@
  * docstring shows — the comment lines around it describe that code,
  * and their imports are not read. A tag in a Python docstring annotates the module, the class or the
  * function the docstring opens, and the docstring describes it.
- *
- * @sdp is ARCH-code-annotations
- * @sdp applies PAT-static-reading
  */
 import { idForm, idSyntax, isId } from "../model/Vocabulary.ts"
 import { type Exports, type Import, isNode, type Node, parseScript, type Script } from "./Script.ts"
@@ -69,10 +73,11 @@ export interface CodeScan {
 const nothing: CodeScan = { annotations: [], unreadable: [], ignored: [], imports: [] }
 
 /**
+ * @sdp is ARCH-code-annotations
+ *
+ * @remarks
  * Every tag of one code file, and what could not be read. `anchor` is the relation that anchors a
  * node, whose file's imports are read.
- *
- * @sdp is ARCH-code-annotations
  */
 export const scanCode = (file: string, content: string, anchor: string): CodeScan => {
   if (!content.includes("@sdp")) return nothing

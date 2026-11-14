@@ -55,6 +55,7 @@ Feature: Ask the graph
         | element[title='Ledger [legacy]']                | ARCH-ledger                                               |
         | *[kind=feature][title~^Ch]                      | checkout                                                  |
         | *[id~^ARCH-][title!~ice]                        | ARCH-billing, ARCH-ledger                                 |
+        | element[file~ledger]                            | ARCH-ledger                                               |
         | #ARCH-billing -imports-> *                      | ARCH-ledger                                               |
         | #ARCH-billing <-imports\|realized-by- *         | ARCH-orders, refunds                                      |
         | #ARCH-billing -imports- *                       | ARCH-ledger, ARCH-orders                                  |

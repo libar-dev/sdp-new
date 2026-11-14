@@ -1,11 +1,12 @@
 /**
+ * @sdp is ARCH-code-annotations
+ *
+ * @remarks
  * The files that say what the names code imports mean, as read: the tsconfig.json — or
  * jsconfig.json — each file of code is read with, with what it extends and references, and the
  * package.json, pnpm-workspace.yaml and deno.json files around the code, up to the top of the
  * repository. Nothing is installed or run; what sdp cannot read of them, or does not follow, is
  * located where it is written.
- *
- * @sdp is ARCH-code-annotations
  */
 import { Glob, Option, Schema } from "effect"
 import { PackageJson } from "../model/PackageJson.ts"

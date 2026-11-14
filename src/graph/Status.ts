@@ -4,7 +4,7 @@ import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
 import { notPassing, type ScenarioResult, StepStatus } from "../model/Results.ts"
 import { attribute, hasKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
-import { isClosed, isGate } from "../run/Evidence.ts"
+import { isGate } from "../run/Evidence.ts"
 import { type Project, stageOf } from "./Build.ts"
 import { stageLadder } from "./Query.ts"
 
@@ -139,16 +139,21 @@ export interface StatusSummary {
 }
 
 /**
- * One-screen summary of the delivery state: what `sdp status` and the MCP tool answer with.
- *
  * @sdp is ARCH-reports
+ *
+ * @remarks
+ * One-screen summary of the delivery state: what `sdp status` and the MCP tool answer with.
  */
 export const statusSummary = (project: Project): StatusSummary => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const gates = new Set(project.specs.flatMap((spec) => spec.scenarios.filter((s) => isGate(s, spec, vocabulary)).map((s) => s.id)))
   // The gate of a milestone that is met is closed: it is counted with the milestones, not with the gates.
-  const closed = new Set(project.specs.filter((spec) => isClosed(spec, vocabulary)).flatMap((spec) => spec.scenarios.map((s) => s.id)))
+  const met = (id: unknown) => {
+    const spec = graph.node(String(id))
+    return spec !== undefined && hasKind(vocabulary, "milestone", spec.kind) && metOn(vocabulary, spec) !== undefined
+  }
+  const closed = new Set(graph.ofKind([made.kinds.scenario]).filter((scenario) => met(scenario.attrs.spec)).map((scenario) => scenario.id))
   const scenarios = graph.ofKind([made.kinds.scenario]).filter((n) => !closed.has(n.id))
   const milestones = graph.ofKind(vocabulary.kinds.milestone)
   const examples = Map.groupBy(graph.ofKind([made.kinds.scenario]), (scenario) => String(scenario.attrs.rule))

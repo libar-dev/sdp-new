@@ -1,12 +1,15 @@
 /**
+ * The steps every run includes, by which a scenario asserts on the graph with a query or a check.
+ *
+ * @sdp is ARCH-builtin-steps
+ *
+ * @remarks
  * The steps by which a scenario asks a question of the graph: a query or a check turned into an
  * assertion. They make architecture rules, decision guards and milestone gates ordinary scenarios,
  * in the same format as every other specification.
  *
  *   Then the query "element !-*- decision" returns no results
  *   Then there are no error diagnostics
- *
- * @sdp is ARCH-builtin-steps
  */
 import { Result } from "effect"
 import { check } from "../check/Check.ts"

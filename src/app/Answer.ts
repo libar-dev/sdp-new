@@ -1,4 +1,10 @@
 /**
+ * The use cases the command line, the MCP server and the API all call, each answering with its
+ * data, whether it is complete, and what to know before relying on it.
+ *
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * The envelope of every answer sdp gives: the data, whether it is complete,
  * and notes on what the reader should know before relying on it. An answer is
  * incomplete when something that could change it was not read — a spec that
@@ -9,8 +15,6 @@
  *
  * Both transports hand it over the same way (use-the-command-line, serve-agents): as
  * JSON, the envelope itself; as text, the data on its own and the notes apart.
- *
- * @sdp is ARCH-application
  */
 import type { Project } from "../graph/Build.ts"
 import { type Diagnostic, problemLine, unreadRules } from "../model/Diagnostic.ts"

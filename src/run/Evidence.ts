@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-runner
+ *
+ * @remarks
  * Evidence: what a stored result ran against, and whether it still counts. A
  * result records fingerprints of its inputs and is shown only while every one
  * of them still matches the workspace; otherwise it is stale, with the reason.
@@ -7,8 +10,6 @@
  * scenarios → gates. An ordinary scenario runs against the graph without any
  * results; a gate against the ordinary results and never gate results; every
  * other reader (status, queries, context) sees all results that still count.
- *
- * @sdp is ARCH-runner
  */
 import { createHash } from "node:crypto"
 import type { EvidenceView, Settled, SourceFile } from "../graph/Build.ts"

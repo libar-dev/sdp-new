@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * The programmatic API as Effects, for programs written with Effect: the use
  * cases the command line and the MCP server call, with the shapes they print.
  * Each takes the workspace root and returns an Effect that needs a `FileSystem`
@@ -14,8 +17,6 @@
  *
  * Programs that do not use Effect import the same use cases from "sdp", which
  * answer with Promises.
- *
- * @sdp is ARCH-application
  */
 export type { Answer } from "./app/Answer.ts"
 export { create, init } from "./app/Authoring.ts"

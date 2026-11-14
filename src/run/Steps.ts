@@ -97,9 +97,10 @@ export interface StepRegistrar<W> {
 }
 
 /**
- * Declares a step module: a world factory (shared by modules that pass the same one) and its step definitions.
- *
  * @sdp is ARCH-runner
+ *
+ * @remarks
+ * Declares a step module: a world factory (shared by modules that pass the same one) and its step definitions.
  */
 export const defineSteps = <W>(world: () => W, register: (registrar: StepRegistrar<W>) => void): StepModule<W> => {
   const definitions: Array<StepDefinition> = []

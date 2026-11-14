@@ -163,3 +163,12 @@ Feature: Link specs into one graph
         | A feature realized by an element | @id=cart @maturity=idea @realized-by:ARCH-orders  | nothing   |
         | A feature realized by a decision | @id=cart @maturity=idea @realized-by:use-postgres | link-kind |
         | A relation of the team's own     | @id=cart @maturity=idea @uses:use-postgres        | nothing   |
+
+    Scenario: A feature realized by itself, whose wrong end is where the link leads
+      Given these specs:
+        | tags                                      | Feature |
+        | @id=cart @maturity=idea @realized-by:cart | Cart    |
+      When the workspace is checked
+      Then sdp reports:
+        | rule      | message                                                    |
+        | link-kind | cart is a feature, and realized-by leads to an element     |

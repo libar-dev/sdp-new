@@ -1,4 +1,8 @@
 /**
+ * @sdp is ARCH-application
+ * @sdp applies PAT-answer
+ *
+ * @remarks
  * Running scenarios: `sdp run` and `sdp gate`.
  *
  * One run over a workspace selects scenarios and their examples, runs the
@@ -9,9 +13,6 @@
  * as written, whose globs match a path that is no file, or that has a scenario outside a rule or
  * under a question, or a maturity off the ladder, does not run at all; code sdp could not read
  * leaves the answer incomplete. Works on any `FileSystem`, so executable specs run it in memory.
- *
- * @sdp is ARCH-application
- * @sdp applies PAT-answer
  */
 import parseTagExpression from "@cucumber/tag-expressions"
 import { posix } from "node:path"

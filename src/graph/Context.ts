@@ -28,9 +28,12 @@ export interface ContextSteps {
 }
 
 /**
- * Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach.
+ * The context of one node, the state as records, and the counts on one screen.
  *
  * @sdp is ARCH-reports
+ *
+ * @remarks
+ * Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach.
  */
 export const contextBundle = (project: Project, node: GraphNode, depth = 2, steps?: ContextSteps): string => {
   const { graph } = project

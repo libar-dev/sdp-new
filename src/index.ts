@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * The programmatic API: the use cases the command line and the MCP server
  * call, with the shapes they print, run on the files on disk and answered with
  * Promises:
@@ -12,8 +15,6 @@
  * words as one line. Programs written with Effect import the same use cases
  * from "sdp/effect" instead, and choose the file system they run on. Step
  * modules import "sdp/steps", which loads nothing of this.
- *
- * @sdp is ARCH-application
  */
 import * as NodeServices from "@effect/platform-node/NodeServices"
 import { Effect, type FileSystem, Layer, ManagedRuntime, type Path } from "effect"

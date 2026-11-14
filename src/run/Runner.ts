@@ -157,9 +157,13 @@ interface Selected {
 }
 
 /**
- * Executes the selected scenarios against the step modules and returns their results; undefined steps are not failures.
+ * Runs the selected scenarios against the step modules and records each result with what it ran
+ * against, so a result counts only while that is unchanged.
  *
  * @sdp is ARCH-runner
+ *
+ * @remarks
+ * Executes the selected scenarios against the step modules and returns their results; undefined steps are not failures.
  */
 export const runScenarios = Effect.fn("runScenarios")(function*<E, R>(
   options: RunOptions<E, R>
