@@ -22,27 +22,23 @@ Feature: Use the command line
             Then the query "feature[maturity<ready]" returns no results
       """
 
-  Rule: A command exits with 0 when it did what it was asked and with 1 when it did not, and input it cannot use writes nothing
+  Rule: A command exits with 0 when it did what it was asked, and with 1 when it did not
 
     A script reads from the exit code whether a command did what it was asked, never from its
-    wording; a refused command that wrote half of what it was asked leaves a workspace nobody wants.
+    wording.
 
-    Scenario Outline: Done, not done, and refused
+    Scenario Outline: Done, and not done
       When I run "<command>"
       Then the exit code is <exit code>
-      And the file "specs/features/carts.feature" does not exist
 
       Examples:
-        | command                                      | exit code |
-        | sdp q feature                                | 0         |
-        | sdp gate MS-beta                             | 1         |
-        | sdp new feature Carts --maturity implemented | 1         |
+        | command          | exit code |
+        | sdp q feature    | 0         |
+        | sdp gate MS-beta | 1         |
 
-  Rule: Input a command cannot use is refused on stderr, a line for each thing at fault and never a stack trace; a command line it cannot parse also gets the command's help on stdout
+  Rule: Input a command cannot use is refused on stderr, a line for each fault, never a stack trace
 
-    A person fixes what one line names, and a stack trace buries it. Whoever left out an argument
-    or misspelt a flag is shown how the command is written; the exit code tells a script that
-    either is no answer.
+    A person fixes what one line names, and a stack trace buries it.
 
     Scenario Outline: An id no node has, and a query sdp cannot read
       When I run "<command>"
@@ -55,13 +51,26 @@ Feature: Use the command line
         | sdp show carts   | no node carts                              |
         | sdp q 'feature[' | query error: unbalanced brackets or quotes |
 
+  Rule: A command that refuses its input writes nothing
+
+    One that wrote half of what it was asked would leave a workspace nobody wants.
+
+    Scenario: A feature at a maturity off the ladder
+      When I run "sdp new feature Carts --maturity implemented"
+      Then the exit code is 1
+      And the file "specs/features/carts.feature" does not exist
+
+  Rule: A command line sdp cannot parse gets the command's help
+
+    Whoever left out an argument or misspelt a flag is shown how the command is written.
+
     Scenario: An argument left out
       When I run "sdp show"
       Then the exit code is 1
       And the output lines include "USAGE, sdp show [flags] <id>"
       And the output contains "Missing required argument: id"
 
-  Rule: An answer that may miss something says what was not read and exits with 2, while stdout keeps the answer alone: with --json, one envelope of whether it is complete, the notes and the data
+  Rule: An answer that may miss something says what was not read, apart from the answer, and exits with 2
 
     An agent must learn that an answer may miss something before it concludes that something is
     absent, and a pipe must read the answer and nothing else.
@@ -102,7 +111,7 @@ Feature: Use the command line
         | sdp status      | milestones | open 1                        | data.milestones.open     | 1                             |
         | sdp vocabulary  | maturity   | idea, draft, specified, ready | data.vocabulary.maturity | idea, draft, specified, ready |
 
-  Rule: A command works on the nearest directory, the current one or above, that holds an sdp.config file, or on the one -C names
+  Rule: A command works on the workspace -C names, or else the nearest at or above the current directory
 
     As git finds its repository: a command run anywhere inside a workspace answers about all of
     it, and a script outside one names the one it means.
@@ -141,10 +150,10 @@ Feature: Use the command line
         | specs/search.feature | a workspace is a directory |
         | nowhere              | no such directory          |
 
-  Rule: A reader that stops reading early is no error: the command prints no stack trace, and exits with 0 unless it had already failed
+  Rule: A reader that stops early is no error: the command exits with 0 unless it had already failed
 
-    `sdp … | head` stops reading on purpose, and a script that pipes sdp must not take that for
-    sdp failing.
+    `sdp … | head` stops reading on purpose, and a script that pipes sdp must not take that for sdp
+    failing, nor be shown a stack trace.
 
     Scenario: A run read only to its first line
       Given a generated workspace of 100 specs
@@ -156,14 +165,14 @@ Feature: Use the command line
       And the output lines are "sdp exited with 0"
       And the output does not contain "EPIPE"
 
-  @maturity=ready @replaces:use-the-command-line#a-reader-that-stops-reading-early-is-no-error-the-command-prints
-  Rule: A reader that stops reading early is no error and prints no stack: a command that only reads exits with 0 unless it had already failed, and a run runs on to its end, records its results, writes no more and exits as its scenarios say
+  @maturity=ready @replaces:use-the-command-line#a-reader-that-stops-early-is-no-error-the-command-exits-with-0
+  Rule: A reader that stops early is no error: a command that reads ends there, and a run runs to its end
 
-    A reader that stops is no Ctrl-C: a command that only reads may end where `head` stopped, but a
-    run has results to record, and its exit code says how the scenarios it ran went, those after
-    the reader stopped too.
+    A reader that stops is no Ctrl-C. A command that only reads exits with 0 unless it had already
+    failed; a run has results to record, so it records them, writes no more, and exits as its
+    scenarios say, those after the reader stopped too.
 
-  Rule: status counts the graph on one screen: kinds, relations, stages, rules, scenarios, gates and milestones, each by where it stands
+  Rule: status counts on one screen what the graph holds, each by where it stands
 
     The first question in a repository one has not seen is how much it holds and how much of that
     works.
