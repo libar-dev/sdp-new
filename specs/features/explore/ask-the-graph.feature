@@ -10,9 +10,9 @@ Feature: Ask the graph
 
   Background:
     Given these specs:
-      | tags                                                             | Feature  |
-      | @id=checkout @maturity=ready @realized-by:ARCH-orders @points=13 | Checkout |
-      | @id=refunds @maturity=idea @realized-by:ARCH-billing @points=8   | Refunds  |
+      | tags                                                                          | Feature  |
+      | @id=checkout @maturity=ready @realized-by:ARCH-orders @points=13 @web @mobile | Checkout |
+      | @id=refunds @maturity=idea @realized-by:ARCH-billing @points=8 @web           | Refunds  |
     And a file "src/orders.ts" containing:
       """
       import { bill } from "./billing.ts"
@@ -51,6 +51,7 @@ Feature: Ask the graph
         | feature[maturity>=idea, maturity<=ready]        | checkout, refunds                                         |
         | feature[maturity<READY]                         | refunds                                                   |
         | feature[points>8]                               | checkout                                                  |
+        | feature[tags=@mobile]                           | checkout                                                  |
         | element[title='Ledger [legacy]']                | ARCH-ledger                                               |
         | *[kind=feature][title~^Ch]                      | checkout                                                  |
         | *[id~^ARCH-][title!~ice]                        | ARCH-billing, ARCH-ledger                                 |
