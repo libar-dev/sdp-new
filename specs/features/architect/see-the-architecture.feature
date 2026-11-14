@@ -8,74 +8,87 @@ Feature: See the architecture
 
   Not a discovery of the architecture: sdp never judges what belongs in it.
 
-  Background:
-    Given these specs:
-      | tags                                         | Feature                                 |
-      | @id=publish-through-an-outbox @kind=decision | Orders publish events through an outbox |
-      | @id=numbered-receipts @kind=decision         | Receipts are numbered without gaps      |
-    And a file "specs/receipts.feature" containing:
-      """
-      @id=receipts @maturity=idea @realized-by:ARCH-orders
-      Feature: Receipts
+  Rule: The architecture is every element and pattern, with the decisions and quality requirements linked to it or its features
 
-        @decided-by:numbered-receipts
-        Rule: Every receipt is numbered
+    They are what shaped it, and what a change to it keeps to. A quality requirement is a rule
+    tagged `@quality`; any other rule is none.
 
-        @quality @decided-by:publish-through-an-outbox
-        Rule: A receipt is sent within a minute
-      """
-    And a file "src/outbox.ts" containing:
-      """
-      /**
-       * Keeps each event with the change that raised it, until it is published.
-       *
-       * @sdp is PAT-outbox title="Transactional outbox"
-       */
-      export const outbox = new Set<string>()
-      """
-    And a file "src/mailer.ts" containing:
-      """
-      /**
-       * Sends receipts, and retries while the provider is down.
-       *
-       * @sdp is ARCH-mailer
-       */
-      export class Mailer {}
-      export interface Receipt {
-        readonly number: string
-      }
-      """
-    And a file "src/orders.ts" containing:
-      """
-      import { Mailer } from "./mailer.ts"
+    Scenario: The orders and the outbox, with what shaped the orders
+      Given these specs:
+        | tags                                         | Feature                                 |
+        | @id=publish-through-an-outbox @kind=decision | Orders publish events through an outbox |
+        | @id=numbered-receipts @kind=decision         | Receipts are numbered without gaps      |
+      And a file "specs/receipts.feature" containing:
+        """
+        @id=receipts @maturity=idea @realized-by:ARCH-orders
+        Feature: Receipts
 
-      /**
-       * @sdp is ARCH-orders
-       * @sdp applies PAT-outbox
-       */
-      export const place = (): Mailer => new Mailer()
-      """
+          @decided-by:numbered-receipts
+          Rule: Every receipt is numbered
 
-  Rule: The architecture is every element and pattern its code declares, with the decisions and the quality requirements, rules tagged `@quality`, linked to it or to the features that realize it
+          @quality @decided-by:publish-through-an-outbox
+          Rule: A receipt is sent within a minute
+        """
+      And a file "src/orders.ts" containing:
+        """
+        /** @sdp is ARCH-orders */
+        export const place = (): number => 0
 
-    Scenario: Elements and patterns from code, with the decisions and quality requirements that shaped them
+        /** @sdp is PAT-outbox */
+        export const outbox = new Set<string>()
+        """
       When I run "sdp arch --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.architecture | ARCH-mailer, ARCH-orders, PAT-outbox                                                     |
+        | data.architecture | ARCH-orders, PAT-outbox                                                                  |
         | data.drivers      | receipts#a-receipt-is-sent-within-a-minute, numbered-receipts, publish-through-an-outbox |
 
-  Rule: Each element is shown with what it is for, its links, the shape of what its code exports, and the work on it, live and still to come, the furthest along first
+  Rule: Each element is shown with what it is for, its links, the shape of its code and what shaped it
+
+    Scenario: The mailer, which the orders import, shaped by a decision on receipts
+      Given these specs:
+        | tags                                                                               | Feature                            |
+        | @id=numbered-receipts @kind=decision                                               | Receipts are numbered without gaps |
+        | @id=receipts @maturity=idea @realized-by:ARCH-mailer @decided-by:numbered-receipts | Receipts                           |
+      And a file "src/mailer.ts" containing:
+        """
+        /**
+         * Sends receipts, and retries while the provider is down.
+         *
+         * @sdp is ARCH-mailer title="Receipt mailer"
+         */
+        export class Mailer {}
+        """
+      And a file "src/orders.ts" containing:
+        """
+        import { Mailer } from "./mailer.ts"
+
+        /** @sdp is ARCH-orders */
+        export const place = (): Mailer => new Mailer()
+        """
+      When I run "sdp arch"
+      Then the exit code is 0
+      And the output contains "ARCH-mailer — Receipt mailer (element)"
+      And the output contains "Sends receipts, and retries while the provider is down."
+      And the output contains "ARCH-mailer <-imports- ARCH-orders"
+      And the output contains "class Mailer {}"
+      And the output contains "numbered-receipts, through receipts"
+
+  Rule: The work on each element is shown, live and still to come, the furthest along first
 
     What is furthest along is built next. A question is no work: it waits on a decision, not on the
     element.
 
-    Scenario: The mailer and the orders
-      Given a file "specs/refunds.feature" containing:
+    Scenario: Invoices, refunds and receipts on the orders
+      Given a file "src/orders.ts" containing:
         """
-        @id=refunds @maturity=ready @realized-by:ARCH-orders
-        Feature: Refunds
+        /** @sdp is ARCH-orders */
+        export const place = (): number => 0
         """
+      And these specs:
+        | tags                                                 | Feature  |
+        | @id=receipts @maturity=idea @realized-by:ARCH-orders | Receipts |
+        | @id=refunds @maturity=ready @realized-by:ARCH-orders | Refunds  |
       And a file "specs/invoices.feature" containing:
         """
         @id=invoices @realized-by:ARCH-orders
@@ -89,11 +102,6 @@ Feature: See the architecture
         """
       When I run "sdp arch"
       Then the exit code is 0
-      And the output contains "Sends receipts, and retries while the provider is down."
-      And the output contains "class Mailer"
-      And the output contains "ARCH-orders -imports-> ARCH-mailer"
-      And the output contains "ARCH-orders -applies-> PAT-outbox"
-      And the output contains "Transactional outbox"
       And the output contains:
         """
         live: invoices  Invoices
@@ -103,13 +111,77 @@ Feature: See the architecture
         """
       And the output does not contain "Is an invoice ever cancelled?"
 
-  Rule: sdp derives which element imports which from the code, through any code of no element: an import of a value calls the other's code, one of types alone does not
+  Rule: Work still to come may name an element that no code declares yet
 
-    Code no element claims, a helper or a file that passes names on, is followed to the code of the
-    elements it imports, so a dependency through it, and a cycle, is in the graph.
+    The architecture shows it as still to come, named by that work. Live work may not: what is built
+    is realized by code, so its link to an element nothing declares dangles.
 
-    Scenario Outline: The billing module imports <what>
-      Given a file "src/send.ts" containing:
+    Scenario Outline: Exports, named by work <named by>
+      Given a file "specs/export.feature" containing:
+        """
+        @id=export <maturity> @realized-by:ARCH-exports
+        Feature: Export
+        """
+      When the workspace is loaded
+      Then sdp reports "<reported>"
+      When I ask for the architecture view
+      Then the output contains "still to come, named by export" <shown>
+
+      Examples:
+        | named by      | maturity        | reported      | shown   |
+        | still to come | @maturity=ready | nothing       | 1 time  |
+        | that is live  |                 | dangling-link | 0 times |
+
+  Rule: The architecture can be drawn as a Mermaid flowchart
+
+    Decisions and patterns are drawn in shapes of their own, so that a reader tells them from the
+    elements at a glance.
+
+    Scenario: The orders, which import the mailer and apply the outbox, shaped by a decision on receipts
+      Given these specs:
+        | tags                                                                               | Feature                            |
+        | @id=numbered-receipts @kind=decision                                               | Receipts are numbered without gaps |
+        | @id=receipts @maturity=idea @realized-by:ARCH-orders @decided-by:numbered-receipts | Receipts                           |
+      And a file "src/mailer.ts" containing:
+        """
+        /** @sdp is ARCH-mailer */
+        export class Mailer {}
+        """
+      And a file "src/orders.ts" containing:
+        """
+        import { Mailer } from "./mailer.ts"
+
+        /**
+         * @sdp is ARCH-orders
+         * @sdp applies PAT-outbox
+         */
+        export const place = (): Mailer => new Mailer()
+
+        /** @sdp is PAT-outbox */
+        export const outbox = new Set<string>()
+        """
+      When I run "sdp arch --mermaid"
+      Then the exit code is 0
+      And the output contains "flowchart LR"
+      And the output contains '["ARCH-mailer"]'
+      And the output contains '{{"PAT-outbox"}}'
+      And the output contains '[/"numbered-receipts'
+      And the output contains "-->|imports|"
+      And the output contains "-->|decided-by|"
+
+  Rule: An element imports another when its code imports a value from the other's code, through any code of no element
+
+    An import of types alone runs none of the other's code. Code no element claims, a helper or a
+    file that passes names on, is followed, so that a dependency through it is in the graph.
+
+    Scenario Outline: The billing imports <what>
+      Given a file "src/mailer.ts" containing:
+        """
+        /** @sdp is ARCH-mailer */
+        export class Mailer {}
+        export interface Receipt {}
+        """
+      And a file "src/send.ts" containing:
         """
         import { Mailer } from "./mailer.ts"
 
@@ -135,10 +207,11 @@ Feature: See the architecture
         | a value of code of no element             | import { send } from "./send.ts"          | ARCH-mailer |
         | a type alone through code of no element   | import { Receipt } from "./send.ts"       | nothing     |
 
-  Rule: sdp reads what TypeScript and JavaScript import, and an answer that shows what elements import says so when code of an element is in another language
+  Rule: An answer that shows what elements import notes each element whose code's imports sdp does not read
 
-    What that element imports is then missing from the answer. It is a note, and the answer stays
-    complete: nothing in the workspace can be fixed so that sdp reads it.
+    sdp reads the imports of TypeScript and JavaScript, and what an element imports from code in
+    another language is missing from the answer. It is a note, and the answer stays complete: nothing
+    in the workspace can be fixed so that sdp reads it.
 
     Scenario Outline: Code of an element in <language>, asked with <command>
       Given a file "<file>" containing:
@@ -158,7 +231,10 @@ Feature: See the architecture
         | Python     | src/pay.py | #      | sdp context ARCH-pay                 | 1 time  |
         | TypeScript | src/pay.ts | //     | sdp arch                             | 0 times |
 
-  Rule: An import means the file its name resolves to, as TypeScript or Deno resolve it, by the repository's files whether or not its packages are installed
+  Rule: An import means the file TypeScript or Deno resolves its name to, whether or not packages are installed
+
+    sdp reads the configuration files of the repository as TypeScript, its package manager and Deno
+    read them, and installs or runs nothing.
 
     Scenario Outline: A name resolved by <by>
       Given a file "<config>" containing:
@@ -192,7 +268,7 @@ Feature: See the architecture
         | a pattern of the imports of a package.json  | package.json              | { "name": "shop", "imports": { "#lib/*": "./src/*.ts" } }                                                | lib/tax.ts            | src/tax.ts                | #lib/tax       |
         | the imports of a deno.json                  | deno.json                 | { "imports": { "@/": "./src/" } }                                                                        | lib/tax.ts            | src/tax.ts                | @/tax.ts       |
 
-    Scenario: A name the paths of a tsconfig.json map, which a package of the workspace holds and the repository's tsconfig.json extends, not installed
+    Scenario: The paths of a tsconfig.json extended from a package of the workspace that is not installed
       Given a file "package.json" containing:
         """
         { "name": "shop", "workspaces": ["packages/*"] }
@@ -224,11 +300,12 @@ Feature: See the architecture
       When I query "#ARCH-billing -imports-> *"
       Then the result is "ARCH-tax"
 
-  Rule: An import sdp cannot follow is reported where it is written, as is a file it depends on that sdp cannot read, and makes the answer incomplete when it could name the workspace's code
+  Rule: An import that could name the workspace's code and that sdp cannot follow makes the answer incomplete
 
-    A library a package.json declares, a module of Node.js and a file that is not code are no element;
-    any other name sdp cannot follow could hide a dependency from the architecture's rules, and so
-    could any package's name while the list of the workspace's packages cannot be read.
+    It could hide a dependency from the architecture, so it is reported where it is written. A
+    library a package.json declares, a module of Node.js and a file that is not code name none of the
+    workspace's code; any other name could, and so could a package's name while the list of the
+    workspace's packages cannot be read.
 
     Scenario Outline: An import of <case>
       Given a file "package.json" containing:
@@ -256,7 +333,7 @@ Feature: See the architecture
         | a library a package.json declares                      | { "name": "shop", "dependencies": { "rates": "^1.0.0" } } | rates | rates      | 0         | src/billing.ts:1 | 0 times  |
         | a name no package.json declares, in code of no element | { "name": "shop" }                                        | tax   | ./rates.ts | 2         | src/rates.ts:1   | 1 time   |
 
-    Scenario Outline: A pnpm-workspace.yaml that does not parse, which could list the package an import names, <declared>
+    Scenario Outline: A package, while the pnpm-workspace.yaml that could list it does not parse, <declared>
       Given a file "pnpm-workspace.yaml" containing:
         """
         packages: [tools/*
@@ -285,40 +362,6 @@ Feature: See the architecture
         | declared                                         | says                                                               | reported |
         | which no package.json declares                   | { "name": "shop" }                                                 | 1 time   |
         | which the package.json declares with workspace:* | { "name": "shop", "dependencies": { "@shop/tax": "workspace:*" } } | 0 times  |
-
-  Rule: The architecture and its links can be drawn as a Mermaid flowchart
-
-    Scenario: The flowchart of the architecture
-      When I run "sdp arch --mermaid"
-      Then the exit code is 0
-      And the output contains "flowchart LR"
-      And the output contains "-->|imports|"
-      And the output contains '["ARCH-mailer"]'
-
-  Rule: An element that only work still to come names is shown as still to come, and one that live work names must be in the code
-
-    Scenario Outline: Exports, named by work <named by>
-      Given a file "specs/export.feature" containing:
-        """
-        @id=export <maturity> @realized-by:ARCH-exports
-        Feature: Export
-        """
-      When the workspace is loaded
-      Then sdp reports "<reported>"
-      When I ask for the architecture view
-      Then the output contains "still to come, named by export" <shown>
-
-      Examples:
-        | named by      | maturity        | reported      | shown   |
-        | still to come | @maturity=ready | nothing       | 1 time  |
-        | that is live  |                 | dangling-link | 0 times |
-
-  @maturity=idea
-  Rule: sdp arch shows the code no element claims that lies on an import between elements, with the elements that depend through it, and check never fails on it
-
-    Followed, such code hides no dependency, but a change to it reaches the elements that import it
-    unseen. Shown, each file is the architect's call: sdp anchors nothing itself, and lists no helper
-    that no element reaches through.
 
   @maturity=idea
   Rule: sdp check reports an element that depends on itself through others, whatever code lies between them
