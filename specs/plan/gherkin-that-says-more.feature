@@ -1,5 +1,4 @@
 @id=gherkin-that-says-more @kind=epic
-@includes:check-a-rule-against-generated-examples
 @includes:run-specs#a-run-can-write-cucumber-messages-so-the-reporters-and
 @includes:write-specs-in-a-richer-grammar
 @includes:write-specs-in-an-editor
