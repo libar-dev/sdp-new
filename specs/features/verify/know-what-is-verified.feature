@@ -54,9 +54,9 @@ Feature: Know what is verified
         |                     | wishlist#keep-a-lamp | passes  | in-progress |
 
   @decided-by:what-makes-a-decision
-  Rule: A decision's rules are no work: status and context give them no state
+  Rule: A decision and its rules are no work: status and context give them no state
 
-    Scenario: A decision with a rule, beside the cart
+    Scenario: A decision with a rule, another resting on it, beside the cart
       Given a file "specs/monthly-releases.feature" containing:
         """
         @id=monthly-releases @kind=decision
@@ -64,13 +64,23 @@ Feature: Know what is verified
 
           Rule: A release ships what passed by the end of its month
         """
+      And a file "specs/release-trains.feature" containing:
+        """
+        @id=release-trains @kind=decision
+        Feature: Release trains
+
+          @decided-by:monthly-releases
+          Rule: A train leaves on the last day of the month
+        """
       When I run "sdp status --json"
       Then the exit code is 0
       And the JSON output has:
-        | data.rules | {"unrun":1} |
+        | data.rules  | {"unrun":1} |
+        | data.stages | {"unrun":1} |
       When I run "sdp context monthly-releases"
       Then the exit code is 0
-      And the output does not contain "no example"
+      And the output does not contain "stage"
+      And the output contains "- A train leaves on the last day of the month (decided-by)"
 
   Rule: A result goes stale, with the reason, once anything it ran against changes
 
