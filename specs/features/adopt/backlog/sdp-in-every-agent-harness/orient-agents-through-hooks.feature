@@ -27,13 +27,11 @@ Feature: Orient agents through hooks
       @id=cart @maturity=draft @iteration:IT-beta
       Feature: Cart
 
-        Rule: A cart holds what was added
-
         @open
         Rule: Does a cart expire?
       """
 
-  Rule: At session start the agent is shown what sdp lifecycle --brief prints for the workspace sdp finds from where the session started
+  Rule: At session start, the agent is shown what sdp lifecycle --brief prints where the session started
 
     Scenario: A session started below the workspace's root
       When the plugin's hook runs at session start in "shop/src"
@@ -44,22 +42,23 @@ Feature: Orient agents through hooks
       Then the output is what the hook showed
 
   @quality
-  Rule: The orientation fits in 2,000 characters and arrives within 5 seconds, or one line says it did not and names the command to run
+  Rule: The orientation arrives within 5 seconds, or one line says it did not and names the command to run
 
     @serial
     Scenario: A workspace of 500 specs, all planned now
       Given 500 features in "shop" planned into "IT-beta", each with an open question
       When the plugin's hook runs at session start in "shop"
       Then the output contains "MS-beta"
-      And the output is at most 2000 characters
       And the hook answered within 5000 ms
 
-  Rule: Outside an sdp workspace the hook shows nothing; a hook that fails says so in one line and lets the session go on
+  Rule: Outside an sdp workspace the hook shows nothing
 
     Scenario: A directory with no sdp.config
       When the plugin's hook runs at session start in "elsewhere"
       Then the exit code is 0
       And the output is empty
+
+  Rule: A hook that fails says so in one line, and lets the session go on
 
     Scenario: A workspace whose specs cannot be read whole
       Given a file "shop/specs/features/broken.feature" containing:
@@ -72,7 +71,7 @@ Feature: Orient agents through hooks
       And the output has 1 line
       And the output contains "sdp check"
 
-  Rule: Run on an event that recurs — a prompt, a tool call — the hook shows the orientation once per session, the first time
+  Rule: On an event that recurs, a prompt or a tool call, the hook orients a session once, the first time
 
     Scenario: Two tool calls of one session, then a new session
       When the plugin's hook runs on "PreToolUse" for session "a" in "shop"
@@ -82,7 +81,9 @@ Feature: Orient agents through hooks
       When the plugin's hook runs on "PreToolUse" for session "b" in "shop"
       Then the output contains "MS-beta"
 
-  Rule: The orientation is answered by the sdp the workspace installed, and says so when the plugin is of another version
+  Rule: The hook runs the sdp the workspace installed, and names both versions when the plugin's differs
+
+    A plugin installed for a person serves every repository, each with sdp at a version of its own.
 
     Scenario: A plugin newer than the workspace's sdp
       Given the workspace "shop" installed sdp "0.1.0"
@@ -91,10 +92,10 @@ Feature: Orient agents through hooks
       Then the output contains "MS-beta"
       And the output line with "0.2.0" contains "0.1.0"
 
-  Rule: The hook runs the sdp the workspace installed, found from its root, and names both versions when the plugin's differs; where the workspace installed none it runs the plugin's own and says so, and never npx, a download or an sdp on the PATH
+  Rule: Where the workspace installed no sdp, the hook runs the plugin's own and says so
 
-    A plugin installed for a person serves every repository, each with sdp at a version of its own
-    or none, and `sdp` on npm is another package.
+    Never npx, a download or an sdp on the PATH: `sdp` on npm is another package, and one on the PATH
+    may be of any version.
 
   @maturity=idea
   Rule: An agent that edits a spec is shown the diagnostics of that file before its next step

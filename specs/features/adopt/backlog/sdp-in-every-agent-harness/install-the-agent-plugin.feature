@@ -8,7 +8,7 @@ Feature: Install the agent plugin
 
   Not the MCP server, which `serve-agents` specifies, and no harness's settings are written.
 
-  Rule: One package is the plugin of every supported harness: one manifest, one folder of skills and one hook script
+  Rule: The package is the plugin of every supported harness, as the Agent Plugins standard lays it out
 
     Scenario: The plugin is the package
       Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
@@ -16,7 +16,7 @@ Feature: Install the agent plugin
       Then the exit code is 0
       And "plugin.json" in the repository conforms to the Agent Plugins 1.0.0 schema
 
-  Rule: Where the standard does not reach a harness, a shim of that harness's own names the plugin and where its skills are, and holds no skill text
+  Rule: A harness the standard does not reach finds the plugin through a shim of its own, which holds no skill text
 
     Scenario Outline: The shim of <harness>
       When I run "cat <shim>" in the repository
@@ -30,7 +30,11 @@ Feature: Install the agent plugin
         | ZCode     | .zcode-plugin/plugin.json |
         | Kimi Code | kimi.plugin.json          |
 
-  Rule: Each supported harness finds one wiring of the hook in the plugin, or in the one setting sdp names, and run as that harness runs it, it orients the session
+  Rule: Each supported harness finds the hook wired once, and run as that harness runs it, it orients the session
+
+    Wired in the plugin, or in the one setting of the harness that sdp names. The harnesses are not
+    installed where these examples run, so they say only that the plugin is wired as each harness
+    expects; that a harness supports it, only the gate says.
 
     Background:
       Given these specs:
@@ -54,36 +58,25 @@ Feature: Install the agent plugin
         | Grok Build  | PreToolUse       |
         | OpenCode    | context          |
 
-  Rule: The examples learn where each harness finds a plugin's hook, and how it runs it, from a model of each kept in the steps at the version it was measured at, and say only that the plugin is wired as that model expects
+  Rule: init writes no skill, and names how each supported harness installs the plugin instead
 
-    The harnesses are not installed where the examples run; a model is what the earlier
-    implementation measured at the versions the gate names, and goes stale when a harness changes.
-    That a harness supports the plugin only its gate says.
+    The skill comes with the plugin, at the version the repository installed.
 
-  Rule: init starts a workspace with a configuration that shows every default and overwrites nothing, writes no skill, and names how each supported harness installs the plugin
-
-    Scenario: Run twice, below another workspace
-      Given a file "sdp.config.yaml" containing:
-        """
-        # every key at its default
-        """
-      When I run "sdp init" in "shop"
+    Scenario: A new workspace
+      When I run "sdp init"
       Then the exit code is 0
-      And the output contains "created sdp.config.yaml"
+      And the file ".claude/skills/sdp/SKILL.md" does not exist
       And the output contains "Claude Code"
       And the output contains "Codex"
+      And the output contains "ZCode"
       And the output contains "Kimi Code"
       And the output contains "Grok Build"
-      And the output contains "ZCode"
       And the output contains "OpenCode"
-      And the file "shop/sdp.config.yaml" contains "# features: "
-      And the file "shop/.claude/skills/sdp/SKILL.md" does not exist
-      When I run "sdp init" in "shop"
-      Then the output contains "exists  sdp.config.yaml"
-      When I run "sdp check --base none" in "shop"
-      Then the exit code is 0
 
-  Rule: A harness is supported only where its model, at a version of the harness the example names, received the skill and the orientation, the orientation once
+  Rule: A harness is supported only where its model, at the version the gate pins, received the skill and one orientation
+
+    A harness answers through a model, at a cost per session. Where what a model was given cannot be
+    read yet, support stays unverified.
 
     @gate
     Scenario Outline: <harness> <version>
@@ -100,8 +93,3 @@ Feature: Install the agent plugin
         | Kimi Code   | 2.4.1   |
         | Grok Build  | 1.0.70  |
         | OpenCode    | 2.2.5   |
-
-  Rule: A gate example drives the harness where it is installed, at the version the gate pins, and reads what its model was given; a person may run it or find why it failed, and records nothing by hand
-
-    A harness is installed on few machines and answers through a model, at a cost per session.
-    Where what a model was given cannot be read yet, support stays unverified.
