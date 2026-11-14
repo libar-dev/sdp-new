@@ -57,8 +57,6 @@ export default defineSteps(newWorld, ({ Then, When }) => {
     }))
   }
 
-  Then("the planned activity is:", ({ table, world }) => assertRows("planned activity", activity(world), table, "exactly"))
-
   // The rows of the disciplines it names, whatever the others hold.
   Then("the planned activity includes:", ({ table, world }) => assertRows("planned activity", activity(world), table, "including"))
 })

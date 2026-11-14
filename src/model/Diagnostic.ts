@@ -17,8 +17,8 @@ export type Severity = typeof Severity.Type
 
 /**
  * Every rule sdp can report, with its severity. Diagnostics can only name a
- * rule listed here, so this is the complete catalogue (specified, with an
- * example per rule, in check-specs).
+ * rule listed here, so this is the complete catalogue; each rule's example is
+ * in the feature whose users meet it, and check-specs has the rest.
  */
 export const rules = {
   "duplicate-id": "error",

@@ -41,8 +41,8 @@ const hookInput = (event: string, session: string, cwd: string) => ({
 /**
  * What a harness adds to the agent's context from what a command hook that exited 0 printed: a JSON
  * object's `hookSpecificOutput.additionalContext`, or nothing when it has none; anything else as it
- * is, as Claude Code adds it at session start. Whether each harness does so on each event is the
- * open question of install-the-agent-plugin about a model of each harness.
+ * is, as Claude Code adds it at session start. Whether each harness does so on each event only
+ * the gate examples of install-the-agent-plugin, run in the harness itself, can say.
  */
 const shownToTheAgent = (printed: string): string => {
   const answer: unknown = (() => {

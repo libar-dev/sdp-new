@@ -7,7 +7,7 @@ import { strict as assert } from "node:assert"
 import { instructions, registrations } from "../../src/mcp/Server.ts"
 import { defineSteps } from "sdp/steps"
 import { layerMemoryWorkspace, memoryRoot } from "../../src/workspace/MemoryFileSystem.ts"
-import { exitCode, ids, newWorld, output, produce, type World } from "./world.ts"
+import { exitCode, newWorld, output, produce, type World } from "./world.ts"
 import { execute, workspace } from "./process.ts"
 
 const errorState = "Then the MCP tool reports an error"
@@ -81,10 +81,6 @@ export default defineSteps(newWorld, ({ Then, When }) => {
 
   When("an agent reads the MCP server's instructions", ({ world }) => {
     produce(world, instructions)
-  })
-
-  Then("the MCP tools are {string}", ({ args: [list], world }) => {
-    assert.deepEqual(listed(world).map((tool) => tool.name).sort(), ids(list))
   })
 
   Then("every MCP tool is marked {string}", ({ args: [hints], world }) => {

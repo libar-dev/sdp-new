@@ -13,9 +13,8 @@ import type { Project } from "../../src/graph/Build.ts"
 import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { type Attrs, formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
+import { type Attrs, formatSource, type GraphNode } from "../../src/model/Graph.ts"
 import type { RunResults } from "../../src/model/Results.ts"
-import type { ParsedFile } from "../../src/parse/Spec.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
 import type { Execution } from "./run.steps.ts"
 
@@ -36,10 +35,6 @@ export interface World {
   directory: string | undefined
   lifecycle: LifecycleReport | undefined
   durationMs: number
-  /** The file the last `"<path>" is parsed` parsed, on its own. */
-  parsedFile?: ParsedFile
-  /** The workspace's graph loaded from memory and from disk, in that order. */
-  workspaceGraphs?: ReadonlyArray<Graph>
   /** Each record of a command's output that the package's record schema refused, by line. */
   recordDecodeFailures?: ReadonlyArray<string>
   /** The MCP tools an agent listed, each by its name and annotations. */

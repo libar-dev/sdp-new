@@ -179,4 +179,8 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
 
   Then("the paths are:", ({ table, world }) =>
     assertRows("paths", queried(world).paths.map((p) => ({ path: formatPath(p) })), [["path"], ...(table ?? [])], "exactly"))
+
+  Then("the median run completes within {int} ms", ({ args: [budget], world }) => {
+    assert.ok(world.durationMs <= budget, `median ${world.durationMs.toFixed(1)} ms exceeds ${budget} ms`)
+  })
 })

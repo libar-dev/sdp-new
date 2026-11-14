@@ -8,7 +8,6 @@
  * the package declares linked into node_modules/.bin.
  */
 import { strict as assert } from "node:assert"
-import { createHash } from "node:crypto"
 import { rmSync } from "node:fs"
 import { chmod, cp, lstat, mkdir, mkdtemp, readdir, readFile, realpath, symlink } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -21,9 +20,6 @@ import { ids, newWorld, stdout } from "./world.ts"
 interface Packed extends Ran {
   /** The tarball npm wrote, when it wrote one. */
   readonly tarball: string | undefined
-  /** The files of the checkout, each with a digest of its content, before and after it was packed. */
-  readonly before: ReadonlyMap<string, string>
-  readonly after: ReadonlyMap<string, string>
 }
 
 /** A command and every process it starts, as one group that ends when the step waiting on it is stopped. */
@@ -37,21 +33,6 @@ const npmEnv: Readonly<Record<string, string | undefined>> = {
   npm_config_audit: "false",
   npm_config_fund: "false",
   npm_config_update_notifier: "false"
-}
-
-/** Every file under `root` but its node_modules, by its path relative to `root`, with a digest of its content. */
-const snapshot = async (root: string): Promise<ReadonlyMap<string, string>> => {
-  const files = new Map<string, string>()
-  const walk = async (directory: string): Promise<void> => {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const file = join(directory, entry.name)
-      if (directory === root && entry.name === "node_modules") continue
-      if (entry.isDirectory()) await walk(file)
-      else files.set(relative(root, file), createHash("sha256").update(await readFile(file).catch(() => "")).digest("hex"))
-    }
-  }
-  await walk(root)
-  return files
 }
 
 const pack = async (signal: AbortSignal): Promise<Packed> => {
@@ -69,11 +50,9 @@ const pack = async (signal: AbortSignal): Promise<Packed> => {
     await cp(join(repository, file), join(checkout, file), { verbatimSymlinks: true })
   }
   await symlink(await realpath(join(repository, "node_modules")), join(checkout, "node_modules"))
-  const before = await snapshot(checkout)
   const packed = await run("npm", ["pack", "--pack-destination", destination], checkout, signal, npmEnv)
-  const after = await snapshot(checkout)
   const tarball = (await readdir(destination)).find((file) => file.endsWith(".tgz"))
-  return { ...packed, tarball: tarball && join(destination, tarball), before, after }
+  return { ...packed, tarball: tarball && join(destination, tarball) }
 }
 
 /**
