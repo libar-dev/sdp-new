@@ -265,11 +265,6 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
     assert.equal(lineCount(output(world)), count, `lines of the output:\n${output(world)}`)
   })
 
-  Then("the output has at most {int} line(s)", ({ args: [limit], world }) => {
-    const count = lineCount(output(world))
-    assert.ok(count <= limit, `the output has ${count} lines, more than ${limit}:\n${output(world)}`)
-  })
-
   Given("{int} features in {string} planned into {string}, each with an open question", ({ args: [count, root, iteration], world }) =>
     plannedFeatures(world, count, iteration, root))
 

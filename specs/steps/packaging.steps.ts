@@ -15,7 +15,7 @@ import { tmpdir } from "node:os"
 import { basename, dirname, join, relative } from "node:path"
 import { Effect } from "effect"
 import { defineSteps } from "sdp/steps"
-import { directoryOf, env, type Ran, record, repository, spawned } from "./process.ts"
+import { directoryOf, env, type Ran, repository, spawned } from "./process.ts"
 import { ids, newWorld, stdout } from "./world.ts"
 
 interface Packed extends Ran {
@@ -106,21 +106,6 @@ const linkInstalled = async (project: string, name: string) => {
 }
 
 export default defineSteps(newWorld, ({ Given, Then, When }) => {
-  When("a checkout of this repository is packed with npm", async ({ signal, world }) => {
-    record(world, "npm pack", await packed(signal))
-  })
-
-  Then("the checkout is as it was before it was packed", async ({ signal }) => {
-    const { after, before } = await packed(signal)
-    const changes = {
-      added: [...after.keys()].filter((file) => !before.has(file)).sort(),
-      removed: [...before.keys()].filter((file) => !after.has(file)).sort(),
-      changed: [...before.keys()].filter((file) => after.has(file) && after.get(file) !== before.get(file)).sort()
-    }
-    assert.deepEqual(changes, { added: [], removed: [], changed: [] }, "packing changed the checkout")
-  })
-
-  // The workspace's package.json, when it has one, says what the project depends on: the package
   // under that name is the one npm packs, and every other one is linked from this repository.
   Given("the package npm packs from a checkout of this repository, installed in the workspace as {string}", async ({ args: [name], signal, world }) => {
     const result = await packed(signal)

@@ -39,6 +39,19 @@ Feature: Start a spec
       And the keys commented out in "sdp.config.yaml" are every key of the configuration
       And "sdp.config.yaml" with every key uncommented reads as no configuration at all
 
+  Rule: What init and new write passes check, also once it is committed and check compares it with its base
+
+    Scenario: A repository of your own, started and committed
+      When I run "sdp init"
+      Then the exit code is 0
+      When I run "sdp new feature 'Gift wrapping'"
+      Then the output lines are "gift-wrapping\tspecs/features/gift-wrapping.feature"
+      When I run "sdp new decision 'Use Postgres for orders'"
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run "sdp check"
+      Then the exit code is 0
+
   Rule: init writes a .gitignore only where git does not ignore .sdp/ already, and says what to add to one that does not ignore it rather than change it
 
     What sdp run records holds only in the checkout where it ran, so it stays out of every commit.

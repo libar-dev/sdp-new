@@ -364,3 +364,6 @@ Feature: See the architecture
     Followed, such code hides no dependency, but a change to it reaches the elements that import it
     unseen. Shown, each file is the architect's call: sdp anchors nothing itself, and lists no helper
     that no element reaches through.
+
+  @maturity=idea
+  Rule: sdp check reports an element that depends on itself through others, whatever code lies between them

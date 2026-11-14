@@ -17,7 +17,6 @@ import { type Attrs, formatSource, type Graph, type GraphNode } from "../../src/
 import type { RunResults } from "../../src/model/Results.ts"
 import type { ParsedFile } from "../../src/parse/Spec.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
-import type { Matched, Stopped } from "./harness.steps.ts"
 import type { Execution } from "./run.steps.ts"
 
 export interface World {
@@ -43,18 +42,6 @@ export interface World {
   workspaceGraphs?: ReadonlyArray<Graph>
   /** Each record of a command's output that the package's record schema refused, by line. */
   recordDecodeFailures?: ReadonlyArray<string>
-  /** The steps of every example matched with the step definitions, for the guards to read. */
-  matchedSteps?: Matched
-  /** What became of each step stopped while the process it started ran. */
-  stoppedSteps?: ReadonlyArray<Stopped>
-  /** Where the searched files interpret a word of the vocabulary, each `file:line word`. */
-  interpretedWords?: ReadonlyArray<string>
-  /** A graph built from nodes and edges the scenario keeps in `graphInputs`, to change them once it is built. */
-  builtGraph?: Graph
-  graphInputs?: {
-    nodes: Array<{ id: string; kind: string; title: string; attrs: { owner?: { team: string }; tags?: Array<string> } }>
-    edges: Array<{ from: string; rel: string; to: string; source: { file: string; line: number } }>
-  }
   /** The MCP tools an agent listed, each by its name and annotations. */
   mcpTools?: ReadonlyArray<{ readonly name: string; readonly annotations?: Readonly<Record<string, unknown>> | undefined }>
   /** The step definitions the scenario scripted, where each runs, and what they did when run. */

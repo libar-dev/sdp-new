@@ -15,12 +15,12 @@ node scripts/orient/orient.ts my-recipe.ts            # a recipe of your own, af
 
 | # | Section | What it answers |
 | --- | --- | --- |
-| 1 | `taxonomy` | every word in use: made, interpreted or carried by sdp, its type, its meaning from the pin |
+| 1 | `taxonomy` | every word in use: made, interpreted or carried by sdp, its type, its meaning from scripts/orient/words.md |
 | 2 | `now` | the milestone, its gate as last run, the iterations |
 | 3 | `to-come` | work still to come at every maturity, with its plan, examples, epic and route to code |
 | 4 | `open` | the questions waiting on the owner |
 | 5 | `architecture` | declared elements and patterns: imports, patterns applied, work carried, purpose |
-| 6 | `bounds` | decisions, architecture rules, guides and the vision, as pointers |
+| 6 | `bounds` | decisions and the vision, as pointers |
 | 7 | `ask` | sdp's few verbs, each on a real id |
 | 8 | `sample` | a hard-coded walk from two features still to come to the code they will change |
 

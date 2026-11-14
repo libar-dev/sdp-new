@@ -381,8 +381,8 @@ Feature: Write step definitions
 
     Scenario Outline: A built-in step that does not hold: <step>
       Given these specs:
-        | tags                      | Feature |
-        | @id=search @maturity=idea | Search  |
+        | tags                                        | Feature |
+        | @id=search @maturity=idea @start=2026-11-16 | Search  |
       And a file "specs/guard.feature" containing:
         """
         Feature: Guard
@@ -394,10 +394,24 @@ Feature: Write step definitions
       And the step '<step>' reports '<reason>'
 
       Examples:
-        | step                                   | reason                                      |
-        | the query "feature" returns 3 results  | returned 2 result(s), expected 3            |
-        | the node "search" has maturity "ready" | search.maturity is "idea", expected "ready" |
-        | the query "feture" returns no results  | no kind feture; closest: feature            |
+        | step                                                                 | reason                                                      |
+        | the query "feature" returns 3 results                                | returned 2 result(s), expected 3                            |
+        | the node "search" has maturity "ready"                               | search.maturity is "idea", expected "ready"                 |
+        | the query "feture" returns no results                                | no kind feture; closest: feature                            |
+        | the query "feature" returns at most 1 result                         | returned 2 result(s), expected at most 1                    |
+        | every node matching "feature" also matches "feature[maturity=ready]" | 2 node(s) match "feature" but not "feature[maturity=ready]" |
+        | there are no diagnostics for rule "fact-kind"                        | search: @start= dates an iteration                          |
+
+    Scenario: A built-in step that holds, the answer listed
+      Given a file "specs/guard.feature" containing:
+        """
+        Feature: Guard
+          Scenario: Guard
+            Then the query "feature" returns:
+              | cart |
+        """
+      When the workspace is run
+      Then the step 'the query "feature" returns:' has status "passed"
 
   Rule: Only a run runs step files; every other command reads them without running them
 
@@ -446,6 +460,15 @@ Feature: Write step definitions
       When I run "sdp run --json"
       Then the JSON output has:
         | data.summary.passed | 1 |
+
+  Rule: Importing sdp/steps loads no parser of specs or code
+
+    A step module needs only the step API, so importing it costs no more than a step needs.
+
+    Scenario: A fresh process that imports sdp/steps
+      When a fresh Node process imports "sdp/steps"
+      Then the output does not contain "oxc-parser"
+      And the output does not contain "@cucumber/gherkin"
 
   Rule: A program that runs the specs through the API keeps its own imports of sdp
 

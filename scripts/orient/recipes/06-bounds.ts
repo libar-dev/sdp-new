@@ -1,7 +1,6 @@
 /**
  * 6 bounds: what a change here must keep, which is not in any one feature — the decisions, with how
- * much rests on each; the rules the code keeps (architecture); the rules the repository is worked by
- * (guides); and why it exists (vision). Each is a spec to read before writing or changing one.
+ * much rests on each, and why it exists (vision). Each is a spec to read before writing or changing one.
  */
 import { at, clip, type Recipe, type Row, sameAsId } from "../lib.ts"
 

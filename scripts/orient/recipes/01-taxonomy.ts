@@ -3,31 +3,29 @@
  * with it, its type, how often it is used and what it means.
  *
  * What sdp does and how often come from sdp; the type is the type table of `sdp vocabulary`; the
- * meaning is this repository's pin, the tables of the guide PIN, read from its file because no
- * surface of sdp serves them (FINDING: `sdp graph` carries a scenario's step count, not its steps or
- * tables, and `sdp context` prints neither).
+ * meaning is the tables of WORDS, which sdp does not read until a workspace can declare its words
+ * in sdp's metamodel.
  */
 import { clip, type Recipe, type Row, type State } from "../lib.ts"
 
-const PIN = "every-word-is-defined-and-used"
+const WORDS = "scripts/orient/words.md"
 
 const list = (v: string | ReadonlyArray<string>): ReadonlyArray<string> => (typeof v === "string" ? [v] : v)
 
 /** How much of a meaning a text line shows; `--json` has it whole, and its line in the pin. */
 const WIDTH = 64
 
-/** The pin's tables, by the word in their first header cell: word → its sdp cell, meaning and line. */
+/** The tables of WORDS, by the word in their first header cell: word → its sdp cell, meaning and line. */
 const pinTables = (state: State) => {
-  const node = state.graph.node(PIN)
   const tables = new Map<string, Map<string, { sdp: string; meaning: string; line: number }>>()
-  if (node?.file == null) return tables
   let header: ReadonlyArray<string> | undefined
-  for (const [i, line] of state.read(node.file).split("\n").entries()) {
+  for (const [i, line] of state.read(WORDS).split("\n").entries()) {
     if (!line.trim().startsWith("|")) {
       header = undefined
       continue
     }
     const cells = line.trim().slice(1, -1).split("|").map((c) => c.trim())
+    if (cells.every((c) => /^-+$/.test(c))) continue
     if (header === undefined) {
       header = cells
       continue
@@ -42,8 +40,8 @@ const pinTables = (state: State) => {
 export default {
   title: "what can be modeled: the words of this workspace",
   asks: ["vocabulary", "graph"],
-  reads: (state) => [`pin ${state.graph.node(PIN)?.file ?? `${PIN} (not found)`}`],
-  legend: "rec word sdp used type meaning · sdp: makes=nobody writes it, interprets, carries=the team's word; *=not in the pin · meaning: the pin's, cut",
+  reads: () => [`words ${WORDS}`],
+  legend: "rec word sdp used type meaning · sdp: makes=nobody writes it, interprets, carries=the team's word; *=not in the words · meaning: the words', cut",
   rows: (state) => {
     const json = state.json
     const { graph, vocabulary: v } = state

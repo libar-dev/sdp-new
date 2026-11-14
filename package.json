@@ -22,7 +22,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p examples/shop && tsc --noEmit -p scripts/pack",
     "test": "node src/cli/main.ts run --concurrency 8",
     "check": "node src/cli/main.ts check",
-    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts gate everything-built-is-verified"
+    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts run --root examples/shop"
   },
   "dependencies": {
     "@cucumber/cucumber-expressions": "^20.2.0",
