@@ -68,4 +68,11 @@ export default defineSteps(newWorld, ({ Given, Then, When }) => {
       assert.equal(node.code, 0, `the import exited ${node.code}: ${node.stderr}`)
       produce(world, node.stdout)
     }))
+
+  // The packages of the modules that import loaded, each once, by name: what it costs beyond the workspace's own code.
+  Then("the packages it loaded are {string}", ({ args: [expected], world }) => {
+    const names = output(world).split("\n").flatMap((url) => /\/node_modules\/((?:@[^/]+\/)?[^/]+)\//.exec(url)?.[1] ?? [])
+    const loaded = [...new Set(names)].sort()
+    assert.deepEqual(loaded, expected.split(", ").sort(), `loaded the packages ${loaded.join(", ")}`)
+  })
 })
