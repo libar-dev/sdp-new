@@ -8,6 +8,8 @@ Feature: Browse the graph in Obsidian
 
   Rule: Each spec and element gets a note: its facts, stage and links as properties, each rule a heading
 
+  Rule: Each note shows the diagram of its node
+
   Rule: A link is a wikilink to the id it names
 
     No text of a spec becomes a link, a tag or a block id.

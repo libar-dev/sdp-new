@@ -245,6 +245,10 @@ Feature: Link code to the architecture
         | code:src/cart.ts#load  | function load(id: string): Effect.fn.Return<number>                                       |
         | code:src/cart.ts#total | function total(lines: ReadonlyArray<number>)                                              |
         | ARCH-cart              |                                                                                           |
+      When the workspace is checked
+      Then sdp reports at least:
+        | rule        | severity | at             |
+        | return-type | warning  | src/cart.ts:24 |
 
     Scenario: What a file exports itself, under another name and by default, and from another file
       Given a file "src/vat.ts" containing:

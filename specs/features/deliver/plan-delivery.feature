@@ -468,6 +468,21 @@ Feature: Plan delivery
     Run again, the gate would read a graph that has moved on; once met, its scenarios are a plan of
     work that is done, to be deleted or to become the tests of what was built.
 
+    Scenario: A met milestone whose gate would fail now
+      Given a file "specs/MS-objectives.feature" containing:
+        """
+        @id=MS-objectives @closes:PH-inception @met=2026-01-30
+        Feature: Lifecycle objectives
+
+          Rule: The work is planned
+
+            Scenario: There is no plan
+              Then the query "iteration" returns no results
+        """
+      When I run "sdp gate MS-objectives"
+      Then the exit code is 0
+      And the output contains "MS-objectives was met on 2026-01-30"
+
     Scenario: A met milestone whose gate scenarios are gone
       Given these specs:
         | tags                                                   | Feature              |

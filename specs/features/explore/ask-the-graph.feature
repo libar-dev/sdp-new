@@ -122,6 +122,7 @@ Feature: Ask the graph
         | a misspelt relation  | feature -realised-by-> * | no relation realised-by; closest: realized-by       |
         | a misspelt attribute | element[titel]           | element has no attribute titel; closest: title      |
         | a misspelt rung      | feature[maturity<redy]   | no maturity redy; closest: ready                    |
+        | a misspelt stage     | feature[stage=verifed]   | no stage verifed; closest: verified                 |
         | a tag without its @  | feature[tags=web]        | no tag web; a tag is written with its @, as @web    |
 
     Scenario: A gate that asks for nothing below a misspelt rung fails

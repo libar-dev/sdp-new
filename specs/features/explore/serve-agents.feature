@@ -68,6 +68,22 @@ Feature: Serve AI agents
       And the output does not contain "undefined: Given an empty cart"
       And the file "executed.txt" does not exist
 
+    Scenario: The cart's contract, beside an example of another spec that says it verifies the cart
+      Given a file "specs/wishlist.feature" containing:
+        """
+        @id=wishlist @maturity=draft
+        Feature: Wishlist
+
+          Rule: A wishlist keeps an item for later
+
+            @verifies:cart
+            Scenario: An item kept for later goes into the cart
+              Given an empty cart
+        """
+      When I run "sdp context cart"
+      Then the exit code is 0
+      And the output contains "1 rule(s), 1 scenario(s)"
+
   Rule: The context of a decision or an element lists the work that rests on it, live and still to come
 
     A change to either can break what rests on it.
