@@ -1,10 +1,11 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * How answers read as text: one function per kind of answer, used by the
  * command line and the MCP server alike. A list is one item per line with its
  * fields separated by tabs, so it pipes into grep and cut; on a terminal the
  * same fields are aligned in columns and coloured.
- *
- * @sdp is ARCH-application
  */
 import type { NodeRecord } from "../graph/Export.ts"
 import { formatPath } from "../graph/Query.ts"
@@ -163,7 +164,10 @@ export const vocabulary = (data: VocabularyData): string => {
       Array.isArray(value) || typeof value !== "object" || value === null ? [`${pad(section, 20)} ${words(value)}`] : [section, ...roles(value)]
     ),
     "made by sdp, not configurable",
-    ...roles(data.made)
+    ...roles(data.made),
+    "types",
+    ...Object.entries(data.types.links).map(([rel, t]) => `  ${pad(rel, 18)} ${t.from.join(", ")} → ${t.to.join(", ")}`),
+    ...Object.entries(data.types.facts).map(([fact, t]) => `  ${pad(fact, 18)} a ${t.value} on ${t.on.join(", ")}`)
   ].join("\n")
 }
 

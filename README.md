@@ -8,13 +8,12 @@ Node.js 24 or later; the sources run as they are, with no build step.
 
 ```sh
 npm install
-npm run verify                    # typecheck, sdp check, and every scenario of this repository
+npm run verify                    # typecheck, sdp check, every scenario of this repository and of the shop example
 node src/cli/main.ts --help       # every command, one line each (`sdp` is this, or `npm link` once)
 ```
 
-- sdp shown by running it: [specs/GUIDE.feature](specs/GUIDE.feature)
 - a small product specified with it, file by file: [examples/shop](examples/shop/README.md)
 - why it exists: [specs/VISION.feature](specs/VISION.feature)
-- what every command promises: [specs/features/use-the-command-line.feature](specs/features/use-the-command-line.feature)
+- what every command promises: [specs/features/adopt/use-the-command-line.feature](specs/features/adopt/use-the-command-line.feature)
 - how to work with it, for agents and people: [the skill](.claude/skills/sdp/SKILL.md), which
   `sdp init` writes into a repository of your own beside its `sdp.config.yaml`

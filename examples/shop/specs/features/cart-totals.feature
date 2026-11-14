@@ -27,7 +27,7 @@ Feature: Cart totals include VAT
       When the delivery country is XX
       Then pricing fails with "no VAT rate for XX"
 
-  @type=quality
+  @quality
   Rule: The total of a thousand-line cart takes under 2 ms on average
 
     B2B customers order hundreds of lines, and the total is recalculated on every change: it must

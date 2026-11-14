@@ -1,10 +1,14 @@
 /**
+ * Reads a spec from its Gherkin file: the Feature, its rules and examples, and what their tags say
+ * and link to.
+ *
+ * @sdp is ARCH-spec-parser
+ *
+ * @remarks
  * A spec is a Gherkin file, read by the official Cucumber parser as it is: the Feature is the
  * node, a `Rule:` the unit of content, its scenarios the examples. Tags say what a Feature, a Rule
  * or a Scenario is and what it links to — `@key=value` describes, `@rel:ID` links, any other tag
  * is a Cucumber tag — and the free text under each keyword line is its description.
- *
- * @sdp is ARCH-spec-parser
  */
 import { AstBuilder, compile, dialects, GherkinClassicTokenMatcher, Parser } from "@cucumber/gherkin"
 import type * as Messages from "@cucumber/messages"
@@ -14,7 +18,7 @@ import { createHash } from "node:crypto"
 import type { RuleId } from "../model/Diagnostic.ts"
 import type { Attrs } from "../model/Graph.ts"
 import { idForm, idWordBreak, isId, isKey } from "../model/Vocabulary.ts"
-
+import { tagValue } from "../model/TagValue.ts"
 export interface LinkDecl {
   readonly rel: string
   readonly to: string
@@ -104,7 +108,7 @@ export interface GherkinError {
 
 /** Something the parser accepts that sdp cannot read as written: a tag that says nothing where it is, a line Gherkin drops. */
 export interface GherkinProblem {
-  readonly rule: Extract<RuleId, "tag-syntax" | "description-comment" | "gherkin-syntax" | "link-syntax">
+  readonly rule: Extract<RuleId, "tag-syntax" | "description-comment" | "gherkin-syntax" | "link-syntax" | "background-empty" | "prose-step">
   readonly message: string
   readonly line: number
   readonly hint: string
@@ -174,12 +178,6 @@ const parseDocument = (source: string, newId: IdGenerator.NewId): Result.Result<
 /** Where a tag sits: what a fact or a link there is about, and which ones it may hold. */
 type Level = "Feature" | "Rule" | "Scenario" | "Examples"
 
-/** A value that reads back as the number it is written as is a number; `true` and `false` are booleans; the rest is text. */
-const tagValue = (text: string): unknown => {
-  if (text === "true" || text === "false") return text === "true"
-  const number = Number(text)
-  return Number.isFinite(number) && String(number) === text ? number : text
-}
 
 /**
  * What the tags of one element say. `=` makes a fact, `:` a link, and the first of them decides;
@@ -193,7 +191,18 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
   const links: Array<LinkDecl> = []
   const problem = (tag: Messages.Tag, message: string, hint: string, rule: GherkinProblem["rule"] = "tag-syntax") =>
     problems.push({ rule, message: `${tag.name}: ${message}`, line: tag.location.line, hint })
+  const split = splitWords(tags)
+  for (const word of split) {
+    problems.push({
+      rule: "tag-syntax",
+      message: `${word.map((tag) => tag.name).join("")}: a tag holds no @, so Gherkin reads it as ${word.map((tag) => tag.name).join(" and ")}`,
+      line: word[0]!.location.line,
+      hint: "a value with @ has no tag form: write it in the description"
+    })
+  }
+  const fragments = new Set(split.flat().map((tag) => tag.id))
   for (const tag of tags) {
+    if (fragments.has(tag.id)) continue
     const at = tag.name.search(/[=:]/)
     if (at < 0) {
       plain.push(tag.name)
@@ -241,6 +250,33 @@ const readTags = (tags: ReadonlyArray<Messages.Tag>, level: Level, linkKeys: Lin
   return { tags: plain, attrs: nested(values, tags, problems), attrLines: Object.fromEntries(attrLines), links }
 }
 
+/**
+ * The tags Gherkin split out of one word written with an `@` inside it — `@owner=a@b.c` is read as
+ * `@owner=a` and `@b.c` — each word as the tags it became: one starts where the one before it ends.
+ */
+const splitWords = (tags: ReadonlyArray<Messages.Tag>): ReadonlyArray<ReadonlyArray<Messages.Tag>> => {
+  const words: Array<Array<Messages.Tag>> = []
+  for (const tag of tags) {
+    const word = words.at(-1)
+    const last = word?.at(-1)
+    const touches = last !== undefined && last.location.line === tag.location.line && last.location.column !== undefined &&
+      tag.location.column === last.location.column + last.name.length
+    if (touches) word!.push(tag)
+    else words.push([tag])
+  }
+  return words.filter((word) => word.length > 1)
+}
+
+/**
+ * The tags a comment drops from a tag line: whitespace and then `#` ends the line, so a tag after it
+ * is no tag at all. A `#` inside a tag is part of it.
+ */
+const droppedTags = (line: string): { readonly comment: string; readonly tags: ReadonlyArray<string> } | undefined => {
+  const comment = /\s(#.*)$/.exec(line)?.[1]?.trim()
+  const tags = comment?.match(/@\S+/g) ?? []
+  return comment !== undefined && tags.length > 0 ? { comment, tags } : undefined
+}
+
 type Tree = Map<string, unknown>
 
 /** `@owner.team=core` is the fact `owner`, a map with the entry `team`. A key that is a value and a map is a problem. */
@@ -283,8 +319,9 @@ const describe = (description: string): string | undefined => {
 }
 
 /**
- * Where the lines of an element's description are in the file, and the `#` lines among them:
- * Gherkin drops those without a word, so a heading written there vanishes.
+ * Where the lines of an element's description are in the file, and the `#` lines among them or
+ * above them under the keyword line: Gherkin drops those without a word, so a heading written there
+ * vanishes.
  */
 const placeDescription = (lines: ReadonlyArray<string>, element: { readonly location: Messages.Location; readonly description: string }) => {
   const wanted = element.description === "" ? [] : element.description.split("\n")
@@ -293,7 +330,7 @@ const placeDescription = (lines: ReadonlyArray<string>, element: { readonly loca
   for (let index = element.location.line; index < lines.length && placed.length < wanted.length; index++) {
     const line = lines[index]!
     if (line.trimEnd() === wanted[placed.length]!.trimEnd()) placed.push({ text: line.trim(), line: index + 1 })
-    else if (placed.length > 0 && line.trimStart().startsWith("#")) comments.push(index + 1)
+    else if (line.trimStart().startsWith("#")) comments.push(index + 1)
   }
   return { lines: placed, comments }
 }
@@ -328,9 +365,22 @@ const readFeature = (
   const scenarioDefs: Array<{ readonly scenario: Messages.Scenario; readonly rule: Messages.Rule | undefined }> = []
   const described: Array<{ readonly location: Messages.Location; readonly description: string }> = [feature]
   const visitSteps = (steps: ReadonlyArray<Messages.Step>) => {
+    // A reason written under a Scenario becomes a step when it starts with Then: one after a Then
+    // that ends a sentence is most likely such a reason.
+    let outcome = false
     for (const step of steps) {
       astLines.set(step.id, step.location.line)
       astSteps.set(step.id, step)
+      const isOutcome: boolean = step.keywordType === "Outcome" || (step.keywordType === "Conjunction" && outcome)
+      if (isOutcome && outcome && step.text.trimEnd().endsWith(".")) {
+        problems.push({
+          rule: "prose-step",
+          message: `"${step.keyword.trim()} ${step.text}" reads as a sentence, so it may be a reason Gherkin made a step`,
+          line: step.location.line,
+          hint: "write a reason under `Rule:`, where no line becomes a step; a step ends without a full stop"
+        })
+      }
+      outcome = isOutcome
     }
   }
   const visitScenario = (scenario: Messages.Scenario, rule: Messages.Rule | undefined) => {
@@ -347,6 +397,14 @@ const readFeature = (
   const visitBackground = (background: Messages.Background) => {
     visitSteps(background.steps)
     described.push(background)
+    if (background.steps.length === 0) {
+      problems.push({
+        rule: "background-empty",
+        message: `"${`${background.keyword}: ${background.name}`.trim()}" has no steps, so it adds nothing to a scenario`,
+        line: background.location.line,
+        hint: "write its steps, or delete it; in a description, start no line with `Background:`"
+      })
+    }
   }
   for (const child of feature.children) {
     if (child.background) visitBackground(child.background)
@@ -370,6 +428,25 @@ const readFeature = (
       hint: "write it as text, or move the comment below the description; a heading has no place in a description"
     })
   }
+  // A tag line's comment drops the tags written after it, and a word with an `@` inside is split.
+  const tagged = [
+    feature.tags,
+    ...writtenRules.map((rule) => rule.tags),
+    ...scenarioDefs.flatMap(({ scenario }) => [scenario.tags, ...scenario.examples.map((examples) => examples.tags)])
+  ]
+  const tagLines = new Set(tagged.flat().map((tag) => tag.location.line).filter((line) => lines[line - 1]?.trimStart().startsWith("@")))
+  for (const line of [...tagLines].sort((a, b) => a - b)) {
+    const dropped = droppedTags(lines[line - 1]!)
+    if (dropped) {
+      problems.push({
+        rule: "tag-syntax",
+        message: `"${dropped.comment}" is a comment, so the tags in it are dropped: ${dropped.tags.join(" ")}`,
+        line,
+        hint: "write the comment on a line of its own, above the tags"
+      })
+    }
+  }
+  const fragments = new Set(tagged.flatMap((tags) => splitWords(tags).flat().map((tag) => tag.id)))
   // Gherkin reads a second Feature as text of the description above it, and nothing of it as a spec.
   const featureLine = keywordLine(feature.language, ["feature"])
   for (const { line, text } of placed.flatMap((description) => description.lines).filter((placed) => featureLine.test(placed.text))) {
@@ -409,7 +486,7 @@ const readFeature = (
   const scenarios = scenarioDefs.map(({ rule, scenario }, index): Scenario => {
     const compiled = (picklesByScenario.get(scenario.id) ?? []).map((pickle): Pickle => ({
       name: pickle.name,
-      tags: pickle.tags.map((tag) => tag.name).filter((tag) => !isFactOrLink(tag)),
+      tags: pickle.tags.filter((tag) => !fragments.has(tag.astNodeId)).map((tag) => tag.name).filter((tag) => !isFactOrLink(tag)),
       exampleLine: pickle.astNodeIds[1] ? astLines.get(pickle.astNodeIds[1]) : undefined,
       steps: pickle.steps.map((step): PickleStep => {
         const ast = astSteps.get(step.astNodeIds[0]!)

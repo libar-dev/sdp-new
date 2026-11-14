@@ -62,11 +62,12 @@ const exits = (node: Node): boolean =>
   node.type === "ReturnStatement" || node.type === "ThrowStatement" || (!node.type.includes("Function") && children(node).some(exits))
 
 /**
+ * @sdp is ARCH-spec-parser
+ * @sdp applies PAT-static-reading
+ *
+ * @remarks
  * Reads the step definitions of one step file without running it; `stepFiles` are the workspace's
  * step files, which it may export again.
- *
- * @sdp is ARCH-spec-parser
- * @sdp plays PAT-static-reading
  */
 export const scanStepDefinitions = (file: string, content: string, stepFiles: ReadonlySet<string> = new Set()): StepScan => {
   const script = parseScript(file, content)

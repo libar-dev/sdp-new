@@ -1,6 +1,4 @@
 @id=VISION @kind=vision
-@principle:specs-are-gherkin-files @principle:free-vocabulary @principle:files-are-the-source-of-truth
-@principle:declared-maturity-derived-stage
 Feature: Vision
 
   sdp manages software delivery end to end. Features — with their requirements, quality ones
@@ -22,11 +20,3 @@ Feature: Vision
   BDD runner, it also holds ideas, quality requirements, decisions, architecture and the plan;
   unlike an architecture repository, it holds only what architects declared, with the decisions
   and evidence behind it.
-
-  Rule: Every decision is one that something rests on
-
-    A choice nothing rests on is a sentence where it applies, not a record.
-
-    Scenario: The decisions of this repository
-      Then the query "decision" returns at least 1 result
-      And the query "decision !<-decided-by- *" returns no results

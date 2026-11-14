@@ -1,16 +1,18 @@
 /**
+ * @sdp is ARCH-application
+ * @sdp applies PAT-answer
+ *
+ * @remarks
  * Running scenarios: `sdp run` and `sdp gate`.
  *
  * One run over a workspace selects scenarios and their examples, runs the
  * ordinary ones against the graph without results, commits their results,
  * then runs the gates (milestones and `@gate` examples) against a graph that
  * shows the ordinary results and no gate results. The gate of a milestone
- * that is met does not run again, and a workspace that cannot all be read as
- * written, or has a scenario outside a rule or under a question, does not run at all. Works on any
- * `FileSystem`, so executable specs run it in memory.
- *
- * @sdp is ARCH-application
- * @sdp plays PAT-answer
+ * that is met does not run again, and a workspace whose specs cannot all be read
+ * as written, whose globs match a path that is no file, or that has a scenario outside a rule or
+ * under a question, or a maturity off the ladder, does not run at all; code sdp could not read
+ * leaves the answer incomplete. Works on any `FileSystem`, so executable specs run it in memory.
  */
 import parseTagExpression from "@cucumber/tag-expressions"
 import { posix } from "node:path"
@@ -30,7 +32,7 @@ import type { Spec } from "../parse/Spec.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { digest, fingerprint, isClosed, isGate } from "../run/Evidence.ts"
 import { snippetModule } from "../run/Match.ts"
-import { runScenarios, summarize } from "../run/Runner.ts"
+import { failingOnUnawaited, runScenarios, summarize } from "../run/Runner.ts"
 import type { StepModule } from "../run/Steps.ts"
 import { commitResults } from "../run/Store.ts"
 import {
@@ -47,6 +49,7 @@ import {
 import { type Answer, answer, unread } from "./Answer.ts"
 import { InvalidTags, Refused, UnknownNode, UnknownTargets, UnreadableSpecs } from "./Errors.ts"
 
+/** A selection that selects no scenario, by its targets, its tags or the workspace's features globs, is refused. */
 export interface Selection {
   /** Spec ids, scenario ids, files or directories; empty selects everything. */
   readonly targets?: ReadonlyArray<string> | undefined
@@ -78,9 +81,10 @@ export const selects = Effect.fnUntraced(function*(selection: Selection) {
 const undeclared: ReadonlySet<RuleId> = new Set(["scenario-outside-rule", "question-example", "maturity-off-ladder"])
 
 /**
- * Fails before anything runs when part of the workspace was not read as written, a scenario is
- * outside a rule, an open question has examples, or a maturity is no rung of the ladder: a result of
- * such a workspace would be evidence about what sdp check rejects.
+ * Fails before anything runs on a workspace on which a result would mean nothing (run-specs says
+ * why): a spec was not read as written or a path the globs match is no file — what of the unread
+ * is an error — a scenario is outside a rule, an open question has examples, or a maturity is no
+ * rung of the ladder. Code that was not read, a warning, leaves the run's answer incomplete instead.
  */
 export const ensureReadable = (project: Project): Effect.Effect<void, UnreadableSpecs> => {
   const problems = [
@@ -104,6 +108,11 @@ const unmatched = (project: Project, targets: ReadonlyArray<string>): ReadonlyAr
     !project.specs.some((spec) =>
       spec.id === target || targetsFile(target, spec) || spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec))
     )
+  )
+
+const withoutScenarios = (project: Project, targets: ReadonlyArray<string>): ReadonlyArray<string> =>
+  targets.filter((target) =>
+    !project.specs.some((spec) => spec.scenarios.some((scenario) => targetsScenario(target, scenario, spec)))
   )
 
 /**
@@ -173,9 +182,24 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
   const before = yield* loadWorkspace(root, { results: "none", imports: imports() })
   yield* ensureReadable(before.project)
   yield* asLoaded(before)
-  const unknown = unmatched(before.project, options.selection?.targets ?? [])
+  const targets = options.selection?.targets ?? []
+  const unknown = unmatched(before.project, targets)
   if (unknown.length > 0) return yield* new UnknownTargets({ targets: unknown })
+  // What selected nothing is named on one line, however it was written.
+  const shown = (written: ReadonlyArray<string>) => written.map((text) => text.replace(/\s*[\r\n]\s*/g, " ")).join(", ")
+  const empty = withoutScenarios(before.project, targets)
+  if (empty.length > 0) {
+    return yield* new Refused({ reason: `nothing matches ${shown(empty)}: ${empty.length === 1 ? "it holds" : "they hold"} no scenario` })
+  }
+  const tags = options.selection?.tags
   const { config } = before.project
+  if (!before.project.specs.some((spec) => spec.scenarios.some((scenario) => selected(scenario, spec) !== undefined))) {
+    return yield* new Refused({
+      reason: tags !== undefined
+        ? `nothing matches --tags ${shown([tags])}${targets.length > 0 ? ` in ${shown(targets)}` : ""}: no example's tags match it`
+        : `nothing matches the features globs ${shown(config.features)}: no spec they match holds a scenario`
+    })
+  }
   // Whether an example is a gate is decided by its own tags and spec, and it runs as one only if it
   // is: an outline that is partly gates runs its other selected rows with the ordinary scenarios.
   const select = (gates: boolean) => (scenario: Scenario, spec: Spec) => {
@@ -221,6 +245,9 @@ export const runWorkspace = Effect.fn("runWorkspace")(function*(root: string, op
       gates,
       timeout: options.timeout ?? config.timeout,
       concurrency: options.concurrency,
+      onStop: (finished) => commit(
+        finished.filter((result) => gates || !partlyGates.has(result.id)), workspace, (result) => complete(result)!
+      ).pipe(Effect.asVoid),
       onScenario: onScenario && ((result) => {
         const whole = complete(result)
         return whole ? onScenario(whole, toCome(workspace.project.graph, whole.id)) : Effect.void
@@ -365,14 +392,14 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
   if (timeout !== undefined && Result.isFailure(timeout)) return yield* new Refused({ reason: `the timeout ${timeout.failure}` })
   const config = yield* loadConfig(root)
   const steps = yield* loadSteps(root, config)
-  const run = yield* runWorkspace(root, {
+  const run = yield* failingOnUnawaited(runWorkspace(root, {
     modules: [builtinSteps, ...steps.modules],
     loaded: steps,
     selection: { targets: input.targets, tags: input.tags },
     concurrency: input.concurrency,
     timeout: timeout?.success,
     onScenario: input.onScenario
-  })
+  }))
   const summary = summarize(run.scenarios.filter((result) => !run.toCome.has(result.id)))
   const gates = summarize(run.gates)
   const scenarios = [...run.scenarios, ...run.gates]
@@ -411,7 +438,8 @@ const execute = Effect.fnUntraced(function*(root: string, input: RunInput, enfor
       }${keep.length > 0 ? `, and write it above the rules still to come at ${file}:${keep.join(", ")}` : ""}`
     )
   ]
-  // Nothing runs on a workspace sdp check rejects; what else sdp did not read leaves the answer incomplete.
+  // Nothing runs on a workspace on which a result would mean nothing (see ensureReadable);
+  // what else sdp did not read leaves the answer incomplete.
   const missing = run.unread.map((diagnostic) => `not read: ${problemLine(diagnostic)}`)
   return { run, answer: { complete: missing.length === 0, notes: [...missing, ...notes], data: report } satisfies Answer<RunReport> }
 })
@@ -451,54 +479,30 @@ const unrecordable = (project: Project, spec: Spec): string | undefined => {
 }
 
 /**
- * Writes `@met=<today>` on a milestone whose gate scenarios all passed, as the workspace is now: none
- * of their results may have lapsed by the end of the run, and read again, whole, the milestone must
- * still be recordable, its gate must be the scenarios that ran, none of them edited, and every one
- * of them must still pass, or an edit made while the gate ran would be closed without having run.
+ * Writes `@met=<today>` on the tag line of a milestone as it was read when its gate ended, and gives
+ * the day; `undefined` when its file changed since, for an edit made then would be closed without
+ * having run.
  */
-const recordMet = Effect.fnUntraced(function*(root: string, milestone: string, ran: Pick<WorkspaceRun, "gates" | "lapsed">) {
-  const project = yield* loadProject(root)
-  const missing = unread(project)
-  if (missing.length > 0) {
-    return yield* new Refused({
-      reason: `${milestone} is not recorded as met: sdp could not read the whole graph as it is now (${missing.map(problemLine).join("; ")})`
-    })
-  }
-  const spec = project.specById.get(milestone)
-  if (!spec) return yield* new Refused({ reason: `${milestone} is not recorded as met: it is no longer in the workspace` })
-  const reason = unrecordable(project, spec)
-  if (reason !== undefined) return yield* new Refused({ reason })
-  const { vocabulary } = project.config
-  const gate = spec.scenarios.filter((scenario) => isGate(scenario, spec, vocabulary))
-  const hashes = new Map(ran.gates.map((result) => [result.id, result.hash]))
-  const same = gate.length === hashes.size && gate.every((scenario) => hashes.get(scenario.id) === scenario.hash) &&
-    !ran.gates.some((result) => ran.lapsed.has(result.id))
-  const unmet = gate.flatMap((scenario) => {
-    const status = project.graph.node(scenario.id)?.attrs.status
-    return status !== "passed" ? [`${scenario.id} (${String(status)})`] : []
-  })
+const recordMet = Effect.fnUntraced(function*(root: string, project: Project, spec: Spec) {
   const fs = yield* FileSystem.FileSystem
   const file = (yield* Path.Path).join(root, spec.file)
   const content = yield* fs.readFileString(file)
-  if (!same || unmet.length > 0 || content !== spec.body) {
-    return yield* new Refused({
-      reason: `${milestone} is not recorded as met: its gate changed while it ran${
-        gate.length === 0 ? ", and has no scenario now" : unmet.length > 0 ? `, and ${unmet.join(", ")} does not pass as it is now` : ""
-      }; run sdp gate ${milestone} --record again`
-    })
-  }
+  if (content !== spec.body) return undefined
   const met = DateTime.formatIsoDate(yield* DateTime.now)
-  const recorded = withTag(content, `@${vocabulary.attributes.met}=${met}`)
-  if (recorded === undefined) return yield* new Refused({ reason: `${spec.file} has no tag line to record ${milestone} on` })
+  // Only a milestone is recorded, and a tag gives a milestone its kind, `@kind=` or the prefix of its
+  // `@id=`: its file has a tag line, and one without is a defect of sdp, never a refusal.
+  const recorded = withTag(content, `@${project.config.vocabulary.attributes.met}=${met}`)
+    ?? (yield* Effect.die(new Error(`${spec.file} declares the milestone ${spec.id} on no tag line`)))
   yield* fs.writeFileString(file, recorded)
   return met
 })
 
 /**
  * `sdp gate`: evaluates one spec's gate scenarios against the current graph, and passes only when
- * every one of them passed and its result still counts when the gate ends. With `record`, a
- * milestone whose gate passes is written down as met today; one that is met already is closed, and
- * nothing runs.
+ * every one of them passed and still counts as the workspace is when the gate ends: read again
+ * whole, its gate must be the scenarios that ran, none of them edited, each still passing. With
+ * `record`, a milestone whose gate passes is written down as met today; one that is met already is
+ * closed, and nothing runs.
  */
 export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) {
   const project = yield* loadProject(root)
@@ -521,15 +525,48 @@ export const gate = Effect.fn("gate")(function*(root: string, input: GateInput) 
   const reason = input.record ? unrecordable(project, spec) : undefined
   if (reason !== undefined) return yield* new Refused({ reason })
   const { answer: ran, run } = yield* execute(root, { targets: [milestone], timeout: input.timeout, onScenario: input.onScenario }, "gates")
-  // What sdp did not read could change whether the gate holds. One whose scenarios all passed and
-  // does not pass changed while it ran, and recording it says how it is now.
-  const passing = run.gates.length > 0 && run.gates.every((result) => result.status === "passed")
-  const met = input.record && passing && ran.complete ? yield* recordMet(root, milestone, run) : undefined
-  const report: GateReport = { ...ran.data, milestone, met }
-  const unrecorded = !input.record || met !== undefined
-    ? []
-    : [`${milestone} is not recorded as met: ${
-      ran.data.passed ? "sdp could not read the whole graph, and what it did not read could change whether its gate holds" : "its gate does not pass"
-    }`]
-  return { ...ran, notes: [...ran.notes, ...unrecorded], data: report } satisfies Answer<GateReport>
+
+  const now = yield* loadProject(root)
+  const missing = unread(now).map((diagnostic) => `not read: ${problemLine(diagnostic)}`).filter((note) => !ran.notes.includes(note))
+  const complete = ran.complete && missing.length === 0
+  const current = now.specById.get(milestone)
+  const gates = current?.scenarios.filter((scenario) => isGate(scenario, current, now.config.vocabulary)) ?? []
+  const results = new Map(run.gates.map((result) => [result.id, result]))
+  const same = current !== undefined && gates.length === results.size && gates.every((scenario) => results.get(scenario.id)?.hash === scenario.hash)
+  // A result that lapsed by the end of the run is explained by the run; one that lapsed since, here.
+  const since = same
+    ? gates.flatMap((scenario) => {
+      const status = String(now.graph.node(scenario.id)?.attrs.status)
+      return results.get(scenario.id)?.status !== "passed" || status === "passed" || run.lapsed.has(scenario.id)
+        ? []
+        : [`${scenario.id} passed, and is ${status} as the graph is now: a gate passes only on results that still count`]
+    })
+    : []
+  const again = `run sdp gate ${milestone}${input.record ? " --record" : ""} again`
+  const notes = [...ran.notes, ...missing, ...(same ? [] : [`the gate of ${milestone} changed while it ran: ${again}`]), ...since]
+  let changed = !same || since.length > 0 || run.gates.some((result) => run.lapsed.has(result.id))
+  let passed = ran.data.passed && !changed
+  let met: string | undefined
+  if (input.record && passed && complete && current !== undefined) {
+    // Read again, it must still be recordable: an earlier milestone may have been dated before it meanwhile.
+    const reason = unrecordable(now, current)
+    if (reason !== undefined) return yield* new Refused({ reason })
+    met = yield* recordMet(root, now, current)
+    if (met === undefined) {
+      changed = true
+      passed = false
+      notes.push(`${milestone} was edited as its gate ended: ${again}`)
+    }
+  }
+  if (input.record && met === undefined) {
+    notes.push(`${milestone} is not recorded as met: ${
+      changed
+        ? "its gate changed while it ran"
+        : !passed
+        ? "its gate does not pass"
+        : "sdp could not read the whole graph, and what it did not read could change whether its gate holds"
+    }`)
+  }
+  const report: GateReport = { ...ran.data, passed, milestone, met }
+  return { complete, notes, data: report } satisfies Answer<GateReport>
 })

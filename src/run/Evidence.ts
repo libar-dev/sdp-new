@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-runner
+ *
+ * @remarks
  * Evidence: what a stored result ran against, and whether it still counts. A
  * result records fingerprints of its inputs and is shown only while every one
  * of them still matches the workspace; otherwise it is stale, with the reason.
@@ -7,12 +10,10 @@
  * scenarios → gates. An ordinary scenario runs against the graph without any
  * results; a gate against the ordinary results and never gate results; every
  * other reader (status, queries, context) sees all results that still count.
- *
- * @sdp is ARCH-runner
  */
 import { createHash } from "node:crypto"
 import type { EvidenceView, Settled, SourceFile } from "../graph/Build.ts"
-import type { RunResults, ScenarioResult } from "../model/Results.ts"
+import type { RunResults, ScenarioResult, Staleness } from "../model/Results.ts"
 import { hasKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Pickle, Scenario } from "../parse/Gherkin.ts"
 import type { Spec } from "../parse/Spec.ts"
@@ -71,14 +72,7 @@ export const fingerprint = (files: ReadonlyArray<SourceFile>): string => {
   return digest([...byPath.keys()].sort().flatMap((path) => [path, byPath.get(path)!]))
 }
 
-/** Why a stored result no longer counts as evidence: what changed since it ran. */
-export type Staleness =
-  | "scenario-changed"
-  | "code-changed"
-  | "toolchain-changed"
-  | "inputs-changed"
-  | "specs-changed"
-  | "results-changed"
+export type { Staleness } from "../model/Results.ts"
 
 /**
  * Compares what a result recorded with the workspace now, and with what the ordinary results say

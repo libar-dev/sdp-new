@@ -1,11 +1,24 @@
+/**
+ * The findings sdp reports: every rule a diagnostic can name, with its severity, and what one
+ * holds — the rule, a message, the line to fix and a hint. The command line, the MCP tools and
+ * the steps print them; their names are what a reader of `sdp check` acts on.
+ *
+ * @sdp is ARCH-diagnostics
+ */
+import { Schema } from "effect"
 import type { SourceRef } from "./Graph.ts"
 
-export type Severity = "error" | "warning" | "info"
+export const Severity = Schema.Union([
+  Schema.Literal("error").annotate({ description: "A problem that must be fixed for the workspace to pass checking." }),
+  Schema.Literal("warning").annotate({ description: "A problem worth addressing that does not fail checking." }),
+  Schema.Literal("info").annotate({ description: "Information about how the workspace was read." })
+]).annotate({ identifier: "Severity", title: "Diagnostic severity", description: "How severe a diagnostic is." })
+export type Severity = typeof Severity.Type
 
 /**
  * Every rule sdp can report, with its severity. Diagnostics can only name a
- * rule listed here, so this is the complete catalogue (specified, with an
- * example per rule, in check-specs).
+ * rule listed here, so this is the complete catalogue; each rule's example is
+ * in the feature whose users meet it, and check-specs has the rest.
  */
 export const rules = {
   "duplicate-id": "error",
@@ -20,6 +33,8 @@ export const rules = {
   "not-a-file": "error",
   "description-comment": "warning",
   "scenario-empty": "warning",
+  "background-empty": "warning",
+  "prose-step": "warning",
   "scenario-outside-rule": "error",
   "untested-feature": "error",
   "untested-rule": "error",
@@ -34,6 +49,8 @@ export const rules = {
   "decision-shape": "warning",
   "template-placeholder": "warning",
   "plan-reference": "warning",
+  "link-kind": "warning",
+  "fact-kind": "warning",
   "plan-date": "warning",
   "milestone-met": "warning",
   "annotation-ignored": "warning",
@@ -41,6 +58,7 @@ export const rules = {
   "import-unresolved": "warning",
   "return-type": "warning",
   "step-unreadable": "warning",
+  "results-unreadable": "warning",
   "step-expression": "error",
   "import-config-outside": "info"
 } as const satisfies Record<string, Severity>
@@ -65,7 +83,8 @@ export const unreadRules: ReadonlySet<RuleId> = new Set([
   "annotation-unreadable",
   "annotation-ignored",
   "import-unresolved",
-  "declaration-conflict"
+  "declaration-conflict",
+  "results-unreadable"
 ])
 
 /** A diagnostic on one line: `file:line [rule] message`. */

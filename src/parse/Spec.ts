@@ -53,12 +53,13 @@ const gherkinHint = "fix the Gherkin at this line; the spec's scenarios do not r
 export const suiteId = (file: string): string => `suite:${file}`
 
 /**
+ * @sdp is ARCH-spec-parser
+ *
+ * @remarks
  * A `.feature` file is a spec: the tags above `Feature:` say what it is — `@id=`, `@kind=` and any
  * other `@key=value` its identity and attributes, `@rel:ID` its links, any other tag a Cucumber
  * tag its scenarios inherit, as they inherit its kind. The Feature's name is its title and the
  * paragraphs under it its description. A file without an `@id=` is a suite named by its path.
- *
- * @sdp is ARCH-spec-parser
  */
 export const parseFeatureSpec = (file: string, content: string, config: Config): ParsedFile => {
   const fallbackId = suiteId(file)

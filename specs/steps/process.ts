@@ -5,10 +5,13 @@
  * `npm run`, `$PWD` for that directory, `$TODAY` for today's date (YYYY-MM-DD, as sdp's clock gives
  * it) and leading `NAME=value` words setting environment variables, as in a shell.
  */
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import { Effect, Stream } from "effect"
+import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import { strict as assert } from "node:assert"
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises"
 import { delimiter, dirname, join, resolve } from "node:path"
-import { execFile, spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { fileURLToPath } from "node:url"
@@ -57,7 +60,7 @@ export const directoryOf = async (world: World) => world.directory ??= await sce
 /** The scenario's directory with every given file written to it (again, if it changed since). */
 export const workspace = async (world: World) => {
   const directory = await directoryOf(world)
-  const written = (world.scratch.written ??= new Map<string, string>()) as Map<string, string>
+  const written = (world.writtenFiles ??= new Map<string, string>())
   for (const [file, content] of world.files) {
     if (written.get(file) === content) continue
     await mkdir(dirname(join(directory, file)), { recursive: true })
@@ -70,25 +73,77 @@ export const workspace = async (world: World) => {
 /** Shell-like words: quotes group, and are removed. */
 const words = (command: string) => [...command.matchAll(/'([^']*)'|"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2] ?? m[3]!)
 
-export const exec = (command: string, cwd: string, input = "") =>
-  new Promise<{ code: number; stdout: string; stderr: string }>((done, reject) => {
-    const today = new Date().toISOString().slice(0, 10)
-    const all = words(command).map((word) => word.replaceAll("$PWD", cwd).replaceAll("$TODAY", today))
-    const assignments = all.findIndex((word) => !/^[A-Z_][A-Z0-9_]*=/.test(word))
-    const variables = Object.fromEntries(all.slice(0, assignments).map((word) => word.split(/=(.*)/s).slice(0, 2)))
-    const [bin, ...args] = all.slice(assignments)
-    const sdp = bin === "sdp"
-    const options = { cwd, env: { ...env, ...variables } }
-    const child = execFile(sdp ? process.execPath : bin!, sdp ? [cli, ...args] : args, options, (error, stdout, stderr) => {
-      if (error && typeof error.code !== "number") reject(error)
-      else done({ code: error ? Number(error.code) : 0, stdout, stderr })
-    })
-    // A command that reads no input may have exited before it is written to: how it ended is still its outcome.
-    child.stdin?.on("error", (error: NodeJS.ErrnoException) => {
-      if (error.code !== "EPIPE") reject(error)
-    })
-    child.stdin?.end(input)
-  })
+/** How a process ended and what it wrote. */
+export interface Ran {
+  readonly code: number
+  readonly stdout: string
+  readonly stderr: string
+}
+
+/**
+ * A process and every process it starts, as one group: when the step that started it is stopped,
+ * the group gets SIGTERM, and SIGKILL a second later, and the step ends once all of it has.
+ */
+export const spawned = Effect.fn("spawned")(
+  function*(file: string, args: ReadonlyArray<string>, options: { readonly cwd: string; readonly env?: Readonly<Record<string, string | undefined>>; readonly input?: string }) {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+    const handle = yield* spawner.spawn(ChildProcess.make(file, [...args], {
+      cwd: options.cwd,
+      env: options.env ?? env,
+      extendEnv: false,
+      // A command that reads no input may exit before its input is written: the spawner ignores the failed write.
+      stdin: options.input ? Stream.make(new TextEncoder().encode(options.input)) : Stream.empty,
+      forceKillAfter: "1 second"
+    }))
+    const text = (stream: typeof handle.stdout) => Effect.map(Stream.runCollect(stream), (chunks) => Buffer.concat([...chunks]).toString("utf8"))
+    const [stdout, stderr, code] = yield* Effect.all([text(handle.stdout), text(handle.stderr), handle.exitCode], { concurrency: "unbounded" })
+    return { code: Number(code), stdout, stderr } satisfies Ran
+  },
+  Effect.scoped,
+  Effect.provide(NodeServices.layer)
+)
+
+/** A command line as a process: `sdp`, `$PWD`, `$TODAY` and leading `NAME=value` words as above. */
+export const execute = (command: string, cwd: string, input = "") => {
+  const today = new Date().toISOString().slice(0, 10)
+  const all = words(command).map((word) => word.replaceAll("$PWD", cwd).replaceAll("$TODAY", today))
+  const assignments = all.findIndex((word) => !/^[A-Z_][A-Z0-9_]*=/.test(word))
+  const variables = Object.fromEntries(all.slice(0, assignments).map((word) => word.split(/=(.*)/s).slice(0, 2)))
+  const [bin, ...args] = all.slice(assignments)
+  const sdp = bin === "sdp"
+  return spawned(sdp ? process.execPath : bin!, sdp ? [cli, ...args] : args, { cwd, env: { ...env, ...variables }, input })
+}
+
+/** The same for a step written with async/await, which passes its signal on so that stopping it ends the process. */
+export const exec = (command: string, cwd: string, input = "", signal?: AbortSignal): Promise<Ran> =>
+  Effect.runPromise(execute(command, cwd, input), { signal })
+
+/** A program and its arguments as one group, for a step written with async/await: stopping the step ends the group. */
+export const execProgram = (file: string, args: ReadonlyArray<string>, cwd: string, signal: AbortSignal): Promise<Ran> =>
+  Effect.runPromise(spawned(file, args, { cwd }), { signal })
+
+/**
+ * A process a step talks to while it runs, started by Node's `spawn` in a group of its own: when the
+ * step is stopped, the group gets SIGTERM, and SIGKILL a second later, as `spawned` does it.
+ */
+export const spawnInGroup = (file: string, args: ReadonlyArray<string>, cwd: string, signal: AbortSignal) => {
+  const child = spawn(file, [...args], { cwd, env, detached: true })
+  const group = (sent: NodeJS.Signals) => {
+    try {
+      if (child.pid !== undefined) process.kill(-child.pid, sent)
+    } catch {
+      // The group has ended.
+    }
+  }
+  const stop = () => {
+    group("SIGTERM")
+    setTimeout(() => group("SIGKILL"), 1000)
+  }
+  if (signal.aborted) stop()
+  else signal.addEventListener("abort", stop, { once: true })
+  child.on("close", () => signal.removeEventListener("abort", stop))
+  return child
+}
 
 /**
  * A file of the scenario's workspace: on disk once a command has run there, else in memory. A
@@ -106,5 +161,5 @@ export const existingFile = async (world: World, file: string): Promise<string> 
   return content
 }
 
-export const record = (world: World, line: string, result: { code: number; stdout: string; stderr: string }) =>
+export const record = (world: World, line: string, result: Ran) =>
   produce(world, result.stdout + result.stderr, { line, code: result.code, stdout: result.stdout })

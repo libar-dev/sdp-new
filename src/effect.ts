@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * The programmatic API as Effects, for programs written with Effect: the use
  * cases the command line and the MCP server call, with the shapes they print.
  * Each takes the workspace root and returns an Effect that needs a `FileSystem`
@@ -37,7 +40,7 @@ export {
 export type { ArchitectureData, DiagnosticRecord, QueryData, ShowData, WorkRecord } from "./app/Reading.ts"
 export { gate, run } from "./app/Running.ts"
 export type { GateInput, GateReport, RunInput, RunReport } from "./app/Running.ts"
-export type { EdgeRecord, GraphRecord, NodeRecord } from "./graph/Export.ts"
+export { EdgeRecord, GraphRecord, NodeRecord, SourceRef } from "./model/Records.ts"
 export type { QueryPath } from "./graph/Query.ts"
 export type { ScenarioResult } from "./model/Results.ts"
 export { BaseNotFound, gitRevisions, Revisions } from "./workspace/Revisions.ts"

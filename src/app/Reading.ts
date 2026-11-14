@@ -1,25 +1,26 @@
 /**
+ * @sdp is ARCH-application
+ * @sdp applies PAT-answer
+ *
+ * @remarks
  * Reading the graph: one use case per question a person or an agent asks.
  * Each reads the workspace as it is now — files, never workspace code — and
  * returns an answer (Answer.ts) made of plain records (`graph/Export.ts`), or
  * fails with a typed error (Errors.ts). The command line and the MCP server
  * call these and nothing else, so they cannot disagree.
- *
- * @sdp is ARCH-application
- * @sdp plays PAT-answer
  */
 import { DateTime, Effect, Result } from "effect"
 import { architectureView, workOn } from "../arch/Architecture.ts"
 import { check as checkProject, compareWithBase } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { contextBundle } from "../graph/Context.ts"
-import { type EdgeRecord, edgeRecord, type GraphRecord, graphRecords, mermaid, type NodeRecord, nodeRecord } from "../graph/Export.ts"
-import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords } from "../graph/Query.ts"
+import { contextBundle, neighbourhood } from "../graph/Context.ts"
+import { type EdgeRecord, edgeRecord, type GraphRecord, mermaid, type NodeRecord, nodeRecord, stateRecords } from "../graph/Export.ts"
+import { closest, parseQuery, projectQueryOptions, type QueryPath, runQuery, unknownWords, walks } from "../graph/Query.ts"
 import { statusSummary } from "../graph/Status.ts"
-import { type LifecycleReport, lifecycle as lifecycleReport, renderLifecycle } from "../lifecycle/Lifecycle.ts"
+import { type LifecycleReport, lifecycle as lifecycleReport, renderBrief, renderLifecycle } from "../lifecycle/Lifecycle.ts"
 import { atLeast, type Diagnostic, problemLine, type RuleId, type Severity, sortDiagnostics } from "../model/Diagnostic.ts"
-import { Graph } from "../model/Graph.ts"
-import { hasKind, made, vocabularyJson } from "../model/Vocabulary.ts"
+import { Graph, type GraphNode } from "../model/Graph.ts"
+import { hasKind, isEnd, made, vocabularyJson } from "../model/Vocabulary.ts"
 import { builtinSteps } from "../run/Builtin.ts"
 import { type ListedStep, listSteps, readSteps, snippetModule, stepProblems, unmatchedSteps } from "../run/Match.ts"
 import { baseOption, type BaseRead, noBase, Revisions } from "../workspace/Revisions.ts"
@@ -47,14 +48,34 @@ export interface QueryData {
   readonly paths?: ReadonlyArray<QueryPath> | undefined
 }
 
-/** A query's result, and what to say about it: the limits that cut it short and the words the workspace does not know. */
+/**
+ * One note for each element with code in a language whose imports sdp does not read: what the
+ * element imports there is missing from an answer that shows imports. The answer stays complete,
+ * for nothing in the workspace can be fixed so that sdp reads it.
+ */
+const importsNotRead = (project: Project): ReadonlyArray<string> => {
+  const files = new Map<string, Array<string>>()
+  for (const { element, file } of project.importsUnread) files.set(element, [...files.get(element) ?? [], file])
+  return [...files].map(([element, [first, ...others]]) =>
+    `what ${element} imports in ${first}${others.length === 0 ? "" : ` and ${others.length} other file(s)`} is not read: sdp reads the imports of TypeScript and JavaScript`
+  )
+}
+
+/** Whether a node is an element: what it imports, and what imports it, is among its links. */
+const isElement = (project: Project, node: GraphNode) => isEnd(project.config.vocabulary, "element", node.kind)
+
+/** A query's result, and what to say about it: the limits that cut it short, the words the workspace does not know and, when it follows `imports`, by name or as any relation, the code whose imports sdp does not read. */
 const evaluate = Effect.fnUntraced(function*(project: Project, expression: string) {
   const parsed = parseQuery(expression)
   if (Result.isFailure(parsed)) return yield* parsed.failure
   const result = runQuery(project.graph, parsed.success, projectQueryOptions(project))
+  const followsImports = walks(parsed.success, made.relations.imports)
   return {
     result,
-    about: { missing: result.limits.map((limit) => `cut short: ${limit}`), notes: unknownWords(project, parsed.success) }
+    about: {
+      missing: result.limits.map((limit) => `cut short: ${limit}`),
+      notes: [...unknownWords(project, parsed.success), ...followsImports ? importsNotRead(project) : []]
+    }
   }
 })
 
@@ -87,7 +108,7 @@ export const show = Effect.fn("show")(function*(root: string, input: { readonly 
     in: graph.in(node.id).map(edgeRecord),
     neighbours: graph.nodes().filter((other) => others.has(other.id)).map(nodeRecord)
   }
-  return answer(project, data)
+  return answer(project, data, { notes: isElement(project, node) ? importsNotRead(project) : [] })
 })
 
 /** A step listing or matching is complete only when every registration in the step files was read. */
@@ -105,9 +126,14 @@ export const context = Effect.fn("context")(function*(root: string, input: { rea
   const project = yield* loadProject(root)
   const node = yield* known(project, input.id)
   // The bundle matches the steps of the node's scenarios: a registration that was not read may define one of them.
-  const matched = (project.specById.get(node.id)?.scenarios.length ?? 0) > 0
+  const matched = project.graph.ofKind([made.kinds.scenario]).some((scenario) => scenario.attrs.spec === node.id)
   const missing = matched ? stepsMissing(project) : []
-  return answer(project, contextBundle(project, node, depth, readSteps(project, builtinSteps.definitions)), { missing })
+  // An element in the bundle is shown with what it imports, or is in reach through it.
+  const showsImports = isElement(project, node) || neighbourhood(project, node.id, depth).some((other) => isElement(project, other))
+  return answer(project, contextBundle(project, node, depth, readSteps(project, builtinSteps.definitions)), {
+    missing,
+    notes: showsImports ? importsNotRead(project) : []
+  })
 })
 
 export interface DiagnosticRecord {
@@ -270,7 +296,7 @@ export const architecture = Effect.fn("architecture")(function*(root: string) {
       return { node: node.id, live: live.map(nodeRecord), toCome: toCome.map(nodeRecord) }
     })
   }
-  return answer(project, data)
+  return answer(project, data, { notes: importsNotRead(project) })
 })
 
 const today = Effect.map(DateTime.now, DateTime.formatIsoDate)
@@ -328,6 +354,12 @@ export const lifecycleChart = Effect.fn("lifecycleChart")(function*(root: string
   return answer(project, renderLifecycle(lifecycleReport(project, yield* today)))
 })
 
+/** `sdp lifecycle --brief`: the milestone, work planned now and its open questions within 2,000 characters. */
+export const lifecycleBrief = Effect.fn("lifecycleBrief")(function*(root: string) {
+  const project = yield* loadProject(root)
+  return answer(project, renderBrief(lifecycleReport(project, yield* today), project))
+})
+
 export type VocabularyData = ReturnType<typeof vocabularyJson>
 
 /** `sdp vocabulary`: the words sdp interprets, as the workspace configures them, and those it makes itself. Only the configuration is read. */
@@ -348,11 +380,11 @@ const selected = Effect.fnUntraced(function*(project: Project, select: string | 
   return { graph, about }
 })
 
-/** `sdp graph`: the graph as records, every node and then every edge. */
+/** `sdp graph`: the state as records, every node and then every edge; with a query, the routes it matches. */
 export const graph = Effect.fn("graph")(function*(root: string, input: { readonly select?: string | undefined } = {}) {
   const project = yield* loadProject(root)
   const { about, graph } = yield* selected(project, input.select)
-  const data: ReadonlyArray<GraphRecord> = graphRecords(graph)
+  const data: ReadonlyArray<GraphRecord> = stateRecords(graph, project.config.vocabulary, input.select !== undefined)
   return answer(project, data, about)
 })
 
@@ -367,7 +399,7 @@ const architectureGraph = (project: Project): Graph => {
 export const diagram = Effect.fn("diagram")(function*(root: string, input: { readonly select?: string | undefined } | "architecture" = {}) {
   const project = yield* loadProject(root)
   const { about, graph } = input === "architecture"
-    ? { about: {}, graph: architectureGraph(project) }
+    ? { about: { notes: importsNotRead(project) }, graph: architectureGraph(project) }
     : yield* selected(project, input.select)
   return answer(project, mermaid(graph, project.config.vocabulary), about)
 })

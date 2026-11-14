@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-workspace
+ *
+ * @remarks
  * The base revision `sdp check` compares live tests with, read from git: the feature files of the
  * commit where HEAD meets the base, as that commit's own configuration finds them with the walk that
  * finds the workspace's, and that configuration. Reading is IO at the edge; comparing is the
@@ -9,10 +12,9 @@
  * stops the check; one that is not named and cannot be found leaves it with nothing to compare, an
  * answer that may miss a test turned off; `none` waives the comparison. git also says whether it
  * ignores a path, by any of its rules, so that `sdp init` keeps what `sdp run` records out of a commit.
- *
- * @sdp is ARCH-workspace
  */
 import { ByteSize, Context, Effect, FileSystem, Layer, Option, Path, Result, Schema, Stream } from "effect"
+import * as CliError from "effect/cli/CliError"
 import { type PlatformError, systemError } from "effect/PlatformError"
 import { ChildProcess, ChildProcessSpawner } from "effect/process"
 import type { SourceFile } from "../graph/Build.ts"
@@ -33,6 +35,9 @@ export class BaseNotFound extends Schema.TaggedError<BaseNotFound>()("BaseNotFou
 }) {
   override get message() {
     return `cannot compare live tests with the base ${this.base}: ${this.reason}`
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 

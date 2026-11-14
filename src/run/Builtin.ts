@@ -1,17 +1,20 @@
 /**
+ * The steps every run includes, by which a scenario asserts on the graph with a query or a check.
+ *
+ * @sdp is ARCH-builtin-steps
+ *
+ * @remarks
  * The steps by which a scenario asks a question of the graph: a query or a check turned into an
  * assertion. They make architecture rules, decision guards and milestone gates ordinary scenarios,
  * in the same format as every other specification.
  *
  *   Then the query "element !-*- decision" returns no results
  *   Then there are no error diagnostics
- *
- * @sdp is ARCH-builtin-steps
  */
 import { Result } from "effect"
 import { check } from "../check/Check.ts"
 import type { Project } from "../graph/Build.ts"
-import { closest, parseQuery, projectQueryOptions, type Query, runQuery, unknownWords, untaggedWords } from "../graph/Query.ts"
+import { closest, offLadderWords, parseQuery, projectQueryOptions, type Query, runQuery, unknownWords, untaggedWords } from "../graph/Query.ts"
 import { isRuleId, problemLine, rules, type Severity, unreadRules } from "../model/Diagnostic.ts"
 import { formatSource, type GraphNode } from "../model/Graph.ts"
 import { attribute, made } from "../model/Vocabulary.ts"
@@ -73,9 +76,9 @@ const run = (context: Asserting, source: string): ReadonlyArray<GraphNode> => {
   }
   const unknown = unknownWords(project, parsed.success)
   if (unknown.length > 0) {
-    // A tag without its @ is fixed by writing the @, and no declaration under vocabulary.words makes it match.
-    const untagged = new Set(untaggedWords(parsed.success))
-    const words = unknown.some((line) => !untagged.has(line))
+    // Tags need their @ and ladder values need a rung; vocabulary.words cannot declare either.
+    const fixedWords = new Set([...untaggedWords(parsed.success), ...offLadderWords(project, parsed.success)])
+    const words = unknown.some((line) => !fixedWords.has(line))
     throw new Error(
       `query "${source}" names what this workspace does not know, so it proves nothing: ${unknown.join("; ")}${
         words ? ". Fix the word, or declare one that is meant under vocabulary.words in the configuration" : ""

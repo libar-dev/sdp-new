@@ -16,7 +16,7 @@ import type { Spec } from "../parse/Spec.ts"
 import type { StepSignature } from "../parse/StepDefinitions.ts"
 import { type Matcher, unmatchedSteps } from "../run/Match.ts"
 import type { Project } from "./Build.ts"
-import { ruleLabel } from "./Status.ts"
+import { isStatement, ruleLabel, ruleState } from "./Status.ts"
 
 /** The step definitions of the workspace, so the bundle can show what is not automated yet before any run. */
 export interface ContextSteps {
@@ -28,9 +28,12 @@ export interface ContextSteps {
 }
 
 /**
- * Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach.
+ * The context of one node, the state as records, and the counts on one screen.
  *
  * @sdp is ARCH-reports
+ *
+ * @remarks
+ * Everything needed to work on one node, as one Markdown document: its contract, readiness, the rest of its spec, links, and the architecture, decisions and code in reach.
  */
 export const contextBundle = (project: Project, node: GraphNode, depth = 2, steps?: ContextSteps): string => {
   const { graph } = project
@@ -50,9 +53,15 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
 
   // The contract first: each rule with its state, what it rests on and why it holds, then its
   // examples with their status. Scenarios outside a rule come where they are written.
-  if (spec && spec.scenarios.length + spec.rules.length > 0) {
-    const open = spec.openQuestions.length
-    const counts = [`${spec.rules.length} rule(s)`, `${spec.scenarios.length} scenario(s)`, ...(open > 0 ? [`${open} open`] : [])]
+  const rules = graph.in(id).filter((e) => e.rel === made.relations.rule).map((e) => graph.node(e.from)).filter(Predicate.isNotUndefined)
+  // A spec's own examples: an example of another spec, or a rule, may verify it too, by a link its author wrote.
+  const examples = graph.in(id).filter((e) => {
+    const from = graph.node(e.from)
+    return e.rel === vocabulary.relations.scenario && from?.kind === made.kinds.scenario && from.attrs.spec === id
+  })
+  if (spec && rules.length + examples.length > 0) {
+    const open = rules.filter((rule) => ruleState(rule) === "open").length
+    const counts = [`${rules.length} rule(s)`, `${examples.length} scenario(s)`, ...(open > 0 ? [`${open} open`] : [])]
     out.push("## Contract", "", counts.join(", "), "")
     const scenarioLines = (s: Scenario) => {
       const status = graph.node(s.id)?.attrs.status ?? "unrun"
@@ -91,7 +100,10 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
       }
       const rests = graph.out(element.id).filter((e) => e.rel !== made.relations.rule).map((e) => ` · ${e.rel} ${e.to}`).join("")
       if (out.at(-1) !== "") out.push("")
-      out.push(`### ${element.name}`, `[${ruleLabel(graph.node(element.id)!)}] — ${spec.file}:${element.line}${rests}`, "")
+      // A decision's rule states what holds, so it has no state of work to show.
+      const rule = graph.node(element.id)!
+      const label = isStatement(graph, vocabulary, rule) ? "" : `[${ruleLabel(rule)}] — `
+      out.push(`### ${element.name}`, `${label}${spec.file}:${element.line}${rests}`, "")
       if (element.description) out.push(element.description, "")
       spec.scenarios.filter((s) => s.rule === element.id).forEach(scenarioLines)
     }
@@ -126,8 +138,8 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
     out.push("## Rules that rest on this", "")
     for (const e of resting) {
       const from = graph.node(e.from)!
-      const state = from.kind === made.kinds.rule ? ruleLabel(from) : String(from.attrs.status)
-      out.push(`- [${state}] ${from.title} (${e.rel}) — ${String(from.attrs.spec)} ${formatSource(from.source)}`)
+      const state = from.kind !== made.kinds.rule ? String(from.attrs.status) : isStatement(graph, vocabulary, from) ? undefined : ruleLabel(from)
+      out.push(`- ${state === undefined ? "" : `[${state}] `}${from.title} (${e.rel}) — ${String(from.attrs.spec)} ${formatSource(from.source)}`)
     }
     out.push("")
   }
@@ -254,7 +266,7 @@ const describeStatus = (node: GraphNode) => {
  * Nodes within `depth` hops in either direction along links. Reach ends at a scenario and at the
  * plan's own nodes: what shares an iteration with a node is not its context.
  */
-const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
+export const neighbourhood = (project: Project, id: string, depth: number): ReadonlyArray<GraphNode> => {
   const { graph } = project
   const vocabulary = project.config.vocabulary
   const seen = new Set([id])

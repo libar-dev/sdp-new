@@ -1,8 +1,14 @@
-# sdp specifies itself; every key is described in specs/features/configure-a-workspace.feature.
+# sdp specifies itself; every key is described in specs/features/adopt/configure-a-workspace.feature.
 features: ["specs/**/*.feature"]
 code: ["src/**/*.ts"]
 steps: ["specs/steps/**/*.steps.ts"]
-# Until review/redesign is on main, live tests are compared with the pushed branch: main has no specs yet.
-base: origin/review/redesign
-# The guide's rules are tests of this repository, so one still to come is test work, planned as any other.
-vocabulary: { disciplines: { test: [guide] } }
+# While the project is at its inception, specs are cut freely: check compares no live test with the git base.
+base: none
+# Packing builds with the build config and the pack scripts and ships the command and the skill: a change to any of
+# them is a change to what the packaging scenarios ran against.
+evidence:
+  inputs: ["tsconfig.build.json", "bin/**", "scripts/pack/**", ".claude/skills/sdp/SKILL.md"]
+vocabulary:
+  disciplines:
+    # The vision is static, as a decision is: it says why sdp exists and orders no work.
+    business-modeling: []

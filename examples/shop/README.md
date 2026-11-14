@@ -29,5 +29,4 @@ doc comment of a declaration, the same tag says that declaration is the element,
 Code links to the architecture, not to features: cart totals names the element that realizes it
 with `@realized-by:ARCH-pricing`.
 
-[GUIDE.feature](../../specs/GUIDE.feature) runs this suite, and shows this architecture, in a copy
-of the example with every build of sdp.
+`npm run verify` in the repository runs this suite with every build of sdp.

@@ -1,9 +1,11 @@
 /**
+ * @sdp is ARCH-code-annotations
+ * @sdp applies PAT-static-reading
+ *
+ * @remarks
  * What the names code imports mean: the code file of the workspace TypeScript resolves each name to,
  * by what the configuration files around the code say (`readConfigs`). A name sdp cannot follow,
  * though it could name the workspace's code, comes back with why.
- *
- * @sdp is ARCH-code-annotations
  */
 import { isBuiltin } from "node:module"
 import {
@@ -264,8 +266,10 @@ export const readModules = (configs: ModuleConfigs, code: ReadonlyArray<File>, e
       }
     }
     if (directories.length === 1) return packageExport(directories[0]!, specifier, subpath, lookup)
-    if (packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) || namesNoCode(subpath)) return { found: {}, passed: [] }
-    return nothing
+    if (namesNoCode(subpath)) return { found: {}, passed: [] }
+    // A list of the workspace's packages sdp could not read could list one by this name, declared as a library or not.
+    const unread = read.workspacesUnread
+    return packages.declared.has(linked) || packages.declared.has(typesPackage(linked)) ? { found: {}, passed: [], unread } : { ...nothing, unread }
   }
 
   /**
@@ -538,8 +542,8 @@ const suffixed = (base: string, extensions: ReadonlyArray<string>, lookup: Looku
  * What walking a map of names, or the entries of a package, came to: what the import means, once a
  * target is found; until then, the conditions passed over and the first target that is no file.
  */
-interface Walk {
-  readonly found?: Resolved
+interface Walk<Found = Resolved> {
+  readonly found?: Found
   readonly passed: ReadonlyArray<string>
   readonly missing?: string
   /** What sdp could not read of a tsconfig.json that builds an entry on the way. */
@@ -549,7 +553,7 @@ interface Walk {
 const nothing: Walk = { passed: [] }
 
 /** A walk that goes on after `before`: what it found, with what both passed over and could not read, and the first target either did not find. */
-const after = (before: Walk, next: Walk): Walk => ({
+const after = <Found>(before: Walk<Found>, next: Walk<Found>): Walk<Found> => ({
   ...next,
   passed: [...before.passed, ...next.passed],
   ...before.missing === undefined ? {} : { missing: before.missing },
@@ -562,21 +566,29 @@ const building: ReadonlySet<string> = new Set(["rootDir", "outDir"])
 
 /**
  * What a map of names — `exports`, `imports` — gives under `conditions`: the first target, in the
- * order written, that `take` finds, with the conditions it passed over on the way.
+ * order written, that `take` finds, with the conditions it passed over on the way. `null` excludes
+ * the name, and `*` stands for `star`.
  */
-const pick = (value: Target, star: string, conditions: ReadonlySet<string>, take: (target: string) => Walk): Walk => {
-  if (value === null) return nothing
+const pick = <Found>(value: Target, star: string, conditions: ReadonlySet<string>, take: (target: string) => Walk<Found>): Walk<Found> => {
+  if (value === null) return { passed: [] }
   if (typeof value === "string") return take(value.replaceAll("*", star))
   const branches: ReadonlyArray<readonly [string | undefined, Target]> = isArray(value)
     ? value.map((each) => [undefined, each] as const)
     : Object.entries(value)
-  let walked = nothing
+  let walked: Walk<Found> = { passed: [] }
   for (const [condition, target] of branches) {
     walked = after(walked, condition === undefined || condition === "default" || conditions.has(condition) ? pick(target, star, conditions, take) : { passed: [condition] })
     if (walked.found !== undefined) return walked
   }
   return walked
 }
+
+/**
+ * The target a map of names gives under `conditions` as Node's loader takes it, before it looks for
+ * a file: the first, in the order written, with `*` filled in.
+ */
+export const pickTarget = (value: Target, star: string, conditions: ReadonlySet<string>): string | undefined =>
+  pick<string>(value, star, conditions, (target) => ({ found: target, passed: [] })).found
 
 /** A package.json's name for another package, by npm's protocol or pnpm's: `npm:@shop/tax@1.0.0`, `workspace:@shop/tax@*`. */
 const aliasPattern = /^(?:npm|workspace):((?:@[a-z0-9~-][a-z0-9._~-]*\/)?[a-z0-9~-][a-z0-9._~-]*)(?:@|$)/i
@@ -614,7 +626,7 @@ const namesNoCode = (path: string) => {
  * The key of a map of names that `name` matches: itself, or else the one with a `*` whose prefix
  * and suffix it has, the longest prefix first, with what the `*` stands for.
  */
-const matchKey = (keys: ReadonlyArray<string>, name: string): { readonly key: string; readonly star: string } | undefined => {
+export const matchKey = (keys: ReadonlyArray<string>, name: string): { readonly key: string; readonly star: string } | undefined => {
   if (keys.includes(name) && !name.includes("*")) return { key: name, star: "" }
   return keys.flatMap((key) => {
     const [prefix, suffix, ...more] = key.split("*")

@@ -16,19 +16,21 @@
     "node": ">=24"
   },
   "scripts": {
+    "prepack": "node scripts/pack/prepack.ts",
+    "postpack": "node scripts/pack/postpack.ts",
     "sdp": "node src/cli/main.ts",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p examples/shop",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p examples/shop && tsc --noEmit -p scripts/pack",
     "test": "node src/cli/main.ts run --concurrency 8",
     "check": "node src/cli/main.ts check",
-    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts gate GUIDE"
+    "verify": "npm run typecheck && node src/cli/main.ts check && node src/cli/main.ts run --concurrency 8 && node src/cli/main.ts run --root examples/shop"
   },
   "dependencies": {
     "@cucumber/cucumber-expressions": "^20.2.0",
     "@cucumber/gherkin": "^42.0.1",
     "@cucumber/messages": "^34.2.1",
     "@cucumber/tag-expressions": "^11.0.1",
-    "@effect/platform-node": "^4.1.4",
-    "effect": "^4.1.4",
+    "@effect/platform-node": "4.1.4",
+    "effect": "4.1.4",
     "oxc-parser": "^0.158.0",
     "yaml": "^2.9.1"
   },

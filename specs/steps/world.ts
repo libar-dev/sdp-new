@@ -13,9 +13,10 @@ import type { Project } from "../../src/graph/Build.ts"
 import type { QueryResult } from "../../src/graph/Query.ts"
 import type { LifecycleReport } from "../../src/lifecycle/Lifecycle.ts"
 import type { Diagnostic } from "../../src/model/Diagnostic.ts"
-import { type Attrs, formatSource, type Graph, type GraphNode } from "../../src/model/Graph.ts"
+import { type Attrs, formatSource, type GraphNode } from "../../src/model/Graph.ts"
 import type { RunResults } from "../../src/model/Results.ts"
 import { loadMemoryProject } from "../../src/workspace/MemoryFileSystem.ts"
+import type { Execution } from "./run.steps.ts"
 
 export interface World {
   /** In-memory workspace: relative path → content. */
@@ -33,10 +34,21 @@ export interface World {
   /** A real directory on disk, for steps that run the CLI as a process. */
   directory: string | undefined
   lifecycle: LifecycleReport | undefined
-  graph: Graph | undefined
   durationMs: number
-  /** Anything else a step module needs to carry between its own steps. */
-  scratch: Record<string, unknown>
+  /** Each record of a command's output that the package's record schema refused, by line. */
+  recordDecodeFailures?: ReadonlyArray<string>
+  /** The MCP tools an agent listed, each by its name and annotations. */
+  mcpTools?: ReadonlyArray<{ readonly name: string; readonly annotations?: Readonly<Record<string, unknown>> | undefined }>
+  /** The step definitions the scenario scripted, where each runs, and what they did when run. */
+  stepExecution?: Execution
+  /** Each file as last written to `directory`, so that only a file changed since is written again. */
+  writtenFiles?: Map<string, string>
+  /** The size of the random graph a timed query runs on; the worker that times it draws the graph. */
+  randomGraphSize?: { readonly nodes: number; readonly edges: number }
+  /** The plugin hook's session ids, the scenario's own, and what its last run showed the agent and how long it took. */
+  pluginHook?: { readonly sessions: string; shown: string | undefined; elapsedMs: number | undefined }
+  /** The lock another run holds on the results, whether a run tried to take it, whether it let go, and whether the results were written while it held it. */
+  resultsLock?: { tried: boolean; released: boolean; writtenWhileHeld: boolean }
 }
 
 export const newWorld = (): World => ({
@@ -50,9 +62,7 @@ export const newWorld = (): World => ({
   outcome: undefined,
   directory: undefined,
   lifecycle: undefined,
-  graph: undefined,
-  durationMs: 0,
-  scratch: {}
+  durationMs: 0
 })
 
 /** The project for the current files, built once and cached until files change. */
@@ -79,7 +89,7 @@ interface Outcome {
   readonly text: string
   /** What a command hands to the next one in a pipe; anything else hands on its text. */
   readonly stdout: string
-  readonly command?: { readonly line: string; readonly code: number } | undefined
+  readonly command?: { readonly line: string; readonly code: number; readonly state: string } | undefined
   /** Whether the scenario stated the exit code, and whether it asserted anything at all. */
   stated: boolean
   asserted: boolean
@@ -90,12 +100,16 @@ interface Outcome {
  * produces something fails if nothing was asserted about it, and `output` fails until an exit
  * code other than 0 is stated.
  */
-export const produce = (world: World, text: string, command?: { readonly line: string; readonly code: number; readonly stdout: string }) => {
+export const produce = (world: World, text: string, command?: { readonly line: string; readonly code: number; readonly stdout: string; readonly state?: string }) => {
   const previous = world.outcome
   if (previous?.command && !previous.asserted) {
     throw new Error(`nothing was asserted about \`${previous.command.line}\`, which exited with ${previous.command.code}: follow it with its exit code or its output`)
   }
-  world.outcome = { text, stdout: command?.stdout ?? text, command, stated: false, asserted: false }
+  world.outcome = {
+    text, stdout: command?.stdout ?? text,
+    command: command ? { ...command, state: command.state ?? `Then the exit code is ${command.code}` } : undefined,
+    stated: false, asserted: false
+  }
 }
 
 const outcome = (world: World): Outcome => {
@@ -106,7 +120,7 @@ const outcome = (world: World): Outcome => {
 const seen = (world: World): Outcome => {
   const last = outcome(world)
   if (last.command && last.command.code !== 0 && !last.stated) {
-    throw new Error(`\`${last.command.line}\` exited with ${last.command.code}; state that first: Then the exit code is ${last.command.code}\n${last.text}`)
+    throw new Error(`\`${last.command.line}\` exited with ${last.command.code}; state that first: ${last.command.state}\n${last.text}`)
   }
   last.asserted = true
   return last
@@ -159,13 +173,13 @@ const prose: ReadonlySet<string> = new Set(["message", "hint"])
 
 /**
  * Compares rows with a table whose header names the columns to check, so a scenario states only
- * what it is about. A table of its header alone expects no rows.
+ * what it is about. Exact by default; a table of its header alone expects no rows.
  */
 export const assertRows = (
   what: string,
   actual: ReadonlyArray<Row>,
   table: Table | undefined,
-  mode: "exactly" | "in order" | "including"
+  mode: "exactly" | "in order" | "including" = "exactly"
 ) => {
   assert.ok(table && table.length > 0, `expected a table of ${what}`)
   const columns = table[0]!.map((cell) => cell.trim())

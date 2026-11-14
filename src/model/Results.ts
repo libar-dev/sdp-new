@@ -1,13 +1,21 @@
 /**
+ * @sdp is ARCH-graph
+ *
+ * @remarks
  * What `sdp run` records: the result of each scenario and the evidence it rests
  * on, as stored in the results file. Plain data: the runner writes it, the
  * graph builder reads it.
- *
- * @sdp is ARCH-graph
  */
 import { Schema } from "effect"
 
-export const StepStatus = Schema.Literals(["passed", "failed", "pending", "undefined", "ambiguous", "skipped"])
+export const StepStatus = Schema.Union([
+  Schema.Literal("passed").annotate({ description: "The step completed successfully." }),
+  Schema.Literal("failed").annotate({ description: "The step failed, including by timing out." }),
+  Schema.Literal("pending").annotate({ description: "The step's implementation reports that it is still pending." }),
+  Schema.Literal("undefined").annotate({ description: "No step definition matches the step, or there are no steps to run." }),
+  Schema.Literal("ambiguous").annotate({ description: "More than one step definition matches the step." }),
+  Schema.Literal("skipped").annotate({ description: "The step or example was not executed." })
+]).annotate({ identifier: "StepStatus", title: "Step status", description: "What a step did when it ran; the worst status summarizes an example and a scenario result." })
 export type StepStatus = typeof StepStatus.Type
 
 export const StepResult = Schema.Struct({
@@ -75,8 +83,11 @@ export const ScenarioResult = Schema.Struct({
 })
 export type ScenarioResult = typeof ScenarioResult.Type
 
+/** The version of the results file this sdp reads and writes: a file of another is not read as its own. */
+export const resultsVersion = 4
+
 export const RunResults = Schema.Struct({
-  version: Schema.Literal(4),
+  version: Schema.Literal(resultsVersion),
   /**
    * For each `evidence.sources` fingerprint of a stored result: the workspace files the step
    * definitions had imported, besides the step files, when the run that recorded it ended.
@@ -104,3 +115,22 @@ export const worstStatus = (statuses: Iterable<StepStatus>): StepStatus => {
  * without a definition. A live example that ends so fails the run that ran it.
  */
 export const notPassing: ReadonlySet<StepStatus> = new Set(["failed", "ambiguous", "pending", "undefined"])
+
+/** Every status the builder writes on a scenario in the state. */
+export const ScenarioStatus = Schema.Union([
+  ...StepStatus.members,
+  Schema.Literal("stale").annotate({ description: "The recorded result no longer counts because an input changed." }),
+  Schema.Literal("unrun").annotate({ description: "No result has been recorded for this scenario." })
+]).annotate({ identifier: "ScenarioStatus", title: "Scenario status", description: "The status of a scenario's evidence in the state." })
+export type ScenarioStatus = typeof ScenarioStatus.Type
+
+/** Why a stored result no longer counts as evidence: what changed since it ran. */
+export const Staleness = Schema.Union([
+  Schema.Literal("scenario-changed").annotate({ description: "The scenario's executable content changed." }),
+  Schema.Literal("code-changed").annotate({ description: "The sources, configuration or imported workspace files changed." }),
+  Schema.Literal("toolchain-changed").annotate({ description: "The sdp version, Node major version or lockfile changed." }),
+  Schema.Literal("inputs-changed").annotate({ description: "Declared input files or environment values changed." }),
+  Schema.Literal("specs-changed").annotate({ description: "The workspace read by a step that asks the graph changed." }),
+  Schema.Literal("results-changed").annotate({ description: "The ordinary results read by a gate changed." })
+]).annotate({ identifier: "Staleness", title: "Result staleness", description: "The first changed input that invalidates a recorded result." })
+export type Staleness = typeof Staleness.Type

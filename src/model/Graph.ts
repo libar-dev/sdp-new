@@ -7,11 +7,11 @@
  * words sdp itself reads are its vocabulary profile (`Vocabulary.ts`).
  */
 
-export interface SourceRef {
-  readonly file: string
-  readonly line: number
-}
-
+/**
+ * The graph and its exported records share the schema's source-reference type.
+ */
+import type { SourceRef } from "./Records.ts"
+export type { SourceRef } from "./Records.ts"
 /** Attributes are JSON data: text, numbers, booleans, null, lists and maps of them. A graph accepts nothing else. */
 export type Attrs = Readonly<Record<string, unknown>>
 
@@ -55,11 +55,14 @@ const mergeEdges = (edges: Iterable<GraphEdge>): ReadonlyArray<GraphEdge> => {
 }
 
 /**
+ * The nodes and links every reader asks, unchangeable once built.
+ *
+ * @sdp is ARCH-graph
+ *
+ * @remarks
  * The system graph: nodes and de-duplicated edges with in/out adjacency indexes. It owns its data:
  * nodes, edges and attribute trees are copied and frozen when it is built, so nothing a caller
  * holds can change it afterwards.
- *
- * @sdp is ARCH-graph
  */
 export class Graph {
   readonly #nodes = new Map<string, GraphNode>()

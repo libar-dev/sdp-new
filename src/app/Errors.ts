@@ -1,16 +1,20 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * What a use case fails with when the user's input or files are at fault. Each
  * error is a value the caller can inspect, and `describe` words any of them as
  * one line that names the input or the file — a user's mistake is never a
- * stack trace.
- *
- * @sdp is ARCH-application
+ * stack trace. Each of sdp's errors, here or in the module that fails with it,
+ * carries that line as its CLI user message, which the command line prints on
+ * stderr before it exits with 1.
  */
 import { Predicate, Schema } from "effect"
+import * as CliError from "effect/cli/CliError"
 import type { PlatformError } from "effect/PlatformError"
 import type { QueryError } from "../graph/Query.ts"
-import type { InvalidStepExpressions } from "../run/Runner.ts"
-import type { ResultsLocked } from "../run/Store.ts"
+import type { InvalidStepExpressions, UnawaitedFailures } from "../run/Runner.ts"
+import type { ResultsLocked, ResultsUnreadable } from "../run/Store.ts"
 import type { BaseNotFound } from "../workspace/Revisions.ts"
 import type { ConfigError, SourcesChanged, StepLoadError, WorkspaceNotFound } from "../workspace/Workspace.ts"
 
@@ -22,12 +26,18 @@ export class UnknownNode extends Schema.TaggedError<UnknownNode>()("UnknownNode"
   override get message() {
     return `no node ${this.id}${this.closest === undefined ? "" : `; closest: ${this.closest}`}`
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 /** Input a use case does not accept, with the reason and what would be accepted. */
 export class Refused extends Schema.TaggedError<Refused>()("Refused", { reason: Schema.String }) {
   override get message() {
     return this.reason
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 
@@ -39,6 +49,9 @@ export class InvalidTags extends Schema.TaggedError<InvalidTags>()("InvalidTags"
   override get message() {
     return `invalid --tags ${JSON.stringify(this.tags)}: ${this.problem}; write a tag expression such as "@checkout and not @slow"`
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 /** Targets that name no spec, scenario, file or directory — usually a typo that would select nothing. */
@@ -47,6 +60,9 @@ export class UnknownTargets extends Schema.TaggedError<UnknownTargets>()("Unknow
 }) {
   override get message() {
     return `nothing matches ${this.targets.join(", ")}: name a spec id, a scenario id, a file or a directory`
+  }
+  override get [CliError.userMessage]() {
+    return this.message
   }
 }
 
@@ -64,6 +80,9 @@ export class UnreadableSpecs extends Schema.TaggedError<UnreadableSpecs>()("Unre
       ...this.problems.map((problem) => `  ${problem}`)
     ].join("\n")
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 export type AppError =
@@ -74,6 +93,8 @@ export type AppError =
   | InvalidStepExpressions
   | InvalidTags
   | ResultsLocked
+  | ResultsUnreadable
+  | UnawaitedFailures
   | UnknownTargets
   | UnreadableSpecs
   | QueryError
@@ -91,6 +112,8 @@ const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
   InvalidStepExpressions: true,
   InvalidTags: true,
   ResultsLocked: true,
+  ResultsUnreadable: true,
+  UnawaitedFailures: true,
   UnknownTargets: true,
   UnreadableSpecs: true,
   QueryError: true,
@@ -104,16 +127,8 @@ const appErrorTags: { readonly [Tag in AppError["_tag"]]: true } = {
 export const isAppError = (error: unknown): error is AppError =>
   Predicate.hasProperty(error, "_tag") && Predicate.isString(error._tag) && Object.hasOwn(appErrorTags, error._tag)
 
-/** Any of them as one line for the person or agent who caused it. */
-export const describe = (error: AppError): string => {
-  switch (error._tag) {
-    case "ConfigError":
-      return `${error.file}: invalid configuration: ${error.message.replace(/\s*\n\s*/g, " ")}`
-    case "StepLoadError":
-      return `${error.file}: could not load step definitions: ${error.message}`
-    case "QueryError":
-      return `query error: ${error.message}`
-    default:
-      return error.message
-  }
-}
+/**
+ * Any of them as one line for the person or agent who caused it — a configuration, one line for each
+ * of its problems: the CLI user message it carries, or the message of an Effect platform error, which carries none.
+ */
+export const describe = (error: AppError): string => CliError.getUserMessage(error) ?? error.message

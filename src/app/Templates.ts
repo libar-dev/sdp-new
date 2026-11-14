@@ -1,16 +1,17 @@
 /**
+ * @sdp is ARCH-application
+ *
+ * @remarks
  * File templates for `sdp new` and `sdp init`. A template writes only what stays in the file —
  * what it is, at any maturity; what the author writes next is said in the answer of `sdp new`,
  * never in the file. A new spec is a Gherkin file: its
  * tags say what it is and what it links to, its Feature's name is its title.
- *
- * @sdp is ARCH-application
  */
 import { Duration, Result } from "effect"
 import { changeIsRules, decisionPlaceholder } from "../check/Check.ts"
 import { type Config, defaults } from "../model/Config.ts"
 import type { Graph } from "../model/Graph.ts"
-import { attribute, dayOf, hasKind, hasRelation, holdsCodeRules, idForm, isWork, notAKind, offLadder, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
+import { attribute, dayOf, hasKind, hasRelation, holdsCodeRules, idForm, isWork, made, notAKind, offLadder, type Vocabulary, wordFor } from "../model/Vocabulary.ts"
 import { slugify } from "../parse/Gherkin.ts"
 import { inferKind, parseFeatureSpec } from "../parse/Spec.ts"
 
@@ -225,7 +226,7 @@ const specTemplate = (options: {
 
 /** The relations the templates suggest, in one place so the answers of `sdp new` and the MCP instructions agree. */
 export const relationVocabulary =
-  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp plays PAT-…`"
+  "feature `@realized-by:ARCH-…`; rule `@decided-by:<decision>` when it rests on one; code that applies a pattern `@sdp applies PAT-…`"
 
 /**
  * What the author of a new spec writes next, in the workspace's own words. It is the answer of
@@ -245,9 +246,7 @@ const guidance = (options: {
   const plan = `\`@${wordFor(vocabulary.relations.plan)}:${iteration}\` says when it is written`
   const closes = wordFor(vocabulary.relations.closes)
   const phase = wordFor(vocabulary.relations.phase)
-  // The one marker of a quality requirement, where the workspace has a value for it.
-  const quality = vocabulary.qualities.length === 0 ? "" : `, tagged \`@${vocabulary.attributes.quality}=${wordFor(vocabulary.qualities)}\``
-  const qualityRule = `a quality requirement is a rule of the feature it constrains${quality}`
+  const qualityRule = `a quality requirement is a rule of the feature it constrains, tagged \`${made.tags.quality}\``
   switch (templateOf(kind, vocabulary)) {
     case "feature":
       return [
@@ -260,9 +259,9 @@ const guidance = (options: {
       ]
     case "decision":
       return [
-        "write what was chosen over what, why, and the cost accepted with it, in one to three sentences",
-        "record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains",
-        `a rule that rests on it is written on the spec it constrains, tagged \`@decided-by:${id}\``
+        "write what was chosen and why in one to three sentences, and after **Rejected:** what was not, where that is not obvious",
+        "record a decision only for a choice that is hard to reverse, not obvious without its reason and a real trade-off; a reason that concerns one feature is written under the rule it explains",
+        `a rule of a decision states what holds and has no example; what it requires of the product is a rule of the spec it constrains, tagged \`@decided-by:${id}\``
       ]
     case "milestone":
       return [
@@ -289,7 +288,7 @@ const guidance = (options: {
       return [
         `no file is written: a pattern is declared where the code its instances share is, by the tag \`@sdp ${anchor} ${id}\` in the doc comment of a module-level declaration, or of the file in the comment that opens it`,
         "the rest of that comment is its description: say there which problem it solves, and how",
-        `code that applies it says so in its doc comment with \`@sdp plays ${id}\`: sdp arch shows the pattern with the code that plays it and the elements that code is`
+        `code that applies it says so in its doc comment with \`@sdp applies ${id}\`: sdp arch shows the pattern with the code that applies it and the elements that code is`
       ]
     case "rules":
       return [
@@ -301,8 +300,8 @@ const guidance = (options: {
       ]
     case "generic":
       return [
-        // A kind named like the value that marks a quality requirement is a team's own word: the marker is a rule's.
-        ...vocabulary.qualities.includes(kind)
+        // A kind named like the tag of a quality requirement, and no driver of the team's: the tag is a rule's.
+        ...`@${kind}` === made.tags.quality && !hasKind(vocabulary, "driver", kind)
           ? [`${qualityRule}, not a spec of its own; a team that keeps them as specs names their kind under vocabulary.kinds.driver`]
           : [],
         ...isWork(vocabulary, kind)
@@ -333,7 +332,8 @@ export const configTemplate = [
   "# evidence: { inputs: [], env: [] }   # files (globs) and environment variables the steps read: results go stale when they change",
   `# results: ${defaults.results}`,
   `# timeout: ${Duration.format(defaults.timeout)}                # how long a step may take before it fails; sdp run --timeout and sdp gate --timeout override it`,
-  "# base: main                  # what sdp check compares live tests with, where HEAD meets it; default: origin's HEAD, else main, else master; none waives it",
+  `# ids: { ${Object.entries(defaults.ids).map(([kind, prefix]) => `${kind}: ${prefix}`).join(", ")} }   # id prefixes, from which an id's kind is read; add your own, e.g. requirement: US`,
+  "# base:                       # what sdp check compares live tests with, where HEAD meets it; unset: origin's HEAD, else main, else master; none waives it",
   "# vocabulary:                 # the few words sdp interprets; `sdp vocabulary` prints them all",
   `#   maturity: [${defaults.vocabulary.maturity.join(", ")}]   # how far work still to come has come, in order; live work declares none`,
   `#   kinds: { decision: [${defaults.vocabulary.kinds.decision.join(", ")}] }     # e.g. [decision, adr]`,

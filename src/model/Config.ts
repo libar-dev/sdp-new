@@ -1,51 +1,54 @@
-import { Duration, Option, Result, Schema } from "effect"
-import { defaultDisciplines, defaultVocabulary, isKey, isStage, isValueWord, made, reservedRelations, type Vocabulary } from "./Vocabulary.ts"
+import { Duration, Option, Result, Schema, SchemaIssue, Struct } from "effect"
+import { defaultDisciplines, defaultVocabulary, isKey, isStage, isValueWord, made, reservedRelations, Vocabulary } from "./Vocabulary.ts"
 
 const Globs = Schema.Array(Schema.String)
 
-const Words = Schema.Array(Schema.String)
-const Word = Schema.String
-
-/** The `vocabulary:` section: every role is optional and replaces its default. */
-const VocabularyFile = Schema.Struct({
-  kinds: Schema.optional(Schema.Struct({
-    feature: Schema.optional(Words),
-    decision: Schema.optional(Words),
-    milestone: Schema.optional(Words),
-    phase: Schema.optional(Words),
-    iteration: Schema.optional(Words),
-    pattern: Schema.optional(Words),
-    architectural: Schema.optional(Words),
-    driver: Schema.optional(Words),
-    anchored: Schema.optional(Word)
-  })),
-  relations: Schema.optional(Schema.Struct({
-    plan: Schema.optional(Words),
-    phase: Schema.optional(Words),
-    closes: Schema.optional(Words),
-    scenario: Schema.optional(Word),
-    anchor: Schema.optional(Word),
-    replaces: Schema.optional(Words)
-  })),
-  attributes: Schema.optional(Schema.Struct({
-    activity: Schema.optional(Word),
-    start: Schema.optional(Word),
-    end: Schema.optional(Word),
-    met: Schema.optional(Word),
-    quality: Schema.optional(Word)
-  })),
-  qualities: Schema.optional(Words),
-  maturity: Schema.optional(Words),
-  disciplines: Schema.optional(Schema.Record(Schema.String, Words)),
-  words: Schema.optional(Schema.Struct({
-    kinds: Schema.optional(Words),
-    relations: Schema.optional(Words),
-    attributes: Schema.optional(Words)
+/**
+ * The `vocabulary:` section: every role is optional and replaces its default.
+ * Only role groups are partial; a dictionary of disciplines keeps its complete values.
+ * Keep each group's annotation when deriving its optional fields.
+ */
+const VocabularyFile = Vocabulary
+  .mapFields(Struct.map(Schema.optional))
+  .mapFields((fields) => ({
+    ...fields,
+    kinds: Schema.optional(
+      Vocabulary.fields.kinds
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.kinds) ?? {})
+    ),
+    relations: Schema.optional(
+      Vocabulary.fields.relations
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.relations) ?? {})
+    ),
+    attributes: Schema.optional(
+      Vocabulary.fields.attributes
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.attributes) ?? {})
+    ),
+    words: Schema.optional(
+      Vocabulary.fields.words
+        .mapFields(
+          Struct.map(Schema.optional)
+        )
+        .annotate(Schema.resolveAnnotations(Vocabulary.fields.words) ?? {})
+    )
   }))
-})
 type VocabularyFile = typeof VocabularyFile.Type
 
-/** Shape of `sdp.config.yaml`. Every key is optional; see `defaults` for what an empty file means. */
+/**
+ * @sdp is ARCH-workspace
+ *
+ * @remarks
+ * Shape of `sdp.config.yaml`. Every key is optional; see `defaults` for what an empty file means.
+ */
 export const ConfigFile = Schema.Struct({
   features: Schema.optional(Globs),
   code: Schema.optional(Globs),
@@ -59,7 +62,8 @@ export const ConfigFile = Schema.Struct({
   // A number alone is read so that it is refused for its missing unit, not for its type.
   timeout: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
   ids: Schema.optional(Schema.Record(Schema.String, Schema.String)),
-  base: Schema.optional(Schema.String),
+  // `base:` with no revision names none, as if it were left out: the configuration init writes shows it so.
+  base: Schema.optional(Schema.NullOr(Schema.String)),
   vocabulary: Schema.optional(VocabularyFile)
 }).check(Schema.makeFilter((file) => configProblems(file)))
 export type ConfigFile = typeof ConfigFile.Type
@@ -122,6 +126,13 @@ export const defaults: Config = {
   vocabulary: defaultVocabulary
 }
 
+/** A role group's defaults, each replaced by the words the file gives that role; a role given none keeps its default. */
+const replaced = <T extends object>(defaults: T, given: { readonly [Role in keyof T]?: T[Role] | undefined } | undefined): T => {
+  const roles = { ...defaults }
+  for (const [role, words] of Object.entries(given ?? {})) if (words !== undefined) Object.assign(roles, { [role]: words })
+  return roles
+}
+
 /**
  * Each role the file names replaces its default; disciplines merge one by one, over defaults that
  * name the kinds in the file's words.
@@ -129,15 +140,14 @@ export const defaults: Config = {
 const resolveVocabulary = (file: VocabularyFile | undefined): Vocabulary => {
   const d = defaultVocabulary
   if (!file) return d
-  const kinds = { ...d.kinds, ...file.kinds }
+  const kinds = replaced(d.kinds, file.kinds)
   return {
     kinds,
-    relations: { ...d.relations, ...file.relations },
-    attributes: { ...d.attributes, ...file.attributes },
-    qualities: file.qualities ?? d.qualities,
+    relations: replaced(d.relations, file.relations),
+    attributes: replaced(d.attributes, file.attributes),
     maturity: file.maturity ?? d.maturity,
-    disciplines: new Map([...defaultDisciplines(kinds), ...Object.entries(file.disciplines ?? {})]),
-    words: { ...d.words, ...file.words }
+    disciplines: { ...defaultDisciplines(kinds), ...file.disciplines },
+    words: replaced(d.words, file.words)
   }
 }
 
@@ -155,7 +165,7 @@ export const resolveConfig = (file: ConfigFile | undefined): Config => {
     results: file.results ?? defaults.results,
     timeout: file.timeout === undefined ? defaults.timeout : Result.getOrElse(readTimeout(String(file.timeout)), () => defaults.timeout),
     ids: record([...defaultIds, ...Object.entries(file.ids ?? {})]),
-    base: file.base,
+    base: file.base ?? undefined,
     vocabulary: resolveVocabulary(file.vocabulary)
   }
 }
@@ -191,7 +201,7 @@ const vocabularyProblems = (file: VocabularyFile): ReadonlyArray<Schema.FilterIs
   const keys: ReadonlyArray<readonly [path: ReadonlyArray<string>, words: ReadonlyArray<string>]> = [
     ...Object.entries(v.relations).map(([role, words]) => [["relations", role], said(words)] as const),
     ...Object.entries(v.attributes).map(([role, word]) => [["attributes", role], said(word)] as const),
-    [["disciplines"], [...v.disciplines.keys()].map((discipline) => `${v.attributes.activity}.${discipline}`)]
+    [["disciplines"], Object.keys(v.disciplines).map((discipline) => `${v.attributes.activity}.${discipline}`)]
   ]
   for (const [path, words] of keys) {
     for (const word of words.filter((candidate) => !isKey(candidate))) {
@@ -306,6 +316,54 @@ const configProblems = (file: ConfigFile): ReadonlyArray<Schema.FilterIssue> => 
     })
   }
   return issues
+}
+
+/** A problem of a configuration as it was written: what is wrong, at the path of the key it is at. */
+export interface ConfigProblem {
+  readonly path: ReadonlyArray<PropertyKey>
+  readonly message: string
+}
+
+/** The problems of a decoding that failed, each at its path; none of one that succeeded. */
+const problemsOf = (decoded: Result.Result<unknown, Schema.SchemaError>): ReadonlyArray<ConfigProblem> =>
+  Result.isSuccess(decoded)
+    ? []
+    : SchemaIssue.makeFormatterStandardSchemaV1()(decoded.failure.issue).issues.map(({ message, path = [] }) => ({
+      path: path.map((key) => typeof key === "object" ? key.key : key),
+      message
+    }))
+
+/** `input` without each key a problem lies under: the deepest on its path that an object, not a list, holds. */
+const without = (input: object, problems: ReadonlyArray<ConfigProblem>): object => {
+  const rest = structuredClone(input)
+  for (const { path } of problems) {
+    let at: unknown = rest
+    let key: readonly [holder: Record<PropertyKey, unknown>, key: PropertyKey] | undefined
+    for (const step of path) {
+      if (typeof at !== "object" || at === null) break
+      const holder = at as Record<PropertyKey, unknown>
+      if (!Array.isArray(at)) key = [holder, step]
+      at = holder[step]
+    }
+    if (key !== undefined) delete key[0][key[1]]
+  }
+  return rest
+}
+
+/**
+ * A configuration as it was written, or every problem it has, each at its key: what does not fit
+ * the shape of `ConfigFile`, and what the rest means that sdp cannot work with. The rest is the file
+ * without each key that holds what does not fit, so that a misspelt key hides no problem of another.
+ * Unknown keys are problems: a misspelt `spec:` must not silently fall back to the defaults.
+ */
+export const decodeConfigFile = (input: unknown): Result.Result<ConfigFile, ReadonlyArray<ConfigProblem>> => {
+  const options = { onExcessProperty: "error", errors: "all" } as const
+  const decoded = Schema.decodeUnknownResult(ConfigFile)(input, options)
+  if (Result.isSuccess(decoded)) return Result.succeed(decoded.success)
+  const shape = problemsOf(Schema.decodeUnknownResult(Schema.Struct(ConfigFile.fields))(input, options))
+  if (shape.length === 0) return Result.fail(problemsOf(decoded))
+  if (typeof input !== "object" || input === null || Array.isArray(input)) return Result.fail(shape)
+  return Result.fail([...shape, ...problemsOf(Schema.decodeUnknownResult(ConfigFile)(without(input, shape), options))])
 }
 
 export const configFileNames = ["sdp.config.yaml", "sdp.config.yml", "sdp.config.json"] as const

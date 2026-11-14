@@ -69,9 +69,11 @@ Feature: Guest checkout
 - **Nothing live goes back.** `sdp check` fails when an example live at the git base — where HEAD
   meets the default branch — is gone or has become a gate or work still to come, and when what was
   live there declares a maturity or `@open`. So, in a change:
-  - keep either a live example's name or its steps: it is then the same example;
-  - if you change both, or merge it into another, tag the Scenario it went to
-    `@replaces:<feature>#<example>`;
+  - keep either a live example's name in its spec or its steps: it is then the same example. A name
+    is no evidence in another spec, so an example moved when its spec is split or renamed keeps its
+    steps;
+  - if you change both, move it with its steps edited, or merge it into another, tag the Scenario it
+    went to `@replaces:<feature>#<example>`;
   - to remove a live rule or feature, write what replaces it, tagged `@replaces:<feature>#<rule>`
     or `@replaces:<feature>`, and make it live with a new live example of its own;
   - once that is merged, delete a `@replaces:` when check warns that it replaces nothing: on the
@@ -89,22 +91,41 @@ Feature: Guest checkout
   the workspace gives it one with `ids:`, so a decision or a kind of the team's own says what it is
   with `@kind=`.
 
-The sharp edges of the format, each what the official parser does:
+- **Where a spec goes is navigation, never identity.** The top folder says what a spec is for —
+  `features/`, `decisions/`, `plan/` — as `sdp new` writes them. Features go one folder deeper, in
+  the folder of their area: a bounded context, or the activity of its users the feature serves, which
+  readers browse and CODEOWNERS can route (`sdp new feature "…" --dir specs/features/billing`).
+  Decisions and the plan are not filed by area: a decision spans features, and the plan spans areas.
+  No folder says an iteration, a story, a ticket or a test layer — those are tags — and one says a
+  maturity: a feature whose Feature line declares one may sit in its area's `backlog/`, which repeats
+  the tag, so a scenario keeps the two in step (`feature[maturity][file!~/backlog/]` and
+  `feature[!maturity][file~/backlog/]` find nothing); it leaves once, when it is built. A folder is
+  no namespace: ids are unique across the workspace, so a file moves without changing what it is.
+- **An epic is plan, not a grouping that stays.** Where a team groups work toward one outcome, an
+  epic is a spec (`@kind=epic`, outside every discipline) whose tag lines link each feature or rule it
+  groups, `@includes:<id>`. An epic of one area sits in a folder named for it in that area's backlog,
+  beside the features still to come it groups; one that spans areas sits in the plan. It says no
+  status — what its work says is derived — a feature leaves its folder when it is built, and the epic
+  is deleted once all of its work is live.
 
-| In a description, a line that starts with | Is read as | So |
+The sharp edges of the format, each what the official parser does, and what `sdp check` reports:
+
+| In a description, a line that starts with | Is read as | `sdp check` |
 | --- | --- | --- |
-| `#` | a comment, dropped | no headings; `description-comment` warns |
+| `#` | a comment, dropped | `description-comment` warns, a heading above the text too |
 | `@` | a tag line | a parse error |
-| `Scenario:`, `Scenario Outline:`, `Example:`, `Rule:`, `Background:` | a new block, silently | start no sentence with one |
-| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario or Background | a step, silently | write a reason under `Rule:`, lists with `-` |
+| `Scenario:`, `Scenario Outline:`, `Example:` | a new scenario, silently | `scenario-empty` warns, as it has no steps |
+| `Background:` | a new Background, silently | `background-empty` warns, as it has no steps |
+| `Rule:` | a new rule, silently | nothing until it is live: start no sentence with it |
+| `Given`, `When`, `Then`, `And`, `But`, `*` under a Scenario or Background | a step, silently | `prose-step` warns at a sentence after a Then; write a reason under `Rule:` |
 | `Feature:` | text of the description above | an error: one file is one spec |
 | `Examples:` under a Feature or a Rule | text | — |
 
 - A tag holds no whitespace, so a value with a space has no tag form (`@title=Two words` is a
   parse error): it is a sentence, and belongs in a description.
-- A tag value cannot hold `@`: `@owner=a@b.c` is `@owner=a` and a Cucumber tag `@b.c`.
-- Whitespace and then `#` ends a tag line, so the rest of it is a comment; a `#` inside a tag is
-  kept, so `@verifies:guest-checkout#slug` links to a rule.
+- A tag value cannot hold `@`: `@owner=a@b.c` would be `@owner=a` and `@b.c`, so it is an error.
+- Whitespace and then `#` ends a tag line: a tag after it is dropped, which is an error; a `#`
+  inside a tag is kept, so `@verifies:guest-checkout#slug` links to a rule.
 - A Background cannot be tagged. After the first Rule every scenario belongs to the rule above
   it, whatever its indentation; one before it belongs to none, which `sdp check` reports and
   `sdp run` refuses to run.
@@ -116,14 +137,14 @@ The sharp edges of the format, each what the official parser does:
   note nobody acts on — is not written, and is deleted where it is found.
 - **Files are the source of truth.** The graph is rebuilt from them on every command. Edit the
   files; never a derived artefact (`.sdp/results.json` is written by `sdp run`).
-- **The architecture is what architects declared, and none of it is prose.** It is a decision when
-  it is significant and universal, a rule in the spec it constrains otherwise, or a view sdp
-  generates from the code (`sdp arch`): the tag `@sdp is ARCH-x` in the doc comment of a
+- **The architecture is what architects declared, and none of it is prose.** It is a projection of
+  the decisions, the specs and the code anchored to them, which `sdp arch` shows, never a spec of
+  rules the code is checked against: the tag `@sdp is ARCH-x` in the doc comment of a
   module-level declaration, or in the comment that opens a file, declares an element where its code
   is, the rest of that comment says what it is for, and sdp derives which element `imports` which
   from the TypeScript and JavaScript anchored to them, so nobody writes it. `@sdp is PAT-y` declares
   a pattern in the code its instances share, and code that applies it says so with
-  `@sdp plays PAT-y`; the element that code is then plays it too. An element is in the graph
+  `@sdp applies PAT-y`; the element that code is then applies it too. An element is in the graph
   because someone decided it matters, so everything `sdp arch` shows is significant. sdp does not harvest
   abstractions from code and neither should you: propose adding or removing an element, a pattern
   or an `is` annotation, and let the architect decide. Code links to the architecture, not to
@@ -133,16 +154,17 @@ The sharp edges of the format, each what the official parser does:
   write the link or the rule (between elements, the code's imports already say it). A description
   says what the examples cannot — never a "verified by" list, a status, or a restatement of the
   rules below it. When a sentence becomes a rule, delete the sentence: move it, do not copy it.
-- **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
-  context and a real trade-off, and that spans features, is recorded: a Feature whose name is the
-  choice and one to three sentences on what was chosen over what, why, and the cost accepted with
-  it. The rules it imposes stay on the spec they constrain, tagged `@decided-by:<its id>`. A reason
-  that concerns one feature is written under the rule it explains, and any other choice is a
-  sentence where it applies.
+- **A decision is rare and static.** Only a choice that is hard to reverse, not obvious without
+  its reason and a real trade-off is recorded (`what-makes-a-decision`): a Feature whose name is
+  the choice, one to three sentences on what was chosen and why, and after `**Rejected:**` what
+  was not, where that is not obvious. Its rules state what holds and have no examples: a decision
+  orders no work. What it requires of the product is a rule of the spec it constrains, tagged
+  `@decided-by:<its id>`, and a reason that concerns one feature is written under the rule it
+  explains.
 - **One feature, one file.** A feature's spec is its requirements document and its test suite at
   once: who needs what and why, what it is not, a rule per requirement with its reason, and the
   scenarios that prove each one. A quality requirement is a rule of the feature it constrains,
-  tagged `@type=quality` so that `sdp arch` shows it beside the elements that realize that feature,
+  tagged `@quality` so that `sdp arch` shows it beside the elements that realize that feature,
   and its example is measured: the environment, the stimulus, the response and its measure. A
   feature is not split into requirement, quality requirement and element files; it names a
   technology only where its users see one.
@@ -153,7 +175,10 @@ The sharp edges of the format, each what the official parser does:
   written by hand: `@stage=` is an error.
 - **Free vocabulary.** Kinds and relation names are the team's words, but for a rung of the ladder
   or a stage, which is a maturity, and `change`, which is rules of a feature: `sdp check` reports such
-  a kind. `sdp vocabulary` prints the few words sdp itself interprets in this workspace.
+  a kind. `sdp vocabulary` prints the few words sdp itself interprets in this workspace, and the
+  type of each word that joins two nodes: `realized-by` leads from a feature to an element,
+  `decided-by` from a spec or a rule to a decision, and `sdp check` reports a link that does not;
+  a relation of the team's own joins any nodes.
 
 ## Go through the graph first
 
@@ -168,8 +193,10 @@ than grepping for a guess.
 - **From a feature to its code:** `sdp q '#guest-checkout -realized-by-> element <-is- code' --ids`.
   From an element: `sdp q '#ARCH-x <-is- code'`. A query answers with the last node of the
   pattern; `--paths` shows the route. Syntax and examples: `sdp q --help`.
-- **The graph as data:** `sdp graph` prints one JSON record per line, so anything a query cannot
-  say, jq, grep or a short script can:
+- **The state as data:** `sdp graph` prints the state, one JSON record per line: each spec by its
+  id, its rules and examples each by their one line, the architecture and the code anchored to it,
+  and the links written between them. What is under a line — a reason, a step — is read at the
+  `file:line` its record names. Anything a query cannot say, jq, grep or a short script can:
 
   ```sh
   sdp graph | jq -r 'select(.type=="edge" and .rel=="realized-by" and .to=="ARCH-x") | .from'
@@ -178,13 +205,14 @@ than grepping for a guess.
   ```
 
   A node is `{type, id, kind, title, file, line, attrs}`; an edge is
-  `{type, from, rel, to, declared: [{file, line}]}`, for a link has no attributes. A rule is a
-  node of kind `rule` that is `rule-of` its spec, a scenario `verifies` its rule and its spec, and
-  an element `imports` each element whose code its code imports and links to each pattern its code
-  links to, by the relation the code wrote. `sdp graph -q '<pattern>'` exports only what a query
-  matches.
+  `{type, from, rel, to, declared: [{file, line}]}`, for a link has no attributes. A rule's id
+  names its spec (`spec#rule`) and an example's `rule` its rule, so the state draws no edge for
+  either; `sdp q` still walks them as `rule-of` and `verifies`. An element `imports` each element
+  whose code its code imports and links to each pattern its code links to, by the relation the code
+  wrote. `sdp graph -q '<pattern>'` exports only the routes a query matches, the edges they walk
+  included.
 - **Orientation:** `sdp arch` (the architecture with its decisions, the code that is it with the
-  shape of what it exports, what each element imports, the code that plays each pattern, and the
+  shape of what it exports, what each element imports, the code that applies each pattern, and the
   live work on each and the work still to come),
   `sdp lifecycle` (the milestones, which one the project is at, the work planned into each
   iteration), `sdp status` (one screen).
@@ -205,10 +233,9 @@ kind or relation you typed does not exist and which one is closest.
 
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"` writes
    it where it stays, and says what to write in it next. A change to a built feature is rules of it,
-   each with a maturity of its own until it is built. What a user sees belongs to a feature; a rule
-   only the code observes, to a spec of kind architecture (`@kind=architecture`;
-   `sdp new architecture "…"` starts one), whose rules still to come declare a maturity as a
-   feature's do.
+   each with a maturity of its own until it is built. What a person, a program or an agent sees
+   of the product belongs to a feature; a significant choice that holds whatever the feature, to a
+   decision; how the repository is worked, to this skill or a README, never to a spec.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for

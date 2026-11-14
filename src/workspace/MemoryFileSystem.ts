@@ -1,4 +1,7 @@
 /**
+ * @sdp is ARCH-workspace
+ *
+ * @remarks
  * An in-memory `FileSystem` for tests and executable specs: the real loading
  * pipeline runs against a map of `relative path → content` rooted at "/ws".
  */

@@ -31,11 +31,15 @@ export interface ArchitectureView {
 }
 
 /**
+ * The architecture as one view for whoever designs a change: every element and pattern, with the
+ * decisions and quality requirements that shaped it.
+ *
+ * @sdp is ARCH-architecture-view
+ *
+ * @remarks
  * Every architectural node and the decisions and quality requirements that shaped it — linked to
  * it, or to a feature linked to it or one of that feature's rules — and nothing else. This is the
  * view to hand to a person or an agent designing a change.
- *
- * @sdp is ARCH-architecture-view
  */
 export const architectureView = (project: Project): ArchitectureView => {
   const { graph } = project

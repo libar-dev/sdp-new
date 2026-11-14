@@ -19,17 +19,23 @@ import type { GraphNode, SourceRef } from "../model/Graph.ts"
 import {
   attribute,
   dayOf,
+  endPhrase,
+  endWords,
+  factTypes,
   hasKind,
   hasRelation,
   isPlanKind,
+  isEnd,
   isStage,
   isWork,
   type KindRole,
+  linkTypes,
   made,
   notAKind,
   offLadder,
   type RelationRole,
   type Vocabulary,
+  withArticle,
   wordFor
 } from "../model/Vocabulary.ts"
 import { type Project, type SourceFile, workOf } from "../graph/Build.ts"
@@ -50,26 +56,18 @@ export const maturityTags = (maturity: unknown): string => [maturity].flat().map
 export const changeIsRules = (feature: string) =>
   `write each as a \`Rule:\` in that ${feature}'s file, with @maturity=<rung> above it while it is still to come; sdp q ${feature} --ids lists them`
 
-/** What `sdp new` writes for the author to replace. A decision starts as its shape, what it was chosen over, why and at what cost: */
-export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>."
-/** and template scenarios name their parts in angle brackets: `Given <context>`. */
-const placeholderStep = /^<[^<>]+>$/
+/**
+ * What `sdp new` writes for the author to replace: a decision starts as its shape, what it was chosen
+ * over, why and at what cost. Only that text is template text: a name or a step in angle brackets is
+ * a parameter of an outline as often (`Scenario Outline: <case>`).
+ */
+export const decisionPlaceholder = "<What was chosen, and why, in one to three sentences.>"
 
-/** Template text still in a spec, with its line: its description, rule and scenario names and steps. */
-const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> => {
-  const found: Array<{ text: string; line: number }> = []
-  for (const paragraph of spec.description) {
-    if (paragraph.text.startsWith(decisionPlaceholder)) found.push({ text: decisionPlaceholder, line: paragraph.line })
-  }
-  for (const rule of spec.rules) {
-    if (placeholderStep.test(rule.name)) found.push({ text: `Rule: ${rule.name}`, line: rule.line })
-  }
-  for (const scenario of spec.scenarios) {
-    if (placeholderStep.test(scenario.name)) found.push({ text: `Scenario: ${scenario.name}`, line: scenario.line })
-    for (const step of scenario.steps) if (placeholderStep.test(step.text)) found.push({ text: `${step.keyword} ${step.text}`, line: step.line })
-  }
-  return found.sort((a, b) => a.line - b.line)
-}
+/** Template text still in a spec, with its line. */
+const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> =>
+  spec.description
+    .filter((paragraph) => paragraph.text.startsWith(decisionPlaceholder))
+    .map((paragraph) => ({ text: decisionPlaceholder, line: paragraph.line }))
 
 /** A rule, a feature or an example as a link that replaces names it: its id, its kind, and a rule's or an example's spec. */
 interface Replacing {
@@ -110,7 +108,7 @@ const cannotReplace = (from: Replacing, to: Replacing, vocabulary: Vocabulary): 
 
 const replacementHint = (rel: string, from: Replacing, to: Replacing) =>
   isExample(from)
-    ? `an example renamed with its steps edited, or merged into another, names each example it was, @${rel}:<feature>#<example>, in the change that does it`
+    ? `an example renamed or moved to another spec with its steps edited, or merged into another, names each example it was, @${rel}:<feature>#<example>, in the change that does it`
     : to.spec === from.id
     ? `put \`@${rel}:${to.id}\` on the rule that replaces it, above its \`Rule:\``
     : `work still to come names the live rule or feature it replaces: @${rel}:<feature>#<rule>, or @${rel}:<feature> for all its rules`
@@ -123,9 +121,13 @@ const planRelations: ReadonlyArray<readonly [RelationRole, ReadonlyArray<KindRol
 ]
 
 /**
- * Every rule check over a built project, as diagnostics with `file:line` and a hint.
+ * Finds what is wrong in the specs and the code anchored to them, and what was live at the base
+ * and no longer is, each at the line to fix.
  *
  * @sdp is ARCH-checker
+ *
+ * @remarks
+ * Every rule check over a built project, as diagnostics with `file:line` and a hint.
  */
 export const check = (project: Project): ReadonlyArray<Diagnostic> => {
   const out: Array<Diagnostic> = [...project.diagnostics]
@@ -154,7 +156,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const work = workOf(spec)
     const node = graph.node(spec.id)
     const isWorkSpec = node !== undefined && isWorkNode(node)
-    if (isWorkSpec && !work.spec && spec.rules.every((rule) => work.rule(rule).toCome)) {
+    const rules = graph.in(spec.id).filter((e) => e.rel === made.relations.rule).map((e) => graph.node(e.from)).filter(Predicate.isNotUndefined)
+    if (isWorkSpec && !work.spec && rules.every((rule) => rule.attrs.toCome === true)) {
       out.push(diagnostic("untested-feature", {
         message: `${spec.id} is live, so it needs a live rule`,
         node: spec.id,
@@ -162,12 +165,12 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: "write a Rule with an example under it; while its rules are still to come, declare a maturity above `Feature:`, such as @maturity=idea"
       }))
     }
-    for (const rule of spec.rules) {
-      if (work.rule(rule).toCome || spec.scenarios.some((scenario) => scenario.rule === rule.id)) continue
+    for (const rule of rules) {
+      if (rule.attrs.toCome === true || rule.attrs.scenarios !== 0) continue
       out.push(diagnostic("untested-rule", {
         message: `${rule.id} is live, so it needs an example`,
         node: rule.id,
-        source: at(spec, rule.line),
+        source: rule.source,
         hint: isWorkSpec
           ? "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
           : `write a Scenario under it; kind ${spec.kind} belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines`
@@ -258,18 +261,16 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }))
   }
 
-  // A decision says what was chosen over what, why, and the cost accepted with it. Anything more has a place of its own.
+  // A decision is static: its rules state what holds, and an example to run would make it a work order.
+  const examples = Map.groupBy(graph.ofKind([made.kinds.scenario]), (scenario) => String(scenario.attrs.spec))
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
-    const spec = project.specById.get(node.id)
-    const [rule] = spec?.rules ?? []
-    const [scenario] = spec?.scenarios ?? []
-    if (!spec || (!rule && !scenario)) continue
-    const has = [rule && `a rule ("${rule.name}")`, scenario && `a scenario ("${scenario.name}")`].filter(Boolean).join(" and ")
+    const [example] = [...examples.get(node.id) ?? []].sort((a, b) => (a.source?.line ?? 0) - (b.source?.line ?? 0))
+    if (example === undefined) continue
     out.push(diagnostic("decision-shape", {
-      message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
+      message: `${node.id} has an example ("${example.title}"): a decision is static, and its rules state what holds without one`,
       node: node.id,
-      source: at(spec, Math.min(rule?.line ?? Infinity, scenario?.line ?? Infinity)),
-      hint: `a rule it imposes belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; the cost it accepts is one of its sentences; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
+      source: example.source,
+      hint: `an example of what it requires belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
     }))
   }
 
@@ -358,7 +359,7 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
       }))
     }
     const activityKey = vocabulary.attributes.activity
-    const disciplines = [...vocabulary.disciplines.keys()].join(", ")
+    const disciplines = Object.keys(vocabulary.disciplines).join(", ")
     for (const edge of graph.out(node.id)) {
       if (edge.rel === activityKey) {
         out.push(diagnostic("plan-reference", {
@@ -404,8 +405,18 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: `delete the maturity — what is no work is live, and its rules have examples — or add ${kind} to a discipline under vocabulary.disciplines`
       }))
     }
+    // A milestone, a phase or an iteration is the plan, not work in it: a maturity on one, or on a rule
+    // of one, would make its gate work still to come that nothing plans.
+    if (attribute(node, "maturity") !== undefined && isPlanKind(vocabulary, kind)) {
+      out.push(diagnostic("maturity-on-no-work", {
+        message: `${node.id}: a ${kind} is the plan, not work in it, so it declares no maturity`,
+        node: node.id,
+        source: writtenAt(node, "maturity"),
+        hint: "delete the maturity: a milestone is met when its gate passes, and an iteration or a phase is dated by its days"
+      }))
+    }
     for (const [discipline, edge] of plannedDisciplines(project, node)) {
-      if (vocabulary.disciplines.has(discipline)) continue
+      if (Object.hasOwn(vocabulary.disciplines, discipline)) continue
       out.push(diagnostic("plan-reference", {
         message: `${node.id}: ${activityKey} names "${discipline}", which is not a discipline`,
         node: node.id,
@@ -421,6 +432,62 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         source: writtenAt(node, activityKey),
         hint: `plan each discipline with a link of its own: \`@${activityKey}.implementation:IT-beta @${activityKey}.test:IT-beta\``
       }))
+    }
+  }
+
+  // A link of a typed relation joins the kinds its type names (the vocabulary's linkTypes), and a
+  // fact that dates the plan is written on what it dates: anything else reads nothing from it. An end
+  // another rule already holds to its type is reported there, once.
+  const links = linkTypes(vocabulary)
+  const reportedLinks = new Set<string>()
+  // Whether the rule an end's type names looked at links from this node: plan-reference reads what
+  // specs and rules write, not what a scenario or code writes; replacement reads every replacement.
+  const covers = (rule: string | undefined, source: GraphNode) =>
+    rule !== undefined && (rule !== "plan-reference" || (source.kind !== made.kinds.scenario && source.kind !== made.kinds.code))
+  for (const edge of graph.edges()) {
+    const type = links.get(edge.rel)
+    const [from, to] = [graph.node(edge.from), graph.node(edge.to)]
+    if (!type || !from || !to || to.kind === made.kinds.missing) continue
+    const fromOk = covers(type.checked?.from, from) || type.from.some((end) => isEnd(vocabulary, end, from.kind))
+    const toChecked = covers(type.checked?.to, from)
+    const toOk = type.to.some((end) => isEnd(vocabulary, end, to.kind))
+    // A target another rule holds and finds wrong is the one thing said about the link.
+    if (toChecked && !toOk) continue
+    // Which end is wrong is said by its side, not by the node: a link from a node to itself has one node at both.
+    const wrong = !fromOk ? { end: from, starts: true, may: type.from } : !toChecked && !toOk ? { end: to, starts: false, may: type.to } : undefined
+    // A link code writes is also its element's, at the same line: one report says both.
+    const key = `${edge.rel} ${edge.to} ${edge.source?.file}:${edge.source?.line}`
+    if (!wrong || reportedLinks.has(key)) continue
+    reportedLinks.add(key)
+    const may = endPhrase(vocabulary, wrong.may)
+    out.push(diagnostic("link-kind", {
+      message: `${edge.from} -${edge.rel}-> ${edge.to}: ${wrong.end.id} is ${withArticle(wrong.end.kind)}, and ${edge.rel} ${wrong.starts ? "starts at" : "leads to"} ${may}`,
+      node: edge.from,
+      source: edge.source,
+      hint: `${wrong.starts ? `write it on ${may}` : `link ${may}`}, or name the link with a relation of your own, which joins any kinds`
+    }))
+  }
+  // A fact is judged where it is written, by the key it is written with, `plan.date` too: what sdp
+  // derives on a node, a scenario's `steps` say, is no date even when a date has that word.
+  const facts = factTypes(vocabulary)
+  for (const spec of project.specs) {
+    const written = [
+      { id: spec.id, kind: spec.kind, attrLines: spec.attrLines },
+      ...spec.rules.map((rule) => ({ id: rule.id, kind: made.kinds.rule, attrLines: rule.attrLines })),
+      ...spec.scenarios.map((scenario) => ({ id: scenario.id, kind: made.kinds.scenario, attrLines: scenario.attrLines }))
+    ]
+    for (const node of written) {
+      for (const [fact, line] of Object.entries(node.attrLines)) {
+        const type = fact === "maturity" ? undefined : facts.get(fact)
+        if (!type || type.on.some((end) => isEnd(vocabulary, end, node.kind))) continue
+        const what = endPhrase(vocabulary, type.on)
+        out.push(diagnostic("fact-kind", {
+          message: `${node.id}: @${fact}= dates ${what}, and ${node.id} is ${withArticle(node.kind)}, so it says nothing`,
+          node: node.id,
+          source: at(spec, line),
+          hint: `delete it, or write the date on the ${endWords(vocabulary, type.on)} it belongs to`
+        }))
+      }
     }
   }
 
@@ -507,10 +574,12 @@ const liveTests = (specs: ReadonlyArray<Spec>, vocabulary: Vocabulary) => {
  * Each example of the base paired with one example of the workspace at most: the same example
  * unchanged, then the same id, edited, then the example whose Scenario names it as one it was
  * (`namedBy`, given the id of the Scenario that names it), then the same steps under another name or
- * in another place. No example of the workspace pairs with two, but for one that names several, which
- * takes over each: a live one that names it before any other that does. Rows of one outline pair in
- * their order, a live row with a live one before any other. `named` holds the examples of the base
- * paired with one that names them.
+ * in another place. A name alone is no evidence in another spec: an example deleted there and an
+ * unrelated one of its name added elsewhere would hide each other, so one moved with its steps edited
+ * is named by the Scenario it went to. No example of the workspace pairs with two, but for one that
+ * names several, which takes over each: a live one that names it before any other that does. Rows of
+ * one outline pair in their order, a live row with a live one before any other. `named` holds the
+ * examples of the base paired with one that names them.
  */
 const pairExamples = (
   before: ReadonlyArray<Example>,
@@ -568,7 +637,9 @@ const pairExamples = (
  * base, so a replacement can be designed and built in one change, and is judged as check() judges a
  * link to what is there. The base is parsed with its own configuration. An example whose Feature or
  * Rule is reported as demoted is not reported again. `missing` says which files of the base do not
- * parse: their live examples were not compared, so the comparison may miss one turned off.
+ * parse: their live examples were not compared, so the comparison may miss one turned off. A dropped
+ * example is reported where it is in the workspace, or, once gone, at its rule or spec there, or at
+ * no file once its spec is gone too; its message names the file and line it had at the base.
  */
 export const compareWithBase = (project: Project, base: BaseSpecs): { readonly diagnostics: ReadonlyArray<Diagnostic>; readonly missing: ReadonlyArray<string> } => {
   const parsed = base.files.map((file) => ({ file: file.path, ...parseFeatureSpec(file.path, file.content, base.config) }))
@@ -704,14 +775,18 @@ export const compareWithBase = (project: Project, base: BaseSpecs): { readonly d
     if (still !== undefined && [still.spec.id, still.scenario.rule].some((id) => id !== undefined && demoted.has(id))) continue
     if (still === undefined && scenario.rule !== undefined && demoted.has(scenario.rule)) continue
     const rule = scenario.rule ?? spec.id
-    const row = scenario.pickles.length > 1 && pickle.exampleLine !== undefined ? ` (its row at ${spec.file}:${pickle.exampleLine})` : ""
+    const row = scenario.pickles.length > 1 && pickle.exampleLine !== undefined ? " (a row of its outline)" : ""
     const become = still === undefined ? "is gone" : still.gate ? "is a gate here, which fails no run" : "is an example of work still to come"
+    const here = project.specById.get(spec.id)
+    const source = still !== undefined
+      ? { file: still.spec.file, line: still.pickle.exampleLine ?? still.scenario.line }
+      : here === undefined ? undefined : { file: here.file, line: here.rules.find((rule) => rule.id === scenario.rule)?.line ?? 1 }
     out.push(diagnostic("example-dropped", {
-      message: `${scenario.id}${row}, a live example at ${at}, ${become}, and nothing that replaces ${rule} is live with a new live example`,
+      message: `${scenario.id}${row}, a live example at ${spec.file}:${pickle.exampleLine ?? scenario.line} at ${at}, ${become}, and nothing that replaces ${rule} is live with a new live example`,
       node: scenario.id,
-      source: still === undefined ? { file: spec.file, line: pickle.exampleLine ?? scenario.line } : { file: still.spec.file, line: still.pickle.exampleLine ?? still.scenario.line },
+      source,
       hint: still === undefined
-        ? `restore it, or, renamed with its steps edited or merged into another, name it on the Scenario it went to, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces ${rule}, \`@${replacesWord}:${rule}\`, with a new live example of its own`
+        ? `restore it, or, renamed or moved to another spec with its steps edited, or merged into another, name it on the Scenario it went to, \`@${replacesWord}:${scenario.id}\`; to remove what it tests, write what replaces ${rule}, \`@${replacesWord}:${rule}\`, with a new live example of its own`
         : "a live test declares no maturity and is no gate: move it back under a live rule, or delete what makes it still to come"
     }))
   }

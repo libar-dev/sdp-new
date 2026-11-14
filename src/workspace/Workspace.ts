@@ -5,7 +5,8 @@
  * pipeline against an in-memory workspace. Reading never runs workspace code:
  * only `loadSteps`, for `sdp run` and `sdp gate`, imports step modules.
  */
-import { Effect, FileSystem, Path, Schema } from "effect"
+import { Effect, FileSystem, Path, Result, Schema } from "effect"
+import * as CliError from "effect/cli/CliError"
 import type { PlatformError } from "effect/PlatformError"
 import { readFileSync, realpathSync } from "node:fs"
 import { createRequire, findPackageJSON, registerHooks } from "node:module"
@@ -13,17 +14,28 @@ import { basename, delimiter, dirname, join } from "node:path"
 import { fileURLToPath, pathToFileURL } from "node:url"
 import { parse as parseYaml } from "yaml"
 import { buildProject, type NotAFile, type Project, type SourceFile } from "../graph/Build.ts"
-import { type Config, ConfigFile, configFileNames, resolveConfig } from "../model/Config.ts"
+import { type Config, configFileNames, decodeConfigFile, resolveConfig } from "../model/Config.ts"
+import { diagnostic } from "../model/Diagnostic.ts"
 import type { RunResults } from "../model/Results.ts"
 import { listedPackages, moduleConfigFiles, namedBy, packageFile, pathFrom } from "../parse/ModuleConfigs.ts"
+import { matchKey, pickTarget } from "../parse/Modules.ts"
 import { digest, evidenceView, fingerprint, type Fingerprints, type Layer, type Snapshot } from "../run/Evidence.ts"
+import { aTurn, startedBy, watchUnawaited } from "../run/Runner.ts"
 import { isStepModule, type StepModule } from "../run/Steps.ts"
-import { readResults } from "../run/Store.ts"
-
+import { readResults, type ResultsUnreadable } from "../run/Store.ts"
+import { PackageJson, type Target } from "../model/PackageJson.ts"
+/** Every problem of a configuration, each on a line of its own; as a message, on one line. */
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   file: Schema.String,
-  message: Schema.String
-}) {}
+  problems: Schema.Array(Schema.String)
+}) {
+  override get message() {
+    return this.problems.join("; ")
+  }
+  override get [CliError.userMessage]() {
+    return this.problems.map((problem) => `${this.file}: invalid configuration: ${problem}`).join("\n")
+  }
+}
 
 export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()("WorkspaceNotFound", {
   root: Schema.String
@@ -31,12 +43,19 @@ export class WorkspaceNotFound extends Schema.TaggedError<WorkspaceNotFound>()("
   override get message() {
     return `no such directory: ${this.root}`
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 export class StepLoadError extends Schema.TaggedError<StepLoadError>()("StepLoadError", {
   file: Schema.String,
   message: Schema.String
-}) {}
+}) {
+  override get [CliError.userMessage]() {
+    return `${this.file}: could not load step definitions: ${this.message}`
+  }
+}
 
 /** The step files or the files they import have changed since this process loaded them: what it would run is no longer what is on disk. */
 export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("SourcesChanged", {
@@ -61,6 +80,9 @@ export class SourcesChanged extends Schema.TaggedError<SourcesChanged>()("Source
       changes.join(", and ")
     }: a process loads its step modules once, and Node.js keeps a module for the life of a process, so the code there now did not run, and what would rest on it is not recorded. Run again in a new process`
   }
+  override get [CliError.userMessage]() {
+    return this.message
+  }
 }
 
 /**
@@ -79,30 +101,48 @@ export const findWorkspaceRoot = Effect.fn("findWorkspaceRoot")(function*(start:
   }
 })
 
+/**
+ * The name of the workspace's configuration file, if it has one: a workspace has one configuration,
+ * so more than one file is refused, naming each, rather than one read and the others ignored.
+ */
+export const configFileName = Effect.fnUntraced(function*(root: string) {
+  const fs = yield* FileSystem.FileSystem
+  const path = yield* Path.Path
+  const existing = yield* Effect.filter(configFileNames, (name) => fs.exists(path.join(root, name)))
+  if (existing.length > 1) {
+    return yield* new ConfigError({ file: existing.join(" and "), problems: ["a workspace has one configuration: keep one of these files and delete the others"] })
+  }
+  return existing[0]
+})
+
 /** The workspace's configuration file, if it has one. */
 const readConfigFile = Effect.fnUntraced(function*(root: string) {
   const fs = yield* FileSystem.FileSystem
   const path = yield* Path.Path
   if (!(yield* fs.exists(root))) return yield* new WorkspaceNotFound({ root })
-  for (const name of configFileNames) {
-    const file = path.join(root, name)
-    if (yield* fs.exists(file)) return { path: name, content: yield* fs.readFileString(file) } satisfies SourceFile
-  }
-  return undefined
+  const name = yield* configFileName(root)
+  return name === undefined ? undefined : { path: name, content: yield* fs.readFileString(path.join(root, name)) } satisfies SourceFile
 })
 
-/** A configuration file as sdp reads it, or the defaults when there is none: the workspace's, or the one a base revision had. */
+/** One line: a problem quotes what was written, which may hold a line break. */
+const oneLine = (text: string) => text.replace(/\s*\n\s*/g, " ").trim()
+
+/**
+ * A configuration file as sdp reads it, or the defaults when there is none: the workspace's, or the
+ * one a base revision had. Every problem it has is refused at once, each with the key it is at.
+ */
 export const parseConfig = Effect.fnUntraced(function*(file: SourceFile | undefined) {
   if (!file) return resolveConfig(undefined)
   const raw = yield* Effect.try({
     try: () => file.path.endsWith(".json") ? JSON.parse(file.content) : parseYaml(file.content) ?? {},
-    catch: (e) => new ConfigError({ file: file.path, message: e instanceof Error ? e.message : String(e) })
+    catch: (e) => new ConfigError({ file: file.path, problems: [oneLine(e instanceof Error ? e.message : String(e))] })
   })
-  // Unknown keys are errors: a misspelled `spec:` must not silently fall back to the defaults.
-  const decoded = yield* Schema.decodeUnknownEffect(ConfigFile)(raw, { onExcessProperty: "error" }).pipe(
-    Effect.mapError((e) => new ConfigError({ file: file.path, message: e.message }))
-  )
-  return resolveConfig(decoded)
+  const decoded = decodeConfigFile(raw)
+  if (Result.isFailure(decoded)) {
+    const at = (path: ReadonlyArray<PropertyKey>) => path.length === 0 ? "" : ` at ${path.map((key) => `[${JSON.stringify(typeof key === "symbol" ? String(key) : key)}]`).join("")}`
+    return yield* new ConfigError({ file: file.path, problems: decoded.failure.map(({ message, path }) => oneLine(message) + at(path)) })
+  }
+  return resolveConfig(decoded.success)
 })
 
 export const loadConfig = Effect.fn("loadConfig")(function*(root: string) {
@@ -128,7 +168,7 @@ const notAFile: Partial<Record<FileSystem.File.Type, NotAFile["is"]>> = {
  * Expands globs relative to `root` to the files they match, de-duplicated and sorted for stable
  * output, to the directories they match (`fixtures/**` is `fixtures` and all below it), and to what
  * they match that is no file sdp can read: a link that leads to none, a named pipe, a socket or a
- * device, and a directory it may not list, which may hold more.
+ * device, and a directory it may not list, which may hold more. Distinct patterns walk concurrently.
  */
 export const findPaths = Effect.fn("findPaths")(function*(
   root: string,
@@ -140,7 +180,7 @@ export const findPaths = Effect.fn("findPaths")(function*(
   // What the walk learns of each path, by the path it looks at, so that a file costs no look of its
   // own: the directories it lists, the entries of theirs that are no file, and the type of what each
   // path it looks at leads to, none where nothing is.
-  const listed: Array<string> = []
+  const listed = new Set<string>()
   const unlisted = new Set<string>()
   const types = new Map<string, FileSystem.File.Type | undefined>()
   const walk = FileSystem.make({
@@ -148,13 +188,13 @@ export const findPaths = Effect.fn("findPaths")(function*(
     readDirectoryEntries: (directory) =>
       fs.readDirectoryEntries(directory).pipe(
         Effect.map((entries) => {
-          listed.push(directory)
+          listed.add(directory)
           const at = directory.endsWith("/") ? directory : `${directory}/`
           for (const entry of entries) if (entry.type !== "File") types.set(at + entry.name, entry.type)
           return entries
         }),
         // One sdp may not list is reported where it is, and the walk goes on.
-        Effect.catchIf((error) => error.reason._tag === "PermissionDenied", () => Effect.sync(() => (unlisted.add(directory), [])))
+        Effect.catchReason("PlatformError", "PermissionDenied", () => Effect.sync(() => (unlisted.add(directory), [])))
       ),
     stat: (at) =>
       fs.stat(at).pipe(
@@ -164,14 +204,15 @@ export const findPaths = Effect.fn("findPaths")(function*(
   })
   const base = path.resolve(root)
   const found = new Set<string>()
-  for (const pattern of patterns) for (const file of yield* walk.glob(pattern, { root: base, exclude })) found.add(file)
+  const walked = yield* Effect.forEach([...new Set(patterns)], (pattern) => walk.glob(pattern, { root: base, exclude }), { concurrency: 16 })
+  for (const files of walked) for (const file of files) found.add(file)
   const sorted = [...found].sort()
   // Each path the walk learnt of by both names a glob gives a path: as it is, and relative to the root.
   const names = (at: string) => {
     const named = at.length > 1 && at.endsWith("/") ? at.slice(0, -1) : at
     return [named, path.relative(base, named)]
   }
-  const directories = new Set(listed.flatMap(names))
+  const directories = new Set([...listed].flatMap(names))
   const told = new Map([...types].flatMap(([at, type]) => names(at).map((name) => [name, type] as const)))
   // A path in a directory the walk listed is a file unless the listing said otherwise; of any other, it learnt nothing.
   const typeOf = new Map(sorted.map((file) => {
@@ -448,7 +489,11 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
   const path = yield* Path.Path
   const configFile = yield* readConfigFile(root)
   const config = yield* parseConfig(configFile)
-  const stored = yield* readResults(root, config)
+  let unreadResults: ResultsUnreadable | undefined
+  const stored = yield* readResults(root, config).pipe(Effect.catchTag("ResultsUnreadable", (error) => {
+    unreadResults = error
+    return Effect.succeed(undefined)
+  }))
   const [features, code, steps, inputs] = yield* Effect.all([
     findPaths(root, config.features, config.exclude),
     findPaths(root, config.code, config.exclude),
@@ -503,7 +548,7 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     specs: fingerprint([...featureFiles, ...markdownFiles.map((file): SourceFile => ({ path: file, content: "" })), ...moduleConfigs.files])
   }
   const view = layer === "none" ? undefined : evidenceView(stored, fingerprints, layer, config.vocabulary)
-  const project = buildProject({
+  const built = buildProject({
     root,
     config,
     featureFiles,
@@ -515,6 +560,14 @@ export const loadWorkspace = Effect.fn("loadWorkspace")(function*(root: string, 
     stepNotFiles: [...steps.unread, ...read.steps.unread],
     evidence: view
   })
+  const project = unreadResults === undefined ? built : {
+    ...built,
+    diagnostics: [...built.diagnostics, diagnostic("results-unreadable", {
+      source: { file: unreadResults.file, line: 1 },
+      message: `${unreadResults.file} is not a results file this sdp reads (${unreadResults.problem}): no result in it is shown, and sdp run records nothing over it`,
+      hint: "move it aside or delete it"
+    })]
+  }
   const results = view ? view(project.specs).ordinary : ""
   return { project, now: { ...fingerprints, sources: fingerprint(sources), results }, sources, stored } satisfies Workspace
 })
@@ -535,35 +588,42 @@ export const loadProject = Effect.fn("loadProject")(function*(
 })
 
 /** sdp's package exports (see package.json), as the files of the running sdp. */
+const moduleExtension = import.meta.url.endsWith(".ts") ? "ts" : "js"
 const sdpExports = new Map([
-  ["sdp", new URL("../index.ts", import.meta.url).href],
-  ["sdp/effect", new URL("../effect.ts", import.meta.url).href],
-  ["sdp/steps", new URL("../steps.ts", import.meta.url).href]
+  ["sdp", new URL(`../index.${moduleExtension}`, import.meta.url).href],
+  ["sdp/effect", new URL(`../effect.${moduleExtension}`, import.meta.url).href],
+  ["sdp/steps", new URL(`../steps.${moduleExtension}`, import.meta.url).href]
 ])
 let hooked = false
 /**
+ * The modules the step modules of a workspace reach, step modules included, by URL: only an import
+ * one of them makes is theirs to redirect and record, never one of the program that runs sdp.
+ */
+const stepReachable = new Set<string>()
+/**
  * What this process has imported of workspaces, by module URL: the local files each module
- * imports, by the URL the import names and the real one Node resolved it to, and the source Node
- * loaded. Node keeps every module for the life of the process, and so do these records: a process
- * loads step modules once, and what it runs is what it loaded, whatever the file says later.
+ * imports, by the URL the import names and the real one Node resolved it to, and a digest of the
+ * source Node loaded. Node keeps every module for the life of the process, and so do these
+ * records, a few short strings each: a process loads step modules once, and what it runs is what it
+ * loaded, whatever the file says later. A run adds nothing to them that an earlier one recorded.
  */
 const importGraph = new Map<string, Map<string, string>>()
 const loadedSources = new Map<string, string>()
 /**
  * The package.json files Node looks at to load each workspace module, by its URL — that of its
  * directory and of each one above, up to the first that is there, and that of each package of the
- * workspace it imports by name — and what each held when this process first read it, `undefined`
- * where there was none: its type, its `imports` and its `exports` decide what Node loads, and Node
+ * workspace it imports by name — and a digest of what each held when this process first read it,
+ * `undefined` where there was none: its type, its `imports` and its `exports` decide what Node loads, and Node
  * keeps what it read for the life of the process.
  */
 const packagesOf = new Map<string, Set<string>>()
 const packageSources = new Map<string, string | undefined>()
 
-/** What a package.json held when this process first read it: `undefined` where there was none. */
+/** A digest of what a package.json held when this process first read it: `undefined` where there was none. */
 const readPackage = (file: string): string | undefined => {
   if (!packageSources.has(file)) {
     try {
-      packageSources.set(file, readFileSync(file, "utf8"))
+      packageSources.set(file, digest([readFileSync(file, "utf8")]))
     } catch {
       packageSources.set(file, undefined)
     }
@@ -603,31 +663,10 @@ const packageManifest = (specifier: string, parent: string): string | undefined 
 
 const isWorkspaceFile = (url: string) => url.startsWith("file:") && !url.includes("/node_modules/")
 
-/** The path a target of a package's `imports` map names, as Node picks it: the first of an array or of the conditions that apply, `*` filled in. */
-const mapTarget = (target: unknown, conditions: ReadonlyArray<string>, match: string | undefined): string | undefined => {
-  if (typeof target === "string") return match === undefined ? target : target.replaceAll("*", match)
-  const options = Array.isArray(target)
-    ? target
-    : target !== null && typeof target === "object"
-    ? Object.entries(target).flatMap(([condition, value]) => condition === "default" || conditions.includes(condition) ? [value] : [])
-    : []
-  for (const option of options) {
-    const found = mapTarget(option, conditions, match)
-    if (found !== undefined) return found
-  }
-  return undefined
-}
-
 /** The target a package's `imports` map gives a specifier, as Node matches it: the key itself, else the pattern with the longest prefix. */
-const packageImport = (imports: Record<string, unknown>, specifier: string, conditions: ReadonlyArray<string>): string | undefined => {
-  if (Object.hasOwn(imports, specifier) && !specifier.includes("*")) return mapTarget(imports[specifier], conditions, undefined)
-  const [pattern] = Object.keys(imports).filter((key) => {
-    const [base = "", trailer, more] = key.split("*")
-    return trailer !== undefined && more === undefined && specifier.startsWith(base) && specifier !== base && specifier.endsWith(trailer) &&
-      specifier.length >= key.length
-  }).sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length)
-  const [base = "", trailer = ""] = pattern?.split("*") ?? []
-  return pattern === undefined ? undefined : mapTarget(imports[pattern], conditions, specifier.slice(base.length, specifier.length - trailer.length))
+const packageImport = (imports: Readonly<Record<string, Target>>, specifier: string, conditions: ReadonlyArray<string>): string | undefined => {
+  const matched = matchKey(Object.keys(imports), specifier)
+  return matched === undefined ? undefined : pickTarget(imports[matched.key]!, matched.star, new Set(conditions))
 }
 
 /**
@@ -637,11 +676,19 @@ const packageImport = (imports: Record<string, unknown>, specifier: string, cond
  * pins — or where no other path is known to lead there.
  */
 const pathBefore = (specifier: string, parent: string, conditions: ReadonlyArray<string>, real: string): string => {
+  let scope: string | undefined
+  let content: string | undefined
   try {
-    const scope = specifier.startsWith("#") ? findPackageJSON(parent) : undefined
-    const imports = scope === undefined ? undefined : (JSON.parse(readFileSync(scope, "utf8")) as { readonly imports?: unknown }).imports
-    const target = imports !== null && typeof imports === "object" ? packageImport(imports as Record<string, unknown>, specifier, conditions) : undefined
-    const before = scope !== undefined && target?.startsWith("./") ? fileURLToPath(new URL(target, pathToFileURL(scope))) : undefined
+    scope = specifier.startsWith("#") ? findPackageJSON(parent) : undefined
+    content = scope === undefined ? undefined : readFileSync(scope, "utf8")
+  } catch {
+    return real
+  }
+  const decoded = content === undefined ? undefined : Schema.decodeUnknownOption(Schema.fromJsonString(PackageJson))(content)
+  const imports = decoded?._tag === "Some" ? decoded.value.imports : undefined
+  const target = imports === undefined ? undefined : packageImport(imports, specifier, conditions)
+  const before = scope !== undefined && target?.startsWith("./") ? fileURLToPath(new URL(target, pathToFileURL(scope))) : undefined
+  try {
     // Only a path that leads where Node resolved is one it went through.
     return before !== undefined && realpathSync(before) === real ? before : real
   } catch {
@@ -660,12 +707,14 @@ const hookImports = () => {
   hooked = true
   registerHooks({
     resolve: (specifier, context, nextResolve) => {
-      const own = sdpExports.get(specifier)
+      const parent = context.parentURL
+      const reachable = parent !== undefined && stepReachable.has(parent)
+      const own = reachable ? sdpExports.get(specifier) : undefined
       if (own !== undefined) return { url: own, shortCircuit: true }
       const resolved = nextResolve(specifier, context)
-      const parent = context.parentURL
       // This module imports the step files of every workspace this process runs: that is no import of theirs.
-      if (parent?.startsWith("file:") && parent !== import.meta.url && isWorkspaceFile(resolved.url)) {
+      if (reachable && parent !== undefined && isWorkspaceFile(resolved.url)) {
+        stepReachable.add(resolved.url)
         // Node names a module by its real path; a path that leads there through a link is named too.
         const named = /^(\.{1,2}\/|\/|file:)/.test(specifier)
           ? new URL(specifier, parent).href
@@ -680,8 +729,8 @@ const hookImports = () => {
     load: (url, context, nextLoad) => {
       const loaded = nextLoad(url, context)
       const { source } = loaded
-      if (isWorkspaceFile(url) && source != null) loadedSources.set(url, typeof source === "string" ? source : new TextDecoder().decode(source))
-      if (isWorkspaceFile(url)) packageScope(url)
+      if (stepReachable.has(url) && isWorkspaceFile(url) && source != null) loadedSources.set(url, digest([typeof source === "string" ? source : new TextDecoder().decode(source)]))
+      if (stepReachable.has(url) && isWorkspaceFile(url)) packageScope(url)
       return loaded
     }
   })
@@ -726,18 +775,46 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   const realUrls = new Map(
     yield* Effect.forEach(files, (file) => Effect.map(fs.realPath(path.resolve(real, file)), (to) => [urlOf(file), pathToFileURL(to).href] as const))
   )
+  for (const url of realUrls.values()) stepReachable.add(url)
+  // A rejection or an exception nobody awaited as a step file loads fails loading it, as one it throws does.
+  let unawaited: StepLoadError | undefined
+  // One whose origin Node did not keep is taken as the file loading then.
+  let loading = files[0] ?? root
+  // Whichever file it came from, it fails the module loading now, which may never finish otherwise.
+  let failLoading: ((error: StepLoadError) => void) | undefined
+  const watch = yield* watchUnawaited((problem) => {
+    unawaited ??= new StepLoadError({ file: loading, message: problem })
+    failLoading?.(unawaited)
+  })
   // A module exported under two names, or again by another file, is one module: its steps match once.
   const modules = new Set<StepModule<any>>()
   const empty: Array<string> = []
   for (const file of files) {
+    loading = file
+    // One heard of while the file still loads fails loading then: the module may never finish.
     const exports = yield* Effect.tryPromise({
-      try: () => import(urlOf(file)) as Promise<Record<string, unknown>>,
-      catch: (e) => new StepLoadError({ file, message: loadMessage(e) })
+      try: () =>
+        new Promise<Record<string, unknown>>((loaded, failed) => {
+          failLoading = failed
+          // A file that loaded already can fail later, while another loads.
+          const fail = (problem: string) => {
+            unawaited ??= new StepLoadError({ file, message: problem })
+            failLoading?.(unawaited)
+            return true
+          }
+          const started = startedBy({ watch, name: file, fail }, () => import(urlOf(file))) as Promise<Record<string, unknown>>
+          started.then(loaded, failed)
+        }),
+      catch: (e) => e instanceof StepLoadError ? e : new StepLoadError({ file, message: loadMessage(e) })
     })
+    // What it left as it returned is told of after a turn.
+    yield* aTurn
+    if (unawaited !== undefined) return yield* unawaited
     const found = Object.values(exports).filter(isStepModule)
     if (found.length === 0) empty.push(file)
     for (const module of found) modules.add(module)
   }
+  failLoading = undefined
   /** A file by its path relative to the real root, one outside it — a monorepo's shared code — too. */
   const name = (url: string) => path.relative(real, fileURLToPath(url))
   /**
@@ -782,12 +859,16 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
           if (content === undefined) return true
           if (leading.has(file)) return false
           // A module loaded before sdp watched — its own, when it runs its own specifications — is taken as first read.
-          const loaded = loadedSources.get(url) ?? content
+          const now = digest([content])
+          const loaded = loadedSources.get(url) ?? now
           loadedSources.set(url, loaded)
-          return loaded !== content
+          return loaded !== now
         }).map(({ file }) => file),
         // Written, rewritten or deleted: Node still loads by what it read.
-        ...packages.filter(({ at, file }) => present.get(file) !== packageSources.get(at)).map(({ file }) => file)
+        ...packages.filter(({ at, file }) => {
+          const content = present.get(file)
+          return (content === undefined ? undefined : digest([content])) !== packageSources.get(at)
+        }).map(({ file }) => file)
       ].sort(),
       // Now a link, or a link that leads elsewhere: Node still runs what it loaded from where it led.
       links: [
@@ -798,7 +879,7 @@ export const loadSteps = Effect.fn("loadSteps")(function*(root: string, config: 
   }
   const added = (steps: ReadonlyArray<string>) => steps.filter((file) => !files.includes(file))
   return { files, modules: [...modules], empty, imports, changed, added } satisfies LoadedSteps
-})
+}, Effect.scoped)
 
 /** The first line of what went wrong; Node appends the code frame and a stack nobody needs here. */
 const loadMessage = (error: unknown): string => {
