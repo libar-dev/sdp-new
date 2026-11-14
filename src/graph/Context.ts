@@ -54,8 +54,11 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
   // The contract first: each rule with its state, what it rests on and why it holds, then its
   // examples with their status. Scenarios outside a rule come where they are written.
   const rules = graph.in(id).filter((e) => e.rel === made.relations.rule).map((e) => graph.node(e.from)).filter(Predicate.isNotUndefined)
-  // A spec's own examples: an example of another spec may verify it too, by a link its author wrote.
-  const examples = graph.in(id).filter((e) => e.rel === vocabulary.relations.scenario && graph.node(e.from)?.attrs.spec === id)
+  // A spec's own examples: an example of another spec, or a rule, may verify it too, by a link its author wrote.
+  const examples = graph.in(id).filter((e) => {
+    const from = graph.node(e.from)
+    return e.rel === vocabulary.relations.scenario && from?.kind === made.kinds.scenario && from.attrs.spec === id
+  })
   if (spec && rules.length + examples.length > 0) {
     const open = rules.filter((rule) => ruleState(rule) === "open").length
     const counts = [`${rules.length} rule(s)`, `${examples.length} scenario(s)`, ...(open > 0 ? [`${open} open`] : [])]

@@ -69,7 +69,18 @@ Feature: Serve AI agents
       And the file "executed.txt" does not exist
 
     Scenario: The cart's contract, beside an example of another spec that says it verifies the cart
-      Given a file "specs/wishlist.feature" containing:
+      Given a file "specs/cart.feature" containing:
+        """
+        @id=cart @maturity=draft
+        Feature: Cart
+
+          @verifies:cart
+          Rule: A cart holds each item once
+
+            Scenario: Adding an item twice raises its quantity
+              Given an empty cart
+        """
+      And a file "specs/wishlist.feature" containing:
         """
         @id=wishlist @maturity=draft
         Feature: Wishlist
