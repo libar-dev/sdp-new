@@ -5,17 +5,14 @@ Feature: Install sdp from npm
   Teams that adopt sdp install it as a development dependency of their repository, as they install
   any tool, not from a clone of this one.
 
-  Rule: The package is published public as `@libar-dev/software-delivery-protocol` and installed as `sdp`: it gives the command `sdp`, and programs and step modules import `sdp`, `sdp/effect` and `sdp/steps`, typed
+  Rule: The package is published publicly as @libar-dev/software-delivery-protocol, and installed under the name sdp
 
-    `sdp` is taken on npm, by a package of utilities for WebRTC's session descriptions. Installed
-    through an npm alias, `npm install --save-dev sdp@npm:@libar-dev/software-delivery-protocol`, sdp
-    has one name in every import, which its step reader, loader and snippets write; `npm install sdp`
-    or `npx sdp` without the alias fetches that other package. A project's own `tsc` checks its step
-    modules and programs, so the package ships declarations beside the JavaScript it runs. The
-    checkout is private, so that `npm publish` run in it publishes nothing: a release publishes the
-    package npm packs.
+    `sdp` on npm is another package, of utilities for WebRTC's session descriptions, which
+    `npm install sdp` or `npx sdp` fetches. Installed through an alias,
+    `npm install --save-dev sdp@npm:@libar-dev/software-delivery-protocol`, sdp has one name in every
+    command and every import, those of the step definitions it writes too.
 
-    Scenario: The command sdp writes the skill it ships
+    Scenario: Installed under the name sdp
       Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
       When I run "cat node_modules/sdp/package.json"
       Then the exit code is 0
@@ -27,6 +24,10 @@ Feature: Install sdp from npm
       When I run "node_modules/.bin/sdp init"
       Then the exit code is 0
       And the file ".claude/skills/sdp/SKILL.md" contains "name: sdp"
+
+  Rule: Programs and step modules import sdp, sdp/effect and sdp/steps from the installed package, typed
+
+    A project's own `tsc` checks the step modules and programs it writes against sdp.
 
     Scenario: A step module and a program import its entries, typed
       Given a file "package.json" containing:
@@ -44,8 +45,6 @@ Feature: Install sdp from npm
         """
         @id=cart
         Feature: Cart
-
-          Shoppers collect what they buy.
 
           Rule: A cart holds what was added
 
@@ -85,17 +84,26 @@ Feature: Install sdp from npm
       And the output contains "cart function"
 
   @maturity=ready @iteration:IT-packaging
-  Rule: A release is published by CI, with provenance, from a tag on a commit that passed npm run verify and the command-line scenarios run against the packed package
+  Rule: CI publishes each release with provenance, from a tagged commit whose scenarios passed
 
-  Rule: The published package depends on the exact versions of Effect its checks passed with, and runs on Node.js 24 and later
+    The scenarios of the command line run against the package npm packs, as a team installs it, not
+    only against the checkout.
 
-    The modules of Effect that sdp uses are marked unstable, so a release of Effect may change them:
-    a release of sdp runs on the Effect its scenarios ran on.
+  Rule: The package runs on Node.js 24 and later
 
-    Scenario: Effect as this repository runs it, and Node.js 24 or later
+    Scenario: The Node.js it declares
       Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
       When I run "cat node_modules/sdp/package.json"
       Then the exit code is 0
       And the JSON output has:
         | engines.node | >=24 |
+
+  Rule: The package depends on exactly the versions of Effect its scenarios ran with
+
+    The modules of Effect that sdp uses are marked unstable, so a release of Effect may change them.
+
+    Scenario: Effect as this repository runs it
+      Given the package npm packs from a checkout of this repository, installed in the workspace as "sdp"
+      When I run "cat node_modules/sdp/package.json"
+      Then the exit code is 0
       And the JSON output depends on exactly the versions of "effect, @effect/platform-node" this repository runs with
