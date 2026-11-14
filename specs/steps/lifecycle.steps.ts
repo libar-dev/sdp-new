@@ -49,12 +49,16 @@ export default defineSteps(newWorld, ({ Then, When }) => {
   })
 
   // The chart as numbers: a row per discipline, a column per iteration.
-  Then("the planned activity is:", ({ table, world }) => {
+  const activity = (world: World) => {
     const report = computed(world)
-    const rows = report.disciplines.map((row): Row => ({
+    return report.disciplines.map((row): Row => ({
       discipline: row.discipline,
       ...Object.fromEntries(report.iterations.map((iteration, column) => [iteration.id, String(row.activity[column])]))
     }))
-    assertRows("planned activity", rows, table, "exactly")
-  })
+  }
+
+  Then("the planned activity is:", ({ table, world }) => assertRows("planned activity", activity(world), table, "exactly"))
+
+  // The rows of the disciplines it names, whatever the others hold.
+  Then("the planned activity includes:", ({ table, world }) => assertRows("planned activity", activity(world), table, "including"))
 })
