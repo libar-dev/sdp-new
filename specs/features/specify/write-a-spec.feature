@@ -9,60 +9,24 @@ Feature: Write a spec
   Not a syntax of sdp's own: what the official Gherkin parser reads is all there is.
 
   @decided-by:specs-are-gherkin-files
-  Rule: One file says what a spec is, what it links to, what must hold and why, and what is still open
+  Rule: A file is one spec named by its `@id=` tag, or else a suite named by its path
 
-    Scenario: Every part of the format in one feature
-      Given a file "specs/guest-checkout.feature" containing:
+    Scenario: A spec and someone else's suite
+      Given these specs:
+        | tags       | Feature        |
+        | @id=search | Product search |
+      And a file "features/checkout.feature" containing:
         """
-        @id=guest-checkout @maturity=specified @checkout
-        @realized-by:ARCH-orders @iteration:IT-payments
-        Feature: Guest checkout
-
-          Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form.
-
-          @decided-by:no-sign-up-at-checkout
-          Rule: A guest pays without creating an account
-
-            Scenario: By card
-              When the guest pays with a valid card
-              Then an order is created
-
-          Rule: A guest gets a receipt by email
-
-            The address is not verified first: a wrong one costs a receipt, a check costs the sale.
-
-          @open
-          Rule: Can a guest save the cart for later?
+        Feature: Checkout
         """
       When the workspace is loaded
-      Then the workspace node "guest-checkout" has attribute kind = "feature"
-      And the workspace node "guest-checkout" has attribute summary = "Shoppers without an account can buy: a third of all carts are abandoned at the sign-up form."
-      And the workspace node "guest-checkout" has attribute openQuestions = "1"
-      And the edges from "guest-checkout" are "guest-checkout -realized-by-> ARCH-orders, guest-checkout -iteration-> IT-payments"
-      And the workspace node "guest-checkout#a-guest-gets-a-receipt-by-email" has attribute description = "The address is not verified first: a wrong one costs a receipt, a check costs the sale."
-      And the workspace node "guest-checkout#by-card" has attribute rule = "guest-checkout#a-guest-pays-without-creating-an-account"
-
-  @decided-by:specs-are-gherkin-files
-  Rule: A file is one spec, its Feature, named by its tags or else by its path, and an id and a name are enough
-
-    Scenario Outline: Named by its tags or its path
-      Given a file "features/search.feature" containing:
-        """
-        <tags>
-        Feature: Product search
-        """
-      When "features/search.feature" is parsed
-      Then the parsed spec has id "<id>"
-      And the parsed spec has kind "<kind>"
-
-      Examples:
-        | tags                                 | id                            | kind    |
-        | @id=search                           | search                        | feature |
-        | @id=search-by-voice @kind=story @web | search-by-voice               | story   |
-        | @web                                 | suite:features/search.feature | suite   |
+      Then the workspace graph has nodes:
+        | id                              | kind    | title          |
+        | search                          | feature | Product search |
+        | suite:features/checkout.feature | suite   | Checkout       |
 
   @decided-by:still-to-come-is-marked-where-it-is-written
-  Rule: A Feature or a Rule that declares a maturity is still to come and one that declares none is live, and a Rule without one has its Feature's
+  Rule: A Feature or a Rule declaring a maturity is still to come, and a Rule without one takes its Feature's
 
     Scenario Outline: What declares a maturity: <case>
       Given a file "specs/cart.feature" containing:
@@ -87,42 +51,51 @@ Feature: Write a spec
         | A feature still to come                | @maturity=draft |                 | true                  | true               |
 
   @decided-by:specs-are-gherkin-files
-  Rule: A tag `@key=value` is a fact and `@rel:ID` a link, the first `=` or `:` decides, any other tag is a Cucumber tag, and only Cucumber tags are inherited
+  Rule: A tag is a fact `@key=value` or a link `@rel:id` by its first `=` or `:`, else a Cucumber tag
 
-    Scenario: Facts, links and Cucumber tags on a Feature, a Rule and a Scenario
+    Scenario: A fact whose value holds a colon, a link and a Cucumber tag
+      Given these specs:
+        | tags                                                   | Feature |
+        | @id=pay @due=2026-12-01T10:00 @refines:sales @checkout | Pay     |
+      When the workspace is loaded
+      Then the workspace node "pay" has attribute due = "2026-12-01T10:00"
+      And the workspace node "pay" has attribute tags = "@checkout"
+      And the edges from "pay" are "pay -refines-> sales"
+
+  Rule: A fact is a number or a boolean when it reads back as one, a list when repeated, a map when dotted
+
+    Scenario: A number, a version, a boolean, a list and a map
+      Given these specs:
+        | tags                                                                                 | Feature |
+        | @id=pay @estimate=8 @version=1.10 @billable=false @label=a @label=b @owner.team=core | Pay     |
+      When the graph is exported
+      Then the output contains '"estimate":8,'
+      And the output contains '"version":"1.10"'
+      And the output contains '"billable":false'
+      And the output contains '"label":["a","b"]'
+      And the output contains '"owner":{"team":"core"}'
+
+  Rule: A scenario inherits the Cucumber tags of its Feature and its Rule, and its spec's kind as one
+
+    Facts and links are not inherited, so planning a spec changes none of its examples.
+
+    Scenario: Selected by the tags above it, and not by a fact
       Given a file "specs/pay.feature" containing:
         """
         @id=pay @maturity=draft @checkout
-        @estimate=8 @due=2026-12-01T10:00 @owner.team=core @label=a @label=b @refines:sales
         Feature: Pay
 
-          @decided-by:charge-once @slow
+          @slow
           Rule: A wallet is charged once
 
-            @priority=1 @serial
             Scenario: Retry
               Then one charge is made
         """
-      When "specs/pay.feature" is parsed
-      Then the parsed spec has these attributes:
-        | key      | json               |
-        | maturity | "draft"            |
-        | estimate | 8                  |
-        | due      | "2026-12-01T10:00" |
-        | owner    | {"team":"core"}    |
-        | label    | ["a","b"]          |
-      And the parsed spec has links:
-        | rel     | to    | line |
-        | refines | sales | 2    |
-      And the parsed spec has rules:
-        | id                           | tags  | links                     |
-        | pay#a-wallet-is-charged-once | @slow | -decided-by-> charge-once |
-      And the parsed spec has scenarios:
-        | id        | tags    | attributes |
-        | pay#retry | @serial | priority=1 |
-      And the executable tags of "pay#retry" are "@checkout, @feature, @slow, @serial"
+      And a step definition "one charge is made" that passes
+      When the workspace is run with "--tags '@checkout and @slow and @feature and not @maturity=draft'"
+      Then the step "one charge is made" has status "passed"
 
-  Rule: The text under a Feature, a Rule or a Scenario is its description, and the Feature's first paragraph is the summary
+  Rule: The text under a Feature, a Rule or a Scenario is its description, and the Feature's first paragraph its summary
 
     Scenario: A paragraph under the Feature, and lines under a Rule and a Scenario
       Given a file "specs/pay.feature" containing:
@@ -142,18 +115,16 @@ Feature: Write a spec
 
               When the payment is retried
         """
-      When "specs/pay.feature" is parsed
-      Then the parsed spec has summary "Shoppers without an account can pay by card."
-      And the parsed spec has rules:
-        | id                           | description                      |
-        | pay#a-wallet-is-charged-once | A retry reuses the first charge. |
-      And the parsed spec has scenarios:
-        | id        | description                          |
-        | pay#retry | The network failed after the charge. |
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                           | summary                                      | description                          |
+        | pay                          | Shoppers without an account can pay by card. |                                      |
+        | pay#a-wallet-is-charged-once |                                              | A retry reuses the first charge.     |
+        | pay#retry                    |                                              | The network failed after the charge. |
 
-  Rule: Every scenario is an example of the Rule above it, and one outside every Rule is an error, except in a suite named by its path
+  Rule: A scenario outside every Rule is an error, except in a suite named by its path
 
-    Scenario: A scenario before the first Rule, and a suite named by its path
+    Scenario: A scenario before the first Rule, in a spec and in a suite
       Given a file "specs/pay.feature" containing:
         """
         @id=pay
@@ -173,7 +144,7 @@ Feature: Write a spec
         | rule                  | severity | at                  |
         | scenario-outside-rule | error    | specs/pay.feature:4 |
 
-  Rule: A rule or a scenario is identified by the slug of its name, and a scenario named like another or like a rule is numbered
+  Rule: A rule's or a scenario's id is the slug of its name, a scenario's numbered when that slug is taken
 
     Scenario: Two scenarios of one name, and one named like its rule
       Given a file "specs/pay.feature" containing:
@@ -192,16 +163,20 @@ Feature: Write a spec
             Scenario: A declined card is retried
               Given a card declined twice
         """
-      When "specs/pay.feature" is parsed
-      Then the parsed spec has scenarios:
-        | id                               |
-        | pay#retry                        |
-        | pay#retry-2                      |
-        | pay#a-declined-card-is-retried-2 |
+      When the workspace is loaded
+      Then the workspace graph has nodes:
+        | id                               | kind     |
+        | pay                              | feature  |
+        | pay#a-declined-card-is-retried   | rule     |
+        | pay#retry                        | scenario |
+        | pay#retry-2                      | scenario |
+        | pay#a-declined-card-is-retried-2 | scenario |
 
-  Rule: A Rule tagged `@open` is a question still to come, and in a live feature it is about what is built unless it declares a maturity
+  Rule: A Rule tagged `@open` is a question, still to come, and leaves its live feature live
 
-    Scenario: A question about the live cart, and one about work still to come
+    A question waits on someone's answer, and fails nothing that is built meanwhile.
+
+    Scenario: A question in a live feature
       Given a file "specs/cart.feature" containing:
         """
         @id=cart
@@ -214,19 +189,18 @@ Feature: Write a spec
 
           @open
           Rule: Does a cart expire?
-
-          @open @maturity=idea
-          Rule: Can a cart be shared with a friend?
         """
-      When the workspace is loaded
-      And I query "*[!toCome] <-rule-of- rule[tags=@open][!maturity]"
+      When the workspace is checked
+      Then sdp reports "nothing"
+      When I query "*[!toCome] <-rule-of- rule[tags=@open]"
       Then the result is "cart#does-a-cart-expire"
       And the workspace node "cart#does-a-cart-expire" has attribute toCome = "true"
-      And the workspace node "cart#can-a-cart-be-shared-with-a-friend" has attribute stage = "idea"
 
-  Rule: A scenario runs as Cucumber runs it: the Feature's Background, then its Rule's, then its own steps, and an outline once per row
+  Rule: A scenario's steps are its Feature's Background, then its Rule's, then its own, once per row of an outline
 
-    Scenario: An outline under a Rule with a Background of its own
+    As Cucumber runs them, so a spec runs alike in sdp and in Cucumber.
+
+    Scenario: An outline under a Rule with a Background of its own, whose step fails
       Given a file "specs/pay.feature" containing:
         """
         @id=pay
@@ -248,17 +222,17 @@ Feature: Write a spec
                 | card   |
                 | wallet |
         """
-      When "specs/pay.feature" is parsed
-      Then the executable steps of "pay#retry" are:
-        | keyword | text                           | line |
-        | Given   | a shop                         | 5    |
-        | Given   | a wallet                       | 10   |
-        | When    | the payment is retried by card | 13   |
-      When the workspace is loaded
-      Then the workspace node "pay#retry" has attribute examples = "2"
+      And a step definition "a shop" that passes
+      And a step definition "a wallet" that fails
+      And a step definition "the payment is retried by {word}" that passes
+      When the workspace is run
+      Then the step "a shop" has status "passed"
+      And the step "a wallet" has status "failed"
+      And the step "the payment is retried by card" has status "skipped"
+      And the step "the payment is retried by wallet" has status "skipped"
 
   @decided-by:specs-are-gherkin-files
-  Rule: A file the Gherkin parser cannot read is an error at the line where it stopped, and no spec until it parses
+  Rule: A file Gherkin cannot parse is an error at the line where parsing stopped, and no spec
 
     Scenario: A misspelt keyword in the last scenario
       Given a file "specs/pay.feature" containing:
@@ -272,8 +246,9 @@ Feature: Write a spec
               Given a card
               Whne I pay
         """
-      When "specs/pay.feature" is parsed
-      Then the file is not a spec
-      And sdp reports:
-        | rule           | severity | line |
-        | gherkin-syntax | error    | 8    |
+      When the workspace is loaded
+      Then sdp reports:
+        | rule           | severity | at                  |
+        | gherkin-syntax | error    | specs/pay.feature:8 |
+      When I query "*"
+      Then the result is "nothing"

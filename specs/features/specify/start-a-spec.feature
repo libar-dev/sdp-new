@@ -7,23 +7,38 @@ Feature: Start a spec
 
   Not a generator of content: a template writes what a spec is, and the rest is the author's.
 
-  Rule: init writes the configuration with every default, the skill, and a .gitignore of what sdp run records, and overwrites nothing
+  Rule: Every workspace init starts has the skill that teaches agents to work with sdp
+
+    The skill is part of sdp, so an installation without it is broken: that is said, with the file
+    it misses, before anything is written.
+
+    Scenario: In an empty directory
+      When I run "sdp init"
+      Then the exit code is 0
+      And the file ".claude/skills/sdp/SKILL.md" contains "name: sdp"
+
+    Scenario: An sdp installed without its skill
+      When I run "sdp init" with an sdp installed without its skill
+      Then the exit code is 1
+      And the output is one line containing ".claude/skills/sdp/SKILL.md"
+      And the file "sdp.config.yaml" does not exist
+
+  Rule: The configuration init writes lists every key, commented out at its default
 
     Whoever adopts sdp reads in one file every key there is and what sdp does without it, and changes
-    one by uncommenting it. A file that exists is someone's work, so init only adds what is missing.
+    one by uncommenting it.
 
-    Scenario: Run twice
+    Scenario: Every key
       When I run "sdp init"
-      Then the output contains "created .claude/skills/sdp/SKILL.md"
-      And the file "sdp.config.yaml" contains "# features: "
-      And the file ".gitignore" is:
-        """
-        .sdp/
-        """
-      When I run "sdp init"
-      Then the output contains "exists  sdp.config.yaml"
+      Then the exit code is 0
+      And the keys commented out in "sdp.config.yaml" are every key of the configuration
+      And "sdp.config.yaml" with every key uncommented reads as no configuration at all
 
-    Scenario: A workspace configured in JSON already
+  Rule: init overwrites no file, nor writes a configuration beside one of another format
+
+    A file that exists is someone's work, and a workspace has one configuration.
+
+    Scenario: A workspace configured in JSON, started twice
       Given a file "sdp.config.json" containing:
         """
         { "exclude": ["notes/**"] }
@@ -32,29 +47,21 @@ Feature: Start a spec
       Then the exit code is 0
       And the output contains "exists  sdp.config.json"
       And the file "sdp.config.yaml" does not exist
-
-    Scenario: Every key, commented out at its default
       When I run "sdp init"
       Then the exit code is 0
-      And the keys commented out in "sdp.config.yaml" are every key of the configuration
-      And "sdp.config.yaml" with every key uncommented reads as no configuration at all
+      And the output contains "exists  .claude/skills/sdp/SKILL.md"
 
-  Rule: What init and new write passes check, also once it is committed and check compares it with its base
-
-    Scenario: A repository of your own, started and committed
-      When I run "sdp init"
-      Then the exit code is 0
-      When I run "sdp new feature 'Gift wrapping'"
-      Then the output lines are "gift-wrapping\tspecs/features/gift-wrapping.feature"
-      When I run "sdp new decision 'Use Postgres for orders'"
-      Then the exit code is 0
-      Given the files are committed on the branch "main"
-      When I run "sdp check"
-      Then the exit code is 0
-
-  Rule: init writes a .gitignore only where git does not ignore .sdp/ already, and says what to add to one that does not ignore it rather than change it
+  Rule: Where git does not ignore .sdp/, init writes a .gitignore of it, or says to add it to the one there
 
     What sdp run records holds only in the checkout where it ran, so it stays out of every commit.
+
+    Scenario: No .gitignore
+      When I run "sdp init"
+      Then the exit code is 0
+      And the file ".gitignore" is:
+        """
+        .sdp/
+        """
 
     Scenario Outline: A .gitignore that <case>
       Given a file ".gitignore" containing:
@@ -84,18 +91,9 @@ Feature: Start a spec
       Then the exit code is 0
       And the file "shop/.gitignore" does not exist
 
-  Rule: init from an sdp that has lost its skill writes nothing, and says in one line which file is missing
+  Rule: new writes only what stays in a spec, and says in its answer what to write next
 
-    The skill is part of sdp, so an installation without it is broken: that is said before anything
-    is written, never as a stack trace.
-
-    Scenario: An sdp installed without its skill
-      When I run "sdp init" with an sdp installed without its skill
-      Then the exit code is 1
-      And the output is one line containing ".claude/skills/sdp/SKILL.md"
-      And the file "sdp.config.yaml" does not exist
-
-  Rule: A new spec holds only what stays in it, and the answer says what to write next
+    An instruction left in a spec would be read as the spec.
 
     Scenario Outline: A new <kind>
       When I run "sdp new <kind> '<title>'"
@@ -112,9 +110,21 @@ Feature: Start a spec
         | architecture | Rules of the shop | specs/architecture/rules-of-the-shop.feature | @id=rules-of-the-shop @kind=architecture @maturity=idea | write a `Rule:` the code keeps, with an example                     |
         | phase        | Elaboration       | specs/plan/PH-elaboration.feature            | @id=PH-elaboration                                      | say under the title what this phase takes on, and why in this order |
 
-  Rule: Any one-word kind is created in its kind's directory, its id the slug of its title after its kind's prefix, but for a rung, a stage or change that the workspace does not name a kind
+  Rule: new writes any one-word kind in its kind's directory, its id the slug of its title after the kind's prefix
 
     Scenario Outline: sdp new <kind>, <case>
+      When I run "sdp new <kind> 'Go live'"
+      Then the exit code is 0
+      And the output lines are "<answer>"
+
+      Examples:
+        | kind      | case            | answer                                    |
+        | milestone | with a template | MS-go-live\tspecs/plan/MS-go-live.feature |
+        | gizmo     | without one     | go-live\tspecs/gizmo/go-live.feature      |
+
+  Rule: new refuses a rung, a stage or change as a kind, unless the workspace names it a kind
+
+    Scenario Outline: Named like <case>
       Given a file "sdp.config.yaml" containing:
         """
         <config>
@@ -124,16 +134,14 @@ Feature: Start a spec
       And the output contains "<answer>"
 
       Examples:
-        | kind      | case                    | config                                   | exit code | answer                                                   |
-        | milestone | with a template         | # every key at its default               | 0         | MS-go-live\tspecs/plan/MS-go-live.feature                |
-        | gizmo     | without one             | # every key at its default               | 0         | go-live\tspecs/gizmo/go-live.feature                     |
-        | idea      | the first rung          | # every key at its default               | 1         | idea is a maturity, not a kind                           |
-        | idea      | a kind of the workspace | vocabulary: { words: { kinds: [idea] } } | 0         | specs/idea/go-live.feature                               |
-        | verified  | a stage                 | # every key at its default               | 1         | verified is a stage sdp derives from the run, not a kind |
-        | change    | a change                | # every key at its default               | 1         | a change is rules of the feature it changes, not a kind  |
+        | kind     | case                              | config                                   | exit code | answer                                                   |
+        | idea     | the first rung                    | # every key at its default               | 1         | idea is a maturity, not a kind                           |
+        | idea     | a rung the workspace names a kind | vocabulary: { words: { kinds: [idea] } } | 0         | specs/idea/go-live.feature                               |
+        | verified | a stage                           | # every key at its default               | 1         | verified is a stage sdp derives from the run, not a kind |
+        | change   | a change                          | # every key at its default               | 1         | a change is rules of the feature it changes, not a kind  |
 
   @decided-by:architecture-is-declared-in-doc-comments
-  Rule: An element or a pattern is declared where its code is, so new writes no file for one and says how to declare it
+  Rule: new writes no file for an element or a pattern, but says how its code declares it
 
     Scenario Outline: Declared in its code: a <kind>
       When I run "sdp new <kind> <title>"
@@ -148,24 +156,25 @@ Feature: Start a spec
 
   Rule: new never overwrites a spec or a file
 
-    Scenario Outline: Refused: <case>
+    Scenario Outline: A new feature where <case>
       Given these specs:
-        | tags       | Feature |
-        | @id=search | Search  |
+        | tags                                          | Feature |
+        | @id=search @maturity=idea @depends-on:catalog | Search  |
       And a file "specs/features/carts.feature" containing:
         """
         Notes on carts, not a spec.
         """
       When I run "sdp new feature <title>"
-      Then the exit code is 1
+      Then the exit code is <exit code>
       And the output contains "<answer>"
 
       Examples:
-        | case               | title  | answer                                             |
-        | An id that exists  | Search | id search already exists at specs/search.feature:1 |
-        | A file that exists | Carts  | specs/features/carts.feature already exists        |
+        | case                    | title   | exit code | answer                                             |
+        | an id exists            | Search  | 1         | id search already exists at specs/search.feature:1 |
+        | a file exists           | Carts   | 1         | specs/features/carts.feature already exists        |
+        | only a link names an id | Catalog | 0         | catalog\tspecs/features/catalog.feature            |
 
-  Rule: new refuses what it cannot write as a spec that reads back as it was asked for, and says what it would take
+  Rule: new refuses what it cannot write as a spec that reads back as asked, and says what it would take
 
     A file that read back with another id, kind or maturity, or that sat in another directory, would
     be a spec its author did not ask for.
@@ -187,7 +196,7 @@ Feature: Start a spec
         | a maturity off the ladder     | sdp new feature Carts --maturity done            | done is no rung of the ladder idea, draft, specified, ready                       |
         | a maturity of what is no work | sdp new decision 'Use Postgres' --maturity draft | kind decision belongs to no discipline, so it is no work                          |
 
-  Rule: A spec written where no command reads it is written all the same, and the answer says why no command will read it
+  Rule: new writes a spec where no command reads it, and says why none will
 
     Where it goes is its author's choice, and the features globs may be about to look there; but a
     spec no command reads is in no graph, no check and no run, which its author has to know.
@@ -207,7 +216,7 @@ Feature: Start a spec
         | where no features glob looks | docs                     | docs/gift-wrapping.feature is matched by no features glob (specs/**/*.feature) |
         | outside the workspace        | ../outside-the-workspace | gift-wrapping.feature is outside the workspace                                 |
 
-  Rule: Check reports a new spec only for what its author has yet to write: the text a template wrote, once per spec, and what a milestone closes
+  Rule: check reports of what init and new wrote only what its author has yet to write, also once committed
 
     Scenario: Every template, at its first maturity and at another
       Given specs created from the sdp new templates:
@@ -222,7 +231,7 @@ Feature: Start a spec
         | plan-reference       | warning  | MS-launch    | 1    |
         | template-placeholder | warning  | use-postgres | 4    |
 
-    Scenario: A spec with the text of its template twice
+    Scenario: A template's text twice, and an outline's parameters
       Given a file "specs/decisions/use-postgres.feature" containing:
         """
         @id=use-postgres @kind=decision
@@ -232,13 +241,7 @@ Feature: Start a spec
 
           <What was chosen, and why, in one to three sentences.>
         """
-      When the workspace is checked
-      Then sdp reports:
-        | rule                 | severity | node         | line | message      |
-        | template-placeholder | warning  | use-postgres | 4    | (and 1 more) |
-
-    Scenario: An outline named by its parameter, a step one too
-      Given a file "specs/gift-wrapping.feature" containing:
+      And a file "specs/gift-wrapping.feature" containing:
         """
         @id=gift-wrapping
         Feature: Gift wrapping
@@ -254,4 +257,17 @@ Feature: Start a spec
                 | Plain paper | plain paper |
         """
       When the workspace is checked
-      Then sdp reports "nothing"
+      Then sdp reports:
+        | rule                 | severity | node         | line | message      |
+        | template-placeholder | warning  | use-postgres | 4    | (and 1 more) |
+
+    Scenario: A repository of your own, started and committed
+      When I run "sdp init"
+      Then the exit code is 0
+      When I run "sdp new feature 'Gift wrapping'"
+      Then the exit code is 0
+      When I run "sdp new decision 'Use Postgres for orders'"
+      Then the exit code is 0
+      Given the files are committed on the branch "main"
+      When I run "sdp check"
+      Then the exit code is 0

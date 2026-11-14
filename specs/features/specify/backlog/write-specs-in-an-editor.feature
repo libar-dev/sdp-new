@@ -6,6 +6,6 @@ Feature: Write specs in an editor
 
   Rule: An id or a relation name in a tag is completed from those the graph declares and uses
 
-  Rule: Go to definition leads from an id in a tag of a spec or an `@sdp` tag in code to the line that declares it
+  Rule: Go to definition leads from an id in a tag, in a spec or in code, to its declaration
 
   Rule: The diagnostics of sdp check show at their line
