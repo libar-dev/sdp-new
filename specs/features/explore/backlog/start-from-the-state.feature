@@ -5,11 +5,11 @@ Feature: Start from the state of the repository
 
   An agent that starts on a repository, and a person who reviews one, need first what the files do
   not say at a glance: the words in use, the significant parts and how they relate, the rules that
-  hold and those still to come, and where each is written. `sdp graph` prints that state.
+  hold and those still to come. `sdp graph` prints that state.
 
   Not the specs or the code again: a record says where they are written.
 
-  Rule: The state opens with its vocabulary: each kind, relation and fact in use, what it means, and whether sdp makes, interprets or carries it
+  Rule: The state opens with the vocabulary in use: each word, what it means, and how sdp treats it
 
     Scenario: The words of a small workspace
       Given these specs:
@@ -24,14 +24,10 @@ Feature: Start from the state of the repository
         | depends-on | relation | carries    | 1    |
         | maturity   | fact     | interprets | 2    |
 
-  Rule: Work still to come is in the state as built work is, at every maturity, and each record of work says which it is
+  Rule: Every record of work says whether it is still to come, built work too
 
-    Scenario: An idea, work that is ready, and a rule still to come in a built feature
-      Given these specs:
-        | tags                         | Feature  |
-        | @id=wishlist @maturity=idea  | Wishlist |
-        | @id=checkout @maturity=ready | Checkout |
-      And a file "specs/cart.feature" containing:
+    Scenario: A built feature with a rule still to come
+      Given a file "specs/cart.feature" containing:
         """
         @id=cart
         Feature: Cart
@@ -48,8 +44,6 @@ Feature: Start from the state of the repository
       Then the exit code is 0
       And the records of type "node" are:
         | id                               | kind     | maturity | toCome |
-        | wishlist                         | feature  | idea     | true   |
-        | checkout                         | feature  | ready    | true   |
         | cart                             | feature  |          | false  |
         | cart#a-cart-holds-each-item-once | rule     |          | false  |
         | cart#a-cart-expires-after-a-day  | rule     | draft    | true   |
@@ -74,12 +68,14 @@ Feature: Start from the state of the repository
         | ARCH-orders               | element | Owns the order aggregate and its transaction boundary. |
         | code:src/orders.ts#Orders | code    | Owns the order aggregate and its transaction boundary. |
 
-  Rule: The architect writes once what an element is for, on the anchor marked primary, `@sdp is ARCH-x primary=true`, and check reports an element marked primary twice
+  Rule: What an element is for is written once, on the anchor marked primary
 
     The comments of its other anchors describe their own code, and which file sorts first is no
-    choice.
+    choice. An anchor is marked `@sdp is ARCH-x primary=true`, and an element marked primary twice
+    is reported.
 
-  Rule: The state the hook gives stays within 2,000 characters, and a larger one is fetched when asked for, within a budget of its own, naming what it left out; neither is sized by the specs and code it is read from
+  Rule: Asked for more than the hook shows, sdp gives the state within a budget, naming what it left out
 
-    An agent must read it whole before its first step, and a deep dive into one node is `sdp
-    context <id>`. The larger budget is set once it is measured.
+    The budget does not grow with the specs and code the state is read from: an agent reads it whole
+    before its first step, and a deep dive into one node is `sdp context <id>`. The budget is set
+    once it is measured.
