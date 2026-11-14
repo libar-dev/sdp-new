@@ -365,3 +365,9 @@ Feature: See the architecture
 
   @maturity=idea
   Rule: sdp check reports an element that depends on itself through others, whatever code lies between them
+
+  @maturity=idea
+  Rule: sdp arch shows the code no element claims that lies on an import between elements, and check never fails on it
+
+    Such code is information about the architecture, never a defect: showing it declares nothing
+    significant, which stays the architect's call.
