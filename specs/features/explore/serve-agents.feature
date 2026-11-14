@@ -40,11 +40,11 @@ Feature: Serve AI agents
       export class Orders {}
       """
 
-  Rule: One call gives a node's rules with their state and reason, the links, architecture, decisions and code in reach, and the steps still to write, without running any step file
+  Rule: One call gives what bears on changing a node, the steps still to write included
 
     An agent that reads the rules first changes what they allow, where one that greps finds the code
-    before the reason. Asking is safe on any checkout: a step file is the workspace's code, and
-    running it could change files.
+    before the reason. Step files are read, never run: one is the workspace's code, and running it
+    could change files.
 
     Scenario: The cart, what is in reach of it, and the step still to write
       Given a file "specs/steps/cart.steps.ts" containing:
@@ -68,12 +68,28 @@ Feature: Serve AI agents
       And the output does not contain "undefined: Given an empty cart"
       And the file "executed.txt" does not exist
 
-  Rule: The context of a decision lists the rules that rest on it, that of an element the work on it, live and still to come, and a quality requirement in reach comes with its measure
+  Rule: The context of a decision or an element lists the work that rests on it, live and still to come
 
-    A change to a decision can break every rule that rests on it, and a change to an element the
-    work planned on it. A quality requirement tells an agent nothing without the measure it is held to.
+    A change to either can break what rests on it.
 
-    Scenario Outline: What rests on a decision, the work on an element, and a measure
+    Scenario Outline: What rests on <id>
+      Given these specs:
+        | tags                                  | Feature  |
+        | @id=checkout @realized-by:ARCH-orders | Checkout |
+      When I ask for the context of "<id>"
+      Then the output section "<section>" contains "<line>"
+
+      Examples:
+        | id                | section                 | line                                                                      |
+        | one-line-per-item | Rules that rest on this | [still to come at draft] A cart holds each item once (decided-by) — cart |
+        | ARCH-orders       | Work                    | - live: checkout — Checkout                                               |
+        | ARCH-orders       | Work                    | - still to come: cart (draft) — Cart                                      |
+
+  Rule: A quality requirement in reach comes with its measure
+
+    It tells an agent nothing without the measure it is held to.
+
+    Scenario: A guest pays within two seconds
       Given a file "specs/checkout.feature" containing:
         """
         @id=checkout @realized-by:ARCH-orders
@@ -83,20 +99,12 @@ Feature: Serve AI agents
           Rule: A guest pays within two seconds
 
             Scenario: Paying by card
-              When a guest pays by card
               Then the order is confirmed within 2 s
         """
-      When I ask for the context of "<id>"
-      Then the output section "<section>" contains "<line>"
+      When I ask for the context of "ARCH-orders"
+      Then the output section "Quality requirements in reach" contains "measure: the order is confirmed within 2 s"
 
-      Examples:
-        | id                | section                       | line                                                                      |
-        | one-line-per-item | Rules that rest on this       | [still to come at draft] A cart holds each item once (decided-by) — cart |
-        | ARCH-orders       | Work                          | - live: checkout — Checkout                                               |
-        | ARCH-orders       | Work                          | - still to come: cart (draft) — Cart                                      |
-        | ARCH-orders       | Quality requirements in reach | measure: the order is confirmed within 2 s                                |
-
-  Rule: Reach follows links two hops unless asked otherwise, and never through the plan
+  Rule: Reach follows every link but the plan's, two hops unless asked otherwise
 
     Two hops reach the elements a feature is realized by and what they import; with more, much of
     the graph is in reach of everything. What shares an iteration with a node is planned beside it,
@@ -134,27 +142,28 @@ Feature: Serve AI agents
       When I run "sdp context pay --depth 3"
       Then the output section "Architecture within" contains "ARCH-archive"
 
-  Rule: The MCP server offers one read-only, idempotent tool per question, and instructions that say code links to the architecture and the architecture is the architects' call
+  Rule: Every MCP tool is marked read-only and idempotent
 
-    A host may let an agent call a tool that only reads without asking its user each time. An agent
-    that reaches sdp over MCP may never read the skill, so the instructions are all it learns of the
-    way of working before it edits.
+    A host may let an agent call a tool that only reads without asking its user each time.
 
-    Scenario: The tools and the server's instructions
+    Scenario: The tools as an agent lists them
       When an agent lists the MCP tools
-      Then the MCP tools are "sdp_architecture, sdp_check, sdp_context, sdp_lifecycle, sdp_query, sdp_show, sdp_snippets, sdp_status, sdp_steps"
-      And every MCP tool is marked "readOnlyHint, idempotentHint"
+      Then every MCP tool is marked "readOnlyHint, idempotentHint"
+
+  Rule: The MCP server's instructions teach an agent the way of working
+
+    An agent that reaches sdp over MCP may never read the skill: the instructions are all it learns
+    before it edits.
+
+    Scenario: Where code links, and whose call the architecture is
       When an agent reads the MCP server's instructions
       Then the output contains 'Code links to the architecture, not to features'
       And the output contains "propose an element, a pattern or an `is` annotation, do not add or remove one yourself"
 
-  Rule: A tool answers what the command of the same name prints, as text or as the same JSON envelope, and an answer that may miss something says so first
+  Rule: A tool answers what the command of the same name prints, as text or as JSON
 
-    What an agent was told and what a person reads then agree. A tool has no stderr and no exit
-    code, so what the command says there comes first in the tool's answer; sdp_snippets, whose name
-    no command shares, answers with the module `sdp run <id> --snippets` prints.
+    What an agent was told and what a person reads then agree.
 
-    @replaces:serve-agents#each-tool-as-text-and-as-json
     Scenario Outline: Each tool beside its command
       When an agent calls the MCP tool "<tool>" with:
         """
@@ -180,7 +189,19 @@ Feature: Serve AI agents
         """
       Then the answer contains the "data.snippets" of what "sdp run cart --snippets --json" prints
 
-    Scenario: An answer that may miss something says so first
+    Scenario: A client of the server sdp mcp starts
+      When an MCP client of "sdp mcp" calls "sdp_query" with:
+        """
+        { "expression": "feature", "json": true }
+        """
+      Then the answer is what "sdp q feature --json" prints
+
+  Rule: A tool's answer that may miss something says so first
+
+    A tool has no stderr and no exit code, so what a command says there comes first in the tool's
+    answer.
+
+    Scenario: A question cut short
       Given a chain of 14 nodes linked by "next"
       When an agent calls the MCP tool "sdp_query" with:
         """
@@ -188,12 +209,12 @@ Feature: Serve AI agents
         """
       Then the output contains 'incomplete: this answer may miss something'
 
-  Rule: Input a tool cannot use is a tool error that says what it takes, and nothing is ignored
+  Rule: Input a tool cannot use is a tool error that says what the tool takes
 
     An agent that misspelt an argument and got an answer would trust it as the answer to the
     question it meant to ask.
 
-    Scenario Outline: An unknown id, and a misspelt argument
+    Scenario Outline: A tool given <case>
       When an agent calls the MCP tool "<tool>" with:
         """
         <arguments>
@@ -202,9 +223,11 @@ Feature: Serve AI agents
       And the output contains '<problem>'
 
       Examples:
-        | tool         | arguments                    | problem       |
-        | sdp_snippets | { "id": "carts" }            | no node carts |
-        | sdp_context  | { "id": "cart", "depht": 3 } | ["depht"]     |
+        | case                    | tool         | arguments                    | problem                                  |
+        | an unknown id           | sdp_snippets | { "id": "carts" }            | no node carts                            |
+        | a misspelt argument     | sdp_context  | { "id": "cart", "depht": 3 } | ["depht"]                                |
+        | a depth out of range    | sdp_context  | { "id": "cart", "depth": 9 } | depth must be a whole number from 1 to 6 |
+        | a query sdp cannot read | sdp_query    | { "expression": "feature[" } | SDPQ path patterns, one line             |
 
   @decided-by:files-are-the-source-of-truth
   Rule: Every call reads the workspace afresh, so an agent sees its own edits
