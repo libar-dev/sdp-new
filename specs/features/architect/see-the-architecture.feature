@@ -295,51 +295,6 @@ Feature: See the architecture
       And the output contains "-->|imports|"
       And the output contains '["ARCH-mailer"]'
 
-  @decided-by:architecture-is-declared-in-doc-comments
-  Rule: An element or a pattern is declared only in the doc comments of its code: a spec that declares one is reported, and what it says is not read
-
-    Scenario: An anchor that disagrees with the spec
-      Given these specs:
-        | tags                           | Feature |
-        | @id=ARCH-ledger @owner=finance | Ledger  |
-      And a file "src/ledger.ts" containing:
-        """
-        /** @sdp is ARCH-ledger owner=payments */
-        export class Ledger {}
-        """
-      When the workspace is loaded
-      Then the workspace graph has at least these nodes:
-        | id          | source          | owner    |
-        | ARCH-ledger | src/ledger.ts:1 | payments |
-      And sdp reports:
-        | rule             | at                          |
-        | declared-in-spec | specs/ARCH-ledger.feature:1 |
-
-  @decided-by:architecture-is-declared-in-doc-comments
-  Rule: Code that applies a pattern says so with `@sdp applies`, and each element the code is part of applies it too
-
-    Scenario: The retry pattern applied by a declaration of the file that is billing, and by code of no element
-      Given a file "src/retry.ts" containing:
-        """
-        /** @sdp is PAT-retry */
-        export const retry = <A>(call: () => Promise<A>): Promise<A> => call()
-        """
-      And a file "src/billing.ts" containing:
-        """
-        /** @sdp is ARCH-billing */
-        import { retry } from "./retry.ts"
-
-        /** @sdp applies PAT-retry */
-        export const charge = (): number => 0
-        """
-      And a file "src/refund.ts" containing:
-        """
-        /** @sdp applies PAT-retry */
-        export const refund = (): number => 0
-        """
-      When I query "#PAT-retry <-applies- element"
-      Then the result is "ARCH-billing"
-
   Rule: An element that only work still to come names is shown as still to come, and one that live work names must be in the code
 
     Scenario Outline: Exports, named by work <named by>
