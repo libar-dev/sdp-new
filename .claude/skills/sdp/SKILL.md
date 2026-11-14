@@ -154,12 +154,13 @@ The sharp edges of the format, each what the official parser does, and what `sdp
   write the link or the rule (between elements, the code's imports already say it). A description
   says what the examples cannot — never a "verified by" list, a status, or a restatement of the
   rules below it. When a sentence becomes a rule, delete the sentence: move it, do not copy it.
-- **A decision is rare and short.** Only a choice that is hard to reverse, surprising without
-  context and a real trade-off, and that spans features, is recorded: a Feature whose name is the
-  choice and one to three sentences on what was chosen over what, why, and the cost accepted with
-  it. The rules it imposes stay on the spec they constrain, tagged `@decided-by:<its id>`. A reason
-  that concerns one feature is written under the rule it explains, and any other choice is a
-  sentence where it applies.
+- **A decision is rare and static.** Only a choice that is hard to reverse, not obvious without
+  its reason and a real trade-off is recorded (`what-makes-a-decision`): a Feature whose name is
+  the choice, one to three sentences on what was chosen and why, and after `**Rejected:**` what
+  was not, where that is not obvious. Its rules state what holds and have no examples: a decision
+  orders no work. What it requires of the product is a rule of the spec it constrains, tagged
+  `@decided-by:<its id>`, and a reason that concerns one feature is written under the rule it
+  explains.
 - **One feature, one file.** A feature's spec is its requirements document and its test suite at
   once: who needs what and why, what it is not, a rule per requirement with its reason, and the
   scenarios that prove each one. A quality requirement is a rule of the feature it constrains,

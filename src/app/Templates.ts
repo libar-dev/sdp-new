@@ -258,9 +258,9 @@ const guidance = (options: {
       ]
     case "decision":
       return [
-        "write what was chosen over what, why, and the cost accepted with it, in one to three sentences",
-        "record a decision only for a choice that is hard to reverse, surprising without context and a real trade-off, and that spans features; a reason that concerns one feature is written under the rule it explains",
-        `a rule that rests on it is written on the spec it constrains, tagged \`@decided-by:${id}\``
+        "write what was chosen and why in one to three sentences, and after **Rejected:** what was not, where that is not obvious",
+        "record a decision only for a choice that is hard to reverse, not obvious without its reason and a real trade-off; a reason that concerns one feature is written under the rule it explains",
+        `a rule of a decision states what holds and has no example; what it requires of the product is a rule of the spec it constrains, tagged \`@decided-by:${id}\``
       ]
     case "milestone":
       return [

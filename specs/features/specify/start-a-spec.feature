@@ -215,9 +215,9 @@ Feature: Start a spec
         @id=use-postgres @kind=decision
         Feature: Use Postgres
 
-          Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>.
+          <What was chosen, and why, in one to three sentences.>
 
-          Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>.
+          <What was chosen, and why, in one to three sentences.>
         """
       When the workspace is checked
       Then sdp reports:

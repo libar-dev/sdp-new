@@ -147,6 +147,7 @@ export const statusSummary = (project: Project): StatusSummary => {
   const closed = new Set(project.specs.filter((spec) => isClosed(spec, vocabulary)).flatMap((spec) => spec.scenarios.map((s) => s.id)))
   const scenarios = graph.ofKind([made.kinds.scenario]).filter((n) => !closed.has(n.id))
   const milestones = graph.ofKind(vocabulary.kinds.milestone)
+  const stated = (rule: GraphNode) => hasKind(vocabulary, "decision", graph.node(String(rule.attrs.spec))?.kind ?? "")
   const examples = Map.groupBy(graph.ofKind([made.kinds.scenario]), (scenario) => String(scenario.attrs.rule))
   // A gate not met is no regression: a live rule is what its examples that are no gate verify, and
   // one whose examples are all gates is counted as a gate.
@@ -168,7 +169,8 @@ export const statusSummary = (project: Project): StatusSummary => {
       graph.nodes().flatMap((n) => n.kind !== made.kinds.rule && Predicate.isString(n.attrs.stage) ? [n.attrs.stage] : []),
       stageLadder(vocabulary).flat()
     ),
-    rules: counted(graph.ofKind([made.kinds.rule]).map((rule) => gateApart(rule, examples.get(rule.id) ?? [])), [
+    // A decision's rules state what holds: they are no work, so no state of work counts them.
+    rules: counted(graph.ofKind([made.kinds.rule]).filter((rule) => !stated(rule)).map((rule) => gateApart(rule, examples.get(rule.id) ?? [])), [
       ...Object.values(made.stages),
       "gate",
       "no example",

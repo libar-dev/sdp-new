@@ -61,7 +61,7 @@ export const changeIsRules = (feature: string) =>
  * over, why and at what cost. Only that text is template text: a name or a step in angle brackets is
  * a parameter of an outline as often (`Scenario Outline: <case>`).
  */
-export const decisionPlaceholder = "Not <what a reasonable person would have chosen>, because <why>, at the cost of <what is accepted with it>."
+export const decisionPlaceholder = "<What was chosen, and why, in one to three sentences.>"
 
 /** Template text still in a spec, with its line. */
 const templatePlaceholders = (spec: Spec): ReadonlyArray<{ readonly text: string; readonly line: number }> =>
@@ -256,18 +256,16 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     }))
   }
 
-  // A decision says what was chosen over what, why, and the cost accepted with it. Anything more has a place of its own.
+  // A decision is static: its rules state what holds, and an example to run would make it a work order.
+  const examples = Map.groupBy(graph.ofKind([made.kinds.scenario]), (scenario) => String(scenario.attrs.spec))
   for (const node of graph.ofKind(vocabulary.kinds.decision)) {
-    const spec = project.specById.get(node.id)
-    const [rule] = spec?.rules ?? []
-    const [scenario] = spec?.scenarios ?? []
-    if (!spec || (!rule && !scenario)) continue
-    const has = [rule && `a rule ("${rule.name}")`, scenario && `a scenario ("${scenario.name}")`].filter(Boolean).join(" and ")
+    const [example] = [...examples.get(node.id) ?? []].sort((a, b) => (a.source?.line ?? 0) - (b.source?.line ?? 0))
+    if (example === undefined) continue
     out.push(diagnostic("decision-shape", {
-      message: `${node.id} has ${has}: a decision is a title and one to three sentences`,
+      message: `${node.id} has an example ("${example.title}"): a decision is static, and its rules state what holds without one`,
       node: node.id,
-      source: at(spec, Math.min(rule?.line ?? Infinity, scenario?.line ?? Infinity)),
-      hint: `a rule it imposes belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; the cost it accepts is one of its sentences; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
+      source: example.source,
+      hint: `an example of what it requires belongs on the spec it constrains, tagged \`@decided-by:${node.id}\`; what is undecided is a Rule tagged \`@open\` on the spec it blocks`
     }))
   }
 

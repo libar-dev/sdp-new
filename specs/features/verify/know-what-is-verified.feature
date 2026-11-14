@@ -50,6 +50,25 @@ Feature: Know what is verified
         |                     | wishlist             | fails   | failing     |
         |                     | wishlist#keep-a-lamp | passes  | in-progress |
 
+  @decided-by:what-makes-a-decision
+  Rule: A decision's rules state what holds, so they are no work: status counts none of them and the context shows them without a state
+
+    Scenario: A decision with a rule, beside the cart
+      Given a file "specs/monthly-releases.feature" containing:
+        """
+        @id=monthly-releases @kind=decision
+        Feature: Monthly releases
+
+          Rule: A release ships what passed by the end of its month
+        """
+      When I run "sdp status --json"
+      Then the exit code is 0
+      And the JSON output has:
+        | data.rules | {"unrun":1} |
+      When I run "sdp context monthly-releases"
+      Then the exit code is 0
+      And the output does not contain "no example"
+
   Rule: A result counts only while what it ran against is unchanged — the code and every file its steps imported, the toolchain, the inputs the workspace declares and, for a scenario that reads the graph, the specs — and is stale after
 
     This sdp's version, Node's major version and the lockfile decide what ran as much as the code

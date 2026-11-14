@@ -22,7 +22,7 @@ export type Words = typeof Words.Type
 export const Vocabulary = Schema.Struct({
   kinds: Schema.Struct({
     feature: Words.annotate({ description: "Features: what a user can do, one spec each. An id with no prefix sdp knows names one, and a change changes one." }),
-    decision: Words.annotate({ description: "Decisions: a title and a sentence, shown with what rests on them." }),
+    decision: Words.annotate({ description: "Decisions: static records of a choice and why, whose rules state what holds, shown with what rests on them." }),
     milestone: Words.annotate({ description: "Milestones: their scenarios are gates, and `met` records that the gate passed." }),
     phase: Words,
     iteration: Words,

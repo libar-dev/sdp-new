@@ -387,7 +387,7 @@ const newCommand = Command.make(
   ),
   Command.withExamples([
     { command: "sdp new feature 'Saved carts' --maturity draft", description: "A feature still to build, with who needs it and why to write" },
-    { command: "sdp new decision 'Use Postgres for orders'", description: "A decision: a title and a sentence" },
+    { command: "sdp new decision 'Use Postgres for orders'", description: "A decision: what was chosen and why" },
     { command: "sdp new phase 'Elaboration'", description: "A phase of the plan; each iteration and milestone is a file of its own too" }
   ])
 )

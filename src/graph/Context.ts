@@ -91,7 +91,9 @@ export const contextBundle = (project: Project, node: GraphNode, depth = 2, step
       }
       const rests = graph.out(element.id).filter((e) => e.rel !== made.relations.rule).map((e) => ` · ${e.rel} ${e.to}`).join("")
       if (out.at(-1) !== "") out.push("")
-      out.push(`### ${element.name}`, `[${ruleLabel(graph.node(element.id)!)}] — ${spec.file}:${element.line}${rests}`, "")
+      // A decision's rule states what holds, so it has no state of work to show.
+      const label = hasKind(vocabulary, "decision", graph.node(spec.id)?.kind ?? "") ? "" : `[${ruleLabel(graph.node(element.id)!)}] — `
+      out.push(`### ${element.name}`, `${label}${spec.file}:${element.line}${rests}`, "")
       if (element.description) out.push(element.description, "")
       spec.scenarios.filter((s) => s.rule === element.id).forEach(scenarioLines)
     }

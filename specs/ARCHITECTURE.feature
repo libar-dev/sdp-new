@@ -156,13 +156,6 @@ Feature: Architecture
       When the TypeScript files under "src" are searched for interpreted words
       Then the search finds "src/report.ts:1 phase, src/report.ts:1 iteration, src/report.ts:3 decision, src/report.ts:4 iteration, src/report.ts:6 milestone, src/report.ts:7 activity, src/report.ts:9 decision, src/report.ts:9 milestone, src/report.ts:12 closes"
 
-  @open
-  Rule: Is src/model/Diagnostic.ts, which ten files of seven elements import, an element of its own, ARCH-diagnostics?
-
-    The catalog of what sdp reports is distinct from the graph, which would otherwise claim whatever
-    its builders share. Records.ts is ARCH-graph's, TagValue.ts ARCH-vocabulary's and PackageJson.ts
-    ARCH-code-annotations'; which element claims code is the architect's call.
-
   @maturity=idea
   Rule: No code compares with a tag sdp interprets, such as `@open`, as a literal either
 

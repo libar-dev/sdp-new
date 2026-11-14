@@ -1,3 +1,10 @@
+/**
+ * The findings sdp reports: every rule a diagnostic can name, with its severity, and what one
+ * holds — the rule, a message, the line to fix and a hint. The command line, the MCP tools and
+ * the steps print them; their names are what a reader of `sdp check` acts on.
+ *
+ * @sdp is ARCH-diagnostics
+ */
 import { Schema } from "effect"
 import type { SourceRef } from "./Graph.ts"
 
