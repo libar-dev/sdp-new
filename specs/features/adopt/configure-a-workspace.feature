@@ -103,6 +103,17 @@ Feature: Configure a workspace
         | sdp.config.yaml | ["timeout"]                | 30 is not a duration    |
         | sdp.config.yaml | ["vocabulary"]["maturity"] | levels must be distinct |
 
+    Scenario: A file that does not parse
+      Given a file "sdp.config.json" containing:
+        """
+        { "exclude": [
+        """
+      When I run "sdp q feature"
+      Then the exit code is 1
+      And the output is one line per configuration problem:
+        | file            | key |
+        | sdp.config.json |     |
+
     Scenario Outline: A configuration that cannot work
       Given a file "sdp.config.yaml" containing:
         """
