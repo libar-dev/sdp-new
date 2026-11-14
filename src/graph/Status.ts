@@ -2,7 +2,7 @@ import { Predicate, Schema } from "effect"
 import { check, maturityTags } from "../check/Check.ts"
 import { type Graph, type GraphNode, tally } from "../model/Graph.ts"
 import { notPassing, type ScenarioResult, StepStatus } from "../model/Results.ts"
-import { attribute, hasKind, made, metOn } from "../model/Vocabulary.ts"
+import { attribute, hasKind, made, metOn, type Vocabulary } from "../model/Vocabulary.ts"
 import type { Rule, Scenario } from "../parse/Gherkin.ts"
 import { isClosed, isGate } from "../run/Evidence.ts"
 import { type Project, stageOf } from "./Build.ts"
@@ -24,6 +24,10 @@ const isOpen = (rule: GraphNode) => {
   const tags = attribute(rule, made.tagsKey)
   return Array.isArray(tags) && tags.includes(made.tags.open)
 }
+
+/** A rule of a decision states what holds: it is no work, so it has no state of work. */
+export const isStatement = (graph: Graph, vocabulary: Vocabulary, rule: GraphNode): boolean =>
+  hasKind(vocabulary, "decision", graph.node(String(rule.attrs.spec))?.kind ?? "")
 
 /**
  * Where a rule stands: a question still `open`, a rule `still to come`, a live rule with
@@ -147,7 +151,6 @@ export const statusSummary = (project: Project): StatusSummary => {
   const closed = new Set(project.specs.filter((spec) => isClosed(spec, vocabulary)).flatMap((spec) => spec.scenarios.map((s) => s.id)))
   const scenarios = graph.ofKind([made.kinds.scenario]).filter((n) => !closed.has(n.id))
   const milestones = graph.ofKind(vocabulary.kinds.milestone)
-  const stated = (rule: GraphNode) => hasKind(vocabulary, "decision", graph.node(String(rule.attrs.spec))?.kind ?? "")
   const examples = Map.groupBy(graph.ofKind([made.kinds.scenario]), (scenario) => String(scenario.attrs.rule))
   // A gate not met is no regression: a live rule is what its examples that are no gate verify, and
   // one whose examples are all gates is counted as a gate.
@@ -170,7 +173,7 @@ export const statusSummary = (project: Project): StatusSummary => {
       stageLadder(vocabulary).flat()
     ),
     // A decision's rules state what holds: they are no work, so no state of work counts them.
-    rules: counted(graph.ofKind([made.kinds.rule]).filter((rule) => !stated(rule)).map((rule) => gateApart(rule, examples.get(rule.id) ?? [])), [
+    rules: counted(graph.ofKind([made.kinds.rule]).filter((rule) => !isStatement(graph, vocabulary, rule)).map((rule) => gateApart(rule, examples.get(rule.id) ?? [])), [
       ...Object.values(made.stages),
       "gate",
       "no example",

@@ -19,7 +19,14 @@ const WIDTH = 64
 const pinTables = (state: State) => {
   const tables = new Map<string, Map<string, { sdp: string; meaning: string; line: number }>>()
   let header: ReadonlyArray<string> | undefined
-  for (const [i, line] of state.read(WORDS).split("\n").entries()) {
+  // A workspace without the words file still shows every word in use, with no meanings.
+  let text: string
+  try {
+    text = state.read(WORDS)
+  } catch {
+    return tables
+  }
+  for (const [i, line] of text.split("\n").entries()) {
     if (!line.trim().startsWith("|")) {
       header = undefined
       continue

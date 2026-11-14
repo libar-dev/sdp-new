@@ -137,9 +137,9 @@ The sharp edges of the format, each what the official parser does, and what `sdp
   note nobody acts on — is not written, and is deleted where it is found.
 - **Files are the source of truth.** The graph is rebuilt from them on every command. Edit the
   files; never a derived artefact (`.sdp/results.json` is written by `sdp run`).
-- **The architecture is what architects declared, and none of it is prose.** It is a decision when
-  it is significant and universal, a rule in the spec it constrains otherwise, or a view sdp
-  generates from the code (`sdp arch`): the tag `@sdp is ARCH-x` in the doc comment of a
+- **The architecture is what architects declared, and none of it is prose.** It is a projection of
+  the decisions, the specs and the code anchored to them, which `sdp arch` shows, never a spec of
+  rules the code is checked against: the tag `@sdp is ARCH-x` in the doc comment of a
   module-level declaration, or in the comment that opens a file, declares an element where its code
   is, the rest of that comment says what it is for, and sdp derives which element `imports` which
   from the TypeScript and JavaScript anchored to them, so nobody writes it. `@sdp is PAT-y` declares
@@ -233,10 +233,9 @@ kind or relation you typed does not exist and which one is closest.
 
 1. Find the spec that owns it (`sdp q`, `sdp context`), or create one: `sdp new feature "…"` writes
    it where it stays, and says what to write in it next. A change to a built feature is rules of it,
-   each with a maturity of its own until it is built. What a user sees belongs to a feature; a rule
-   only the code observes, to a spec of kind architecture (`@kind=architecture`;
-   `sdp new architecture "…"` starts one), whose rules still to come declare a maturity as a
-   feature's do.
+   each with a maturity of its own until it is built. What a person, a program or an agent sees
+   of the product belongs to a feature; a significant choice that holds whatever the feature, to a
+   decision; how the repository is worked, to this skill or a README, never to a spec.
 2. Write or adjust the rule and its scenario first. The scenario is the acceptance test.
 3. Before writing a step definition, look for one that already says it: `sdp steps '<text>'`.
    A step that matches two definitions fails. `sdp run <id> --snippets` prints definitions for

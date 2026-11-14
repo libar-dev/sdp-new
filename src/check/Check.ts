@@ -152,7 +152,8 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
     const work = workOf(spec)
     const node = graph.node(spec.id)
     const isWorkSpec = node !== undefined && isWorkNode(node)
-    if (isWorkSpec && !work.spec && spec.rules.every((rule) => work.rule(rule).toCome)) {
+    const rules = graph.in(spec.id).filter((e) => e.rel === made.relations.rule).map((e) => graph.node(e.from)).filter(Predicate.isNotUndefined)
+    if (isWorkSpec && !work.spec && rules.every((rule) => rule.attrs.toCome === true)) {
       out.push(diagnostic("untested-feature", {
         message: `${spec.id} is live, so it needs a live rule`,
         node: spec.id,
@@ -160,12 +161,12 @@ export const check = (project: Project): ReadonlyArray<Diagnostic> => {
         hint: "write a Rule with an example under it; while its rules are still to come, declare a maturity above `Feature:`, such as @maturity=idea"
       }))
     }
-    for (const rule of spec.rules) {
-      if (work.rule(rule).toCome || spec.scenarios.some((scenario) => scenario.rule === rule.id)) continue
+    for (const rule of rules) {
+      if (rule.attrs.toCome === true || rule.attrs.scenarios !== 0) continue
       out.push(diagnostic("untested-rule", {
         message: `${rule.id} is live, so it needs an example`,
         node: rule.id,
-        source: at(spec, rule.line),
+        source: rule.source,
         hint: isWorkSpec
           ? "write a Scenario under it; while it is still to come, declare a maturity above `Rule:`, such as @maturity=draft"
           : `write a Scenario under it; kind ${spec.kind} belongs to no discipline, so it is no work and declares no maturity, unless you add it to one under vocabulary.disciplines`
