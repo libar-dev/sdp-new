@@ -7,8 +7,8 @@ Feature: Review a pull request by its specs
 
   Not `sdp check`: the review compares the graph at the base and at the head, and fails nothing.
 
-  Rule: The review lists the work that became live, the work still to come that was added, removed or given another maturity, and the open questions asked and answered
+  Rule: The review lists the work that became live, the work to come that changed, and the questions asked or answered
 
   Rule: The review lists what replaces what, and each example renamed or moved
 
-  Rule: The review lists the elements, patterns and links among them that the architecture gained or lost, and the decisions in reach of what changed
+  Rule: The review lists what the architecture gained or lost, and the decisions in reach of what changed
