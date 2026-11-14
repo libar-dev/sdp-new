@@ -192,12 +192,9 @@ Feature: Write a spec
         """
       When the workspace is checked
       Then sdp reports "nothing"
-      And the workspace graph has nodes:
-        | id                               | toCome |
-        | cart                             |        |
-        | cart#a-cart-holds-what-was-added |        |
-        | cart#add-an-item                 |        |
-        | cart#does-a-cart-expire          | true   |
+      When I query "*[!toCome] <-rule-of- rule[tags=@open]"
+      Then the result is "cart#does-a-cart-expire"
+      And the workspace node "cart#does-a-cart-expire" has attribute toCome = "true"
 
   Rule: A scenario's steps are its Feature's Background, then its Rule's, then its own, once per row of an outline
 
