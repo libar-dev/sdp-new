@@ -79,3 +79,9 @@ Feature: Start from the state of the repository
     The budget does not grow with the specs and code the state is read from: an agent reads it whole
     before its first step, and a deep dive into one node is `sdp context <id>`. The budget is set
     once it is measured.
+
+  @open
+  Rule: Does the hook show the state, or what sdp lifecycle --brief prints, and whose is the 2,000-character budget?
+
+    orient-agents-through-hooks shows the brief, whose own rule holds the budget; the rules above speak of
+    the state the hook gives.

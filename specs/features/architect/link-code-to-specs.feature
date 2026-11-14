@@ -287,3 +287,9 @@ Feature: Link code to the architecture
         | code | "007"  |
         | rate | "1.50" |
         | tier | 1      |
+
+  @open
+  Rule: May a fact on an `@sdp is` tag, such as `iteration=`, plan the element it declares?
+
+    Today it becomes a plan link from the element, though only work still to come is planned and an
+    element declared in code is live.

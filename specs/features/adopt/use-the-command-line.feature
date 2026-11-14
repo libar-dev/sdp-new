@@ -185,3 +185,8 @@ Feature: Use the command line
         | data.stages.specified | 1 |
         | data.gates.unrun      | 1 |
         | data.milestones.open  | 1 |
+
+  @open
+  Rule: Does sdp offer the flags its CLI library adds, --wizard, --completions and --log-level, or hide them?
+
+    `sdp --help` lists them, and no spec says what they do for sdp's users.
