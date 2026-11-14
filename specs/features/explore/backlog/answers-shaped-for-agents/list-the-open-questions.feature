@@ -7,6 +7,8 @@ Feature: List the open questions
 
   Not a tracker: a question is a rule tagged `@open` in the spec it concerns, and is answered there.
 
-  Rule: sdp questions lists every open question under the spec it is asked in, with its line and the maturity of the work it waits on
+  Rule: sdp questions lists each open question under its spec, with its line and the maturity of what it holds up
 
-  Rule: --by groups the questions by epic, iteration or directory instead, and targets narrow them as sdp run's do
+  Rule: --by groups the questions by epic, iteration or directory instead of by spec
+
+    Targets narrow them as sdp run's do.

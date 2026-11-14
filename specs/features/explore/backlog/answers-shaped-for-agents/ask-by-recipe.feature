@@ -7,7 +7,7 @@ Feature: Ask by recipe
 
   Rule: sdp lists its recipes by the job each answers
 
-  Rule: An agent holding a set of changed files gets the specs, rules and decisions in reach of them in one call
+  Rule: An agent holding changed files gets the specs, rules and decisions in reach of them in one call
 
   @quality
   Rule: An answer fits one tool call, under 8,000 characters, and names what it left out
